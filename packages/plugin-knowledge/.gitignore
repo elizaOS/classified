@@ -1,0 +1,16 @@
+.turbo
+dist
+node_modules
+
+.eliza
+.elizadb
+.elizadb*
+.env
+.cursor
+coverage
+cypress/screenshots
+docs
+AGENTS.md
+.cursor/rules/elizaos
+CLAUDE.md
+.cursorignore

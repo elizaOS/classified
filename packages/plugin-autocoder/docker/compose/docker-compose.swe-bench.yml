@@ -1,0 +1,226 @@
+version: '3.8'
+
+services:
+  # Redis for work queue
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    ports:
+      - '6379:6379'
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Bridge server
+  bridge-server:
+    build:
+      context: ../..
+      dockerfile: docker/bridge/Dockerfile.bridge-server
+    ports:
+      - '8080:8080'
+      - '8081:8081' # Metrics
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - CENTRAL_SERVER_URL=${CENTRAL_SERVER_URL:-http://host.docker.internal:3000}
+      - LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - shared-workspace:/workspace
+      - shared-results:/results
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8080/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node.js languages containers (2 instances)
+  node-container-1:
+    build:
+      context: ../..
+      dockerfile: docker/languages/Dockerfile.node-langs
+      args:
+        - BASE_IMAGE=plugin-autocoder-base:latest
+    environment:
+      - CONTAINER_ID=node-1
+      - LANGUAGE_TYPE=node
+      - BRIDGE_SERVER=ws://bridge-server:8080
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      bridge-server:
+        condition: service_healthy
+    volumes:
+      - shared-workspace:/workspace
+      - shared-results:/results
+      - node-cache-1:/cache
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  node-container-2:
+    extends: node-container-1
+    environment:
+      - CONTAINER_ID=node-2
+      - LANGUAGE_TYPE=node
+      - BRIDGE_SERVER=ws://bridge-server:8080
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - shared-workspace:/workspace
+      - shared-results:/results
+      - node-cache-2:/cache
+
+  # Compiled languages containers (4 instances)
+  compiled-container-1:
+    build:
+      context: ../..
+      dockerfile: docker/languages/Dockerfile.compiled-langs
+      args:
+        - BASE_IMAGE=plugin-autocoder-base:latest
+    environment:
+      - CONTAINER_ID=compiled-1
+      - LANGUAGE_TYPE=compiled
+      - BRIDGE_SERVER=ws://bridge-server:8080
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      bridge-server:
+        condition: service_healthy
+    volumes:
+      - shared-workspace:/workspace
+      - shared-results:/results
+      - compiled-cache-1:/cache
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  compiled-container-2:
+    extends: compiled-container-1
+    environment:
+      - CONTAINER_ID=compiled-2
+      - LANGUAGE_TYPE=compiled
+      - BRIDGE_SERVER=ws://bridge-server:8080
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - shared-workspace:/workspace
+      - shared-results:/results
+      - compiled-cache-2:/cache
+
+  compiled-container-3:
+    extends: compiled-container-1
+    environment:
+      - CONTAINER_ID=compiled-3
+      - LANGUAGE_TYPE=compiled
+      - BRIDGE_SERVER=ws://bridge-server:8080
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - shared-workspace:/workspace
+      - shared-results:/results
+      - compiled-cache-3:/cache
+
+  compiled-container-4:
+    extends: compiled-container-1
+    environment:
+      - CONTAINER_ID=compiled-4
+      - LANGUAGE_TYPE=compiled
+      - BRIDGE_SERVER=ws://bridge-server:8080
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - shared-workspace:/workspace
+      - shared-results:/results
+      - compiled-cache-4:/cache
+
+  # JVM languages containers (2 instances)
+  jvm-container-1:
+    build:
+      context: ../..
+      dockerfile: docker/languages/Dockerfile.jvm-langs
+      args:
+        - BASE_IMAGE=plugin-autocoder-base:latest
+    environment:
+      - CONTAINER_ID=jvm-1
+      - LANGUAGE_TYPE=jvm
+      - BRIDGE_SERVER=ws://bridge-server:8080
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      bridge-server:
+        condition: service_healthy
+    volumes:
+      - shared-workspace:/workspace
+      - shared-results:/results
+      - jvm-cache-1:/cache
+      - maven-repo-1:/home/swebench/.m2
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 6G
+
+  jvm-container-2:
+    extends: jvm-container-1
+    environment:
+      - CONTAINER_ID=jvm-2
+      - LANGUAGE_TYPE=jvm
+      - BRIDGE_SERVER=ws://bridge-server:8080
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - shared-workspace:/workspace
+      - shared-results:/results
+      - jvm-cache-2:/cache
+      - maven-repo-2:/home/swebench/.m2
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - '3001:3000'
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+
+volumes:
+  redis-data:
+  shared-workspace:
+  shared-results:
+  node-cache-1:
+  node-cache-2:
+  compiled-cache-1:
+  compiled-cache-2:
+  compiled-cache-3:
+  compiled-cache-4:
+  jvm-cache-1:
+  jvm-cache-2:
+  maven-repo-1:
+  maven-repo-2:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16

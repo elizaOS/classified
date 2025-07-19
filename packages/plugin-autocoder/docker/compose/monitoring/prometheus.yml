@@ -1,0 +1,57 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'swe-bench-monitor'
+
+scrape_configs:
+  # Bridge server metrics
+  - job_name: 'bridge-server'
+    static_configs:
+      - targets: ['bridge-server:8081']
+        labels:
+          service: 'bridge'
+          component: 'server'
+
+  # Container health endpoints
+  - job_name: 'swe-bench-containers'
+    static_configs:
+      # Node.js containers
+      - targets: ['node-container-1:9999', 'node-container-2:9999']
+        labels:
+          language: 'node'
+          type: 'container'
+
+      # Compiled language containers
+      - targets:
+          [
+            'compiled-container-1:9999',
+            'compiled-container-2:9999',
+            'compiled-container-3:9999',
+            'compiled-container-4:9999',
+          ]
+        labels:
+          language: 'compiled'
+          type: 'container'
+
+      # JVM containers
+      - targets: ['jvm-container-1:9999', 'jvm-container-2:9999']
+        labels:
+          language: 'jvm'
+          type: 'container'
+
+  # Redis exporter (if added)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+        labels:
+          service: 'redis'
+          component: 'queue'
+
+  # Docker daemon metrics (requires daemon configuration)
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['host.docker.internal:9323']
+        labels:
+          service: 'docker'
+          component: 'daemon'

@@ -1,0 +1,137 @@
+{
+  "name": "@elizaos/plugin-stagehand",
+  "description": "Browser automation plugin for ElizaOS using Stagehand - enables AI agents to browse websites, interact with elements, and extract data",
+  "version": "1.0.6",
+  "type": "module",
+  "private": true,
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "packageType": "plugin",
+  "platform": "node",
+  "license": "UNLICENSED",
+  "author": "${GITHUB_USERNAME}",
+  "keywords": [
+    "plugin",
+    "elizaos"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "${REPO_URL}"
+  },
+  "homepage": "https://elizaos.ai",
+  "bugs": {
+    "url": "https://github.com/${GITHUB_USERNAME}/${PLUGINNAME}/issues"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    ".npmignore",
+    "package.json",
+    "tsup.config.ts"
+  ],
+  "dependencies": {
+    "@browserbasehq/stagehand": "^1.7.0",
+    "@elizaos/core": "^1.2.12",
+    "@elizaos/plugin-anthropic": "^1.0.0",
+    "@elizaos/plugin-discord": "github:elizaos-plugins/plugin-discord#v1.0.10",
+    "@elizaos/plugin-knowledge": "1.0.4",
+    "@elizaos/plugin-telegram": "github:elizaos-plugins/plugin-telegram#v1.0.2",
+    "axios": "^1.7.7",
+    "playwright": "^1.48.0",
+    "ws": "^8.18.0",
+    "zod": "3.25.67"
+  },
+  "peerDependencies": {},
+  "devDependencies": {
+    "@elizaos/cli": "^1.2.12",
+    "@types/ws": "^8.5.10",
+    "dotenv": "16.4.5",
+    "prettier": "3.5.3",
+    "typescript": "5.8.3"
+  },
+  "scripts": {
+    "build": "bun run build.ts",
+    "dev": "bun run build.ts --watch",
+    "clean": "rm -rf dist && rm -rf .turbo",
+    "lint": "eslint src --fix && prettier --write ./src",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "resolutions": {
+    "zod": "3.25.67"
+  },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "BROWSERBASE_API_KEY": {
+        "type": "string",
+        "description": "API key for Browserbase cloud browser service (optional)",
+        "required": false
+      },
+      "BROWSERBASE_PROJECT_ID": {
+        "type": "string",
+        "description": "Project ID for Browserbase (optional)",
+        "required": false
+      },
+      "OPENAI_API_KEY": {
+        "type": "string",
+        "description": "OpenAI API key for Computer Use features (optional)",
+        "required": false
+      },
+      "ANTHROPIC_API_KEY": {
+        "type": "string",
+        "description": "Anthropic API key for Claude Computer Use (optional)",
+        "required": false
+      },
+      "BROWSER_HEADLESS": {
+        "type": "boolean",
+        "description": "Run browser in headless mode (default: true)",
+        "required": false
+      },
+      "CAPSOLVER_API_KEY": {
+        "type": "string",
+        "description": "CapSolver API key for automated captcha solving (optional)",
+        "required": false
+      },
+      "TRUTHSOCIAL_USERNAME": {
+        "type": "string",
+        "description": "Truth Social username for login testing (optional)",
+        "required": false
+      },
+      "TRUTHSOCIAL_PASSWORD": {
+        "type": "string",
+        "description": "Truth Social password for login testing (optional)",
+        "required": false
+      },
+      "TIKTOK_USERNAME": {
+        "type": "string",
+        "description": "TikTok username for login testing (optional)",
+        "required": false
+      },
+      "TIKTOK_PASSWORD": {
+        "type": "string",
+        "description": "TikTok password for login testing (optional)",
+        "required": false
+      },
+      "TIKTOK_TEST_VIDEO_PATH": {
+        "type": "string",
+        "description": "Path to test video file for TikTok upload testing (optional)",
+        "required": false
+      }
+    }
+  },
+  "gitHead": "d5bd5c43bfebeb7ac02f9e029f924cb6cd5c2ec7"
+}

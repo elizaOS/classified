@@ -1,0 +1,79 @@
+import type { Plugin } from '@elizaos/core';
+import { type IAgentRuntime, logger } from '@elizaos/core';
+
+import { routes } from './apis.js';
+
+// Import actions
+import { cancelGoalAction } from './actions/cancelGoal.js';
+import { completeGoalAction } from './actions/completeGoal.js';
+import { confirmGoalAction } from './actions/confirmGoal.js';
+import { createGoalAction } from './actions/createGoal.js';
+import { updateGoalAction } from './actions/updateGoal.js';
+
+// Import providers
+import { goalsProvider } from './providers/goals.js';
+
+// Import services
+import { GoalDataService } from './services/goalDataService.js';
+
+// Import schema
+import { goalSchema } from './schema.js';
+
+// Note: Table schemas are defined in schema.ts and will be automatically migrated
+
+// Import tests
+import { GoalsPluginE2ETestSuite } from './tests';
+import { testSuites as e2eTestSuites } from './__tests__/e2e';
+
+/**
+ * The GoalsPlugin provides goal management functionality,
+ * including creating, completing, updating, and canceling goals.
+ */
+export const GoalsPlugin: Plugin = {
+  name: 'goals',
+  description: 'Provides goal management functionality for tracking and achieving objectives.',
+  providers: [goalsProvider],
+  testDependencies: ['@elizaos/plugin-sql'],
+  actions: [
+    createGoalAction,
+    completeGoalAction,
+    confirmGoalAction,
+    updateGoalAction,
+    cancelGoalAction,
+  ],
+  services: [GoalDataService],
+  routes,
+  schema: goalSchema,
+  tests: [GoalsPluginE2ETestSuite, ...e2eTestSuites],
+
+  async init(config: Record<string, string>, runtime: IAgentRuntime): Promise<void> {
+    try {
+      logger.info('[Goals Plugin] Initializing...');
+
+      // Goals tables will be created through the standard schema system
+      // The tables are defined in schema.ts and will be migrated automatically
+      // when the plugin schema is processed by the SQL plugin
+
+      // Database migrations are handled by the SQL plugin
+      if (runtime.db) {
+        logger.info('Database available, GoalsPlugin ready for operation');
+      } else {
+        logger.warn('No database instance available, operations will be limited');
+      }
+
+      logger.info('GoalsPlugin initialized successfully');
+    } catch (error) {
+      logger.error('Error initializing GoalsPlugin:', error);
+      throw error;
+    }
+  },
+};
+
+export default GoalsPlugin;
+
+// Export data service utilities
+export { createGoalDataService, GoalDataService } from './services/goalDataService.js';
+export type { GoalData } from './services/goalDataService.js';
+
+// Export schema
+export { goalSchema } from './schema.js';

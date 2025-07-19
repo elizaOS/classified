@@ -1,0 +1,54 @@
+# E2B Template Configuration for Shared Agent Workspace
+
+# Template ID (will be set during template upload)
+template_id = "eliza-shared-workspace"
+
+# Template name
+template_name = "ElizaOS Shared Agent Workspace"
+
+# Template description
+template_description = "Shared workspace environment where multiple Eliza agents collaborate on the same codebase"
+
+# Runtime configuration
+[runtime]
+# Base image
+dockerfile = "Dockerfile"
+
+# Memory limit (in MB) - Higher for multiple agents
+memory_mb = 8192
+
+# CPU limit (in millicores, 1000 = 1 CPU) - More CPU for parallel work
+cpu_millicores = 4000
+
+# Timeout for the sandbox (in seconds) - Long running for complex projects
+timeout_seconds = 14400
+
+# Environment variables
+[env]
+NODE_ENV = "development"
+WORKSPACE_TYPE = "shared"
+GIT_TERMINAL_PROMPT = "0"
+
+# Port configuration
+[ports]
+# Development servers (multiple for different services)
+3000 = { name = "app-1", description = "Application server 1" }
+3001 = { name = "app-2", description = "Application server 2" }
+3002 = { name = "app-3", description = "Application server 3" }
+5173 = { name = "vite", description = "Vite dev server" }
+8080 = { name = "backend", description = "Backend API server" }
+# Database ports
+5432 = { name = "postgres", description = "PostgreSQL database" }
+6379 = { name = "redis", description = "Redis cache" }
+# Development tools
+8443 = { name = "vscode", description = "VS Code Server" }
+# Agent coordination
+8090 = { name = "coordination", description = "Agent coordination server" }
+
+# Volume mounts
+[volumes]
+"/workspace" = { name = "workspace", description = "Shared code workspace" }
+"/workspace/.git" = { name = "git", description = "Git repository" }
+"/var/lib/postgresql/data" = { name = "postgres-data", description = "PostgreSQL data" }
+"/data/redis" = { name = "redis-data", description = "Redis data" }
+"/agent-state" = { name = "agent-state", description = "Agent state and coordination data" } 

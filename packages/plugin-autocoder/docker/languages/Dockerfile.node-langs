@@ -1,0 +1,85 @@
+# Node.js languages container (TypeScript, JavaScript)
+FROM plugin-autocoder-base:latest
+
+# Switch to root for installations
+USER root
+
+# Install Node.js 20 LTS and package managers
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g \
+        npm@latest \
+        yarn \
+        pnpm \
+        bun \
+        typescript \
+        ts-node \
+        tsx \
+        @types/node \
+        jest \
+        mocha \
+        vitest \
+        eslint \
+        prettier \
+        webpack \
+        vite \
+        rollup \
+        esbuild \
+        turbo \
+        nx \
+        lerna \
+        rush \
+        nodemon \
+        pm2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional Node.js testing frameworks
+RUN npm install -g \
+    @testing-library/react \
+    @testing-library/jest-dom \
+    @testing-library/user-event \
+    cypress \
+    playwright \
+    karma \
+    jasmine \
+    chai \
+    sinon
+
+# Install common Node.js development tools
+RUN npm install -g \
+    concurrently \
+    cross-env \
+    dotenv-cli \
+    husky \
+    lint-staged \
+    commitizen \
+    semantic-release \
+    standard-version \
+    np
+
+# Set up TypeScript configurations
+RUN mkdir -p /configs/typescript && \
+    echo '{"compilerOptions":{"target":"ES2022","module":"commonjs","lib":["ES2022"],"strict":true,"esModuleInterop":true,"skipLibCheck":true,"forceConsistentCasingInFileNames":true}}' > /configs/typescript/tsconfig.base.json
+
+# Install bridge client dependencies
+COPY --chown=swebench:swebench docker/scripts/install-bridge.sh /tmp/install-bridge.sh
+RUN chmod +x /tmp/install-bridge.sh && /tmp/install-bridge.sh node
+
+# Copy language-specific scripts
+COPY --chown=swebench:swebench docker/scripts/node-langs-setup.sh /usr/local/bin/setup-environment
+RUN chmod +x /usr/local/bin/setup-environment
+
+# Environment variables for Node.js
+ENV NODE_ENV=development
+ENV NPM_CONFIG_LOGLEVEL=warn
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# Switch back to swebench user
+USER swebench
+
+# Expose bridge port
+EXPOSE 9999
+
+# Entry point
+ENTRYPOINT ["/usr/local/bin/setup-environment"]
+CMD ["node", "/bridge/bridge-client.js"] 

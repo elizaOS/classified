@@ -1,0 +1,107 @@
+# Base image for all SWE-bench language containers
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Install essential system packages
+RUN apt-get update && apt-get install -y \
+    # Build essentials
+    build-essential \
+    cmake \
+    pkg-config \
+    automake \
+    autoconf \
+    libtool \
+    # Version control
+    git \
+    git-lfs \
+    subversion \
+    mercurial \
+    # Network tools
+    curl \
+    wget \
+    ca-certificates \
+    openssh-client \
+    # Archive tools
+    zip \
+    unzip \
+    tar \
+    gzip \
+    bzip2 \
+    xz-utils \
+    # Text processing
+    jq \
+    xmlstarlet \
+    # Process management
+    supervisor \
+    htop \
+    # Python (for SWE-bench evaluation)
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-dev \
+    # System libraries
+    libssl-dev \
+    libffi-dev \
+    libsqlite3-dev \
+    libpq-dev \
+    # Debugging tools
+    strace \
+    ltrace \
+    gdb \
+    valgrind \
+    # Other utilities
+    sudo \
+    vim \
+    nano \
+    less \
+    tree \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages for SWE-bench
+RUN pip3 install --no-cache-dir \
+    requests \
+    jsonlines \
+    docker \
+    gitpython \
+    pytest \
+    pytest-timeout \
+    pytest-xdist \
+    coverage \
+    flake8 \
+    black \
+    mypy \
+    numpy \
+    pandas
+
+# Create non-root user for running evaluations
+RUN groupadd -g 1000 swebench && \
+    useradd -m -u 1000 -g swebench -s /bin/bash swebench && \
+    echo "swebench ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Set up working directories
+RUN mkdir -p /workspace /cache /results /bridge && \
+    chown -R swebench:swebench /workspace /cache /results /bridge
+
+# Set up environment variables
+ENV WORKSPACE=/workspace
+ENV CACHE_DIR=/cache
+ENV RESULTS_DIR=/results
+ENV BRIDGE_DIR=/bridge
+ENV PYTHONPATH=/workspace:$PYTHONPATH
+
+# Copy bridge client installation script (will be added by child images)
+ONBUILD COPY --chown=swebench:swebench docker/scripts/install-bridge.sh /tmp/install-bridge.sh
+ONBUILD RUN chmod +x /tmp/install-bridge.sh
+
+# Set working directory
+WORKDIR /workspace
+
+# Default user
+USER swebench
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:9999/health || exit 1 

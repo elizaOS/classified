@@ -1,0 +1,43 @@
+# Bridge server for SWE-bench container orchestration
+FROM node:20-alpine
+
+# Install dependencies
+RUN apk add --no-cache \
+    git \
+    curl \
+    bash \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/cache/apk/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY src/bridge/ ./src/bridge/
+COPY src/types/ ./src/types/
+COPY src/utils/ ./src/utils/
+
+# Build TypeScript
+RUN npm run build
+
+# Create directories
+RUN mkdir -p /workspace /results /logs
+
+# Expose ports
+EXPOSE 8080 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Start the bridge server
+CMD ["node", "dist/bridge/bridge-server.js"] 

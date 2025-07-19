@@ -1,0 +1,39 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "sourceMap": true,
+    "inlineSources": true,
+    "declaration": true,
+    "declarationDir": "./dist",
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/actions/**/*.ts",
+    "src/benchmarks/**/*.ts",
+    "src/bridge/**/*.ts",
+    "src/managers/**/*.ts",
+    "src/orchestration/**/*.ts",
+    "src/plugin/**/*.ts",
+    "src/providers/**/*.ts",
+    "src/research/**/*.ts",
+    "src/resources/**/*.ts",
+    "src/review/**/*.ts",
+    "src/services/**/*.ts",
+    "src/types/**/*.ts",
+    "src/utils/**/*.ts",
+    "src/index.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/__tests__/**/*",
+    "src/e2e/**/*",
+    "__tests__/**/*",
+    "src/core/**/*",
+    "src/rpg/**/*",
+    "src/server/**/*",
+    "src/types/global.d.ts"
+  ]
+}
