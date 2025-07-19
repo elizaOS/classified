@@ -44,17 +44,36 @@ export function useElizaClient({
     }
   }, [baseUrl, agentId]);
 
-  // Connect to WebSocket for real-time messages
+  // Connect to WebSocket
   useEffect(() => {
+    // Prevent multiple connections
+    if (socketRef.current?.connected) {
+      console.log('[ElizaClient] Socket already connected, skipping');
+      return;
+    }
+
+    // Connect to WebSocket
     const socket = io(baseUrl, {
-      transports: ['websocket'],
       reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
     });
 
-    socketRef.current = socket;
+          socketRef.current = socket;
 
-    socket.on('connect', () => {
-      console.log('[ElizaClient] WebSocket connected');
+      // Add debugging for all socket events
+      socket.onAny((eventName, ...args) => {
+        console.log(`[ElizaClient] Socket event: ${eventName}`, args);
+        
+        // Check if this is a SEND_MESSAGE event
+        if (eventName === 'SEND_MESSAGE') {
+          console.error('[ElizaClient] SEND_MESSAGE event detected!');
+          console.trace();
+        }
+      });
+
+      socket.on('connect', () => {
+      console.log('[ElizaClient] Connected to WebSocket');
       setIsConnected(true);
       onConnectionChange?.(true);
     });
@@ -70,8 +89,16 @@ export function useElizaClient({
       setError(error.toString());
     });
 
+    // Add connection error handler
+    socket.on('connect_error', (error) => {
+      console.error('[ElizaClient] WebSocket connection error:', error.message);
+      setError(`Connection error: ${error.message}`);
+    });
+
     return () => {
+      console.log('[ElizaClient] Cleaning up socket connection');
       socket.disconnect();
+      socketRef.current = null;
     };
   }, [baseUrl, onConnectionChange]);
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Box,
     TextField,
@@ -12,8 +12,10 @@ import {
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useElizaClient } from '../hooks/useElizaClient';
+import { ElizaMessage } from '../services/ElizaService';
 import { v4 as uuidv4 } from 'uuid';
 import { MobileMenu } from './MobileMenu';
+import { DiagnosticPanel } from './DiagnosticPanel';
 
 interface OutputLine {
     type: 'user' | 'agent' | 'system' | 'error';
@@ -44,10 +46,67 @@ export const Terminal: React.FC = () => {
         return newId;
     });
 
+    // Debug mounting
+    useEffect(() => {
+        console.log('[Terminal] Component mounted with userId:', userId);
+        console.log('[Terminal] Window location:', window.location.href);
+        
+        // Check if there are multiple tabs
+        const tabId = sessionStorage.getItem('terminal-tab-id');
+        if (!tabId) {
+            const newTabId = uuidv4();
+            sessionStorage.setItem('terminal-tab-id', newTabId);
+            console.log('[Terminal] New tab ID:', newTabId);
+        } else {
+            console.log('[Terminal] Existing tab ID:', tabId);
+        }
+        
+        return () => {
+            console.log('[Terminal] Component unmounting');
+        };
+    }, [userId]);
+
     const containerRef = useRef<HTMLDivElement>(null);
     const historyPosition = useRef<number>(-1);
     const commandHistory = useRef<string[]>([]);
     const lastAgentMessageRef = useRef<string>('');
+
+    const handleConnectionChange = useCallback((connected: boolean) => {
+        if (connected) {
+            setOutput((prev) => [
+                ...prev,
+                {
+                    type: 'system',
+                    content: '✓ Connected to ElizaOS',
+                    timestamp: new Date(),
+                },
+            ]);
+        } else {
+            setOutput((prev) => [
+                ...prev,
+                {
+                    type: 'error',
+                    content: '✗ Disconnected from ElizaOS',
+                    timestamp: new Date(),
+                },
+            ]);
+        }
+    }, []);
+
+    const handleMessage = useCallback((message: ElizaMessage) => {
+        // Handle incoming messages - add to output if it's not from the current user
+        if (message.authorId !== userId) {
+            setOutput((prev) => [
+                ...prev,
+                {
+                    type: 'agent',
+                    content: message.content,
+                    timestamp: message.timestamp,
+                },
+            ]);
+            lastAgentMessageRef.current = message.content;
+        }
+    }, [userId]);
 
     const {
         isConnected,
@@ -57,41 +116,8 @@ export const Terminal: React.FC = () => {
     } = useElizaClient({
         baseUrl: apiConfig.baseUrl,
         userId,
-        onMessage: (message) => {
-            // Handle incoming messages - add to output if it's not from the current user
-            if (message.authorId !== userId) {
-                setOutput((prev) => [
-                    ...prev,
-                    {
-                        type: 'agent',
-                        content: message.content,
-                        timestamp: message.timestamp,
-                    },
-                ]);
-                lastAgentMessageRef.current = message.content;
-            }
-        },
-        onConnectionChange: (connected) => {
-            if (connected) {
-                setOutput((prev) => [
-                    ...prev,
-                    {
-                        type: 'system',
-                        content: '✓ Connected to ElizaOS',
-                        timestamp: new Date(),
-                    },
-                ]);
-            } else {
-                setOutput((prev) => [
-                    ...prev,
-                    {
-                        type: 'error',
-                        content: '✗ Disconnected from ElizaOS',
-                        timestamp: new Date(),
-                    },
-                ]);
-            }
-        },
+        onMessage: handleMessage,
+        onConnectionChange: handleConnectionChange,
     });
 
     // Show connection status on mount
@@ -193,27 +219,9 @@ export const Terminal: React.FC = () => {
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
 
     return (
-        <Box
-            sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                bgcolor: 'background.paper',
-                borderRadius: 2,
-                overflow: 'hidden',
-            }}
-        >
-            <Box
-                sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    p: 1,
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    borderRadius: 2,
-                }}
-            >
+        <TerminalContainer>
+            <DiagnosticPanel />
+            <Header>
                 <Typography variant="h6" component="h1" sx={{ ml: 1 }}>
                     ElizaOS Terminal
                 </Typography>
@@ -224,7 +232,7 @@ export const Terminal: React.FC = () => {
                 >
                     Settings
                 </Button>
-            </Box>
+            </Header>
 
             <Box
                 ref={containerRef}
@@ -336,7 +344,7 @@ export const Terminal: React.FC = () => {
                 apiConfig={apiConfig}
                 setApiConfig={setApiConfig}
             />
-        </Box>
+        </TerminalContainer>
     );
 };
 
@@ -394,6 +402,25 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         </Dialog>
     );
 };
+
+const TerminalContainer = styled(Box)(() => ({
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    backgroundColor: 'background.paper',
+    borderRadius: 2,
+    overflow: 'hidden',
+}));
+
+const Header = styled(Box)(() => ({
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 1,
+    backgroundColor: 'primary.main',
+    color: 'white',
+    borderRadius: 2,
+}));
 
 const Dialog = styled(MuiDialog)(({ theme }) => ({
     '& .MuiDialog-paper': {
