@@ -1,5 +1,4 @@
 import { type Project, type Character } from '@elizaos/core';
-import bootstrapPlugin from '@elizaos/plugin-bootstrap';
 import sqlPlugin from '@elizaos/plugin-sql';
 
 // Terminal-themed character configuration
@@ -108,7 +107,7 @@ const project: Project = {
   agents: [
     {
       character: terminalCharacter,
-      plugins: [bootstrapPlugin, sqlPlugin],
+      plugins: [sqlPlugin],
       init: async (runtime) => {
         console.log(`[BACKEND] Agent ${runtime.character.name} initialized!`);
       },

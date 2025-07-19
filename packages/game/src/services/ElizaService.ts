@@ -1,4 +1,6 @@
+import { ElizaClient } from '@elizaos/api-client';
 import { v4 as uuidv4 } from 'uuid';
+import { UUID } from '@elizaos/core';
 
 export interface ElizaMessage {
   id: string;
@@ -17,14 +19,20 @@ export interface ElizaChannel {
 }
 
 export class ElizaService {
+  private client: ElizaClient;
   private baseUrl: string;
   private userId: string;
   private agentId: string;
 
   constructor(baseUrl: string, userId?: string, agentId = '00000000-0000-0000-0000-000000000001') {
     this.baseUrl = baseUrl;
+    this.client = ElizaClient.create({ baseUrl });
     this.userId = userId || uuidv4();
     this.agentId = agentId;
+  }
+
+  getClient() {
+    return this.client;
   }
 
   getUserId() {
@@ -37,8 +45,7 @@ export class ElizaService {
 
   async ping(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/server/ping`);
-      const result = await response.json();
+      const result = await this.client.server.ping();
       return result.pong === true;
     } catch (error) {
       console.error('[ElizaService] Ping failed:', error);
@@ -46,30 +53,50 @@ export class ElizaService {
     }
   }
 
-  async getOrCreateDmChannel(): Promise<ElizaChannel> {
-    const response = await fetch(
-      `${this.baseUrl}/api/messaging/dm-channel?targetUserId=${this.agentId}&currentUserId=${this.userId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to get DM channel: ${response.status} ${response.statusText}`);
+  async addAgentToChannel(channelId: string, agentId: string): Promise<void> {
+    console.log(`[ElizaService] Adding agent ${agentId} to channel ${channelId}...`);
+    
+    try {
+      await this.client.messaging.addAgentToChannel(channelId as UUID, agentId as UUID);
+      console.log(`[ElizaService] ✅ Agent ${agentId} added to channel ${channelId}`);
+    } catch (error) {
+      console.error(`[ElizaService] Failed to add agent to channel:`, error);
+      // Don't throw error, just log it - agent might already be in channel
     }
+  }
 
-    const result = await response.json();
-    const channel = result.data;
-
-    return {
-      id: channel.id,
-      name: channel.name,
-      type: channel.type,
-      serverId: channel.messageServerId || '00000000-0000-0000-0000-000000000000',
-    };
+  async getOrCreateDmChannel(): Promise<ElizaChannel> {
+    console.log('[ElizaService] Getting or creating admin room...');
+    
+    try {
+      // Create the admin room using the client
+      const channel = await this.client.messaging.createChannel({
+        name: 'Admin Room',
+        serverId: '00000000-0000-0000-0000-000000000000' as UUID,
+        participantCentralUserIds: [this.userId, this.agentId] as UUID[],
+        type: 'DM' as any,
+        metadata: {
+          isAdminRoom: true,
+          userId: this.userId,
+          agentId: this.agentId,
+        },
+      });
+      
+      console.log('[ElizaService] Created admin room with ID:', channel.id);
+      
+      // Ensure the agent is added to the channel
+      await this.addAgentToChannel(channel.id, this.agentId);
+      
+      return {
+        id: channel.id,
+        name: channel.name,
+        type: channel.type,
+        serverId: channel.messageServerId || '00000000-0000-0000-0000-000000000000',
+      };
+    } catch (error) {
+      console.error('[ElizaService] Failed to create admin room:', error);
+      throw error;
+    }
   }
 
   async sendMessage(
@@ -77,101 +104,67 @@ export class ElizaService {
     content: string,
     metadata?: Record<string, any>
   ): Promise<ElizaMessage> {
-    // Get the channel to get the serverId
-    const channel = await this.getChannelDetails(channelId);
-    
-    const payload = {
-      channelId: channelId,      // Server expects this
-      content: content,           // Server expects this  
-      author_id: this.userId,     // Server expects this
-      server_id: channel.serverId, // Server expects this
-      metadata: {
-        ...metadata,
-        source: metadata?.source || 'terminal_gui',
-        userDisplayName: metadata?.userDisplayName || 'User',
-      },
-    };
-    
-    console.log('[ElizaService] Sending message with payload:', JSON.stringify(payload, null, 2));
-    
-    const response = await fetch(
-      `${this.baseUrl}/api/messaging/central-channels/${channelId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+    try {
+      console.log('[ElizaService] Sending message via client...');
 
-    const responseText = await response.text();
-    console.log('[ElizaService] Response status:', response.status);
-    console.log('[ElizaService] Response body:', responseText);
+      await this.addAgentToChannel(channelId, this.agentId);
+      
+      const message = await this.client.messaging.postMessage(
+        channelId as UUID,
+        content,
+        {
+          ...metadata,
+          source: metadata?.source || 'terminal_gui',
+          userDisplayName: metadata?.userDisplayName || 'User',
+          userId: this.userId,
+          serverId: '00000000-0000-0000-0000-000000000000',
+        }
+      );
 
-    if (!response.ok) {
-      throw new Error(`Failed to send message: ${response.status} ${response.statusText}`);
+      return {
+        id: message.id,
+        content: message.content,
+        authorId: message.authorId,
+        authorName: metadata?.userDisplayName || 'User',
+        timestamp: new Date(message.createdAt),
+        metadata: message.metadata,
+      };
+    } catch (error) {
+      console.error('[ElizaService] Failed to send message:', error);
+      throw error;
     }
-
-    const result = JSON.parse(responseText);
-    const message = result.data;
-
-    return {
-      id: message.id,
-      content: message.content,
-      authorId: message.author_id || message.authorId,
-      authorName: metadata?.userDisplayName || 'User',
-      timestamp: new Date(message.created_at || message.createdAt),
-      metadata: message.metadata,
-    };
   }
 
   async getChannelMessages(channelId: string, limit = 50): Promise<ElizaMessage[]> {
-    const response = await fetch(
-      `${this.baseUrl}/api/messaging/central-channels/${channelId}/messages?limit=${limit}`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to get messages: ${response.status} ${response.statusText}`);
+    try {
+      const result = await this.client.messaging.getChannelMessages(channelId as UUID, { limit });
+      
+      return result.messages.map((msg: any) => ({
+        id: msg.id,
+        content: msg.content,
+        authorId: msg.authorId,
+        authorName: msg.metadata?.senderName || msg.metadata?.userDisplayName || 'Unknown',
+        timestamp: new Date(msg.createdAt),
+        metadata: msg.metadata,
+      }));
+    } catch (error) {
+      console.error('[ElizaService] Failed to get messages:', error);
+      throw error;
     }
-
-    const result = await response.json();
-    const messages = result.data?.messages || result.messages || result.data || [];
-    
-    return messages.map((msg: any) => ({
-      id: msg.id,
-      content: msg.content,
-      authorId: msg.authorId || msg.author_id,
-      authorName: msg.metadata?.senderName || msg.metadata?.userDisplayName || 'Unknown',
-      timestamp: new Date(msg.createdAt || msg.created_at),
-      metadata: msg.metadata,
-    }));
   }
 
   private async getChannelDetails(channelId: string): Promise<ElizaChannel> {
     try {
-      const response = await fetch(
-        `${this.baseUrl}/api/messaging/central-channels/${channelId}/details`
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to get channel details: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      console.log('[ElizaService] Raw channel details response:', JSON.stringify(data, null, 2));
-      
-      // Check if data is nested inside a 'data' property
-      const channelData = data.data || data;
+      const channel = await this.client.messaging.getChannelDetails(channelId as UUID);
       
       return {
-        id: channelData.id,
-        name: channelData.name,
-        type: channelData.type,
-        serverId: channelData.messageServerId || channelData.serverId || '00000000-0000-0000-0000-000000000000',
+        id: channel.id,
+        name: channel.name,
+        type: channel.type,
+        serverId: channel.messageServerId || '00000000-0000-0000-0000-000000000000',
       };
     } catch (error) {
-      console.error('Failed to get channel details:', error);
+      console.error('[ElizaService] Failed to get channel details:', error);
       throw error;
     }
   }

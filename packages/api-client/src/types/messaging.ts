@@ -68,6 +68,7 @@ export interface ChannelCreateParams {
   name: string;
   type: ChannelType;
   serverId?: UUID;
+  participantCentralUserIds?: UUID[];
   metadata?: Record<string, any>;
 }
 

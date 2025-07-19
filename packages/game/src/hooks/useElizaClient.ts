@@ -121,41 +121,22 @@ export function useElizaClient({
 
         // Join the WebSocket room for real-time updates
         if (socketRef.current) {
-          socketRef.current.emit('ROOM_JOINING', {
-            channelId: channel.id,
-            entityId: service.getUserId(),
-            agentId: service.getAgentId(),
-            serverId: channel.serverId,
-            metadata: {
-              isDm: true,
-              channelType: 'dm',
+          console.log('[ElizaClient] Joining WebSocket room for channel:', channel.id);
+          
+          // Emit the room joining event using the correct format
+          socketRef.current.emit('message', {
+            type: 1, // SOCKET_MESSAGE_TYPE.ROOM_JOINING
+            payload: {
+              channelId: channel.id,
+              roomId: channel.id, // Keep for backward compatibility
+              entityId: service.getUserId(),
             },
           });
 
-          // Listen for messages on this channel
-          socketRef.current.on('MESSAGE', (message: any) => {
-            if (message.channelId === channel.id || message.roomId === channel.id) {
-              console.log('[ElizaClient] Received message:', message);
-              
-              const formattedMessage: ElizaMessage = {
-                id: message.id || message.messageId,
-                content: message.text || message.content,
-                authorId: message.senderId || message.authorId || message.author_id,
-                authorName: message.senderName || 'Unknown',
-                timestamp: new Date(message.createdAt || message.timestamp || message.created_at),
-                metadata: {
-                  ...message.metadata,
-                  source: message.source,
-                },
-              };
-
-              setMessages((prev) => [...prev, formattedMessage]);
-              onMessage?.(formattedMessage);
-            }
-          });
-
           // Load message history
+          console.log('[ElizaClient] Loading message history for channel:', channel.id);
           const history = await service.getChannelMessages(channel.id);
+          console.log('[ElizaClient] Loaded message history:', history.length, 'messages');
           setMessages(history);
         }
       } catch (err) {
@@ -168,6 +149,65 @@ export function useElizaClient({
 
     setupChannel();
   }, [isConnected, onMessage]);
+
+  // Set up message broadcast listener
+  useEffect(() => {
+    if (!socketRef.current || !dmChannel) return;
+
+    const handleMessageBroadcast = (data: any) => {
+      console.log('[ElizaClient] Received messageBroadcast:', data);
+      console.log('[ElizaClient] Current channel ID:', dmChannel.id);
+      console.log('[ElizaClient] Message channel ID:', data.channelId || data.roomId);
+      
+      // Only process messages for our channel
+      const messageChannelId = data.channelId || data.roomId;
+      if (messageChannelId === dmChannel.id) {
+        const message: ElizaMessage = {
+          id: data.id || data.messageId,
+          authorId: data.senderId || data.authorId || data.author_id,
+          authorName: data.senderName || 'Unknown',
+          content: data.text || data.content,
+          timestamp: new Date(data.createdAt || data.timestamp || Date.now()),
+          metadata: {
+            ...data.metadata,
+            channelId: messageChannelId,
+            source: data.source,
+            thought: data.thought,
+            actions: data.actions,
+          },
+        };
+        
+        console.log('[ElizaClient] Adding message to state:', message);
+        
+        // Add to messages list
+        setMessages((prev) => [...prev, message]);
+        
+        // Call the onMessage callback
+        onMessage?.(message);
+      } else {
+        console.log('[ElizaClient] Ignoring message for different channel');
+      }
+    };
+
+    console.log('[ElizaClient] Setting up messageBroadcast listener for channel:', dmChannel.id);
+    socketRef.current.on('messageBroadcast', handleMessageBroadcast);
+
+    // Also listen for debug events
+    socketRef.current.on('messageAck', (data: any) => {
+      console.log('[ElizaClient] Received messageAck:', data);
+    });
+
+    socketRef.current.on('messageError', (data: any) => {
+      console.error('[ElizaClient] Received messageError:', data);
+    });
+
+    return () => {
+      console.log('[ElizaClient] Cleaning up messageBroadcast listener');
+      socketRef.current?.off('messageBroadcast', handleMessageBroadcast);
+      socketRef.current?.off('messageAck');
+      socketRef.current?.off('messageError');
+    };
+  }, [dmChannel, onMessage]);
 
   // Send message
   const sendMessage = useCallback(async (content: string) => {

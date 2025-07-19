@@ -44,7 +44,17 @@ export class MessagingService extends BaseApiClient {
    * Create a new channel
    */
   async createChannel(params: ChannelCreateParams): Promise<MessageChannel> {
-    return this.post<MessageChannel>('/api/messaging/central-channels', params);
+    // Convert serverId to server_id for backend compatibility
+    const requestBody = {
+      ...params,
+      server_id: params.serverId,
+      serverId: undefined,
+    };
+    delete requestBody.serverId;
+    
+    console.log('[MessagingService] Creating channel with body:', JSON.stringify(requestBody, null, 2));
+    
+    return this.post<MessageChannel>('/api/messaging/central-channels', requestBody);
   }
 
   /**
@@ -119,9 +129,16 @@ export class MessagingService extends BaseApiClient {
     content: string,
     metadata?: Record<string, any>
   ): Promise<Message> {
+    // Get the author_id and server_id from metadata or use defaults
+    const authorId = metadata?.userId || metadata?.author_id || 'f67f99da-896b-4f5d-9df5-9e462c059670';
+    const serverId = metadata?.serverId || metadata?.server_id || '00000000-0000-0000-0000-000000000000';
+    
     return this.post<Message>(`/api/messaging/central-channels/${channelId}/messages`, {
+      author_id: authorId,
       content,
+      server_id: serverId,
       metadata,
+      source_type: metadata?.source || 'eliza_gui',
     });
   }
 
