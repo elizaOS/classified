@@ -70,6 +70,7 @@ export const Terminal: React.FC = () => {
     const historyPosition = useRef<number>(-1);
     const commandHistory = useRef<string[]>([]);
     const lastAgentMessageRef = useRef<string>('');
+    const messagesLoadedRef = useRef<boolean>(false);
 
     const handleConnectionChange = useCallback((connected: boolean) => {
         if (connected) {
@@ -111,6 +112,7 @@ export const Terminal: React.FC = () => {
     const {
         isConnected,
         sendMessage,
+        messages,
         error,
         isLoading,
     } = useElizaClient({
@@ -134,6 +136,41 @@ export const Terminal: React.FC = () => {
         }
     }, [isLoading]);
 
+    // Load message history when messages are available
+    useEffect(() => {
+        if (messages && messages.length > 0) {
+            console.log('[Terminal] Loading message history:', messages.length, 'messages');
+            
+            // Only load history once on initial load
+            if (messagesLoadedRef.current) {
+                console.log('[Terminal] Messages already loaded, skipping history update');
+                return;
+            }
+            messagesLoadedRef.current = true;
+            
+            // Convert messages to output format
+            const historyOutput = messages.map((msg) => ({
+                type: msg.authorId === userId ? 'user' as const : 'agent' as const,
+                content: msg.content,
+                timestamp: msg.timestamp,
+            }));
+            
+            // Replace current output with history (keeping any system messages)
+            setOutput((prev) => {
+                // Keep only system messages
+                const systemMessages = prev.filter(msg => msg.type === 'system');
+                // Combine system messages with history
+                return [...systemMessages, ...historyOutput];
+            });
+            
+            // Update last agent message reference
+            const lastAgentMsg = messages.filter(msg => msg.authorId !== userId).pop();
+            if (lastAgentMsg) {
+                lastAgentMessageRef.current = lastAgentMsg.content;
+            }
+        }
+    }, [messages, userId]);
+
     // Show errors
     useEffect(() => {
         if (error) {
@@ -156,6 +193,7 @@ export const Terminal: React.FC = () => {
         commandHistory.current.push(trimmedInput);
         historyPosition.current = -1;
 
+        // Add user message to output immediately for better UX
         setOutput((prev) => [
             ...prev,
             {

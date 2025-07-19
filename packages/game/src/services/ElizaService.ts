@@ -69,10 +69,39 @@ export class ElizaService {
     console.log('[ElizaService] Getting or creating admin room...');
     
     try {
-      // Create the admin room using the client
+      // First, try to find an existing admin room
+      const serverId = '00000000-0000-0000-0000-000000000000' as UUID;
+      const { channels } = await this.client.messaging.getServerChannels(serverId);
+      
+      console.log('[ElizaService] Found', channels.length, 'existing channels');
+      
+      // Look for an existing admin room with this user and agent
+      const existingChannel = channels.find(channel => {
+        return channel.metadata?.isAdminRoom === true &&
+               channel.metadata?.userId === this.userId &&
+               channel.metadata?.agentId === this.agentId;
+      });
+      
+      if (existingChannel) {
+        console.log('[ElizaService] Found existing admin room:', existingChannel.id);
+        
+        // Ensure the agent is added to the channel
+        await this.addAgentToChannel(existingChannel.id, this.agentId);
+        
+        return {
+          id: existingChannel.id,
+          name: existingChannel.name,
+          type: existingChannel.type,
+          serverId: existingChannel.messageServerId || serverId,
+        };
+      }
+      
+      // No existing channel found, create a new one
+      console.log('[ElizaService] No existing admin room found, creating new one...');
+      
       const channel = await this.client.messaging.createChannel({
         name: 'Admin Room',
-        serverId: '00000000-0000-0000-0000-000000000000' as UUID,
+        serverId: serverId,
         participantCentralUserIds: [this.userId, this.agentId] as UUID[],
         type: 'DM' as any,
         metadata: {
@@ -91,10 +120,10 @@ export class ElizaService {
         id: channel.id,
         name: channel.name,
         type: channel.type,
-        serverId: channel.messageServerId || '00000000-0000-0000-0000-000000000000',
+        serverId: channel.messageServerId || serverId,
       };
     } catch (error) {
-      console.error('[ElizaService] Failed to create admin room:', error);
+      console.error('[ElizaService] Failed to get or create admin room:', error);
       throw error;
     }
   }

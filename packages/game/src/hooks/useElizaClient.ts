@@ -135,9 +135,19 @@ export function useElizaClient({
 
           // Load message history
           console.log('[ElizaClient] Loading message history for channel:', channel.id);
-          const history = await service.getChannelMessages(channel.id);
-          console.log('[ElizaClient] Loaded message history:', history.length, 'messages');
-          setMessages(history);
+          try {
+            const history = await service.getChannelMessages(channel.id);
+            console.log('[ElizaClient] Loaded message history:', history.length, 'messages');
+            if (history.length > 0) {
+              console.log('[ElizaClient] First message:', history[0]);
+              console.log('[ElizaClient] Last message:', history[history.length - 1]);
+            }
+            setMessages(history);
+          } catch (historyError) {
+            console.error('[ElizaClient] Failed to load message history:', historyError);
+            // Continue without history - don't fail the whole setup
+            setMessages([]);
+          }
         }
       } catch (err) {
         console.error('[ElizaClient] Failed to setup channel:', err);
@@ -162,9 +172,17 @@ export function useElizaClient({
       // Only process messages for our channel
       const messageChannelId = data.channelId || data.roomId;
       if (messageChannelId === dmChannel.id) {
+        const messageAuthorId = data.senderId || data.authorId || data.author_id;
+        
+        // Skip our own messages - we already add them when sending
+        if (messageAuthorId === serviceRef.current?.getUserId()) {
+          console.log('[ElizaClient] Skipping our own message that came back via broadcast');
+          return;
+        }
+        
         const message: ElizaMessage = {
           id: data.id || data.messageId,
-          authorId: data.senderId || data.authorId || data.author_id,
+          authorId: messageAuthorId,
           authorName: data.senderName || 'Unknown',
           content: data.text || data.content,
           timestamp: new Date(data.createdAt || data.timestamp || Date.now()),
@@ -179,8 +197,15 @@ export function useElizaClient({
         
         console.log('[ElizaClient] Adding message to state:', message);
         
-        // Add to messages list
-        setMessages((prev) => [...prev, message]);
+        // Add to messages list - check for duplicates by ID
+        setMessages((prev) => {
+          // Check if message already exists
+          if (prev.some(m => m.id === message.id)) {
+            console.log('[ElizaClient] Message already exists, skipping duplicate:', message.id);
+            return prev;
+          }
+          return [...prev, message];
+        });
         
         // Call the onMessage callback
         onMessage?.(message);
@@ -221,8 +246,15 @@ export function useElizaClient({
       // Send via service
       const message = await serviceRef.current.sendMessage(dmChannel.id, content);
 
-      // Add to local messages immediately
-      setMessages((prev) => [...prev, message]);
+      // Add to local messages immediately - check for duplicates
+      setMessages((prev) => {
+        // Check if message already exists
+        if (prev.some(m => m.id === message.id)) {
+          console.log('[ElizaClient] Message already exists in sendMessage, skipping duplicate:', message.id);
+          return prev;
+        }
+        return [...prev, message];
+      });
       
       console.log('[ElizaClient] Message sent:', message);
     } catch (err) {
