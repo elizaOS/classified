@@ -1,41 +1,21 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { ElizaClient } from '@elizaos/api-client';
-import { UUID } from '@elizaos/core';
+import { ElizaService, ElizaMessage, ElizaChannel } from '../services/ElizaService';
 import { v4 as uuidv4 } from 'uuid';
 import io, { Socket } from 'socket.io-client';
-
-// Define types based on what the API returns
-interface Message {
-  id: string;
-  channelId: string;
-  authorId: string;
-  content: string;
-  createdAt: Date;
-  updatedAt: Date;
-  metadata?: Record<string, any>;
-}
-
-interface MessageChannel {
-  id: string;
-  messageServerId: string;
-  name: string;
-  type: string;
-  metadata?: Record<string, any>;
-}
 
 interface UseElizaClientOptions {
   baseUrl?: string;
   userId?: string;
   agentId?: string;
-  onMessage?: (message: Message) => void;
+  onMessage?: (message: ElizaMessage) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
 interface UseElizaClientReturn {
   isConnected: boolean;
-  dmChannel: MessageChannel | null;
+  dmChannel: ElizaChannel | null;
   sendMessage: (content: string) => Promise<void>;
-  messages: Message[];
+  messages: ElizaMessage[];
   error: string | null;
   isLoading: boolean;
 }
@@ -48,21 +28,21 @@ export function useElizaClient({
   onConnectionChange,
 }: UseElizaClientOptions): UseElizaClientReturn {
   const [isConnected, setIsConnected] = useState(false);
-  const [dmChannel, setDmChannel] = useState<MessageChannel | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [dmChannel, setDmChannel] = useState<ElizaChannel | null>(null);
+  const [messages, setMessages] = useState<ElizaMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  const clientRef = useRef<ElizaClient | null>(null);
+  
+  const serviceRef = useRef<ElizaService | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const userIdRef = useRef<string>(userId || uuidv4());
 
-  // Initialize API client
+  // Initialize service
   useEffect(() => {
-    if (!clientRef.current) {
-      clientRef.current = ElizaClient.create({ baseUrl });
+    if (!serviceRef.current) {
+      serviceRef.current = new ElizaService(baseUrl, userIdRef.current, agentId);
     }
-  }, [baseUrl]);
+  }, [baseUrl, agentId]);
 
   // Connect to WebSocket for real-time messages
   useEffect(() => {
@@ -97,19 +77,17 @@ export function useElizaClient({
 
   // Get or create DM channel
   useEffect(() => {
-    if (!clientRef.current || !isConnected) return;
+    if (!serviceRef.current || !isConnected) return;
 
     const setupChannel = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        const client = clientRef.current!;
-
-        // Get or create DM channel using the proper API
-        const channel = await client.messaging.getOrCreateDmChannel({
-          participantIds: [userIdRef.current, agentId] as [UUID, UUID],
-        });
+        const service = serviceRef.current!;
+        
+        // Get or create DM channel
+        const channel = await service.getOrCreateDmChannel();
 
         console.log('[ElizaClient] Got DM channel:', channel);
         setDmChannel(channel);
@@ -118,9 +96,9 @@ export function useElizaClient({
         if (socketRef.current) {
           socketRef.current.emit('ROOM_JOINING', {
             channelId: channel.id,
-            entityId: userIdRef.current,
-            agentId,
-            serverId: channel.messageServerId,
+            entityId: service.getUserId(),
+            agentId: service.getAgentId(),
+            serverId: channel.serverId,
             metadata: {
               isDm: true,
               channelType: 'dm',
@@ -131,17 +109,15 @@ export function useElizaClient({
           socketRef.current.on('MESSAGE', (message: any) => {
             if (message.channelId === channel.id || message.roomId === channel.id) {
               console.log('[ElizaClient] Received message:', message);
-
-              const formattedMessage: Message = {
+              
+              const formattedMessage: ElizaMessage = {
                 id: message.id || message.messageId,
-                channelId: channel.id,
-                authorId: message.senderId || message.authorId,
                 content: message.text || message.content,
-                createdAt: new Date(message.createdAt || message.timestamp),
-                updatedAt: new Date(message.createdAt || message.timestamp),
+                authorId: message.senderId || message.authorId || message.author_id,
+                authorName: message.senderName || 'Unknown',
+                timestamp: new Date(message.createdAt || message.timestamp || message.created_at),
                 metadata: {
                   ...message.metadata,
-                  senderName: message.senderName,
                   source: message.source,
                 },
               };
@@ -152,8 +128,8 @@ export function useElizaClient({
           });
 
           // Load message history
-          const history = await client.messaging.getChannelMessages(channel.id);
-          setMessages(history.messages);
+          const history = await service.getChannelMessages(channel.id);
+          setMessages(history);
         }
       } catch (err) {
         console.error('[ElizaClient] Failed to setup channel:', err);
@@ -164,40 +140,30 @@ export function useElizaClient({
     };
 
     setupChannel();
-  }, [isConnected, agentId, onMessage]);
+  }, [isConnected, onMessage]);
 
   // Send message
-  const sendMessage = useCallback(
-    async (content: string) => {
-      if (!clientRef.current || !dmChannel) {
-        throw new Error('Not connected or no channel available');
-      }
+  const sendMessage = useCallback(async (content: string) => {
+    if (!serviceRef.current || !dmChannel) {
+      throw new Error('Not connected or no channel available');
+    }
 
-      try {
-        setError(null);
+    try {
+      setError(null);
+      
+      // Send via service
+      const message = await serviceRef.current.sendMessage(dmChannel.id, content);
 
-        // Send via API
-        const message = await clientRef.current.messaging.postMessage(
-          dmChannel.id as UUID,
-          content,
-          {
-            source: 'terminal_gui',
-            userDisplayName: 'User',
-          }
-        );
-
-        // Add to local messages immediately
-        setMessages((prev) => [...prev, message]);
-
-        console.log('[ElizaClient] Message sent:', message);
-      } catch (err) {
-        console.error('[ElizaClient] Failed to send message:', err);
-        setError(err instanceof Error ? err.message : 'Failed to send message');
-        throw err;
-      }
-    },
-    [dmChannel]
-  );
+      // Add to local messages immediately
+      setMessages((prev) => [...prev, message]);
+      
+      console.log('[ElizaClient] Message sent:', message);
+    } catch (err) {
+      console.error('[ElizaClient] Failed to send message:', err);
+      setError(err instanceof Error ? err.message : 'Failed to send message');
+      throw err;
+    }
+  }, [dmChannel]);
 
   return {
     isConnected,

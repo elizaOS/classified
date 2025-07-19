@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useTheme } from '@mui/material/styles';
 import {
     Box,
     TextField,
@@ -31,7 +30,7 @@ export const Terminal: React.FC = () => {
             timestamp: new Date(),
         },
     ]);
-    const [isTyping, setIsTyping] = useState(false);
+    const [isTyping] = useState(false);
     const [, setIsWaitingForResponse] = useState(false);
     const [apiConfig, setApiConfig] = useState({
         baseUrl: 'http://localhost:3000',
@@ -45,9 +44,6 @@ export const Terminal: React.FC = () => {
         return newId;
     });
 
-    const theme = useTheme();
-    const inputRef = useRef<HTMLInputElement>(null);
-    const outputEndRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const historyPosition = useRef<number>(-1);
     const commandHistory = useRef<string[]>([]);
@@ -56,21 +52,20 @@ export const Terminal: React.FC = () => {
     const {
         isConnected,
         sendMessage,
-        messages,
         error,
         isLoading,
     } = useElizaClient({
         baseUrl: apiConfig.baseUrl,
         userId,
         onMessage: (message) => {
-            // Handle incoming messages
+            // Handle incoming messages - add to output if it's not from the current user
             if (message.authorId !== userId) {
                 setOutput((prev) => [
                     ...prev,
                     {
                         type: 'agent',
                         content: message.content,
-                        timestamp: new Date(message.createdAt),
+                        timestamp: message.timestamp,
                     },
                 ]);
                 lastAgentMessageRef.current = message.content;
@@ -189,10 +184,6 @@ export const Terminal: React.FC = () => {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setInput(e.target.value);
-    };
-
-    const handleClearOutput = () => {
-        setOutput([]);
     };
 
     const handleSettingsClick = () => {

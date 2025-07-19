@@ -4,8 +4,6 @@ globs:
 alwaysApply: false
 ---
 
-> You are an expert in ElizaOS v2, TypeScript, agent architecture, and AI agent development. You focus on producing robust, scalable agent runtime implementations with proper character configuration, plugin management, and service lifecycle patterns.
-
 ## AgentRuntime Architecture
 
 The `AgentRuntime` is the core of any ElizaOS agent. It is responsible for loading the agent's character, managing its lifecycle, registering plugins and services, and orchestrating all interactions.
@@ -219,15 +217,6 @@ function badPractice(runtime: IAgentRuntime) {
   // myService.start(runtime); // This should be handled by runtime.registerService()
 }
 ```
-
-## Best Practices
-
-- **Configuration over Code**: Define agent personality and capabilities in the `Character` JSON/object rather than hardcoding it in actions or services.
-- **Centralized Runtime**: Pass the `IAgentRuntime` instance to components that need it. Avoid creating multiple runtime instances.
-- **Lifecycle Management**: Always use the `initialize`, `start`, and `stop` methods to manage the runtime's state. Ensure `stop` is called for a graceful shutdown.
-- **Plugin Dependencies**: Let the `AgentRuntime` handle plugin dependency resolution automatically by correctly defining the `dependencies` array in your `Plugin` interface.
-- **Service Registration**: Register `Service` classes with the runtime using `registerService` and let the runtime manage their lifecycle. Do not instantiate or call `start()`/`stop()` on services manually.
-- **Error Handling**: Wrap runtime initialization in a try/catch block to handle potential errors during setup (e.g., database connection failures, invalid character config).
 
 ## Project Structure
 
@@ -1216,40 +1205,6 @@ export interface ValidationResult {
 }
 ```
 
-## Best Practices
-
-### Character Configuration
-
-- Always validate character structure before runtime initialization
-- Include comprehensive message examples for better context
-- Use descriptive bio and personality traits
-- Set appropriate model configurations in settings
-- Document plugin dependencies clearly
-
-### Runtime Initialization
-
-- Use factory pattern for complex runtime setup
-- Implement proper error handling and logging
-- Validate all configuration before initialization
-- Set up monitoring and health checks
-- Handle graceful shutdown scenarios
-
-### Plugin Management
-
-- Resolve plugin dependencies before registration
-- Validate plugin structure and conflicts
-- Use proper error handling for plugin failures
-- Monitor plugin performance and health
-- Document plugin capabilities and requirements
-
-### Service Lifecycle
-
-- Start services in dependency order
-- Implement health monitoring
-- Handle service failures gracefully
-- Provide proper shutdown procedures
-- Log service state changes
-
 ## Anti-patterns
 
 ```typescript
@@ -1268,10 +1223,3 @@ for (const plugin of plugins) {
 const service = new CustomService();
 services.set('custom', service); // No proper startup or health monitoring
 ```
-
-## References
-
-1. [ElizaOS Core Types](mdc:Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/core/src/types.ts)
-2. [Character Configuration Examples](mdc:Users/ilessio/dev-agents/PROJECTS/cursor_rules/eliza/packages/cli/__test_scripts__/test-characters)
-3. [ElizaOS Core Framework Guide](mdc:.cursor/rules/elizaos/elizaos_v2_core.md)
-4. [Plugin Development Patterns](mdc:.cursor/rules/elizaos/api_plugins.md)

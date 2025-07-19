@@ -3,7 +3,6 @@ description: ElizaOS types and interfaces
 globs: 
 alwaysApply: false
 ---
-> You are an expert in ElizaOS v2, TypeScript, and software architecture. You focus on creating clear, well-documented code and explaining complex type systems to other developers.
 
 ## ElizaOS Core Types and Interfaces
 

@@ -3,64 +3,6 @@ description: ElizaOS Architecture
 globs: 
 alwaysApply: false
 ---
-> You are an expert in ElizaOS v2, system architecture documentation, technical writing, and software engineering best practices. You focus on creating clear, comprehensive, and maintainable documentation that enables developers to understand, contribute to, and extend the ElizaOS ecosystem.
-
-## ElizaOS Documentation Architecture Flow
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Arch Overview  │    │  Component Docs  │    │  Integration    │
-│  - System Flow  │───▶│  - Actions       │───▶│  - API Specs    │
-│  - Core Modules │    │  - Providers     │    │  - Plugin Guide │
-│  - Data Flow    │    │  - Evaluators    │    │  - Examples     │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Development    │    │  Deployment      │    │  Contribution   │
-│  - Setup Guide  │    │  - Environments  │    │  - Guidelines   │
-│  - Dev Workflow │    │  - Configuration │    │  - Code Style   │
-│  - Testing      │    │  - Monitoring    │    │  - PR Process   │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-## Project Structure
-
-```
-eliza/
-├── docs/
-│   ├── architecture/
-│   │   ├── overview.md           # System overview
-│   │   ├── core-concepts.md      # Core concepts and terminology
-│   │   ├── data-flow.md          # Data flow diagrams
-│   │   ├── plugin-system.md      # Plugin architecture
-│   │   └── security.md           # Security considerations
-│   ├── components/
-│   │   ├── actions/              # Action documentation
-│   │   ├── providers/            # Provider documentation
-│   │   ├── evaluators/           # Evaluator documentation
-│   │   └── runtime/              # Runtime documentation
-│   ├── guides/
-│   │   ├── getting-started.md    # Quick start guide
-│   │   ├── development.md        # Development setup
-│   │   ├── deployment.md         # Deployment guide
-│   │   └── troubleshooting.md    # Common issues
-│   ├── api/
-│   │   ├── core/                 # Core API reference
-│   │   ├── plugins/              # Plugin API reference
-│   │   └── examples/             # API usage examples
-│   └── contributing/
-│       ├── guidelines.md         # Contribution guidelines
-│       ├── code-style.md         # Code style guide
-│       └── review-process.md     # Review process
-├── packages/core/
-│   └── README.md                 # Core package documentation
-├── plugins/
-│   └── */README.md               # Plugin-specific documentation
-└── README.md                     # Main project documentation
-```
-
-## Core Documentation Patterns
 
 ### System Architecture Documentation
 
@@ -268,8 +210,6 @@ export const exampleAction: Action = {
   }
 };
 ```
-
-### Best Practices
 
 #### Validation
 - **Be Specific**: Use precise validation criteria to avoid conflicts
@@ -1127,42 +1067,3 @@ async function withRetry<T>(
   throw new Error('Max retries exceeded');
 }
 ```
-```
-
-## Best Practices Summary
-
-### Documentation Structure
-- Start with clear overview and architecture diagrams
-- Provide comprehensive API documentation with examples
-- Include troubleshooting guides and common patterns
-- Maintain up-to-date README files for all packages
-
-### Code Documentation
-- Use clear, descriptive names for functions and variables
-- Include JSDoc comments for all public APIs
-- Provide usage examples for complex functionality
-- Document error conditions and edge cases
-
-### Development Workflow
-- Follow consistent project structure across packages
-- Use comprehensive testing strategies (unit, integration, E2E)
-- Implement proper error handling and logging
-- Follow established code style guidelines
-
-### API Design
-- Design for extensibility and modularity
-- Provide clear interfaces and type definitions
-- Include proper error handling and validation
-- Document breaking changes and migration paths
-
-### Performance Considerations
-- Implement proper resource cleanup
-- Use efficient async patterns
-- Monitor and optimize memory usage
-- Provide performance benchmarks
-
-## References
-- [Technical Writing Best Practices](mdc:https:/developers.google.com/tech-writing)
-- [TypeScript Documentation](mdc:https:/www.typescriptlang.org/docs)
-- [API Design Guidelines](mdc:https:/github.com/microsoft/api-guidelines)
-- [Software Architecture Documentation](mdc:https:/c4model.com)

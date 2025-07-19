@@ -3,8 +3,6 @@ description: ElizaOS Core Plugin Architecture
 globs: 
 alwaysApply: false
 ---
-> You are an expert in the ElizaOS plugin architecture, focusing on core concepts, lifecycle, and best practices for creating robust and interoperable plugins.
-
 ## Core Plugin Architecture
 
 The ElizaOS plugin system is the primary mechanism for extending agent capabilities. A plugin is a self-contained module that can register various components with the `AgentRuntime`. The runtime acts as the central nervous system, managing the lifecycle and interactions of these components.
@@ -236,15 +234,3 @@ export const accountBalanceProvider: Provider = {
   },
 };
 ```
-
-## Best Practices
-- **Explicit Dependencies**: Always declare `dependencies` to ensure correct load order. The runtime does not guarantee service availability otherwise.
-- **Fail Fast**: In your `init` function, check for required configuration (e.g., API keys via `runtime.getSetting()`) and throw an error if something critical is missing. This prevents the agent from running in a broken state.
-- **Scoped Logic**: Keep your plugin focused. A single plugin should manage one core piece of functionality (e.g., one API integration, one protocol).
-- **Use Services for State**: Avoid global variables. If you need to maintain state (like a connection object, cache, or user session), encapsulate it within a `Service`.
-
-## References
-- [Core Types (`Plugin`, `Action`, `Provider` etc.)](mdc:packages/core/src/types.ts)
-- [Agent Runtime Implementation](mdc:packages/core/src/runtime.ts)
-- [Example: SQL Plugin](mdc:packages/plugin-sql/src/index.ts)
-- [Example: Bootstrap Plugin](mdc:packages/plugin-bootstrap/src/index.ts)

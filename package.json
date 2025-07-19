@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "turbo run start --filter=./packages/game",
+    "dev": "turbo run dev --filter=./packages/game",
     "build": "turbo run build",
     "format": "turbo run format --filter=./packages/*",
     "format:check": "turbo run format:check --filter=./packages/*",

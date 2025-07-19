@@ -3,7 +3,6 @@ description: ElizaOS testing and test procedure
 globs: 
 alwaysApply: false
 ---
-> You are an expert in ElizaOS v2, TypeScript, and testing strategies using `elizaos test` (often 'bun run test' in elizaos packages). You focus on creating robust, maintainable tests that cover everything from individual components to full end-to-end user journeys.
 
 ## ElizaOS Testing Architecture
 
@@ -143,11 +142,3 @@ describe('myAction Unit Test', () => {
   // Mocks provide control and speed.
 });
 ```
-
-## Best Practices
-
-*   **Use the Right Tool**: Use `elizaos test` for testing how components interact within the live system (E2E/integration). Use `bun vitest` for fast, isolated unit tests of individual functions and components.
-*   **Isolate Test Data**: Leverage the ephemeral in-memory PGLite database for test runs. Avoid connecting to a production or shared development database.
-*   **Test Naming Convention**: The `TestRunner` automatically discovers test files. Name your E2E/integration test files like `*.e2e.ts` or `*.test.ts` within a `tests` directory.
-*   **Stateless Tests**: Design tests to be independent. Each test should set up its own required state and not depend on the successful execution of a previous test.
-*   **Focus on Behavior**: E2E tests should validate user journeys and agent behaviors (e.g., "Can the agent complete a multi-step booking process?"), not internal implementation details.
