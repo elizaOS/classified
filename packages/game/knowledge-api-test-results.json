@@ -1,0 +1,125 @@
+{
+  "timestamp": "2025-07-20T21:44:55.391Z",
+  "summary": {
+    "total": 4,
+    "passed": 1,
+    "failed": 3
+  },
+  "tests": [
+    {
+      "timestamp": "2025-07-20T21:44:55.349Z",
+      "type": "info",
+      "message": "================================================================================"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.352Z",
+      "type": "info",
+      "message": "STARTING KNOWLEDGE BASE API TESTS"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.352Z",
+      "type": "info",
+      "message": "================================================================================"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.352Z",
+      "type": "info",
+      "message": "Testing GET /documents - Retrieve all knowledge documents"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.379Z",
+      "type": "info",
+      "message": "Response status: 404"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.379Z",
+      "type": "info",
+      "message": "Response data: \"Client application not found\""
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.379Z",
+      "type": "error",
+      "message": "❌ GET /documents - FAILED with status 404"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.379Z",
+      "type": "info",
+      "message": "Testing POST /upload - Upload a text file"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.384Z",
+      "type": "info",
+      "message": "Upload response status: 400"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.384Z",
+      "type": "info",
+      "message": "Upload response data: {\n  \"success\": false,\n  \"error\": {\n    \"code\": \"NO_FILE\",\n    \"message\": \"No file uploaded or file parsing failed\"\n  },\n  \"timestamp\": \"2025-07-20T21:44:55.382Z\"\n}"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.384Z",
+      "type": "error",
+      "message": "❌ File upload - FAILED with status 400"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.384Z",
+      "type": "info",
+      "message": "Testing POST /upload-url - Upload from URL"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.387Z",
+      "type": "info",
+      "message": "URL upload response status: 404"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.387Z",
+      "type": "info",
+      "message": "URL upload response data: \"Client application not found\""
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.387Z",
+      "type": "error",
+      "message": "❌ URL upload - FAILED with status 404"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.388Z",
+      "type": "info",
+      "message": "Testing POST /search - Search knowledge base"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.391Z",
+      "type": "info",
+      "message": "Search response status: 404"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.391Z",
+      "type": "info",
+      "message": "Search response data: \"Client application not found\""
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.391Z",
+      "type": "error",
+      "message": "❌ Search - FAILED with status 404"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.391Z",
+      "type": "info",
+      "message": "================================================================================"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.391Z",
+      "type": "info",
+      "message": "TEST SUMMARY: 1/4 tests passed"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.391Z",
+      "type": "info",
+      "message": "================================================================================"
+    },
+    {
+      "timestamp": "2025-07-20T21:44:55.391Z",
+      "type": "info",
+      "message": "⚠️  3 tests failed. Check the logs above for details."
+    }
+  ]
+}

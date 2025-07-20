@@ -1458,4 +1458,252 @@ body {
   background-color: var(--terminal-green);
   animation: cursor-blink 1s infinite;
   vertical-align: text-bottom;
+}
+
+/* Setup Form Styles */
+.setup-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  padding: 20px;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.setup-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.setup-header h2 {
+  font-size: 24px;
+  margin-bottom: 10px;
+  color: var(--terminal-green);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.setup-header p {
+  color: var(--terminal-green-dim);
+  font-size: 14px;
+}
+
+.setup-form {
+  width: 100%;
+  max-width: 400px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--terminal-green);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.setup-input {
+  width: 100%;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid var(--terminal-green);
+  color: var(--terminal-green);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  border-radius: 0;
+  transition: all 0.3s ease;
+}
+
+.setup-input:focus {
+  outline: none;
+  border-color: var(--terminal-green-bright);
+  box-shadow: 0 0 10px var(--terminal-glow);
+  background: rgba(0, 255, 65, 0.05);
+}
+
+.setup-input::placeholder {
+  color: var(--terminal-green-dim);
+  opacity: 0.7;
+}
+
+.form-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 30px;
+}
+
+.setup-button {
+  flex: 1;
+  padding: 12px 20px;
+  background: transparent;
+  border: 1px solid var(--terminal-green);
+  color: var(--terminal-green);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.setup-button:hover:not(:disabled) {
+  background: rgba(0, 255, 65, 0.1);
+  box-shadow: 0 0 10px var(--terminal-glow);
+}
+
+.setup-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.setup-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: var(--terminal-green-dim);
+  color: var(--terminal-green-dim);
+}
+
+.setup-button.primary:not(:disabled) {
+  background: rgba(0, 255, 65, 0.2);
+  border-color: var(--terminal-green-bright);
+  color: var(--terminal-green-bright);
+}
+
+.setup-button.primary:hover:not(:disabled) {
+  background: rgba(0, 255, 65, 0.3);
+  box-shadow: 0 0 15px var(--terminal-green-bright);
+}
+
+.setup-button.secondary {
+  border-color: var(--terminal-amber);
+  color: var(--terminal-amber);
+}
+
+.setup-button.secondary:hover:not(:disabled) {
+  background: rgba(255, 170, 0, 0.1);
+  box-shadow: 0 0 10px rgba(255, 170, 0, 0.3);
+}
+
+.setup-info {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.info-text {
+  font-size: 11px;
+  color: var(--terminal-green-dim);
+  margin-bottom: 5px;
+  opacity: 0.8;
+}
+
+/* Setup form animations */
+.setup-content {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Configuration validation styles */
+.config-actions {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 8px 0;
+}
+
+.config-btn {
+  flex: 1;
+  padding: 10px 16px;
+  background: linear-gradient(145deg, 
+    rgba(0, 0, 0, 0.6) 0%, 
+    rgba(0, 17, 0, 0.4) 100%
+  );
+  border: 1px solid var(--terminal-green-dim);
+  color: var(--terminal-green);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+}
+
+.config-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(0, 255, 65, 0.15), 
+    transparent
+  );
+  transition: left 0.4s ease;
+}
+
+.config-btn:hover::before {
+  left: 100%;
+}
+
+.config-btn:hover {
+  background: linear-gradient(145deg, 
+    rgba(0, 255, 0, 0.1) 0%, 
+    rgba(0, 34, 0, 0.2) 100%
+  );
+  border-color: var(--terminal-green);
+  color: var(--terminal-green-bright);
+  box-shadow: 
+    0 0 8px rgba(0, 255, 65, 0.3),
+    inset 0 0 8px rgba(0, 255, 65, 0.1);
+  text-shadow: 0 0 4px var(--terminal-shadow);
+  transform: translateY(-1px);
+}
+
+.config-btn:active {
+  transform: translateY(0);
+  box-shadow: 
+    0 0 4px rgba(0, 255, 65, 0.2),
+    inset 0 0 4px rgba(0, 255, 65, 0.1);
+}
+
+.validate-btn:hover {
+  border-color: var(--terminal-blue);
+  color: var(--terminal-blue);
+  box-shadow: 
+    0 0 8px rgba(68, 136, 255, 0.3),
+    inset 0 0 8px rgba(68, 136, 255, 0.1);
+}
+
+.test-btn:hover {
+  border-color: var(--terminal-cyan);
+  color: var(--terminal-cyan);
+  box-shadow: 
+    0 0 8px rgba(0, 255, 255, 0.3),
+    inset 0 0 8px rgba(0, 255, 255, 0.1);
+}
+
+.config-help {
+  margin-top: 8px;
+  margin-bottom: 16px;
 } 

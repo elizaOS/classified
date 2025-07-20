@@ -240,6 +240,9 @@ const getCorrectMimeType = (file: File): string => {
   return file.type || 'application/octet-stream';
 };
 
+// API base URL - use the backend server and knowledge plugin path
+const API_BASE_URL = 'http://localhost:7777/knowledge';
+
 const apiClient = {
   getKnowledgeDocuments: async (
     agentId: UUID,
@@ -257,7 +260,7 @@ const apiClient = {
       params.append('includeEmbedding', 'true');
     }
 
-    const response = await fetch(`/api/documents?${params.toString()}`);
+    const response = await fetch(`${API_BASE_URL}/documents?${params.toString()}`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch knowledge documents: ${response.status} ${errorText}`);
@@ -281,7 +284,7 @@ const apiClient = {
       params.append('documentId', options.documentId);
     }
 
-    const response = await fetch(`/api/knowledges?${params.toString()}`);
+    const response = await fetch(`${API_BASE_URL}/knowledges?${params.toString()}`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch knowledge chunks: ${response.status} ${errorText}`);
@@ -293,7 +296,7 @@ const apiClient = {
     const params = new URLSearchParams();
     params.append('agentId', agentId);
 
-    const response = await fetch(`/api/documents/${knowledgeId}?${params.toString()}`, {
+    const response = await fetch(`${API_BASE_URL}/documents/${knowledgeId}?${params.toString()}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
@@ -317,7 +320,7 @@ const apiClient = {
     }
     formData.append('agentId', agentId);
 
-    const response = await fetch('/api/documents', {
+    const response = await fetch(`${API_BASE_URL}/documents`, {
       method: 'POST',
       body: formData,
     });
@@ -340,7 +343,7 @@ const apiClient = {
     params.append('threshold', threshold.toString());
     params.append('limit', limit.toString());
 
-    const response = await fetch(`/api/search?${params.toString()}`);
+    const response = await fetch(`${API_BASE_URL}/search?${params.toString()}`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to search knowledge: ${response.status} ${errorText}`);
@@ -609,7 +612,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     setUrlError(null);
 
     try {
-      const result = await fetch('/api/documents', {
+      const result = await fetch(`${API_BASE_URL}/documents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -667,7 +670,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
       }
       formData.append('agentId', agentId);
 
-      const response = await fetch('/api/documents', {
+      const response = await fetch(`${API_BASE_URL}/documents`, {
         method: 'POST',
         body: formData,
       });

@@ -84,8 +84,8 @@ describe('Complete Boot Sequence Testing', () => {
     cy.screenshot('boot-07-initializing-agent');
 
     // Step 7: Verify successful boot to main interface
-    cy.get('[data-testid="chat-interface"]', { timeout: 20000 }).should('be.visible');
-    cy.get('[data-testid="agent-status"]').should('contain', 'Ready');
+    cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
+    cy.get('[data-testid="autonomy-status"]').should('contain', 'Ready');
     cy.contains('Agent loaded').should('be.visible');
     cy.screenshot('boot-08-successful-completion');
 
@@ -143,13 +143,13 @@ describe('Complete Boot Sequence Testing', () => {
     cy.get('[data-testid="browser-toggle"]').click();
     
     cy.get('[data-testid="complete-setup-button"]').click();
-    cy.get('[data-testid="chat-interface"]', { timeout: 20000 }).should('be.visible');
+    cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
 
     // Reload page - should skip boot sequence
     cy.reload();
     
     // Should go directly to main interface without boot sequence
-    cy.get('[data-testid="chat-interface"]', { timeout: 10000 }).should('be.visible');
+    cy.get('[data-testid="game-interface"]', { timeout: 10000 }).should('be.visible');
     cy.get('[data-testid="model-provider-selection"]').should('not.exist');
     
     // Verify capabilities were persisted

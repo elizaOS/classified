@@ -249,10 +249,10 @@ export const createGoalAction: Action = {
       // Step 4: Check goal count
       const activeGoalCount = await dataService.countGoals(goalInfo.ownerType, ownerId, false);
 
-      if (activeGoalCount >= 10) {
+      if (activeGoalCount >= 5) {
         if (callback) {
           await callback({
-            text: `Cannot add new goal: The ${goalInfo.ownerType === 'agent' ? 'agent' : 'user'} already has 10 active goals, which is the maximum allowed. Please complete or remove some existing goals first.`,
+            text: `Cannot add new goal: The ${goalInfo.ownerType === 'agent' ? 'agent' : 'user'} already has 5 active goals, which is the maximum allowed. Please complete or remove some existing goals first.`,
             actions: ['CREATE_GOAL_LIMIT_REACHED'],
             source: message.content.source,
           });
@@ -262,7 +262,7 @@ export const createGoalAction: Action = {
             actionName: 'CREATE_GOAL',
             error: 'Goal limit reached',
             currentCount: activeGoalCount,
-            maxAllowed: 10,
+            maxAllowed: 5,
           },
           values: {
             success: false,

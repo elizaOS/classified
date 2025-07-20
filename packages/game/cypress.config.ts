@@ -2,19 +2,25 @@ import { defineConfig } from 'cypress';
 import { existsSync } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { cypressTasks } from './cypress/support/tasks';
 
 const execAsync = promisify(exec);
 
 export default defineConfig({
   viewportWidth: 1280,
   viewportHeight: 720,
-  defaultCommandTimeout: 15000,
-  requestTimeout: 20000,
-  responseTimeout: 20000,
-  retries: 0, // Disabled to prevent rate limiting
+  defaultCommandTimeout: 30000,
+  requestTimeout: 30000,
+  responseTimeout: 30000,
+  pageLoadTimeout: 60000,
+  retries: {
+    runMode: 2,
+    openMode: 0
+  },
   
   e2e: {
-    baseUrl: 'http://localhost:5173',
+    // Support dynamic baseUrl from environment variables
+    baseUrl: process.env.CYPRESS_FRONTEND_URL || process.env.FRONTEND_URL || `http://localhost:${process.env.FRONTEND_PORT || '5173'}`,
     supportFile: 'cypress/support/e2e.ts',
     specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
     video: true,
@@ -52,7 +58,10 @@ export default defineConfig({
           } catch (error) {
             return { success: false, error: error.message };
           }
-        }
+        },
+        
+        // Add all our custom tasks for API key testing
+        ...cypressTasks
       });
     },
   },

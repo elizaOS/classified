@@ -14,6 +14,14 @@ describe('Bidirectional Verification Actions', () => {
     mockRuntime = {
       agentId: asUUID(stringToUuid('test-agent')),
       logger: logger,
+      useModel: async (modelType: any, options: any) => {
+        // Mock LLM response for platform claim validation - return JSON string
+        return JSON.stringify({
+          platform: 'twitter',
+          handle: '@testuser',
+          confidence: 0.8
+        });
+      },
       getService: (serviceName: string) => {
         if (serviceName === 'rolodex') {
           return {

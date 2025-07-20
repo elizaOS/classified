@@ -45,7 +45,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
 
   beforeEach(() => {
     // Visit the game interface
-    cy.visit('http://localhost:5176');
+    cy.visit('/');
     
     // Wait for the game interface to load
     cy.get('[data-testid="game-interface"]', { timeout: 10000 }).should('be.visible');

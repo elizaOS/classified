@@ -8,8 +8,9 @@ class TestRunner {
   constructor() {
     this.backendProcess = null;
     this.frontendProcess = null;
-    this.BACKEND_PORT = 7777;
-    this.FRONTEND_PORT = 5173;
+    // Use environment variables or fall back to defaults
+    this.BACKEND_PORT = parseInt(process.env.PORT || process.env.SERVER_PORT || '7777');
+    this.FRONTEND_PORT = parseInt(process.env.FRONTEND_PORT || '5173');
   }
 
   log(message) {
@@ -50,7 +51,12 @@ class TestRunner {
       this.backendProcess = spawn('bun', ['run', 'src-backend/server.ts'], {
         stdio: ['ignore', 'pipe', 'pipe'],
         cwd: process.cwd(),
-        env: { ...process.env, NODE_ENV: 'test' }
+        env: { 
+          ...process.env, 
+          NODE_ENV: 'test',
+          PORT: this.BACKEND_PORT.toString(),
+          SERVER_PORT: this.BACKEND_PORT.toString()
+        }
       });
 
       let hasStarted = false;
@@ -62,7 +68,7 @@ class TestRunner {
 
       this.backendProcess.stdout.on('data', (data) => {
         const output = data.toString();
-        if (output.includes('AgentServer is listening on port 7777') && !hasStarted) {
+        if (output.includes(`AgentServer is listening on port ${this.BACKEND_PORT}`) && !hasStarted) {
           hasStarted = true;
           clearTimeout(timeout);
           this.success('Backend started successfully');
@@ -92,7 +98,11 @@ class TestRunner {
     return new Promise((resolve, reject) => {
       this.frontendProcess = spawn('npm', ['run', 'dev:frontend'], {
         stdio: ['ignore', 'pipe', 'pipe'],
-        cwd: process.cwd()
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          FRONTEND_PORT: this.FRONTEND_PORT.toString()
+        }
       });
 
       let hasStarted = false;
@@ -104,7 +114,7 @@ class TestRunner {
 
       this.frontendProcess.stdout.on('data', (data) => {
         const output = data.toString();
-        if ((output.includes('Local:') || output.includes('localhost:5173')) && !hasStarted) {
+        if ((output.includes('Local:') || output.includes(`localhost:${this.FRONTEND_PORT}`)) && !hasStarted) {
           hasStarted = true;
           clearTimeout(timeout);
           this.success('Frontend started successfully');

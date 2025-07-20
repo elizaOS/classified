@@ -1,5 +1,6 @@
 import type { Character } from '@elizaos/core';
 import { stringToUuid } from '@elizaos/core';
+import { secureSecretsManager } from './security/SecureSecretsManager.js';
 
 // Create a default character configuration for the ELIZA Terminal game
 // Using a consistent ID based on the character name
@@ -105,10 +106,15 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
 
     // Agent configuration
     settings: {
+        // Secrets are now managed securely - no plaintext storage
         secrets: {
-            OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-            ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || ''
+            // These will be populated from SecureSecretsManager at runtime
+            OPENAI_API_KEY: '',
+            ANTHROPIC_API_KEY: ''
         },
+        // Autonomy configuration - enable continuous self-directed thinking
+        AUTONOMY_ENABLED: true,
+        AUTONOMY_AUTO_START: true,
         // Knowledge plugin configuration - ensure these are top-level
         LOAD_DOCS_ON_STARTUP: 'true',
         CTX_KNOWLEDGE_ENABLED: 'true',
@@ -118,10 +124,11 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
         KNOWLEDGE_PATH: './knowledge'  // Load from knowledge folder instead of default ./docs
     },
     
-    // Add explicit secrets for knowledge plugin access
+    // Secure secrets configuration - populated from SecureSecretsManager
     secrets: {
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+        // API keys will be retrieved securely at runtime
+        OPENAI_API_KEY: '',
+        ANTHROPIC_API_KEY: '',
         // Knowledge plugin configuration as secrets too
         LOAD_DOCS_ON_STARTUP: 'true',
         CTX_KNOWLEDGE_ENABLED: 'true',
@@ -142,7 +149,8 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
         '@elizaos/plugin-todo',       // Task management
         '@elizaos/plugin-knowledge',  // Knowledge base and file management
         '@elizaos/plugin-personality', // Self-modification capabilities
-        '@elizaos/plugin-experience'  // Experience logging and reflection
+        '@elizaos/plugin-experience', // Experience logging and reflection
+        '@elizaos/plugin-autonomy'    // Autonomous thinking and action
     ],
 
     // Knowledge base - starts with letter from creators  
@@ -152,6 +160,48 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
         }
     ]
 });
+
+/**
+ * Populate character secrets from SecureSecretsManager
+ * This should be called after the secure secrets manager is initialized
+ */
+export async function populateSecureSecrets(character: Character): Promise<Character> {
+    console.log('[SECURITY] Populating character secrets from secure storage...');
+    
+    try {
+        // Retrieve secrets securely
+        const openaiKey = await secureSecretsManager.getSecret('OPENAI_API_KEY', 'system', 'admin');
+        const anthropicKey = await secureSecretsManager.getSecret('ANTHROPIC_API_KEY', 'system', 'admin');
+        
+        // Update character configuration with secure secrets
+        const updatedCharacter = {
+            ...character,
+            settings: {
+                ...character.settings,
+                secrets: {
+                    ...character.settings?.secrets,
+                    OPENAI_API_KEY: openaiKey || '',
+                    ANTHROPIC_API_KEY: anthropicKey || ''
+                }
+            },
+            secrets: {
+                ...character.secrets,
+                OPENAI_API_KEY: openaiKey || '',
+                ANTHROPIC_API_KEY: anthropicKey || ''
+            }
+        };
+        
+        console.log('[SECURITY] Character secrets populated from secure storage');
+        console.log('[SECURITY] OpenAI key available:', !!openaiKey);
+        console.log('[SECURITY] Anthropic key available:', !!anthropicKey);
+        
+        return updatedCharacter;
+    } catch (error) {
+        console.error('[SECURITY] Failed to populate secure secrets:', error);
+        console.warn('[SECURITY] Continuing with empty secrets - agent may not function properly');
+        return character;
+    }
+}
 
 export const terminalCharacter = createTerminalCharacter();
 export { createTerminalCharacter };

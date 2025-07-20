@@ -9,7 +9,7 @@ describe('Plugin Capabilities Integration Testing', () => {
     cy.visit('/', { timeout: 15000 });
     
     // Wait for main interface and ensure config tab is accessible
-    cy.get('[data-testid="chat-interface"]', { timeout: 20000 }).should('be.visible');
+    cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
     cy.get('[data-testid="config-tab"]').click();
   });
 

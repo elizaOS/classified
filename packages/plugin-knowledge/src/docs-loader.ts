@@ -14,9 +14,8 @@ export async function isFirstTimeKnowledgeLoad(
 ): Promise<boolean> {
   try {
     // Check if any documents exist for this agent
-    const existingDocuments = await service.searchKnowledge({
-      query: '',
-      agentId,
+    const existingDocuments = await service.getMemories({
+      tableName: 'documents',
       count: 1,
     });
     

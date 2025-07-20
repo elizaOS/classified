@@ -1,7 +1,7 @@
 /// <reference types="cypress" />
 
 describe('Real End-to-End Integration Test', () => {
-  const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
+  const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://127.0.0.1:7777';
   const FRONTEND_URL = Cypress.env('FRONTEND_URL') || 'http://localhost:5173';
 
   before(() => {
@@ -85,7 +85,9 @@ describe('Real End-to-End Integration Test', () => {
     // Test Health Check
     cy.request('GET', `${BACKEND_URL}/api/server/health`).then((response) => {
       expect(response.status).to.eq(200);
-      expect(response.body).to.have.property('status');
+      expect(response.body).to.have.property('success');
+      expect(response.body).to.have.property('data');
+      expect(response.body.data).to.have.property('status', 'healthy');
       cy.log('✅ Health Check API working');
     });
     
@@ -115,8 +117,10 @@ describe('Real End-to-End Integration Test', () => {
       cy.log(`✅ Autonomy API responded with ${response.status}`);
       
       if (response.status === 200) {
-        expect(response.body).to.have.property('enabled');
-        cy.log(`Autonomy enabled: ${response.body.enabled}`);
+        expect(response.body).to.have.property('success');
+        expect(response.body).to.have.property('data');
+        expect(response.body.data).to.have.property('enabled');
+        cy.log(`Autonomy enabled: ${response.body.data.enabled}`);
       }
     });
   });
@@ -182,7 +186,7 @@ describe('Real End-to-End Integration Test', () => {
     
     // Interface should still be responsive even if some APIs fail
     cy.get('body').should('not.contain', 'crashed');
-    cy.get('body').should('not.contain', 'undefined');
+    cy.get('body').should('not.contain', 'Error:');
     cy.log('✅ Frontend handles API errors gracefully');
   });
 

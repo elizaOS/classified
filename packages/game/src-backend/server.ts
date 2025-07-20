@@ -28,13 +28,16 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { gameAPIPlugin } from './game-api-plugin.js';
-import { terminalCharacter } from './terminal-character.js';
+import { terminalCharacter, populateSecureSecrets } from './terminal-character.js';
+import { authManager } from './security/AuthenticationManager.js';
+import { secureSecretsManager } from './security/SecureSecretsManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
+// Load environment variables from multiple locations
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') }); // Project root
 
 // Function to start an agent runtime
 async function startAgent(character: any, server: any) {
@@ -52,9 +55,11 @@ async function startAgent(character: any, server: any) {
     
     try {
       await server.database.createAgent(updatedCharacter);
+      console.log('[AGENT START] Agent created successfully in database');
     } catch (err) {
       // Agent might already exist, that's OK
-      console.log('[AGENT START] Agent may already exist, continuing...');
+      console.log('[AGENT START] Agent creation failed (may already exist):', err.message);
+      console.log('[AGENT START] Continuing with existing agent...');
     }
 
     // CRITICAL: Also create the server's default agent ID in the database
@@ -67,7 +72,8 @@ async function startAgent(character: any, server: any) {
       await server.database.createAgent(serverDefaultAgent);
       console.log('[AGENT START] Created server default agent in database');
     } catch (err) {
-      console.log('[AGENT START] Server default agent may already exist, continuing...');
+      console.log('[AGENT START] Server default agent creation failed (may already exist):', err.message);
+      console.log('[AGENT START] Continuing with existing server agent...');
     }
     
     // Create a wrapped experience plugin without the evaluator that causes getCacheValue errors
@@ -75,6 +81,42 @@ async function startAgent(character: any, server: any) {
       ...experiencePlugin,
       evaluators: [], // Remove evaluators to avoid getCacheValue error
     };
+    
+    // Initialize secure secrets from environment variables
+    console.log('[SECURITY] Initializing secure secrets management...');
+    try {
+      // Migrate existing environment secrets to secure storage
+      const environmentSecrets = [
+        'OPENAI_API_KEY',
+        'ANTHROPIC_API_KEY', 
+        'DATABASE_URL',
+        'DISCORD_APPLICATION_ID',
+        'DISCORD_API_TOKEN',
+        'ETH_PRIVATE_KEY',
+        'SOLANA_PRIVATE_KEY'
+      ];
+      
+      for (const secretKey of environmentSecrets) {
+        const value = process.env[secretKey];
+        if (value && value.trim()) {
+          await secureSecretsManager.setSecret(
+            secretKey,
+            value,
+            'system',
+            secretKey.includes('PRIVATE_KEY') ? 'admin' : 'user'
+          );
+          console.log(`[SECURITY] Migrated ${secretKey} to secure storage`);
+          
+          // Clear from environment after storing securely
+          delete process.env[secretKey];
+        }
+      }
+      
+      console.log('[SECURITY] Secure secrets management initialized');
+    } catch (error) {
+      console.error('[SECURITY] Failed to initialize secure secrets:', error);
+      // Continue with startup but log the issue
+    }
     
     // Create plugin list with all required plugins
     const plugins: Plugin[] = [
@@ -172,16 +214,14 @@ export async function startServer() {
     await fs.mkdir(dataDir, { recursive: true });
     console.log('[BACKEND] Created fresh data directory');
 
-    // Set the database path for the sqlPlugin to use
-    process.env.PGLITE_DATA_DIR = dataDir;
-    process.env.DATABASE_PATH = dataDir;
+    // Use PGLite for local development to avoid database schema issues
+    console.log('[BACKEND] Using PGLite database for local development');
 
     // Create and initialize server
     const server = new AgentServer();
 
     await server.initialize({
-      dataDir,
-      postgresUrl: undefined, // Use PGLite
+      dataDir
     });
     
     console.log('[BACKEND] Server initialized with PGLite database');
@@ -194,6 +234,77 @@ export async function startServer() {
       tempFileDir: '/tmp/',
       createParentPath: true
     }));
+    
+    // Add authentication middleware to protect admin endpoints
+    console.log('[SECURITY] Setting up authentication middleware...');
+    
+    // Authentication endpoint
+    server.app.post('/api/auth/login', async (req, res) => {
+      try {
+        const { username, password } = req.body;
+        const ip = req.ip || req.connection.remoteAddress;
+        const userAgent = req.get('User-Agent');
+        
+        const authResult = await authManager.authenticate(username, password, ip, userAgent);
+        
+        if (authResult) {
+          res.json({
+            success: true,
+            data: {
+              token: authResult.token,
+              user: {
+                id: authResult.user.id,
+                username: authResult.user.username,
+                roles: authResult.user.roles,
+                permissions: authResult.user.permissions
+              }
+            }
+          });
+        } else {
+          res.status(401).json({
+            success: false,
+            error: { code: 'INVALID_CREDENTIALS', message: 'Invalid username or password' }
+          });
+        }
+      } catch (error) {
+        console.error('[AUTH] Login error:', error);
+        res.status(500).json({
+          success: false,
+          error: { code: 'AUTH_ERROR', message: 'Authentication failed' }
+        });
+      }
+    });
+    
+    // Logout endpoint
+    server.app.post('/api/auth/logout', async (req, res) => {
+      try {
+        const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.token;
+        if (token) {
+          await authManager.logout(token);
+        }
+        res.json({ success: true, message: 'Logged out successfully' });
+      } catch (error) {
+        console.error('[AUTH] Logout error:', error);
+        res.status(500).json({
+          success: false,
+          error: { code: 'LOGOUT_ERROR', message: 'Logout failed' }
+        });
+      }
+    });
+    
+    // Protect admin endpoints with authentication
+    // Apply authentication middleware to specific routes
+    server.app.use('/api/agents/:agentId/capabilities/:capability', authManager.authMiddleware());
+    server.app.use('/api/agents/:agentId/settings', authManager.authMiddleware());
+    server.app.use('/api/config/validate', authManager.authMiddleware());
+    server.app.use('/api/config/test', authManager.authMiddleware());
+    server.app.use('/api/plugin-config', authManager.authMiddleware());
+    server.app.use('/api/reset-agent', authManager.authMiddleware());
+    
+    // Note: For production, also protect these routes with requirePermission middleware
+    // Example: server.app.use('/api/config/validate', authManager.requirePermission('config:read'));
+    
+    console.log('[SECURITY] Authentication middleware configured for protected routes');
 
     // CRITICAL: Run plugin migrations for goals and todos plugins BEFORE starting agents
     console.log('[BACKEND] Running plugin migrations for goals and todos...');
@@ -217,7 +328,7 @@ export async function startServer() {
     console.log('[BACKEND] ✅ All plugin migrations completed');
     
     // Start the server on port 7777 BEFORE starting agents
-    const PORT = 7777;
+    const PORT = parseInt(process.env.PORT || process.env.SERVER_PORT || '7777');
     
     // Set SERVER_PORT env var so MessageBusService knows where to connect
     process.env.SERVER_PORT = PORT.toString();
@@ -330,11 +441,132 @@ export async function startServer() {
     
     console.log('[BACKEND] Messaging stub endpoints added');
     
+    // Add secure secrets management endpoint
+    server.app.get('/api/secrets', authManager.requirePermission('secrets:manage'), async (req, res) => {
+      try {
+        const user = (req as any).user;
+        const secrets = secureSecretsManager.listSecrets(user.roles.includes('admin') ? 'admin' : 'user');
+        
+        res.json({
+          success: true,
+          data: {
+            secrets: secrets.map(s => ({
+              key: s.key,
+              created: s.metadata.created,
+              lastAccessed: s.metadata.lastAccessed,
+              accessCount: s.metadata.accessCount,
+              requiredRole: s.metadata.requiredRole
+            }))
+          }
+        });
+      } catch (error) {
+        console.error('[SECURITY] Error listing secrets:', error);
+        res.status(500).json({
+          success: false,
+          error: { code: 'SECRETS_ERROR', message: 'Failed to list secrets' }
+        });
+      }
+    });
+    
+    // WORKAROUND: Add knowledge delete endpoint directly to server
+    // This is needed because gameAPIPlugin routes aren't being registered correctly
+    server.app.delete('/knowledge/documents/:documentId', authManager.requirePermission('config:write'), async (req, res) => {
+      try {
+        console.log('[BACKEND] Direct delete endpoint called for document:', req.params.documentId);
+        
+        // Find the runtime with the knowledge service
+        let targetRuntime = null;
+        for (const runtime of server.runtimes) {
+          const knowledgeService = runtime.getService('knowledge');
+          if (knowledgeService) {
+            targetRuntime = runtime;
+            break;
+          }
+        }
+        
+        if (!targetRuntime) {
+          return res.status(404).json({
+            success: false,
+            error: { code: 'SERVICE_NOT_FOUND', message: 'Knowledge service not available' }
+          });
+        }
+        
+        const knowledgeService = targetRuntime.getService('knowledge');
+        const documentId = req.params.documentId;
+        
+        // Use the knowledge service deleteMemory method to actually delete the document
+        await (knowledgeService as any).deleteMemory(documentId);
+        console.log('[BACKEND] Successfully deleted knowledge document:', documentId);
+        
+        res.json({
+          success: true,
+          data: {
+            message: 'Document deleted successfully',
+            documentId
+          },
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('[BACKEND] Error deleting knowledge document:', error);
+        res.status(500).json({
+          success: false,
+          error: { code: 'DELETE_FAILED', message: error.message },
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+    
     // Now start the default Terminal agent AFTER server is running
     console.log('[BACKEND] Starting default Terminal agent...');
-    const { runtime, channelId } = await startAgent(terminalCharacter, server);
+    
+    // Populate character with secure secrets before starting
+    const secureCharacter = await populateSecureSecrets(terminalCharacter);
+    
+    const { runtime, channelId } = await startAgent(secureCharacter, server);
     terminalRoomChannelId = channelId; // Update the global variable
-    console.log('[BACKEND] ✅ Default agent started successfully');
+    console.log('[BACKEND] ✅ Default agent started successfully with secure configuration');
+    
+    // CRITICAL: Add knowledge delete endpoint after agent runtime is available
+    // This ensures the knowledge service is properly initialized
+    console.log('[BACKEND] Adding knowledge delete endpoint with runtime access...');
+    server.app.delete('/knowledge/documents/:documentId', async (req, res) => {
+      try {
+        console.log('[BACKEND] Knowledge delete endpoint called for document:', req.params.documentId);
+        
+        const knowledgeService = runtime.getService('knowledge');
+        if (!knowledgeService) {
+          console.error('[BACKEND] Knowledge service not found');
+          return res.status(404).json({
+            success: false,
+            error: { code: 'SERVICE_NOT_FOUND', message: 'Knowledge service not available' }
+          });
+        }
+        
+        const documentId = req.params.documentId;
+        console.log('[BACKEND] Attempting to delete document using knowledge service:', documentId);
+        
+        // Use the knowledge service deleteMemory method to actually delete the document
+        await (knowledgeService as any).deleteMemory(documentId);
+        console.log('[BACKEND] Successfully deleted knowledge document via deleteMemory:', documentId);
+        
+        res.json({
+          success: true,
+          data: {
+            message: 'Document deleted successfully',
+            documentId
+          },
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('[BACKEND] Error deleting knowledge document:', error);
+        res.status(500).json({
+          success: false,
+          error: { code: 'DELETE_FAILED', message: error.message },
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+    console.log('[BACKEND] ✅ Knowledge delete endpoint added with runtime access');
     
     // Wait for all initialization to complete
     await new Promise(resolve => setTimeout(resolve, 2000));

@@ -18,7 +18,12 @@
     "kill-processes": "node scripts/kill-processes.js",
     "launch": "bun run src-backend/launch-game.ts",
     "launch:container": "bun run src-backend/launch-game.ts --container",
-    "launch:direct": "bun run src-backend/launch-game.ts"
+    "launch:direct": "bun run src-backend/launch-game.ts",
+    "test:api-keys": "node scripts/test-api-keys.js",
+    "test:cypress": "cypress run",
+    "test:cypress:open": "cypress open",
+    "test:random-ports": "node scripts/test-runner-random-ports.js",
+    "test:random-ports:specific": "node scripts/test-runner-random-ports.js"
   },
   "dependencies": {
     "@elizaos/api-client": "workspace:*",

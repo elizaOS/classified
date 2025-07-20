@@ -40,20 +40,17 @@ interface BootSequenceProps {
 }
 
 export default function BootSequence({ onComplete, onConnectionTest }: BootSequenceProps) {
-    // Skip boot sequence and immediately complete
-    useEffect(() => {
-        onComplete();
-    }, [onComplete]);
-
-    // Return empty div while skipping
-    return <div className="boot-screen" />;
-
-    /* ORIGINAL BOOT SEQUENCE CODE - COMMENTED OUT FOR NOW
     const [visibleLines, setVisibleLines] = useState<number>(0);
     const [showCursor, setShowCursor] = useState(true);
-    const [currentPhase, setCurrentPhase] = useState<'boot' | 'connection' | 'testing'>('boot');
+    const [currentPhase, setCurrentPhase] = useState<'boot' | 'connection' | 'testing' | 'setup'>('boot');
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
     const [messages, setMessages] = useState<string[]>(initialBootMessages);
+    const [showSetup, setShowSetup] = useState(false);
+    const [setupConfig, setSetupConfig] = useState({
+        openaiKey: '',
+        anthropicKey: '',
+        modelProvider: 'openai'
+    });
 
     const testConnection = useCallback(async () => {
         setCurrentPhase('testing');
@@ -62,6 +59,37 @@ export default function BootSequence({ onComplete, onConnectionTest }: BootSeque
             // Test basic connectivity
             setMessages(prev => [...prev, '  Testing agent connectivity... [TESTING]']);
             await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Check if API keys are configured
+            const configResponse = await fetch('http://localhost:7777/api/plugin-config', {
+                method: 'GET'
+            });
+            
+            let needsSetup = false;
+            if (configResponse.ok) {
+                const configData = await configResponse.json();
+                const env = configData.data?.configurations?.environment;
+                needsSetup = (!env?.OPENAI_API_KEY || env.OPENAI_API_KEY === 'NOT_SET') && 
+                           (!env?.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY === 'NOT_SET');
+            }
+            
+            if (needsSetup) {
+                setConnectionStatus('failed');
+                setMessages(prev => [
+                    ...prev.slice(0, -1),
+                    '  Testing agent connectivity... [SETUP]',
+                    '',
+                    '⚠ No AI model configuration found',
+                    '⚠ API keys required for operation',
+                    '',
+                    'Launching setup wizard...'
+                ]);
+                
+                setTimeout(() => {
+                    setShowSetup(true);
+                }, 2000);
+                return;
+            }
             
             // Use the provided connection test or default test
             const isConnected = onConnectionTest ? await onConnectionTest() : await defaultConnectionTest();
@@ -123,6 +151,54 @@ export default function BootSequence({ onComplete, onConnectionTest }: BootSeque
         }
     };
 
+    const handleSetupComplete = async () => {
+        try {
+            // Save configuration to backend
+            const config = {
+                MODEL_PROVIDER: setupConfig.modelProvider,
+                ...(setupConfig.modelProvider === 'openai' && setupConfig.openaiKey && {
+                    OPENAI_API_KEY: setupConfig.openaiKey
+                }),
+                ...(setupConfig.modelProvider === 'anthropic' && setupConfig.anthropicKey && {
+                    ANTHROPIC_API_KEY: setupConfig.anthropicKey
+                })
+            };
+            
+            console.log('[Setup] Saving configuration...');
+            const response = await fetch('http://localhost:7777/api/plugin-config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    plugin: 'environment',
+                    config
+                })
+            });
+            
+            if (response.ok) {
+                console.log('[Setup] Configuration saved successfully');
+                // Continue to main interface
+                onComplete();
+            } else {
+                console.error('[Setup] Failed to save configuration');
+                alert('Failed to save configuration. Please try again.');
+            }
+        } catch (error) {
+            console.error('[Setup] Error saving configuration:', error);
+            alert('Error saving configuration. Please check your connection.');
+        }
+    };
+    
+    const isSetupValid = () => {
+        if (setupConfig.modelProvider === 'openai') {
+            return setupConfig.openaiKey.trim().length > 0;
+        } else if (setupConfig.modelProvider === 'anthropic') {
+            return setupConfig.anthropicKey.trim().length > 0;
+        }
+        return false;
+    };
+
     useEffect(() => {
         if (currentPhase === 'boot') {
             const lineTimer = setInterval(() => {
@@ -166,7 +242,7 @@ export default function BootSequence({ onComplete, onConnectionTest }: BootSeque
 
     // Handle retry on failed connection
     useEffect(() => {
-        if (connectionStatus === 'failed') {
+        if (connectionStatus === 'failed' && !showSetup) {
             const handleKeyPress = (e: KeyboardEvent) => {
                 setConnectionStatus('connecting');
                 setCurrentPhase('testing');
@@ -177,7 +253,7 @@ export default function BootSequence({ onComplete, onConnectionTest }: BootSeque
             document.addEventListener('keydown', handleKeyPress);
             return () => document.removeEventListener('keydown', handleKeyPress);
         }
-    }, [connectionStatus, testConnection]);
+    }, [connectionStatus, showSetup, testConnection]);
 
     const getStatusColor = (status: ConnectionStatus) => {
         switch (status) {
@@ -187,6 +263,89 @@ export default function BootSequence({ onComplete, onConnectionTest }: BootSeque
         }
     };
 
+    // Setup phase UI - show this FIRST if needed
+    if (showSetup) {
+        return (
+            <div className="boot-screen">
+                <div className="setup-content">
+                    <div className="setup-header">
+                        <h2 className="glow">ELIZA OS Configuration</h2>
+                        <p>Configure your AI model settings to begin</p>
+                    </div>
+                    
+                    <div className="setup-form">
+                        <div className="form-group">
+                            <label htmlFor="modelProvider">Model Provider:</label>
+                            <select 
+                                id="modelProvider"
+                                value={setupConfig.modelProvider}
+                                onChange={(e) => setSetupConfig({...setupConfig, modelProvider: e.target.value})}
+                                className="setup-input"
+                            >
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                            </select>
+                        </div>
+                        
+                        {setupConfig.modelProvider === 'openai' && (
+                            <div className="form-group">
+                                <label htmlFor="openaiKey">OpenAI API Key:</label>
+                                <input
+                                    id="openaiKey"
+                                    type="password"
+                                    value={setupConfig.openaiKey}
+                                    onChange={(e) => setSetupConfig({...setupConfig, openaiKey: e.target.value})}
+                                    className="setup-input"
+                                    placeholder="sk-..."
+                                />
+                            </div>
+                        )}
+                        
+                        {setupConfig.modelProvider === 'anthropic' && (
+                            <div className="form-group">
+                                <label htmlFor="anthropicKey">Anthropic API Key:</label>
+                                <input
+                                    id="anthropicKey"
+                                    type="password"
+                                    value={setupConfig.anthropicKey}
+                                    onChange={(e) => setSetupConfig({...setupConfig, anthropicKey: e.target.value})}
+                                    className="setup-input"
+                                    placeholder="sk-ant-..."
+                                />
+                            </div>
+                        )}
+                        
+                        <div className="form-actions">
+                            <button 
+                                onClick={handleSetupComplete}
+                                className="setup-button primary"
+                                disabled={!isSetupValid()}
+                            >
+                                Continue
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    // Skip setup and continue with existing config
+                                    console.log('[Setup] Skipping setup, using existing configuration');
+                                    onComplete();
+                                }}
+                                className="setup-button secondary"
+                            >
+                                Skip (Use Existing)
+                            </button>
+                        </div>
+                        
+                        <div className="setup-info">
+                            <p className="info-text">Your API keys are stored locally and never transmitted to third parties.</p>
+                            <p className="info-text">You can change these settings later in the configuration panel.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Main boot sequence UI
     return (
         <div className="boot-screen">
             <div className="boot-content">
@@ -198,8 +357,10 @@ export default function BootSequence({ onComplete, onConnectionTest }: BootSeque
                             color: message.includes('[FAIL]') ? 'var(--terminal-red)' :
                                    message.includes('[  OK  ]') ? 'var(--terminal-green)' :
                                    message.includes('[TESTING]') ? 'var(--terminal-amber)' :
+                                   message.includes('[SETUP]') ? 'var(--terminal-amber)' :
                                    message.includes('✓') ? 'var(--terminal-green)' :
                                    message.includes('✗') ? 'var(--terminal-red)' :
+                                   message.includes('⚠') ? 'var(--terminal-amber)' :
                                    undefined
                         }}
                     >
@@ -216,11 +377,11 @@ export default function BootSequence({ onComplete, onConnectionTest }: BootSeque
                 )}
                 {!showCursor && (
                     <span 
-                    className="cursor-blink"
-                    style={{ color: getStatusColor(connectionStatus) }}
-                >
-                    &nbsp;
-                </span>
+                        className="cursor-blink"
+                        style={{ color: getStatusColor(connectionStatus) }}
+                    >
+                        &nbsp;
+                    </span>
                 )}
                 
                 {connectionStatus === 'connecting' && currentPhase === 'testing' && (
@@ -231,5 +392,4 @@ export default function BootSequence({ onComplete, onConnectionTest }: BootSeque
             </div>
         </div>
     );
-    */
-} 
+}

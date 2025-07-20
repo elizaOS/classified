@@ -9,7 +9,7 @@ describe('Error Handling and Recovery Testing', () => {
     cy.visit('/', { timeout: 15000 });
     
     // Wait for main interface to load
-    cy.get('[data-testid="chat-interface"]', { timeout: 20000 }).should('be.visible');
+    cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
   });
 
   describe('Network and Connection Errors', () => {
@@ -344,7 +344,7 @@ describe('Error Handling and Recovery Testing', () => {
       });
 
       // Wait for recovery
-      cy.get('[data-testid="chat-interface"]', { timeout: 20000 }).should('be.visible');
+      cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
       cy.get('[data-testid="state-recovery-indicator"]').should('be.visible');
       cy.screenshot('error-state-recovery');
 
@@ -378,7 +378,7 @@ describe('Error Handling and Recovery Testing', () => {
       
       // Should start fresh
       cy.get('[data-testid="fresh-start-message"]').should('be.visible');
-      cy.get('[data-testid="chat-interface"]').should('be.visible');
+      cy.get('[data-testid="game-interface"]').should('be.visible');
     });
 
     it('should recover from partial operation failures', () => {

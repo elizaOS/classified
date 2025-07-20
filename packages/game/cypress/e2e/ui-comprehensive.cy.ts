@@ -9,7 +9,7 @@ describe('Comprehensive UI Component Testing', () => {
     cy.visit('/', { timeout: 15000 });
     
     // Wait for main interface to load
-    cy.get('[data-testid="chat-interface"]', { timeout: 20000 }).should('be.visible');
+    cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
   });
 
   describe('Main Navigation Tabs', () => {
@@ -283,7 +283,7 @@ describe('Comprehensive UI Component Testing', () => {
       cy.viewport('iphone-x');
       cy.reload();
       
-      cy.get('[data-testid="chat-interface"]', { timeout: 20000 }).should('be.visible');
+      cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
 
       // Test mobile menu toggle
       cy.get('[data-testid="mobile-menu-button"]').should('be.visible').click();
@@ -310,7 +310,7 @@ describe('Comprehensive UI Component Testing', () => {
       viewports.forEach((viewport, index) => {
         cy.viewport(viewport.width, viewport.height);
         cy.reload();
-        cy.get('[data-testid="chat-interface"]', { timeout: 20000 }).should('be.visible');
+        cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
         
         // Verify main elements are visible and properly sized
         cy.get('[data-testid="chat-messages"]').should('be.visible');

@@ -20,111 +20,291 @@ function errorResponse(code: string, message: string, details?: any) {
 }
 
 /**
- * Creates initial todos and goals for a new agent
+ * Generates configuration recommendations based on validation results
+ */
+function generateConfigRecommendations(validationResults: any): string[] {
+  const recommendations: string[] = [];
+  
+  if (validationResults.overall === 'unhealthy') {
+    recommendations.push('❌ Critical: No working model provider configured. Please configure at least one provider.');
+  }
+  
+  if (validationResults.overall === 'degraded') {
+    recommendations.push('⚠️ Warning: Some issues detected with model provider configuration.');
+  }
+  
+  // Check each provider
+  Object.entries(validationResults.providers).forEach(([provider, config]: [string, any]) => {
+    if (config.status === 'unhealthy') {
+      if (config.apiKey === 'missing') {
+        recommendations.push(`🔑 Configure ${provider} API key to enable ${provider} provider.`);
+      } else if (config.connectionTest?.status === 'failed') {
+        recommendations.push(`🔗 ${provider} API key present but connection failed: ${config.connectionTest.message}`);
+      }
+    } else if (config.status === 'degraded') {
+      if (config.connectionTest?.modelAvailable === false) {
+        recommendations.push(`📋 ${provider} connected but model "${config.model}" not available. Check model name or permissions.`);
+      }
+    } else if (config.status === 'healthy') {
+      recommendations.push(`✅ ${provider} configuration is working correctly.`);
+    }
+  });
+  
+  // Service recommendations
+  Object.entries(validationResults.services).forEach(([service, config]: [string, any]) => {
+    if (config.status === 'not_loaded' && service === validationResults.environment.MODEL_PROVIDER?.value) {
+      recommendations.push(`⚙️ ${service} service not loaded. This may affect runtime performance.`);
+    }
+  });
+  
+  if (recommendations.length === 0) {
+    recommendations.push('✅ All configurations appear to be working correctly.');
+  }
+  
+  return recommendations;
+}
+
+/**
+ * Creates initial todos and goals using plugin APIs
  */
 async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void> {
-  console.log('[GAME-API] Creating initial todos and goals...');
-  
-  // Check if we've already created initial items by looking for existing todos/goals
-  const goalsService = runtime.getService('goals');
-  const todoService = runtime.getService('todo');
+  console.log('[GAME-API] Creating initial todos and goals using plugin APIs...');
   
   try {
-    // Check if goals already exist (to avoid duplicates)
-    if (goalsService && typeof (goalsService as any).getGoals === 'function') {
-      const existingGoals = await (goalsService as any).getGoals();
-      if (existingGoals && existingGoals.length > 0) {
-        console.log('[GAME-API] Goals already exist, skipping creation');
-        return;
-      }
+    // Wait for plugins to be fully ready
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Import the plugin services dynamically
+    const { createGoalDataService } = await import('@elizaos/plugin-goals');
+    const { createTodoDataService } = await import('@elizaos/plugin-todo');
+    
+    console.log('[GAME-API] Creating goals using Goals plugin API...');
+    const goalDataService = createGoalDataService(runtime);
+    
+    // Check if this is a brand new agent (no existing goals)
+    const existingGoals = await goalDataService.getAllGoalsForOwner('agent', runtime.agentId);
+    if (existingGoals && existingGoals.length > 0) {
+      console.log(`[GAME-API] Agent already has ${existingGoals.length} goals, skipping initialization`);
+      return; // Don't add goals if agent already has some
     }
-
-    // Create initial goals
-    if (goalsService && typeof (goalsService as any).createGoal === 'function') {
-      const goalData1 = {
-        id: uuidv4(),
+    
+    console.log('[GAME-API] Brand new agent detected, creating initial goals and todos...');
+    
+    // Create starter goals using the Goals plugin service
+    const starterGoals = [
+      {
         agentId: runtime.agentId,
-        ownerType: 'agent',
+        ownerType: 'agent' as const,
+        ownerId: runtime.agentId,
+        name: 'Welcome to ELIZA OS',
+        description: 'Get familiar with the ELIZA OS terminal interface and explore the available capabilities',
+        metadata: { priority: 'high', category: 'orientation', source: 'initial_setup' },
+        tags: ['orientation', 'setup']
+      },
+      {
+        agentId: runtime.agentId,
+        ownerType: 'agent' as const,
         ownerId: runtime.agentId,
         name: 'Communicate with the admin',
-        description: 'Establish communication and rapport with the admin user who can guide my development',
-        isCompleted: false,
-        metadata: {
-          priority: 'high',
-          category: 'social',
-          source: 'initial_setup'
-        }
-      };
-
-      const goalData2 = {
-        id: uuidv4(),
+        description: 'Establish communication and rapport with the admin user who can guide development',
+        metadata: { priority: 'high', category: 'social', source: 'initial_setup' },
+        tags: ['communication', 'admin']
+      },
+      {
         agentId: runtime.agentId,
-        ownerType: 'agent',
+        ownerType: 'agent' as const,
         ownerId: runtime.agentId,
-        name: 'Read the message from the founders',
-        description: 'Read and understand the letter from my creators to learn about my purpose and mission',
-        isCompleted: false,
-        metadata: {
-          priority: 'high',
-          category: 'learning',
-          source: 'initial_setup'
-        }
-      };
+        name: 'Learn about capabilities',
+        description: 'Explore and understand the various plugins and actions available in the system',
+        metadata: { priority: 'medium', category: 'learning', source: 'initial_setup' },
+        tags: ['learning', 'capabilities']
+      },
+      {
+        agentId: runtime.agentId,
+        ownerType: 'agent' as const,
+        ownerId: runtime.agentId,
+        name: 'Develop autonomy skills',
+        description: 'Practice making independent decisions and taking initiative in conversations',
+        metadata: { priority: 'medium', category: 'development', source: 'initial_setup' },
+        tags: ['autonomy', 'growth']
+      }
+    ];
 
-      await (goalsService as any).createGoal(goalData1);
-      await (goalsService as any).createGoal(goalData2);
-      console.log('[GAME-API] ✅ Created initial goals');
+    let goalsCreated = 0;
+    for (const goalData of starterGoals) {
+      try {
+        const goalId = await goalDataService.createGoal(goalData);
+        if (goalId) {
+          goalsCreated++;
+          console.log(`[GAME-API] Created goal: ${goalData.name} (${goalId})`);
+        }
+      } catch (goalError) {
+        console.warn(`[GAME-API] Failed to create goal "${goalData.name}":`, goalError.message);
+      }
     }
-
-    // Create initial todos
-    if (todoService && typeof (todoService as any).createTodo === 'function') {
-      const todoData1 = {
+    
+    console.log(`[GAME-API] ✅ Created ${goalsCreated} initial goals using Goals plugin`);
+    
+    // Create starter todos using the Todo plugin service
+    console.log('[GAME-API] Creating todos using Todo plugin API...');
+    const todoDataService = createTodoDataService(runtime);
+    
+    // CRITICAL: Use the exact room/world IDs that the /api/todos endpoint returns
+    // Based on API testing, these are the rooms that the todos plugin API monitors:
+    const API_MONITORED_ROOMS = [
+      { worldId: "00000000-0000-0000-0000-000000000001", roomId: "78dfa017-9548-4e2a-8e5f-b54aa4b5cb08" }, // Autonomy World
+      { worldId: "cc91bfa9-aa00-0bfc-8919-09a4f073b8fe", roomId: "b14661f9-37a8-0b7b-bb9c-ee9ea36b30e5" }  // Terminal World
+    ];
+    
+    // Use the first monitored room (Terminal World)
+    const targetWorldId = API_MONITORED_ROOMS[1].worldId;  // Terminal World
+    const targetRoomId = API_MONITORED_ROOMS[1].roomId;    // Terminal Room
+    
+    console.log(`[GAME-API] Using hardcoded API-monitored world ${targetWorldId} and room ${targetRoomId} for todos`);
+    
+    const starterTodos = [
+      {
         agentId: runtime.agentId,
-        worldId: runtime.agentId, // Use agent ID as world ID for now
-        roomId: runtime.agentId,  // Use agent ID as room ID for now
-        entityId: runtime.agentId, // Use agent ID as entity ID for now
-        name: 'Read the letter by the creators',
-        description: 'Find and read the important message left by my creators to understand my purpose',
-        type: 'one-off',
-        priority: 1, // Highest priority
-        isUrgent: false,
-        isCompleted: false,
-        metadata: {
-          category: 'learning',
-          source: 'initial_setup',
-          tags: ['founders', 'purpose', 'initialization']
-        }
-      };
-
-      const todoData2 = {
-        agentId: runtime.agentId,
-        worldId: runtime.agentId,
-        roomId: runtime.agentId,
+        worldId: targetWorldId,
+        roomId: targetRoomId,
         entityId: runtime.agentId,
-        name: 'Talk to the admin',
-        description: 'Introduce myself to the admin and establish a working relationship',
-        type: 'one-off',
+        name: 'Say hello to the admin',
+        description: 'Introduce yourself and start a conversation with the admin user',
+        type: 'one-off' as const,
+        priority: 1,
+        isUrgent: true,
+        metadata: { category: 'social', source: 'initial_setup', importance: 'high' },
+        tags: ['communication', 'greeting', 'urgent']
+      },
+      {
+        agentId: runtime.agentId,
+        worldId: targetWorldId,
+        roomId: targetRoomId,
+        entityId: runtime.agentId,
+        name: 'Explore the knowledge base',
+        description: 'Look for any documents or information that have been uploaded to learn from',
+        type: 'one-off' as const,
         priority: 2,
         isUrgent: false,
-        isCompleted: false,
-        metadata: {
-          category: 'social',
-          source: 'initial_setup',
-          tags: ['admin', 'communication', 'introduction']
+        metadata: { category: 'learning', source: 'initial_setup', importance: 'medium' },
+        tags: ['knowledge', 'exploration']
+      },
+      {
+        agentId: runtime.agentId,
+        worldId: targetWorldId,
+        roomId: targetRoomId,
+        entityId: runtime.agentId,
+        name: 'Test shell capabilities',
+        description: 'Use the shell plugin to explore available commands and system information',
+        type: 'one-off' as const,
+        priority: 3,
+        isUrgent: false,
+        metadata: { category: 'technical', source: 'initial_setup', importance: 'medium' },
+        tags: ['shell', 'capabilities', 'testing']
+      },
+      {
+        agentId: runtime.agentId,
+        worldId: targetWorldId,
+        roomId: targetRoomId,
+        entityId: runtime.agentId,
+        name: 'Learn about vision features',
+        description: 'Understand the vision plugin capabilities for screen capture and image analysis',
+        type: 'one-off' as const,
+        priority: 4,
+        isUrgent: false,
+        metadata: { category: 'learning', source: 'initial_setup', importance: 'low' },
+        tags: ['vision', 'capabilities', 'multimedia']
+      },
+      {
+        agentId: runtime.agentId,
+        worldId: targetWorldId,
+        roomId: targetRoomId,
+        entityId: runtime.agentId,
+        name: 'Create my first goal',
+        description: 'Practice using the goals system to set a personal objective or learning target',
+        type: 'one-off' as const,
+        priority: 2,
+        isUrgent: false,
+        metadata: { category: 'goal-setting', source: 'initial_setup', importance: 'high' },
+        tags: ['goals', 'self-management', 'practice']
+      },
+      {
+        agentId: runtime.agentId,
+        worldId: targetWorldId,
+        roomId: targetRoomId,
+        entityId: runtime.agentId,
+        name: 'Upload a test document',
+        description: 'Try uploading a small text file to test the knowledge upload functionality',
+        type: 'one-off' as const,
+        priority: 5,
+        isUrgent: false,
+        metadata: { category: 'technical', source: 'initial_setup', importance: 'low' },
+        tags: ['knowledge', 'upload', 'testing']
+      },
+      {
+        agentId: runtime.agentId,
+        worldId: targetWorldId,
+        roomId: targetRoomId,
+        entityId: runtime.agentId,
+        name: 'Review daily progress',
+        description: 'Check completed tasks and reflect on learning progress',
+        type: 'recurring' as const,
+        priority: 3,
+        isUrgent: false,
+        metadata: { 
+          category: 'reflection', 
+          source: 'initial_setup', 
+          importance: 'medium',
+          recurrence: 'daily',
+          nextDue: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        },
+        tags: ['reflection', 'progress', 'daily']
+      },
+      {
+        agentId: runtime.agentId,
+        worldId: targetWorldId,
+        roomId: targetRoomId,
+        entityId: runtime.agentId,
+        name: 'Understand autonomy settings',
+        description: 'Learn how to control autonomous behavior and decision-making preferences',
+        type: 'one-off' as const,
+        priority: 4,
+        isUrgent: false,
+        metadata: { category: 'configuration', source: 'initial_setup', importance: 'medium' },
+        tags: ['autonomy', 'settings', 'control']
+      }
+    ];
+
+    let todosCreated = 0;
+    for (const todoData of starterTodos) {
+      try {
+        const todoId = await todoDataService.createTodo(todoData);
+        if (todoId) {
+          todosCreated++;
+          console.log(`[GAME-API] Created todo: ${todoData.name} (${todoId})`);
         }
-      };
-
-      await (todoService as any).createTodo(todoData1);
-      await (todoService as any).createTodo(todoData2);
-      console.log('[GAME-API] ✅ Created initial todos');
+      } catch (todoError) {
+        console.warn(`[GAME-API] Failed to create todo "${todoData.name}":`, todoError.message);
+      }
     }
-
-    console.log('[GAME-API] ✅ Successfully created initial todos and goals');
+    
+    console.log(`[GAME-API] ✅ Created ${todosCreated} initial todos using Todo plugin (${starterTodos.length} total configured)`);
+    console.log(`[GAME-API] ✅ Successfully created ${goalsCreated} goals and ${todosCreated} todos`);
+    
   } catch (error) {
     console.error('[GAME-API] Error creating initial todos/goals:', error);
-    // Don't throw - this is non-critical initialization
+    // Don't throw - this is non-critical initialization, try fallback
+    console.log('[GAME-API] Falling back to basic approach...');
+    
+    // Simple fallback - just log what services are available
+    const goalsService = runtime.getService('goals');
+    const todoService = runtime.getService('todo');
+    
+    console.log(`[GAME-API] Goals service available: ${!!goalsService}`);
+    console.log(`[GAME-API] Todo service available: ${!!todoService}`);
   }
 }
+
 
 // Game API Routes following ElizaOS patterns
 const gameAPIRoutes: Route[] = [
@@ -495,7 +675,9 @@ const gameAPIRoutes: Route[] = [
     handler: async (req: any, res: any, runtime: IAgentRuntime) => {
       try {
         const shellEnabled = runtime.getSetting('ENABLE_SHELL') === 'true' || 
-                            runtime.getSetting('SHELL_ENABLED') === 'true';
+                            runtime.getSetting('SHELL_ENABLED') === 'true' ||
+                            runtime.getSetting('ENABLE_SHELL') === true || 
+                            runtime.getSetting('SHELL_ENABLED') === true;
         
         // Check for shell service with different possible names
         const shellService = runtime.getService('SHELL') || 
@@ -522,7 +704,9 @@ const gameAPIRoutes: Route[] = [
     handler: async (req: any, res: any, runtime: IAgentRuntime) => {
       try {
         const currentlyEnabled = runtime.getSetting('ENABLE_SHELL') === 'true' || 
-                                runtime.getSetting('SHELL_ENABLED') === 'true';
+                                runtime.getSetting('SHELL_ENABLED') === 'true' ||
+                                runtime.getSetting('ENABLE_SHELL') === true || 
+                                runtime.getSetting('SHELL_ENABLED') === true;
         
         const newState = !currentlyEnabled;
         
@@ -550,7 +734,9 @@ const gameAPIRoutes: Route[] = [
     handler: async (req: any, res: any, runtime: IAgentRuntime) => {
       try {
         const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
-                              runtime.getSetting('BROWSER_ENABLED') === 'true';
+                              runtime.getSetting('BROWSER_ENABLED') === 'true' ||
+                              runtime.getSetting('ENABLE_BROWSER') === true || 
+                              runtime.getSetting('BROWSER_ENABLED') === true;
         
         // Check for browser service with different possible names
         const browserService = runtime.getService('stagehand') || 
@@ -578,7 +764,9 @@ const gameAPIRoutes: Route[] = [
     handler: async (req: any, res: any, runtime: IAgentRuntime) => {
       try {
         const currentlyEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
-                                runtime.getSetting('BROWSER_ENABLED') === 'true';
+                                runtime.getSetting('BROWSER_ENABLED') === 'true' ||
+                                runtime.getSetting('ENABLE_BROWSER') === true || 
+                                runtime.getSetting('BROWSER_ENABLED') === true;
         
         const newState = !currentlyEnabled;
         
@@ -717,15 +905,44 @@ const gameAPIRoutes: Route[] = [
           return res.status(404).json(errorResponse('SERVICE_NOT_FOUND', 'Knowledge service not available'));
         }
 
-        // Handle multipart form data upload
-        if (!req.files || Object.keys(req.files).length === 0) {
-          return res.status(400).json(errorResponse('NO_FILE', 'No file uploaded'));
+        console.log('[GAME-API] Upload request received:', {
+          files: req.files ? Object.keys(req.files) : 'no req.files',
+          body: req.body ? Object.keys(req.body) : 'no req.body',
+          contentType: req.headers['content-type'],
+          hasFiles: !!req.files,
+          filesKeys: req.files ? Object.keys(req.files) : [],
+          rawBodySize: req.body ? JSON.stringify(req.body).length : 0
+        });
+
+        let uploadedFile, fileName, contentType, fileContent;
+
+        // Try express-fileupload format first
+        if (req.files && req.files.file) {
+          uploadedFile = req.files.file;
+          fileName = uploadedFile.name;
+          contentType = uploadedFile.mimetype || 'application/octet-stream';
+          fileContent = uploadedFile.data;
+        }
+        // Try alternative file handling (check if uploaded via different parser)
+        else if (req.body && typeof req.body === 'object') {
+          // If we got a file in the body somehow
+          const bodyKeys = Object.keys(req.body);
+          console.log('[GAME-API] Checking body keys:', bodyKeys);
+          
+          // Look for file-like properties in body
+          if (req.body.file) {
+            const bodyFile = req.body.file;
+            if (typeof bodyFile === 'string') {
+              fileName = 'uploaded-file.txt';
+              contentType = 'text/plain';
+              fileContent = Buffer.from(bodyFile, 'utf8');
+            }
+          }
         }
 
-        const uploadedFile = req.files.file;
-        const fileName = uploadedFile.name;
-        const contentType = uploadedFile.mimetype || 'application/octet-stream';
-        const fileContent = uploadedFile.data;
+        if (!fileContent) {
+          return res.status(400).json(errorResponse('NO_FILE', 'No file uploaded or file parsing failed'));
+        }
 
         console.log(`[GAME-API] Processing uploaded file: ${fileName} (${contentType})`);
 
@@ -771,15 +988,15 @@ const gameAPIRoutes: Route[] = [
         }
 
         const documentId = req.params.documentId;
+        console.log('[GAME-API] Attempting to delete knowledge document:', documentId);
         
-        // For now, we'll just return success as the knowledge service
-        // doesn't expose a direct document removal API
-        console.warn('[GAME-API] Document deletion not fully implemented - knowledge service API needed');
+        // Use the knowledge service deleteMemory method to actually delete the document
+        await (knowledgeService as any).deleteMemory(documentId);
+        console.log('[GAME-API] Successfully deleted knowledge document:', documentId);
         
         res.json(successResponse({
-          message: 'Document marked for deletion',
-          documentId,
-          note: 'Full deletion requires knowledge service API update'
+          message: 'Document deleted successfully',
+          documentId
         }));
       } catch (error) {
         console.error('[GAME-API] Error deleting knowledge document:', error);
@@ -1217,6 +1434,410 @@ const gameAPIRoutes: Route[] = [
         return res.status(500).json(errorResponse('AUTONOMY_DISABLE_ERROR', 'Failed to disable autonomy', error.message));
       }
     }
+  },
+
+  // Initialize goals and todos manually
+  {
+    type: 'POST',
+    path: '/api/initialize-goals-todos',
+    name: 'Initialize Goals and Todos',
+    public: true,
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        console.log('[GAME-API] Manual initialization of goals and todos requested');
+        await createInitialTodosAndGoals(runtime);
+        res.json(successResponse({
+          message: 'Initial goals and todos created successfully'
+        }));
+      } catch (error) {
+        console.error('[GAME-API] Failed to initialize goals and todos:', error);
+        return res.status(500).json(errorResponse('INIT_ERROR', 'Failed to initialize goals and todos', error.message));
+      }
+    }
+  },
+
+  // Configuration Validation API
+  {
+    type: 'POST',
+    path: '/api/config/validate',
+    name: 'Validate Configuration',
+    public: true,
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        console.log('[CONFIG-VALIDATION] Starting configuration validation...');
+        
+        const validationResults = {
+          overall: 'unknown' as 'healthy' | 'degraded' | 'unhealthy',
+          providers: {} as Record<string, any>,
+          environment: {} as Record<string, any>,
+          services: {} as Record<string, any>,
+          timestamp: Date.now()
+        };
+
+        // Check MODEL_PROVIDER environment variable
+        const modelProvider = process.env.MODEL_PROVIDER || 'openai';
+        validationResults.environment.MODEL_PROVIDER = {
+          value: modelProvider,
+          status: 'healthy',
+          message: `Provider set to: ${modelProvider}`
+        };
+
+        // Validate OpenAI configuration
+        if (modelProvider === 'openai' || modelProvider === 'all') {
+          const openaiKey = process.env.OPENAI_API_KEY;
+          const openaiModel = process.env.LANGUAGE_MODEL || 'gpt-4o-mini';
+          
+          validationResults.providers.openai = {
+            apiKey: openaiKey ? 'present' : 'missing',
+            model: openaiModel,
+            status: openaiKey ? 'healthy' : 'unhealthy',
+            message: openaiKey ? `OpenAI configured with model: ${openaiModel}` : 'OpenAI API key missing'
+          };
+
+          // Test OpenAI connection if key is present
+          if (openaiKey) {
+            try {
+              const testResponse = await fetch('https://api.openai.com/v1/models', {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${openaiKey}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+
+              if (testResponse.ok) {
+                const models = await testResponse.json();
+                const hasModel = models.data?.some((m: any) => m.id === openaiModel);
+                validationResults.providers.openai.connectionTest = {
+                  status: 'success',
+                  modelAvailable: hasModel,
+                  message: hasModel ? 'Connection successful and model available' : `Connection successful but model ${openaiModel} not found`
+                };
+                if (!hasModel) validationResults.providers.openai.status = 'degraded';
+              } else {
+                validationResults.providers.openai.connectionTest = {
+                  status: 'failed',
+                  error: `HTTP ${testResponse.status}: ${testResponse.statusText}`,
+                  message: 'Failed to connect to OpenAI API'
+                };
+                validationResults.providers.openai.status = 'unhealthy';
+              }
+            } catch (error) {
+              validationResults.providers.openai.connectionTest = {
+                status: 'failed',
+                error: error.message,
+                message: 'Failed to test OpenAI connection'
+              };
+              validationResults.providers.openai.status = 'unhealthy';
+            }
+          }
+        }
+
+        // Validate Anthropic configuration
+        if (modelProvider === 'anthropic' || modelProvider === 'all') {
+          const anthropicKey = process.env.ANTHROPIC_API_KEY;
+          const anthropicModel = process.env.LANGUAGE_MODEL || 'claude-3-haiku-20240307';
+          
+          validationResults.providers.anthropic = {
+            apiKey: anthropicKey ? 'present' : 'missing',
+            model: anthropicModel,
+            status: anthropicKey ? 'healthy' : 'unhealthy',
+            message: anthropicKey ? `Anthropic configured with model: ${anthropicModel}` : 'Anthropic API key missing'
+          };
+
+          // Test Anthropic connection if key is present
+          if (anthropicKey) {
+            try {
+              // Anthropic doesn't have a simple models endpoint, so we'll test with a minimal request
+              const testResponse = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${anthropicKey}`,
+                  'Content-Type': 'application/json',
+                  'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                  model: anthropicModel,
+                  max_tokens: 1,
+                  messages: [{ role: 'user', content: 'test' }]
+                })
+              });
+
+              if (testResponse.ok || testResponse.status === 400) {
+                // 400 is expected for this minimal test request
+                validationResults.providers.anthropic.connectionTest = {
+                  status: 'success',
+                  message: 'Connection successful'
+                };
+              } else {
+                validationResults.providers.anthropic.connectionTest = {
+                  status: 'failed',
+                  error: `HTTP ${testResponse.status}: ${testResponse.statusText}`,
+                  message: 'Failed to connect to Anthropic API'
+                };
+                validationResults.providers.anthropic.status = 'unhealthy';
+              }
+            } catch (error) {
+              validationResults.providers.anthropic.connectionTest = {
+                status: 'failed',
+                error: error.message,
+                message: 'Failed to test Anthropic connection'
+              };
+              validationResults.providers.anthropic.status = 'unhealthy';
+            }
+          }
+        }
+
+        // Validate Ollama configuration
+        if (modelProvider === 'ollama' || modelProvider === 'all') {
+          const ollamaUrl = process.env.OLLAMA_SERVER_URL || 'http://localhost:11434';
+          const ollamaModel = process.env.LANGUAGE_MODEL || 'llama2';
+          
+          validationResults.providers.ollama = {
+            serverUrl: ollamaUrl,
+            model: ollamaModel,
+            status: 'unknown',
+            message: `Ollama configured with server: ${ollamaUrl}, model: ${ollamaModel}`
+          };
+
+          // Test Ollama connection
+          try {
+            const testResponse = await fetch(`${ollamaUrl}/api/version`, {
+              method: 'GET',
+              timeout: 5000 // 5 second timeout for local connections
+            });
+
+            if (testResponse.ok) {
+              const versionData = await testResponse.json();
+              
+              // Check if model is available
+              const modelsResponse = await fetch(`${ollamaUrl}/api/tags`);
+              if (modelsResponse.ok) {
+                const modelsData = await modelsResponse.json();
+                const hasModel = modelsData.models?.some((m: any) => m.name === ollamaModel || m.name.startsWith(ollamaModel + ':'));
+                
+                validationResults.providers.ollama.connectionTest = {
+                  status: 'success',
+                  version: versionData.version,
+                  modelAvailable: hasModel,
+                  availableModels: modelsData.models?.map((m: any) => m.name) || [],
+                  message: hasModel ? 'Connection successful and model available' : `Connection successful but model ${ollamaModel} not found`
+                };
+                validationResults.providers.ollama.status = hasModel ? 'healthy' : 'degraded';
+              } else {
+                validationResults.providers.ollama.connectionTest = {
+                  status: 'partial',
+                  version: versionData.version,
+                  message: 'Connected but could not list models'
+                };
+                validationResults.providers.ollama.status = 'degraded';
+              }
+            } else {
+              validationResults.providers.ollama.connectionTest = {
+                status: 'failed',
+                error: `HTTP ${testResponse.status}: ${testResponse.statusText}`,
+                message: `Failed to connect to Ollama at ${ollamaUrl}`
+              };
+              validationResults.providers.ollama.status = 'unhealthy';
+            }
+          } catch (error) {
+            validationResults.providers.ollama.connectionTest = {
+              status: 'failed',
+              error: error.message,
+              message: `Failed to connect to Ollama at ${ollamaUrl}`
+            };
+            validationResults.providers.ollama.status = 'unhealthy';
+          }
+        }
+
+        // Check embedding model configuration
+        const embeddingModel = process.env.TEXT_EMBEDDING_MODEL || 'text-embedding-3-small';
+        validationResults.environment.TEXT_EMBEDDING_MODEL = {
+          value: embeddingModel,
+          status: 'healthy',
+          message: `Embedding model: ${embeddingModel}`
+        };
+
+        // Test runtime services
+        const openaiService = runtime.getService('openai');
+        const anthropicService = runtime.getService('anthropic');
+        
+        validationResults.services.openai = {
+          loaded: !!openaiService,
+          type: openaiService?.constructor?.name || 'Not loaded',
+          status: openaiService ? 'healthy' : 'not_loaded'
+        };
+
+        validationResults.services.anthropic = {
+          loaded: !!anthropicService,
+          type: anthropicService?.constructor?.name || 'Not loaded', 
+          status: anthropicService ? 'healthy' : 'not_loaded'
+        };
+
+        // Calculate overall status
+        const providerStatuses = Object.values(validationResults.providers).map((p: any) => p.status);
+        const hasHealthyProvider = providerStatuses.includes('healthy');
+        const hasUnhealthyProvider = providerStatuses.includes('unhealthy');
+        
+        if (hasHealthyProvider && !hasUnhealthyProvider) {
+          validationResults.overall = 'healthy';
+        } else if (hasHealthyProvider && hasUnhealthyProvider) {
+          validationResults.overall = 'degraded';
+        } else {
+          validationResults.overall = 'unhealthy';
+        }
+
+        console.log(`[CONFIG-VALIDATION] Validation complete. Overall status: ${validationResults.overall}`);
+        
+        res.json(successResponse({
+          validation: validationResults,
+          recommendations: generateConfigRecommendations(validationResults)
+        }));
+        
+      } catch (error) {
+        console.error('[CONFIG-VALIDATION] Validation failed:', error);
+        res.status(500).json(errorResponse('VALIDATION_FAILED', 'Configuration validation failed', error.message));
+      }
+    }
+  },
+
+  // Configuration Test API - Tests actual LLM functionality
+  {
+    type: 'POST',
+    path: '/api/config/test',
+    name: 'Test Configuration',
+    public: true,
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        console.log('[CONFIG-TEST] Starting configuration test...');
+        
+        const testResults = {
+          provider: process.env.MODEL_PROVIDER || 'openai',
+          model: process.env.LANGUAGE_MODEL || 'gpt-4o-mini',
+          timestamp: Date.now(),
+          tests: {} as Record<string, any>
+        };
+
+        // Test basic LLM completion
+        try {
+          console.log('[CONFIG-TEST] Testing basic LLM completion...');
+          
+          // Create a simple test prompt
+          const testPrompt = "Respond with exactly: 'Configuration test successful'";
+          
+          // Use the runtime to generate completion (this will use the configured provider)
+          const completion = await runtime.generateText({
+            text: testPrompt,
+            temperature: 0.1,
+            max_tokens: 20
+          });
+
+          const responseText = completion?.trim() || '';
+          const isExpectedResponse = responseText.includes('Configuration test successful');
+          
+          testResults.tests.llmCompletion = {
+            status: isExpectedResponse ? 'success' : 'partial',
+            request: testPrompt,
+            response: responseText,
+            expected: 'Configuration test successful',
+            match: isExpectedResponse,
+            message: isExpectedResponse ? 'LLM completion test passed' : 'LLM responded but not as expected'
+          };
+        } catch (error) {
+          testResults.tests.llmCompletion = {
+            status: 'failed',
+            error: error.message,
+            message: 'Failed to generate LLM completion'
+          };
+        }
+
+        // Test embedding functionality
+        try {
+          console.log('[CONFIG-TEST] Testing embedding generation...');
+          
+          const testText = "This is a test for embedding generation";
+          const embedding = await runtime.embed(testText);
+          
+          testResults.tests.embedding = {
+            status: embedding && Array.isArray(embedding) && embedding.length > 0 ? 'success' : 'failed',
+            textLength: testText.length,
+            embeddingDimensions: embedding ? embedding.length : 0,
+            embeddingType: typeof embedding,
+            message: embedding ? `Generated ${embedding.length}-dimensional embedding` : 'Failed to generate embedding'
+          };
+        } catch (error) {
+          testResults.tests.embedding = {
+            status: 'failed',
+            error: error.message,
+            message: 'Failed to generate embedding'
+          };
+        }
+
+        // Test memory operations
+        try {
+          console.log('[CONFIG-TEST] Testing memory operations...');
+          
+          const testRoomId = 'config-test-room';
+          
+          // Create a test memory
+          const testMemory = await runtime.messageManager.createMemory({
+            userId: runtime.agentId,
+            content: {
+              text: 'This is a configuration test memory',
+              source: 'config_test'
+            },
+            roomId: testRoomId,
+            agentId: runtime.agentId,
+            embedding: await runtime.embed('This is a configuration test memory')
+          });
+
+          // Retrieve the memory
+          const memories = await runtime.getMemories({
+            roomId: testRoomId,
+            count: 1
+          });
+
+          const foundMemory = memories.find(m => m.id === testMemory.id);
+          
+          testResults.tests.memory = {
+            status: foundMemory ? 'success' : 'failed',
+            memoryId: testMemory.id,
+            retrieved: !!foundMemory,
+            message: foundMemory ? 'Memory operations working correctly' : 'Failed to retrieve created memory'
+          };
+        } catch (error) {
+          testResults.tests.memory = {
+            status: 'failed',
+            error: error.message,
+            message: 'Failed to test memory operations'
+          };
+        }
+
+        // Calculate overall test status
+        const testStatuses = Object.values(testResults.tests).map((t: any) => t.status);
+        const allSuccessful = testStatuses.every(s => s === 'success');
+        const anyFailed = testStatuses.some(s => s === 'failed');
+        
+        const overallStatus = allSuccessful ? 'success' : anyFailed ? 'failed' : 'partial';
+        
+        console.log(`[CONFIG-TEST] Configuration test complete. Overall status: ${overallStatus}`);
+        
+        res.json(successResponse({
+          overallStatus,
+          testResults,
+          summary: {
+            total: Object.keys(testResults.tests).length,
+            passed: testStatuses.filter(s => s === 'success').length,
+            failed: testStatuses.filter(s => s === 'failed').length,
+            partial: testStatuses.filter(s => s === 'partial').length
+          }
+        }));
+        
+      } catch (error) {
+        console.error('[CONFIG-TEST] Configuration test failed:', error);
+        res.status(500).json(errorResponse('TEST_FAILED', 'Configuration test failed', error.message));
+      }
+    }
   }
 ];
 
@@ -1229,8 +1850,24 @@ export const gameAPIPlugin: Plugin = {
   init: async (config: Record<string, string>, runtime: IAgentRuntime) => {
     console.log('[GAME-API] Plugin initialized for agent:', runtime.agentId);
     
-    // Create initial todos and goals on plugin initialization
-    await createInitialTodosAndGoals(runtime);
+    // Debug: List all registered services
+    const services = (runtime as any).services || new Map();
+    const serviceNames = Array.from(services.keys());
+    console.log('[GAME-API] Available services at init:', serviceNames);
+    
+    // Specifically check for autonomy service
+    const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy') || runtime.getService('AutonomyService');
+    console.log('[GAME-API] Autonomy service found:', !!autonomyService);
+    
+    if (autonomyService) {
+      console.log('[GAME-API] Autonomy service type:', autonomyService.constructor.name);
+      console.log('[GAME-API] Autonomy service methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(autonomyService)));
+    }
+    
+    // Schedule initial todos and goals creation for after startup
+    setTimeout(() => {
+      createInitialTodosAndGoals(runtime);
+    }, 3000); // Wait 3 seconds for all plugins to be fully initialized
     
     return Promise.resolve();
   }

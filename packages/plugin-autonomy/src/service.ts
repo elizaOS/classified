@@ -194,110 +194,208 @@ export class AutonomyService extends Service {
    * Perform one iteration of autonomous thinking
    */
   private async performAutonomousThink(): Promise<void> {
-    console.log(`[Autonomy] Performing autonomous think... (${new Date().toLocaleTimeString()})`);
+    console.log(`[Autonomy] Performing autonomous monologue... (${new Date().toLocaleTimeString()})`);
 
-    // Get the last autonomous response to continue the monologue
-    let promptText = 'What should I do next? Think about recent conversations, goals, and actions I could take.';
-    
     try {
-      // Get recent autonomous memories from this room
+      // Get the last autonomous thought to continue the internal monologue
+      let lastThought: string | undefined;
+      let isFirstThought = false;
+      
+      try {
+        // Get recent autonomous memories from this room
+        const recentMemories = await this.runtime.getMemories({
+          roomId: this.autonomousRoomId,
+          count: 3,
+          tableName: 'memories'
+        });
+        
+        // Find the most recent agent-generated autonomous thought
+        const lastAgentThought = recentMemories
+          .filter(m => 
+            m.entityId === this.runtime.agentId && 
+            m.content?.text &&
+            m.content?.metadata &&
+            (m.content.metadata as any)?.isAutonomous === true
+          )
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+        
+        if (lastAgentThought?.content?.text) {
+          lastThought = lastAgentThought.content.text;
+          console.log(`[Autonomy] Continuing from last thought: "${lastThought.substring(0, 50)}..."`);
+        } else {
+          isFirstThought = true;
+          console.log('[Autonomy] No previous autonomous thoughts found, starting fresh monologue');
+        }
+      } catch (error) {
+        console.warn('[Autonomy] Failed to get recent autonomous memories, starting fresh:', (error as Error).message || error);
+        isFirstThought = true;
+      }
+
+      // Create introspective monologue prompt (not conversational)
+      const monologuePrompt = this.createMonologuePrompt(lastThought, isFirstThought);
+      console.log(`[Autonomy] Monologue prompt: "${monologuePrompt.substring(0, 100)}..."`);
+
+      // Create an autonomous message that will be processed through the full agent pipeline
+      const autonomousMessage: Memory = {
+        id: asUUID(uuidv4()), // Generate unique ID for this autonomous message
+        entityId: this.runtime.agentId, // Message is from the agent itself
+        content: {
+          text: monologuePrompt,
+          source: 'autonomous-trigger',
+          metadata: {
+            type: 'autonomous-prompt',
+            isAutonomous: true,
+            isInternalThought: true,
+            channelId: 'autonomous',
+            timestamp: Date.now(),
+            isContinuation: !isFirstThought
+          }
+        },
+        roomId: this.autonomousRoomId,
+        agentId: this.runtime.agentId,
+        createdAt: Date.now()
+      };
+
+      console.log(`[Autonomy] Processing autonomous message through full agent pipeline...`);
+
+      // Process the message through the complete agent pipeline
+      // This will:
+      // 1. Gather context from providers
+      // 2. Generate response using the full LLM pipeline
+      // 3. Execute any actions the agent decides to take
+      // 4. Run evaluators on the result
+      // 5. Store memories appropriately
+      await this.runtime.processMessage(autonomousMessage);
+
+      console.log('[Autonomy] ✅ Autonomous message processed through full agent pipeline');
+
+      // Wait a bit for the response to be generated and stored
+      setTimeout(async () => {
+        await this.processAutonomousResponse(monologuePrompt, isFirstThought);
+      }, 2000);
+
+    } catch (error) {
+      console.error('[Autonomy] Failed to perform autonomous monologue:', error);
+    }
+  }
+
+  /**
+   * Create an introspective monologue prompt suited for internal thoughts
+   */
+  private createMonologuePrompt(lastThought: string | undefined, isFirstThought: boolean): string {
+    if (isFirstThought) {
+      return `As an AI agent, reflect on your current state and experiences. What are you thinking about right now? What interests you or concerns you? Share your internal thoughts as a stream of consciousness. Don't address anyone - this is your private monologue.
+
+Generate a thoughtful, introspective response (1-2 sentences):`;
+    } else {
+      return `Continuing your internal monologue from your last thought: "${lastThought}"
+
+What naturally follows from this thought? What does it make you think about next? Continue your stream of consciousness without addressing anyone - this is your private internal reflection.
+
+Generate your next thought (1-2 sentences):`;
+    }
+  }
+
+  /**
+   * Process and broadcast autonomous response after MESSAGE_RECEIVED event completes
+   */
+  private async processAutonomousResponse(thinkingPrompt: string, isFirstThought: boolean): Promise<void> {
+    try {
+      console.log('[Autonomy] Checking for new autonomous response...');
+      
+      // Get recent memories from the autonomous room to find agent responses
       const recentMemories = await this.runtime.getMemories({
         roomId: this.autonomousRoomId,
-        count: 5,
+        count: 5, // Get more memories to find agent responses
         tableName: 'memories'
       });
       
-      // Find the most recent agent-generated autonomous response
-      const lastAgentResponse = recentMemories
-        .filter(m => 
-          m.entityId === this.runtime.agentId && 
-          m.content?.metadata && 
-          (m.content.metadata as any)?.isAutonomous &&
-          m.content?.text && 
-          m.content.text !== promptText // Don't use the initial prompt
-        )
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+      console.log('[Autonomy] Found', recentMemories.length, 'recent memories in autonomous room');
       
-      if (lastAgentResponse?.content?.text) {
-        // Use the last response as the input for continuing the monologue
-        promptText = lastAgentResponse.content.text;
-        console.log(`[Autonomy] Continuing from last thought: "${promptText.substring(0, 50)}..."`);
+      if (recentMemories.length > 0) {
+        // Look for the most recent agent-generated response (not the prompt we just sent)
+        const agentResponses = recentMemories
+          .filter(m => 
+            m.entityId === this.runtime.agentId && 
+            m.content?.text && 
+            m.content.text !== thinkingPrompt &&
+            !m.content.text.includes('What should I do next?') && // Filter out old autonomous prompts
+            m.content.source !== 'autonomous-trigger' // Not the trigger message
+          )
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        console.log(`[Autonomy] Found ${agentResponses.length} potential agent responses`);
+        
+        if (agentResponses.length > 0) {
+          const latestResponse = agentResponses[0];
+          console.log('[Autonomy] Latest agent response:', latestResponse.content?.text?.substring(0, 100) + '...');
+          
+          console.log('[Autonomy] Found new autonomous thought to broadcast');
+          
+          // Broadcast the thought to WebSocket clients for real-time monologue display
+          await this.broadcastThoughtToMonologue(latestResponse.content.text, latestResponse.id || 'unknown');
+          
+          console.log('[Autonomy] Broadcasted autonomous thought to monologue');
+        } else {
+          console.log('[Autonomy] No new autonomous response found - waiting for agent to generate response');
+        }
       } else {
-        console.log('[Autonomy] No previous autonomous thoughts found, starting fresh');
+        console.log('[Autonomy] No memories found in autonomous room');
       }
     } catch (error) {
-      console.warn('[Autonomy] Failed to get recent autonomous memories, using default prompt:', (error as Error).message || error);
+      console.error('[Autonomy] Error processing autonomous response:', error);
     }
+  }
 
-    // Create autonomous thinking message using the last thought or default prompt
-    const messageId = uuidv4();
-    const autonomousMessage: Memory = {
-      id: asUUID(messageId),
-      entityId: this.runtime.agentId, // Use agent's own ID to identify autonomous messages
-      agentId: this.runtime.agentId,  // Required agentId field
-      roomId: this.autonomousRoomId, // Use dedicated autonomous room ID
-      worldId: this.autonomousWorldId, // Add worldId
-      content: {
-        text: promptText, // Use the last thought or default prompt
-        source: 'autonomy-system',
-        metadata: {
-          type: 'autonomous-prompt',
-          timestamp: Date.now(),
-          isAutonomous: true, // Add a flag to identify autonomous messages
-          isContinuation: promptText !== 'What should I do next? Think about recent conversations, goals, and actions I could take.'
-        }
-      },
-      createdAt: Date.now()
-    };
-    
-    console.log('[AUTONOMY] Created autonomous message with ID:', messageId);
-
+  /**
+   * Broadcast autonomous thought to WebSocket clients for real-time monologue display
+   */
+  private async broadcastThoughtToMonologue(thoughtText: string, messageId: string): Promise<void> {
     try {
-      // Define callback to handle the agent's response
-      const callback = async (responseContent: Content): Promise<Memory[]> => {
-        console.log('[Autonomy] Agent generated autonomous response:', responseContent.text);
-        
-        // Create the response memory object with autonomous metadata
-        const responseMemory: Memory = {
-          id: asUUID(uuidv4()),
-          entityId: this.runtime.agentId,
-          agentId: this.runtime.agentId,
-          content: {
-            text: responseContent.text,
-            actions: responseContent.actions,
-            source: responseContent.source || 'autonomy-response',
-            metadata: {
-              ...(responseContent.metadata || {}),
-              isAutonomous: true, // Mark this as an autonomous response
-              timestamp: Date.now()
-            }
-          },
-          roomId: this.autonomousRoomId, // Use autonomous room ID
-          worldId: this.autonomousWorldId, // Add worldId
-          createdAt: Date.now()
-        };
-        
-        // Store it in the database
-        await this.runtime.createMemory(responseMemory, 'memories');
-
-        // Return the memory object for the callback
-        return [responseMemory];
+      // Use the correct messaging API endpoint that exists in server.ts
+      const apiUrl = 'http://localhost:7777/api/messaging/submit';
+      
+      const broadcastData = {
+        channel_id: this.autonomousRoomId, // Use autonomous room ID as channel
+        server_id: '00000000-0000-0000-0000-000000000000',
+        author_id: this.runtime.agentId,
+        content: thoughtText,
+        raw_message: {
+          thought: thoughtText,
+          actions: []
+        },
+        metadata: {
+          agentName: this.runtime.character?.name || 'ELIZA',
+          channelId: 'autonomous', // Ensure this matches frontend filter
+          isAutonomous: true,
+          isInternalThought: true,
+          messageId: messageId,
+          timestamp: Date.now()
+        }
       };
 
-      // Use emitEvent to trigger the full agent response pipeline
-      // This will cause the agent to build context, call LLM, generate response, and run evaluators
-      await this.runtime.emitEvent(EventType.MESSAGE_RECEIVED, {
-        runtime: this.runtime,
-        message: autonomousMessage,
-        callback: callback,
-        onComplete: () => {
-          console.log('[Autonomy] MESSAGE_RECEIVED event processing completed');
-        }
+      console.log('[Autonomy] Broadcasting thought to WebSocket via:', apiUrl);
+      console.log('[Autonomy] Broadcast data:', JSON.stringify(broadcastData, null, 2));
+
+      // Make HTTP request to broadcast endpoint
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(broadcastData)
       });
-      
-      console.log('[Autonomy] Autonomous think message processed through full agent pipeline');
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('[Autonomy] Successfully broadcasted thought to monologue chat:', responseData);
+      } else {
+        const errorText = await response.text();
+        console.warn('[Autonomy] Failed to broadcast thought:', response.status, response.statusText, errorText);
+      }
     } catch (error) {
-      console.error('[Autonomy] Failed to process autonomous message:', error);
+      console.warn('[Autonomy] Error broadcasting thought to monologue:', (error as Error).message);
+      // Don't throw - broadcasting failure shouldn't stop autonomy loop
     }
   }
 
