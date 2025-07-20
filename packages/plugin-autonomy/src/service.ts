@@ -4,7 +4,8 @@ import {
   type UUID, 
   asUUID,
   type Memory,
-  type Content 
+  type Content,
+  EventType
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -13,21 +14,27 @@ import { v4 as uuidv4 } from 'uuid';
  * Continuously triggers agent thinking in a separate autonomous context
  */
 export class AutonomyService extends Service {
-  static serviceType = 'autonomy';
+  static serviceType = 'AUTONOMY' as const;
   
   private isRunning = false;
   private loopInterval?: NodeJS.Timeout;
-  private intervalMs = 30000; // Default 30 seconds
+  private intervalMs = 1000; // Default 1 second for continuous operation
   private autonomousRoomId: UUID; // Dedicated room for autonomous thoughts
+  private autonomousWorldId: UUID; // World ID for autonomous context
   
   constructor(runtime: IAgentRuntime) {
     super();
     this.runtime = runtime;
     
-    // Create dedicated autonomous room ID (consistent across restarts)
-    // Use a deterministic approach to generate a valid UUID for the autonomous room
-    const roomSeed = `autonomous-${runtime.agentId}`;
-    this.autonomousRoomId = asUUID(uuidv4()); // For now, use random UUID - in production this could be deterministic
+    // Use a dedicated room ID for autonomous thoughts to avoid conflicts
+    // This ensures we have a clean room that's not shared with other functionality
+    // Generate a proper UUID - ensure it's a valid v4 UUID format
+    const roomUUID = uuidv4();
+    console.log('[AUTONOMY] Generated room UUID:', roomUUID);
+    this.autonomousRoomId = asUUID(roomUUID);
+    this.autonomousWorldId = asUUID('00000000-0000-0000-0000-000000000001'); // Default world
+    
+    console.log('[AUTONOMY] Service initialized with room ID:', this.autonomousRoomId);
   }
 
   static async start(runtime: IAgentRuntime): Promise<AutonomyService> {
@@ -37,43 +44,65 @@ export class AutonomyService extends Service {
   }
 
   async initialize(): Promise<void> {
-    // Create the autonomous room if it doesn't exist
-    const existingRoom = await this.runtime.getRoom(this.autonomousRoomId);
-    if (!existingRoom) {
-      // Get or create a default world for the autonomous room
-      let defaultWorld = await this.runtime.getWorld(asUUID('00000000-0000-0000-0000-000000000000'));
-      if (!defaultWorld) {
-        await this.runtime.createWorld({
-          id: asUUID('00000000-0000-0000-0000-000000000000'),
-          name: 'Default World',
-          agentId: this.runtime.agentId,
-          serverId: 'autonomy'
-        });
-      }
-
-      await this.runtime.createRoom({
-        id: this.autonomousRoomId,
-        name: 'Autonomous Thinking',
-        source: 'autonomy',
-        type: 'DIRECT_MESSAGE' as any,
-        worldId: asUUID('00000000-0000-0000-0000-000000000000'),
-        metadata: {
-          purpose: 'autonomous-thinking',
-          description: 'Internal room for autonomous agent thoughts and actions'
-        }
-      });
-    }
+    // The autonomous room ID is already set in the constructor
+    // Don't override it here
+    
+    console.log(`[Autonomy] Using autonomous room ID: ${this.autonomousRoomId}`);
 
     // Check current autonomy setting
     const autonomyEnabled = this.runtime.getSetting('AUTONOMY_ENABLED');
     const autoStart = this.runtime.getSetting('AUTONOMY_AUTO_START');
     
-    // Start by default unless explicitly disabled
-    // Start if autonomy is enabled, auto-start is configured, or no setting exists (default on)
-    if (autonomyEnabled === true || autonomyEnabled === 'true' || 
-        autoStart === true || autoStart === 'true' ||
-        (autonomyEnabled === undefined && autoStart === undefined)) {
+    // Ensure the autonomous room exists with proper world context
+    try {
+      // Always ensure world exists first
+      const worldId = asUUID('00000000-0000-0000-0000-000000000001'); // Use a fixed world ID for autonomy
+      await this.runtime.ensureWorldExists({
+        id: worldId,
+        name: 'Autonomy World',
+        agentId: this.runtime.agentId,
+        serverId: asUUID('00000000-0000-0000-0000-000000000000'), // Default server ID
+        metadata: {
+          type: 'autonomy',
+          description: 'World for autonomous agent thinking'
+        }
+      });
+      
+      // Store the world ID for later use
+      this.autonomousWorldId = worldId;
+      
+      // Always ensure room exists with correct world ID
+      await this.runtime.ensureRoomExists({
+        id: this.autonomousRoomId,
+        name: 'Autonomous Thoughts',
+        worldId: worldId,
+        agentId: this.runtime.agentId,
+        source: 'autonomy-plugin',
+        type: 'AUTONOMOUS' as any,
+        metadata: {
+          source: 'autonomy-plugin',
+          description: 'Room for autonomous agent thinking'
+        }
+      });
+      
+      // Add agent as participant
+      await this.runtime.addParticipant(this.runtime.agentId, this.autonomousRoomId);
+      await this.runtime.ensureParticipantInRoom(this.runtime.agentId, this.autonomousRoomId);
+      
+      console.log('[Autonomy] Ensured autonomous room exists with world ID:', this.autonomousWorldId);
+    } catch (error) {
+      console.warn('[Autonomy] Failed to ensure autonomous room exists:', error);
+      // Continue anyway - the room might be created later
+    }
+    
+    console.log(`[Autonomy] Settings check - AUTONOMY_ENABLED: ${autonomyEnabled}, AUTONOMY_AUTO_START: ${autoStart}`);
+    
+    // Start disabled by default - autonomy should only run when explicitly enabled from frontend
+    if (autonomyEnabled === true || autonomyEnabled === 'true') {
+      console.log('[Autonomy] Autonomy is enabled in settings, starting...');
       await this.startLoop();
+    } else {
+      console.log('[Autonomy] Autonomy disabled by default - will wait for frontend activation');
     }
 
     // Set up settings monitoring (check for changes every 10 seconds)
@@ -116,7 +145,7 @@ export class AutonomyService extends Service {
     // Set setting to persist state
     this.runtime.setSetting('AUTONOMY_ENABLED', true);
 
-    console.log(`[Autonomy] Starting autonomous loop (interval: ${this.intervalMs}ms)`);
+    console.log(`[Autonomy] Starting continuous autonomous loop (${this.intervalMs}ms delay between iterations)`);
     
     // Start the loop
     this.scheduleNextThink();
@@ -165,37 +194,110 @@ export class AutonomyService extends Service {
    * Perform one iteration of autonomous thinking
    */
   private async performAutonomousThink(): Promise<void> {
-    console.log('[Autonomy] Performing autonomous think...');
+    console.log(`[Autonomy] Performing autonomous think... (${new Date().toLocaleTimeString()})`);
 
-    // Create autonomous thinking message
+    // Get the last autonomous response to continue the monologue
+    let promptText = 'What should I do next? Think about recent conversations, goals, and actions I could take.';
+    
+    try {
+      // Get recent autonomous memories from this room
+      const recentMemories = await this.runtime.getMemories({
+        roomId: this.autonomousRoomId,
+        count: 5,
+        tableName: 'memories'
+      });
+      
+      // Find the most recent agent-generated autonomous response
+      const lastAgentResponse = recentMemories
+        .filter(m => 
+          m.entityId === this.runtime.agentId && 
+          m.content?.metadata && 
+          (m.content.metadata as any)?.isAutonomous &&
+          m.content?.text && 
+          m.content.text !== promptText // Don't use the initial prompt
+        )
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+      
+      if (lastAgentResponse?.content?.text) {
+        // Use the last response as the input for continuing the monologue
+        promptText = lastAgentResponse.content.text;
+        console.log(`[Autonomy] Continuing from last thought: "${promptText.substring(0, 50)}..."`);
+      } else {
+        console.log('[Autonomy] No previous autonomous thoughts found, starting fresh');
+      }
+    } catch (error) {
+      console.warn('[Autonomy] Failed to get recent autonomous memories, using default prompt:', (error as Error).message || error);
+    }
+
+    // Create autonomous thinking message using the last thought or default prompt
+    const messageId = uuidv4();
     const autonomousMessage: Memory = {
-      id: asUUID(uuidv4()),
-      entityId: this.runtime.agentId, // Agent is talking to itself
-      roomId: this.autonomousRoomId,
+      id: asUUID(messageId),
+      entityId: this.runtime.agentId, // Use agent's own ID to identify autonomous messages
+      agentId: this.runtime.agentId,  // Required agentId field
+      roomId: this.autonomousRoomId, // Use dedicated autonomous room ID
+      worldId: this.autonomousWorldId, // Add worldId
       content: {
-        text: 'What should I do next? Think about recent conversations, goals, and actions I could take.',
+        text: promptText, // Use the last thought or default prompt
         source: 'autonomy-system',
         metadata: {
           type: 'autonomous-prompt',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          isAutonomous: true, // Add a flag to identify autonomous messages
+          isContinuation: promptText !== 'What should I do next? Think about recent conversations, goals, and actions I could take.'
         }
       },
       createdAt: Date.now()
     };
+    
+    console.log('[AUTONOMY] Created autonomous message with ID:', messageId);
 
     try {
-      // Send message to autonomous room to trigger thinking
-      await this.runtime.sendMessageToTarget(
-        { 
-          source: 'autonomy-system',
-          roomId: this.autonomousRoomId 
-        },
-        autonomousMessage.content
-      );
+      // Define callback to handle the agent's response
+      const callback = async (responseContent: Content): Promise<Memory[]> => {
+        console.log('[Autonomy] Agent generated autonomous response:', responseContent.text);
+        
+        // Create the response memory object with autonomous metadata
+        const responseMemory: Memory = {
+          id: asUUID(uuidv4()),
+          entityId: this.runtime.agentId,
+          agentId: this.runtime.agentId,
+          content: {
+            text: responseContent.text,
+            actions: responseContent.actions,
+            source: responseContent.source || 'autonomy-response',
+            metadata: {
+              ...(responseContent.metadata || {}),
+              isAutonomous: true, // Mark this as an autonomous response
+              timestamp: Date.now()
+            }
+          },
+          roomId: this.autonomousRoomId, // Use autonomous room ID
+          worldId: this.autonomousWorldId, // Add worldId
+          createdAt: Date.now()
+        };
+        
+        // Store it in the database
+        await this.runtime.createMemory(responseMemory, 'memories');
+
+        // Return the memory object for the callback
+        return [responseMemory];
+      };
+
+      // Use emitEvent to trigger the full agent response pipeline
+      // This will cause the agent to build context, call LLM, generate response, and run evaluators
+      await this.runtime.emitEvent(EventType.MESSAGE_RECEIVED, {
+        runtime: this.runtime,
+        message: autonomousMessage,
+        callback: callback,
+        onComplete: () => {
+          console.log('[Autonomy] MESSAGE_RECEIVED event processing completed');
+        }
+      });
       
-      console.log('[Autonomy] Autonomous think message sent');
+      console.log('[Autonomy] Autonomous think message processed through full agent pipeline');
     } catch (error) {
-      console.error('[Autonomy] Failed to send autonomous message:', error);
+      console.error('[Autonomy] Failed to process autonomous message:', error);
     }
   }
 
@@ -217,13 +319,13 @@ export class AutonomyService extends Service {
    * Set loop interval (will take effect on next iteration)
    */
   setLoopInterval(ms: number): void {
-    if (ms < 5000) {
-      console.warn('[Autonomy] Interval too short, minimum is 5 seconds');
-      ms = 5000;
+    if (ms < 100) {
+      console.warn('[Autonomy] Interval too short, minimum is 100ms');
+      ms = 100;
     }
-    if (ms > 600000) {
-      console.warn('[Autonomy] Interval too long, maximum is 10 minutes');
-      ms = 600000;
+    if (ms > 60000) {
+      console.warn('[Autonomy] Interval too long, maximum is 1 minute');
+      ms = 60000;
     }
     
     this.intervalMs = ms;

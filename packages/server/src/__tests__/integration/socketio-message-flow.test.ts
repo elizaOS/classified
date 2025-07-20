@@ -78,7 +78,7 @@ describe('Socket.IO End-to-End Message Flow', () => {
       character: testCharacter,
       adapter: db,
       token: process.env.OPENAI_API_KEY || 'test-token',
-      serverUrl: 'http://localhost:3000',
+      serverUrl: 'http://localhost:7777',
     } as any);
 
     await agentServer.registerAgent(mockRuntime);

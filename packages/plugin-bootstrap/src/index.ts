@@ -370,8 +370,12 @@ const messageReceivedHandler = async ({
     const processingPromise = (async () => {
       try {
         if (message.entityId === runtime.agentId) {
-          logger.debug(`[Bootstrap] Skipping message from self (${runtime.agentId})`);
-          throw new Error('Message is from the agent itself');
+          // Allow autonomous messages through (they have isAutonomous metadata flag)
+          if (!(message.content?.metadata as any)?.isAutonomous) {
+            logger.debug(`[Bootstrap] Skipping message from self (${runtime.agentId})`);
+            throw new Error('Message is from the agent itself');
+          }
+          logger.debug(`[Bootstrap] Processing autonomous message from agent`);
         }
 
         logger.debug(

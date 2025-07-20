@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 async function testElizaServiceDirect() {
   console.log('🧪 Testing ElizaOS Server Integration (Direct)...\n');
 
-  const baseUrl = 'http://localhost:3000';
+  const baseUrl = 'http://localhost:7777';
   const userId = uuidv4();
   const agentId = '00000000-0000-0000-0000-000000000001';
 

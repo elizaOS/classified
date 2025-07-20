@@ -1,7 +1,6 @@
 import type { Plugin } from "@elizaos/core";
 import { ExperienceService } from "./service";
-import { experienceRAGProvider } from "./providers/experienceRAG";
-import { recentExperiencesProvider } from "./providers/recentExperiences";
+import { experienceProvider } from "./providers/experienceProvider";
 import { experienceEvaluator } from "./evaluators/experienceEvaluator";
 import { IAgentRuntime } from "@elizaos/core";
 import { logger } from "@elizaos/core";
@@ -14,7 +13,7 @@ export const experiencePlugin: Plugin = {
 
   services: [ExperienceService],
 
-  providers: [experienceRAGProvider, recentExperiencesProvider],
+  providers: [experienceProvider],
 
   evaluators: [experienceEvaluator],
 

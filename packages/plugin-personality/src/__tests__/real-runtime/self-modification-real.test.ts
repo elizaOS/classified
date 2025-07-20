@@ -280,7 +280,7 @@ export class SelfModificationRealTestSuite implements TestSuite {
             runtime,
             'character_evolution',
             roomId,
-            3000
+            7777
           );
 
           if (evolutionMemories.length === 0) {

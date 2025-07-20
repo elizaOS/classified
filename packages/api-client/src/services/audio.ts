@@ -32,7 +32,7 @@ export class AudioService extends BaseApiClient {
       url = new URL(path, window.location.origin);
     } else {
       // Fallback for non-browser environments
-      url = new URL(path, 'http://localhost:3000');
+      url = new URL(path, 'http://localhost:7777');
     }
 
     // Add query parameters

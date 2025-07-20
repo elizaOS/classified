@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs';
 
 // Configuration from environment
-const SERVER_PORT = process.env.TEST_SERVER_PORT || 3000;
+const SERVER_PORT = process.env.TEST_SERVER_PORT || 7777;
 const MAX_RETRIES = parseInt(process.env.TEST_MAX_RETRIES) || 60;
 const RETRY_DELAY = parseInt(process.env.TEST_RETRY_DELAY) || 1000;
 const CYPRESS_HEADED = process.env.CYPRESS_HEADED !== 'false';

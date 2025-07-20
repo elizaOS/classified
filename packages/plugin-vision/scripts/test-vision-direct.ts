@@ -47,7 +47,7 @@ async function testVisionService() {
 
     // Wait for initial captures
     console.log('⏳ Waiting for initial captures...');
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 7777));
 
     // Test camera capture
     console.log('\n📷 Testing Camera Capture...');

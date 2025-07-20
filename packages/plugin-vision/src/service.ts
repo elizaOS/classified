@@ -355,7 +355,7 @@ export class VisionService extends Service {
           channels: 1,
           vadThreshold: Number(this.runtime.getSetting('VAD_THRESHOLD')) || 0.01,
           silenceTimeout: Number(this.runtime.getSetting('SILENCE_TIMEOUT')) || 1500,
-          responseDelay: Number(this.runtime.getSetting('RESPONSE_DELAY')) || 3000,
+          responseDelay: Number(this.runtime.getSetting('RESPONSE_DELAY')) || 7777,
         };
 
         this.streamingAudioCapture = new StreamingAudioCaptureService(

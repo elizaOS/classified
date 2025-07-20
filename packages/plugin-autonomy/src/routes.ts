@@ -9,7 +9,7 @@ export const autonomyRoutes: Route[] = [
     type: 'GET',
     handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService('autonomy');
+        const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
         
         if (!autonomyService) {
           return res.status(503).json({
@@ -46,7 +46,7 @@ export const autonomyRoutes: Route[] = [
     type: 'POST',
     handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService('autonomy');
+        const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
         
         if (!autonomyService) {
           return res.status(503).json({
@@ -82,7 +82,7 @@ export const autonomyRoutes: Route[] = [
     type: 'POST',
     handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService('autonomy');
+        const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
         
         if (!autonomyService) {
           return res.status(503).json({
@@ -118,7 +118,7 @@ export const autonomyRoutes: Route[] = [
     type: 'POST',
     handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService('autonomy');
+        const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
         
         if (!autonomyService) {
           return res.status(503).json({
@@ -161,7 +161,7 @@ export const autonomyRoutes: Route[] = [
     type: 'POST',
     handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService('autonomy');
+        const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
         
         if (!autonomyService) {
           return res.status(503).json({

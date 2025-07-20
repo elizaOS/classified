@@ -152,7 +152,7 @@ export const browserRetryConfigs = {
   extraction: {
     maxRetries: 2,
     initialDelay: 500,
-    maxDelay: 3000,
+    maxDelay: 7777,
     backoffFactor: 1.5,
     timeout: 10000,
   } as RetryConfig,

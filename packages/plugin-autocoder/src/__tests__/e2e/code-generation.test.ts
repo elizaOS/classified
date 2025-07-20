@@ -130,7 +130,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
         };
 
         await runtime.processActions(apiMessage, []);
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 7777));
 
         console.log('✓ Project requirements gathered');
         console.log('✅ Plugin generation E2E test completed (simulated)');
@@ -182,7 +182,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
         };
 
         await runtime.processActions(detailsMessage, []);
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 7777));
 
         console.log('✓ Agent project processed');
         console.log('✅ Agent generation E2E test completed');
@@ -233,7 +233,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
         };
 
         await runtime.processActions(requirementsMessage, []);
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 7777));
 
         console.log('✓ API key request handled');
 
@@ -353,7 +353,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
         };
 
         await runtime.processActions(stepsMessage, []);
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 7777));
 
         console.log('✓ Workflow project processed');
         console.log('✅ Workflow generation test completed');

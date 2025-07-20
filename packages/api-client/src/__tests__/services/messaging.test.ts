@@ -5,7 +5,7 @@ import { ApiClientConfig } from '../../types/base';
 describe('MessagingService', () => {
   let messagingService: MessagingService;
   const mockConfig: ApiClientConfig = {
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'http://localhost:7777',
     apiKey: 'test-key',
   };
 

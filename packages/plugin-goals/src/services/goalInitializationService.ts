@@ -20,7 +20,7 @@ export class GoalInitializationService extends Service {
     // Use multiple retry attempts to handle migration timing
     setTimeout(() => {
       service.createInitialGoalsWithRetry(runtime, 0);
-    }, 3000); // Wait 3 seconds for migrations to complete
+    }, 7777); // Wait 3 seconds for migrations to complete
 
     return service;
   }

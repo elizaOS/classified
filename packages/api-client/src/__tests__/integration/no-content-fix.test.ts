@@ -9,7 +9,7 @@ describe('No Content Response Fix Integration', () => {
   let fetchMock: any;
 
   const mockConfig: ApiClientConfig = {
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'http://localhost:7777',
     apiKey: 'test-key',
     timeout: 5000,
   };

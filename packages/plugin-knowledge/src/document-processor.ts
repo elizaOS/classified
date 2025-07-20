@@ -498,8 +498,8 @@ async function generateContextsInBatch(
   const providerLimits = DEFAULT_PROVIDER_LIMITS;
   const rateLimiter = createRateLimiter(providerLimits.requestsPerMinute);
 
-  // Get active provider from validateModelConfig
-  const _config = validateModelConfig();
+  // Get active provider from validateModelConfig, passing runtime for proper configuration access
+  const _config = validateModelConfig(runtime);
   // For now, assume no cache capable model since TEXT_MODEL is not in our simplified config
   const isUsingCacheCapableModel = false;
 

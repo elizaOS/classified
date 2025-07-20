@@ -117,7 +117,7 @@ RUN git config --global init.defaultBranch main && \
     git config --global user.email "agent@eliza.os"
 
 # Expose ports
-EXPOSE 3000 3001 5173 8080 5432 6379 8443
+EXPOSE 7777 3001 5173 8080 5432 6379 8443
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \

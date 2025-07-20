@@ -5,7 +5,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 // Ports we'll be using
-const BACKEND_PORT = 3000;
+const BACKEND_PORT = 7777;
 const FRONTEND_PORT = 5173;
 
 /**

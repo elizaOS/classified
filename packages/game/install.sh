@@ -41,8 +41,8 @@ if [ ! -f .env ]; then
 # ElizaOS Terminal Environment Configuration
 
 # Server Configuration
-PORT=3000
-SERVER_PORT=3000
+PORT=7777
+SERVER_PORT=7777
 
 # Database Configuration (optional - defaults to PGLite)
 # POSTGRES_URL=postgresql://user:password@localhost:5432/elizaos

@@ -26,8 +26,8 @@ Create a `.env` file in the package root with the following content:
 # ElizaOS Terminal Environment Configuration
 
 # Server Configuration
-PORT=3000
-SERVER_PORT=3000
+PORT=7777
+SERVER_PORT=7777
 
 # Database Configuration (optional - defaults to PGLite)
 # POSTGRES_URL=postgresql://user:password@localhost:5432/elizaos
@@ -88,10 +88,10 @@ npm run test:e2e:ui
 
 ### Port already in use
 
-If port 3000 is already in use:
+If port 7777 is already in use:
 
 ```bash
-lsof -ti:3000 | xargs kill -9
+lsof -ti:7777 | xargs kill -9
 ```
 
 ### OpenAI API errors
@@ -103,5 +103,5 @@ lsof -ti:3000 | xargs kill -9
 ### WebSocket connection issues
 
 - Check that the backend server is running
-- Verify no firewall is blocking port 3000
+- Verify no firewall is blocking port 7777
 - Try refreshing the browser

@@ -119,11 +119,11 @@ export const sendToAdminAction: Action = {
       const adminUUID = asUUID(adminUserId);
 
       // Find the most recent room where admin and agent have communicated
+      // Note: Since we can't directly query by entityId, use a fallback approach
       const adminMessages = await runtime.getMemories({
-        entityId: adminUUID,
-        count: 5,
-        unique: false,
-        tableName: 'memories',
+        roomId: runtime.agentId, // Use agent's default room as fallback
+        count: 10,
+        tableName: 'memories'
       });
 
       let targetRoomId: UUID;
@@ -150,13 +150,12 @@ export const sendToAdminAction: Action = {
         messageToAdmin = `Autonomous update: ${autonomousThought}`;
       }
 
-      // Send message to admin
-      await runtime.sendMessageToTarget(
-        {
-          source: 'autonomy-system',
-          roomId: targetRoomId
-        },
-        {
+      // Create and store message to admin
+      const adminMessage: Memory = {
+        id: asUUID(uuidv4()),
+        entityId: runtime.agentId, // Agent is sending to admin
+        roomId: targetRoomId,
+        content: {
           text: messageToAdmin,
           source: 'autonomy-to-admin',
           metadata: {
@@ -164,8 +163,12 @@ export const sendToAdminAction: Action = {
             originalThought: autonomousThought,
             timestamp: Date.now()
           }
-        }
-      );
+        },
+        createdAt: Date.now()
+      };
+
+      // Store the message in memory
+      await runtime.createMemory(adminMessage, 'memories');
 
       const successMessage = `Message sent to admin in room ${targetRoomId.slice(0, 8)}...`;
       

@@ -20,7 +20,7 @@ class TestClient extends BaseApiClient {
 describe('BaseApiClient', () => {
   let client: TestClient;
   const mockConfig: ApiClientConfig = {
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'http://localhost:7777',
     apiKey: 'test-key',
     timeout: 5000,
   };
@@ -34,7 +34,7 @@ describe('BaseApiClient', () => {
   });
 
   it('should initialize with correct config', () => {
-    expect(client['baseUrl']).toBe('http://localhost:3000');
+    expect(client['baseUrl']).toBe('http://localhost:7777');
     expect(client['apiKey']).toBe('test-key');
     expect(client['timeout']).toBe(5000);
     expect(client['defaultHeaders']['X-API-KEY']).toBe('test-key');
@@ -43,9 +43,9 @@ describe('BaseApiClient', () => {
   it('should remove trailing slash from baseUrl', () => {
     const clientWithSlash = new TestClient({
       ...mockConfig,
-      baseUrl: 'http://localhost:3000/',
+      baseUrl: 'http://localhost:7777/',
     });
-    expect(clientWithSlash['baseUrl']).toBe('http://localhost:3000');
+    expect(clientWithSlash['baseUrl']).toBe('http://localhost:7777');
   });
 
   it('should make successful GET request', async () => {
@@ -55,7 +55,7 @@ describe('BaseApiClient', () => {
     };
 
     global.fetch = async (url: string, options: any) => {
-      expect(url).toBe('http://localhost:3000/api/test');
+      expect(url).toBe('http://localhost:7777/api/test');
       expect(options.method).toBe('GET');
       expect(options.headers['X-API-KEY']).toBe('test-key');
 
@@ -81,7 +81,7 @@ describe('BaseApiClient', () => {
     };
 
     global.fetch = async (url: string, options: any) => {
-      expect(url).toBe('http://localhost:3000/api/test');
+      expect(url).toBe('http://localhost:7777/api/test');
       expect(options.method).toBe('POST');
       expect(options.body).toBe(JSON.stringify(body));
 
@@ -123,7 +123,7 @@ describe('BaseApiClient', () => {
 
   it('should add query parameters', async () => {
     global.fetch = async (url: string) => {
-      expect(url).toBe('http://localhost:3000/api/test?page=1&limit=10&filter=active');
+      expect(url).toBe('http://localhost:7777/api/test?page=1&limit=10&filter=active');
 
       return {
         ok: true,
@@ -188,7 +188,7 @@ describe('BaseApiClient', () => {
 
   it('should handle 204 No Content responses safely', async () => {
     global.fetch = async (url: string, options: any) => {
-      expect(url).toBe('http://localhost:3000/api/delete');
+      expect(url).toBe('http://localhost:7777/api/delete');
       expect(options.method).toBe('DELETE');
 
       return {
@@ -209,7 +209,7 @@ describe('BaseApiClient', () => {
 
   it('should handle empty content-length responses safely', async () => {
     global.fetch = async (url: string, options: any) => {
-      expect(url).toBe('http://localhost:3000/api/clear');
+      expect(url).toBe('http://localhost:7777/api/clear');
 
       return {
         ok: true,
@@ -229,7 +229,7 @@ describe('BaseApiClient', () => {
 
   it('should handle JSON parse failures for 2xx responses safely', async () => {
     global.fetch = async (url: string, options: any) => {
-      expect(url).toBe('http://localhost:3000/api/process');
+      expect(url).toBe('http://localhost:7777/api/process');
 
       return {
         ok: true,

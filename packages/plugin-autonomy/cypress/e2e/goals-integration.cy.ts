@@ -14,7 +14,7 @@ describe('Goals Integration Tests', () => {
   
   before(() => {
     // Get agent ID from the game/environment
-    cy.visit('http://localhost:3000');
+    cy.visit('http://localhost:7777');
     
     // Extract agentId from the page or API
     cy.request('GET', '/api/agents').then((response) => {

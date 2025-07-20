@@ -25,7 +25,7 @@ services:
       - '8081:8081' # Metrics
     environment:
       - REDIS_URL=redis://redis:6379
-      - CENTRAL_SERVER_URL=${CENTRAL_SERVER_URL:-http://host.docker.internal:3000}
+      - CENTRAL_SERVER_URL=${CENTRAL_SERVER_URL:-http://host.docker.internal:7777}
       - LOG_LEVEL=info
     depends_on:
       redis:
@@ -191,7 +191,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - '3001:3000'
+      - '3001:7777'
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false

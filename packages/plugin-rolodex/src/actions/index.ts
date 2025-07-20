@@ -15,3 +15,7 @@ export { findEntityAction } from './findEntity';
 
 // Secrets management action
 export { storeSecretAction } from './storeSecretAction';
+
+// Bidirectional verification actions
+export { recordPlatformClaimAction } from './recordPlatformClaim';
+export { confirmPlatformIdentityAction } from './confirmPlatformIdentity';

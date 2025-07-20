@@ -11,7 +11,7 @@ describe('TodoPlugin', () => {
     );
     expect(TodoPlugin.providers).toHaveLength(1);
     expect(TodoPlugin.actions).toHaveLength(5); // Now includes confirmTodoAction
-    expect(TodoPlugin.services).toHaveLength(2); // Only discoverable services: TodoReminderService and TodoIntegrationBridge
+    expect(TodoPlugin.services).toHaveLength(3); // TodoDataServiceWrapper, TodoReminderService and TodoIntegrationBridge
     expect(TodoPlugin.routes).toBeDefined();
     expect(TodoPlugin.init).toBeInstanceOf(Function);
   });
@@ -26,6 +26,7 @@ describe('TodoPlugin', () => {
   });
 
   it('should have all required services', () => {
+    expect(TodoPlugin.services?.some((s) => (s as any).serviceType === 'todo')).toBe(true);
     expect(TodoPlugin.services?.some((s) => (s as any).serviceType === 'TODO_REMINDER')).toBe(true);
     expect(
       TodoPlugin.services?.some((s) => (s as any).serviceType === 'TODO_INTEGRATION_BRIDGE')

@@ -150,10 +150,12 @@ export class TodoReminderService extends Service {
       });
     }, this.reminderConfig.reminderCheckInterval);
 
-    // Also run immediately on start
-    this.checkTasksForReminders().catch((error) => {
-      logger.error('Error in initial reminder check:', error);
-    });
+    // Delay initial check to allow database initialization
+    setTimeout(() => {
+      this.checkTasksForReminders().catch((error) => {
+        logger.error('Error in initial reminder check:', error);
+      });
+    }, 10000); // Wait 10 seconds for migrations to complete
 
     logger.info(
       `Reminder loop started - checking every ${this.reminderConfig.reminderCheckInterval / 1000} seconds`

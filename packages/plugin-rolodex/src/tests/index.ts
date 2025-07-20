@@ -1,6 +1,6 @@
 import type { TestSuite } from '@elizaos/core';
 import comprehensiveTests from '../__tests__/e2e';
-import runtimeTests from '../__tests__/runtime';
+import runtimeTests from '../__tests__/old-tests/runtime';
 import RolodexSQLCompatibilityTestSuite from '../__tests__/e2e/sql-compatibility.test';
 
 // Export all test suites, prioritizing SQL compatibility

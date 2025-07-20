@@ -1,9 +1,10 @@
 import type { Character } from '@elizaos/core';
-import { v4 as uuidv4 } from 'uuid';
+import { stringToUuid } from '@elizaos/core';
 
 // Create a default character configuration for the ELIZA Terminal game
-// Note: Let ElizaOS generate the ID to avoid database conflicts
+// Using a consistent ID based on the character name
 const createTerminalCharacter = (): Character => ({
+    id: stringToUuid('ELIZA'), // Generate consistent ID from name
     name: 'ELIZA',
     username: 'eliza_terminal',
     
@@ -107,14 +108,33 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
         secrets: {
             OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
             ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || ''
-        }
+        },
+        // Knowledge plugin configuration - ensure these are top-level
+        LOAD_DOCS_ON_STARTUP: 'true',
+        CTX_KNOWLEDGE_ENABLED: 'true',
+        EMBEDDING_PROVIDER: 'openai',
+        TEXT_EMBEDDING_MODEL: 'text-embedding-3-small',
+        TEXT_PROVIDER: 'openai',
+        KNOWLEDGE_PATH: './knowledge'  // Load from knowledge folder instead of default ./docs
+    },
+    
+    // Add explicit secrets for knowledge plugin access
+    secrets: {
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+        // Knowledge plugin configuration as secrets too
+        LOAD_DOCS_ON_STARTUP: 'true',
+        CTX_KNOWLEDGE_ENABLED: 'true',
+        EMBEDDING_PROVIDER: 'openai',
+        TEXT_EMBEDDING_MODEL: 'text-embedding-3-small', 
+        TEXT_PROVIDER: 'openai',
+        KNOWLEDGE_PATH: './knowledge'  // Load from knowledge folder instead of default ./docs
     },
 
     // Essential plugins for the ELIZA Terminal game
     plugins: [
         '@elizaos/plugin-bootstrap',  // Core functionality
         '@elizaos/plugin-sql',        // Database for memories/state
-        '@elizaos/plugin-autonomy',   // Autonomous thinking and planning
         '@elizaos/plugin-shell',      // Shell command execution
         '@elizaos/plugin-vision',     // Camera and screen capture
         '@elizaos/plugin-stagehand',  // Browser automation

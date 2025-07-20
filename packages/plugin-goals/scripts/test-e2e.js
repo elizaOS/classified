@@ -3,7 +3,7 @@
 import { spawn } from 'child_process';
 import http from 'http';
 
-const SERVER_PORT = 3000;
+const SERVER_PORT = 7777;
 const MAX_RETRIES = 60;
 const RETRY_DELAY = 1000;
 

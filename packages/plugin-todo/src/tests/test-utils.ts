@@ -5,7 +5,7 @@ import { mock } from 'bun:test';
 export function createMockRuntime(overrides: Partial<IAgentRuntime> = {}): IAgentRuntime {
   const defaultRuntime: IAgentRuntime = {
     agentId: 'test-agent' as UUID,
-    serverUrl: 'http://localhost:3000',
+    serverUrl: 'http://localhost:7777',
     databaseAdapter: null as any,
     db: null,
     token: 'test-token',

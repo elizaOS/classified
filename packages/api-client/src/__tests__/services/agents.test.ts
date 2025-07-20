@@ -12,7 +12,7 @@ const TEST_LOG_ID = '550e8400-e29b-41d4-a716-446655440004' as UUID;
 describe('AgentsService', () => {
   let agentsService: AgentsService;
   const mockConfig: ApiClientConfig = {
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'http://localhost:7777',
     apiKey: 'test-key',
   };
 

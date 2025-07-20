@@ -6,7 +6,31 @@ import { AddKnowledgeOptions } from './types.ts';
 import { isBinaryContentType } from './utils.ts';
 
 /**
- * Get the knowledge path from environment or default to ./docs
+ * Check if this is the first time loading knowledge for this agent
+ */
+export async function isFirstTimeKnowledgeLoad(
+  service: KnowledgeService,
+  agentId: UUID
+): Promise<boolean> {
+  try {
+    // Check if any documents exist for this agent
+    const existingDocuments = await service.searchKnowledge({
+      query: '',
+      agentId,
+      count: 1,
+    });
+    
+    // If no documents exist, this is the first time
+    return existingDocuments.length === 0;
+  } catch (error) {
+    logger.error('Error checking for existing knowledge documents:', error);
+    // Default to true (first time) if we can't check
+    return true;
+  }
+}
+
+/**
+ * Get the knowledge path from environment or default to ./knowledge or ./docs
  */
 export function getKnowledgePath(): string {
   const envPath = process.env.KNOWLEDGE_PATH;
@@ -23,27 +47,54 @@ export function getKnowledgePath(): string {
     return resolvedPath;
   }
 
-  // Default to docs folder in current working directory
-  const defaultPath = path.join(process.cwd(), 'docs');
+  // Try knowledge folder first (for ELIZA game)
+  // Check in current directory first
+  let knowledgePath = path.join(process.cwd(), 'knowledge');
+  if (fs.existsSync(knowledgePath)) {
+    logger.info(`Using knowledge folder: ${knowledgePath}`);
+    return knowledgePath;
+  }
 
+  // Check in project root (two levels up from packages/game)
+  knowledgePath = path.join(process.cwd(), '..', '..', 'knowledge');
+  if (fs.existsSync(knowledgePath)) {
+    logger.info(`Using knowledge folder at project root: ${knowledgePath}`);
+    return knowledgePath;
+  }
+
+  // Fall back to docs folder
+  const defaultPath = path.join(process.cwd(), 'docs');
+  
   if (!fs.existsSync(defaultPath)) {
-    logger.info(`Default docs folder does not exist at: ${defaultPath}`);
+    logger.info(`Neither knowledge nor docs folder found.`);
     logger.info('To use the knowledge plugin, either:');
-    logger.info('1. Create a "docs" folder in your project root');
-    logger.info('2. Set KNOWLEDGE_PATH environment variable to your documents folder');
+    logger.info('1. Create a "knowledge" folder in your project root');
+    logger.info('2. Create a "docs" folder in your project root');
+    logger.info('3. Set KNOWLEDGE_PATH environment variable to your documents folder');
   }
 
   return defaultPath;
 }
 
 /**
- * Load documents from the knowledge path
+ * Load documents from the knowledge path (only on first startup)
  */
 export async function loadDocsFromPath(
   service: KnowledgeService,
   agentId: UUID,
-  worldId?: UUID
+  worldId?: UUID,
+  forceLoad: boolean = false
 ): Promise<{ total: number; successful: number; failed: number }> {
+  // Check if this is the first time loading (unless forced)
+  if (!forceLoad) {
+    const isFirstTime = await isFirstTimeKnowledgeLoad(service, agentId);
+    if (!isFirstTime) {
+      logger.info(`Knowledge already exists for agent ${agentId}, skipping document loading from folder`);
+      return { total: 0, successful: 0, failed: 0 };
+    }
+    logger.info(`First time setup detected for agent ${agentId}, loading initial knowledge`);
+  }
+
   const docsPath = getKnowledgePath();
 
   if (!fs.existsSync(docsPath)) {

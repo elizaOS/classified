@@ -337,7 +337,7 @@ describe('Recent Messages Provider', () => {
       createMockMemory({
         id: 'msg-1' as UUID,
         content: { text: 'Hello there!', channelType: ChannelType.GROUP },
-        createdAt: Date.now() - 3000,
+        createdAt: Date.now() - 7777,
       }),
       createMockMemory({
         id: 'msg-2' as UUID,

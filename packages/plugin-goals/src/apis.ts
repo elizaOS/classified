@@ -154,8 +154,44 @@ export const routes: Route[] = [
   {
     type: 'GET',
     path: '/api/goals',
-    handler: async (_req: any, _res: any, _runtime: IAgentRuntime) => {
-      // ... existing code ...
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        logger.debug('[API /api/goals] Fetching goals for agent:', runtime.agentId);
+
+        const dataService = createGoalDataService(runtime);
+
+        // Get query parameters for filtering
+        const { ownerType, ownerId, isCompleted, tags } = req.query;
+
+        // Build filters object
+        const filters: any = {};
+        if (ownerType) {
+          filters.ownerType = ownerType;
+        }
+        if (ownerId) {
+          filters.ownerId = ownerId;
+        }
+        if (isCompleted !== undefined) {
+          filters.isCompleted = isCompleted === 'true';
+        }
+        if (tags) {
+          filters.tags = Array.isArray(tags) ? tags : [tags];
+        }
+
+        // If no specific filters, default to agent's goals
+        if (!filters.ownerType && !filters.ownerId) {
+          filters.ownerType = 'agent';
+          filters.ownerId = runtime.agentId;
+        }
+
+        const goals = await dataService.getGoals(filters);
+        logger.debug(`[API /api/goals] Found ${goals.length} goals`);
+        
+        res.json(goals);
+      } catch (error) {
+        logger.error('[API /api/goals] Error fetching goals:', error);
+        res.status(500).json({ error: 'Failed to fetch goals' });
+      }
     },
   },
   // API route to create a new goal

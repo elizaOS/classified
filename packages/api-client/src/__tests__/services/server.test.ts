@@ -52,7 +52,7 @@ describe('ServerService', () => {
     mockPost = mock(() => Promise.resolve({}));
     mockDelete = mock(() => Promise.resolve({}));
 
-    serverService = new ServerService({ baseUrl: 'http://localhost:3000', apiKey: 'test-key' });
+    serverService = new ServerService({ baseUrl: 'http://localhost:7777', apiKey: 'test-key' });
     (serverService as any).get = mockGet;
     (serverService as any).post = mockPost;
     (serverService as any).delete = mockDelete;

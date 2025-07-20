@@ -37,7 +37,7 @@ The CI script supports these environment variables:
 
 | Variable           | Default | Description                            |
 | ------------------ | ------- | -------------------------------------- |
-| `TEST_SERVER_PORT` | 3000    | Port for the test server               |
+| `TEST_SERVER_PORT` | 7777    | Port for the test server               |
 | `TEST_MAX_RETRIES` | 60      | Max attempts to connect to server      |
 | `TEST_RETRY_DELAY` | 1000    | Delay between connection attempts (ms) |
 | `CYPRESS_HEADED`   | true    | Run Cypress in headed mode             |

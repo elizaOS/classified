@@ -6,7 +6,7 @@ async function testApiClient() {
 
   // Create client
   const client = ElizaClient.create({
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'http://localhost:7777',
   });
 
   try {
@@ -24,7 +24,7 @@ async function testApiClient() {
     console.log('Using IDs:', { currentUserId: userId, targetUserId: agentId });
     
     // Work around the API client limitation by calling the endpoint directly
-    const response = await fetch(`http://localhost:3000/api/messaging/dm-channel?targetUserId=${agentId}&currentUserId=${userId}`, {
+    const response = await fetch(`http://localhost:7777/api/messaging/dm-channel?targetUserId=${agentId}&currentUserId=${userId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -49,7 +49,7 @@ async function testApiClient() {
     console.log('3️⃣ Testing message sending...');
     
     // Work around API client limitation - send message with all required fields
-    const messageResponse = await fetch(`http://localhost:3000/api/messaging/central-channels/${channel.id}/messages`, {
+    const messageResponse = await fetch(`http://localhost:7777/api/messaging/central-channels/${channel.id}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

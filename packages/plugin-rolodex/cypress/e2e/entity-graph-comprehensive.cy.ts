@@ -35,7 +35,7 @@ describe('Entity Graph Comprehensive E2E Tests', () => {
       // Check that window.ELIZA_CONFIG is set
       cy.window().should('have.property', 'ELIZA_CONFIG');
       cy.window().its('ELIZA_CONFIG').should('have.property', 'agentId', 'test-agent-123');
-      cy.window().its('ELIZA_CONFIG').should('have.property', 'apiBase', 'http://localhost:3000');
+      cy.window().its('ELIZA_CONFIG').should('have.property', 'apiBase', 'http://localhost:7777');
     });
 
     it('should verify page styling and dark mode', () => {

@@ -31,7 +31,17 @@ export const roleProvider: Provider = {
   get: async (runtime: IAgentRuntime, message: Memory, state: State): Promise<ProviderResult> => {
     const room = state.data.room ?? (await runtime.getRoom(message.roomId));
     if (!room) {
-      throw new Error('No room found');
+      // Return a graceful fallback instead of throwing an error
+      logger.warn(`[ROLES Provider] No room found for message ${message.id} in room ${message.roomId}`);
+      return {
+        data: {
+          roles: [],
+        },
+        values: {
+          roles: 'No room information available. Unable to retrieve role data.',
+        },
+        text: 'No room information available. Unable to retrieve role data.',
+      };
     }
 
     if (room.type !== ChannelType.GROUP) {

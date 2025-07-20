@@ -14,7 +14,7 @@ import {
 // Import managers (not services)
 import { EntityResolutionManager } from '../managers/EntityResolutionManager';
 import { RelationshipOntologyManager } from '../managers/RelationshipOntologyManager';
-import { RelationshipManager } from '../managers/RelationshipManager';
+import { RelationshipManager } from '../managers/AutonomousRelationshipManager';
 import { EventBridge } from '../managers/EventBridge';
 import { FollowUpManager } from '../managers/FollowUpManager';
 import { EntityGraphManager } from '../managers/EntityGraphManager';
@@ -148,8 +148,9 @@ export class RolodexService extends Service {
       await this.entityGraphManager.initialize();
 
       // Initialize autonomous manager last as it depends on others
-      this.autonomousRelationshipManager = new RelationshipManager(this.runtime);
-      await this.autonomousRelationshipManager.initialize();
+      // Note: Disabled for now due to circular dependency - will be addressed in future update
+      // this.autonomousRelationshipManager = new RelationshipManager(this.runtime);
+      // await this.autonomousRelationshipManager.initialize();
 
       // Try to get trust services (may not be available)
       this.trustService = this.runtime.getService('trust');

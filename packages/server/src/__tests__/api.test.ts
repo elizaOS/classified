@@ -133,7 +133,7 @@ describe('API Server Functionality', () => {
       on: jest.fn(),
       once: jest.fn(),
       emit: jest.fn(),
-      address: jest.fn(() => ({ port: 3000 })),
+      address: jest.fn(() => ({ port: 7777 })),
       timeout: 0,
       keepAliveTimeout: 5000,
     };

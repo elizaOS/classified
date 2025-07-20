@@ -32,7 +32,7 @@ GIT_TERMINAL_PROMPT = "0"
 # Port configuration
 [ports]
 # Development servers (multiple for different services)
-3000 = { name = "app-1", description = "Application server 1" }
+7777 = { name = "app-1", description = "Application server 1" }
 3001 = { name = "app-2", description = "Application server 2" }
 3002 = { name = "app-3", description = "Application server 3" }
 5173 = { name = "vite", description = "Vite dev server" }

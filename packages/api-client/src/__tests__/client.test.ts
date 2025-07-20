@@ -11,7 +11,7 @@ import { SystemService } from '../services/system';
 
 describe('ElizaClient', () => {
   const config: ApiClientConfig = {
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'http://localhost:7777',
     apiKey: 'test-key',
   };
 

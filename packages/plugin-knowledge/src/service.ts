@@ -23,6 +23,7 @@ import {
   processFragmentsSynchronously,
 } from './document-processor.ts';
 import { DocumentRepository, FragmentRepository } from './repositories/index.ts';
+import { validateModelConfig } from './config.ts';
 import type {
   KnowledgeConfig,
   LoadResult,
@@ -43,6 +44,21 @@ import { isBinaryContentType, looksLikeBase64 } from './utils.ts';
 import { ingestGitHubRepository, ingestWebPage } from './ingestion-utils.ts';
 
 const logger = createLogger({ agentName: 'KnowledgeService' });
+
+/**
+ * Helper function to parse boolean environment variables
+ * @param value The value to parse (string | boolean | undefined)
+ * @returns boolean
+ */
+function parseBooleanEnv(value: string | boolean | undefined): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true';
+  }
+  return false;
+}
 
 /**
  * Knowledge Service - Provides retrieval augmented generation capabilities
@@ -68,24 +84,25 @@ export class KnowledgeService extends Service {
 
     this.knowledgeProcessingSemaphore = new Semaphore(10);
 
-    const parseBooleanEnv = (value: any): boolean => {
-      if (typeof value === 'boolean') {
-        return value;
-      }
-      if (typeof value === 'string') {
-        return value.toLowerCase() === 'true';
-      }
-      return false; // Default to false if undefined or other type
+    // Use validated model config but override with environment variables directly
+    const validatedConfig = runtime ? validateModelConfig(runtime) : {
+      CTX_KNOWLEDGE_ENABLED: false,
+      LOAD_DOCS_ON_STARTUP: false,
+      MAX_INPUT_TOKENS: 4000,
+      MAX_OUTPUT_TOKENS: 4096,
+      EMBEDDING_PROVIDER: '',
+      TEXT_PROVIDER: undefined,
+      TEXT_EMBEDDING_MODEL: '',
     };
 
     this.knowledgeConfig = {
-      CTX_KNOWLEDGE_ENABLED: parseBooleanEnv(config?.CTX_KNOWLEDGE_ENABLED),
-      LOAD_DOCS_ON_STARTUP: parseBooleanEnv(config?.LOAD_DOCS_ON_STARTUP),
-      MAX_INPUT_TOKENS: config?.MAX_INPUT_TOKENS,
-      MAX_OUTPUT_TOKENS: config?.MAX_OUTPUT_TOKENS,
-      EMBEDDING_PROVIDER: config?.EMBEDDING_PROVIDER,
-      TEXT_PROVIDER: config?.TEXT_PROVIDER,
-      TEXT_EMBEDDING_MODEL: config?.TEXT_EMBEDDING_MODEL,
+      CTX_KNOWLEDGE_ENABLED: process.env.CTX_KNOWLEDGE_ENABLED === 'true' || validatedConfig.CTX_KNOWLEDGE_ENABLED || false,
+      LOAD_DOCS_ON_STARTUP: process.env.LOAD_DOCS_ON_STARTUP === 'true' || validatedConfig.LOAD_DOCS_ON_STARTUP || false,
+      MAX_INPUT_TOKENS: validatedConfig.MAX_INPUT_TOKENS ?? config?.MAX_INPUT_TOKENS,
+      MAX_OUTPUT_TOKENS: validatedConfig.MAX_OUTPUT_TOKENS ?? config?.MAX_OUTPUT_TOKENS,
+      EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER || validatedConfig.EMBEDDING_PROVIDER || config?.EMBEDDING_PROVIDER,
+      TEXT_PROVIDER: process.env.TEXT_PROVIDER || validatedConfig.TEXT_PROVIDER || config?.TEXT_PROVIDER,
+      TEXT_EMBEDDING_MODEL: process.env.TEXT_EMBEDDING_MODEL || validatedConfig.TEXT_EMBEDDING_MODEL || config?.TEXT_EMBEDDING_MODEL,
     };
 
     // Store config as Metadata for base class compatibility
@@ -100,6 +117,9 @@ export class KnowledgeService extends Service {
         this.knowledgeConfig,
         `useNewTables: ${this.useNewTables}`
       );
+      
+      logger.info(`LOAD_DOCS_ON_STARTUP: ${this.knowledgeConfig.LOAD_DOCS_ON_STARTUP}`);
+      logger.info(`CTX_KNOWLEDGE_ENABLED: ${this.knowledgeConfig.CTX_KNOWLEDGE_ENABLED}`);
 
       if (this.knowledgeConfig.LOAD_DOCS_ON_STARTUP) {
         this.loadInitialDocuments().catch((error) => {

@@ -12,7 +12,7 @@ alwaysApply: false
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3000",
+      "value": "http://localhost:7777",
       "type": "string"
     },
     {
@@ -1684,7 +1684,7 @@ alwaysApply: false
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3000",
+      "value": "http://localhost:7777",
       "type": "string"
     },
     {

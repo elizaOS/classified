@@ -21,16 +21,30 @@ export interface ValidatedModelConfig {
  * @returns Validated configuration object
  */
 export function validateModelConfig(runtime?: IAgentRuntime): ValidatedModelConfig {
+  // Debug character settings
+  logger.info('Character settings debug:', {
+    hasRuntime: !!runtime,
+    hasCharacter: !!runtime?.character,
+    hasSettings: !!runtime?.character?.settings,
+    characterSettings: runtime?.character?.settings,
+    getSetting_CTX: runtime?.getSetting('CTX_KNOWLEDGE_ENABLED'),
+    getSetting_LOAD: runtime?.getSetting('LOAD_DOCS_ON_STARTUP'),
+    env_CTX: process.env.CTX_KNOWLEDGE_ENABLED,
+    env_LOAD: process.env.LOAD_DOCS_ON_STARTUP
+  });
+
   // Check if CTX_KNOWLEDGE_ENABLED is set
   const ctxKnowledgeEnabled =
     runtime?.getSetting('CTX_KNOWLEDGE_ENABLED') === 'true' ||
+    runtime?.character?.settings?.CTX_KNOWLEDGE_ENABLED === 'true' ||
     process.env.CTX_KNOWLEDGE_ENABLED === 'true' ||
     false;
 
-  // Check if docs should be loaded on startup
+  // Check if docs should be loaded on startup - simplified logic
   const loadDocsOnStartup =
-    runtime?.getSetting('LOAD_DOCS_ON_STARTUP') !== 'false' &&
-    process.env.LOAD_DOCS_ON_STARTUP !== 'false';
+    runtime?.getSetting('LOAD_DOCS_ON_STARTUP') === 'true' ||
+    runtime?.character?.settings?.LOAD_DOCS_ON_STARTUP === 'true' ||
+    process.env.LOAD_DOCS_ON_STARTUP === 'true';
 
   // Get token limits
   const maxInputTokens = parseInt(

@@ -70,6 +70,7 @@ export interface Experience {
 }
 
 export interface ExperienceQuery {
+  query?: string; // Text query for semantic search
   type?: ExperienceType | ExperienceType[];
   outcome?: OutcomeType | OutcomeType[];
   domain?: string | string[];

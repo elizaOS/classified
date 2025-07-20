@@ -59,7 +59,7 @@ npm run test
 npm run dev
 
 # Or run components separately
-npm run dev:backend  # Backend on port 3000
+npm run dev:backend  # Backend on port 7777
 npm run dev:frontend # Frontend on port 5173
 ```
 
@@ -183,16 +183,16 @@ The ELIZA Game features a complete autonomy system where the agent operates inde
 
 ```bash
 # Check current status
-curl http://localhost:3000/autonomy/status
+curl http://localhost:7777/autonomy/status
 
 # Enable autonomous thinking
-curl -X POST http://localhost:3000/autonomy/enable
+curl -X POST http://localhost:7777/autonomy/enable
 
 # Disable autonomous thinking
-curl -X POST http://localhost:3000/autonomy/disable
+curl -X POST http://localhost:7777/autonomy/disable
 
 # Toggle state
-curl -X POST http://localhost:3000/autonomy/toggle
+curl -X POST http://localhost:7777/autonomy/toggle
 ```
 
 ### Monitoring Autonomy
@@ -212,7 +212,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
 # Optional
-PORT=3000                    # Backend server port
+PORT=7777                    # Backend server port
 DATABASE_PATH=./.elizadb     # Database storage path
 LOG_LEVEL=info              # Logging verbosity
 NODE_ENV=development        # Environment mode
@@ -237,7 +237,7 @@ npm run dev              # Start full development environment
 npm run build            # Build for production
 npm run test             # Run comprehensive test suite
 npm run test:open        # Open Cypress test runner
-npm run dev:backend      # Backend only (port 3000)
+npm run dev:backend      # Backend only (port 7777)
 npm run dev:frontend     # Frontend only (port 5173)
 npm run kill-processes   # Kill all running processes
 ```
@@ -269,7 +269,7 @@ npm run dev
 
 **API connection errors:**
 - Verify `.env` file has valid API keys
-- Check backend is running on port 3000  
+- Check backend is running on port 7777  
 - Ensure no firewall blocking localhost
 
 **Frontend not loading:**
@@ -285,7 +285,7 @@ npm run dev
 
 **Tests failing:**
 - Ensure API keys are valid
-- Check no other processes using ports 3000/5173
+- Check no other processes using ports 7777/5173
 - Run `npm run kill-processes` and retry
 - Verify database permissions
 

@@ -35,7 +35,7 @@ const createTypedMockRuntime = (): IAgentRuntime => {
     knowledgeManager: null,
     ragKnowledgeManager: null,
     loreManager: null,
-    serverUrl: 'http://localhost:3000',
+    serverUrl: 'http://localhost:7777',
     databaseAdapter: null,
     token: null,
     modelProvider: 'openai',

@@ -43,6 +43,13 @@ export enum RolodexEventType {
   SECURITY_THREAT_DETECTED = 'rolodex:security:threat_detected',
   TRUST_VERIFICATION_REQUIRED = 'rolodex:trust:verification_required',
 
+  // Bidirectional Verification Events
+  MERGE_PROPOSAL_CREATED = 'rolodex:merge:proposal_created',
+  MERGE_READY_FOR_REVIEW = 'rolodex:merge:ready_for_review',
+  PLATFORM_CLAIM_RECORDED = 'rolodex:platform:claim_recorded',
+  PLATFORM_CONFIRMATION_RECEIVED = 'rolodex:platform:confirmation_received',
+  BIDIRECTIONAL_VERIFICATION_COMPLETED = 'rolodex:verification:bidirectional_completed',
+
   // Contact Events
   CONTACT_ADDED = 'rolodex:contact:added',
   CONTACT_UPDATED = 'rolodex:contact:updated',

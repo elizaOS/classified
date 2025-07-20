@@ -252,8 +252,8 @@ describe('CLI Compatibility Tests', () => {
       server.server = mockServer as any;
 
       // Test CLI's server start pattern
-      expect(() => server.start(3000)).not.toThrow();
-      expect(mockServer.listen).toHaveBeenCalledWith(3000, expect.any(Function));
+      expect(() => server.start(7777)).not.toThrow();
+      expect(mockServer.listen).toHaveBeenCalledWith(7777, expect.any(Function));
     });
 
     it('should support CLI agent registration pattern', async () => {

@@ -1,7 +1,7 @@
 /// <reference types="cypress" />
 
 describe('Real End-to-End Integration Test', () => {
-  const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:3000';
+  const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
   const FRONTEND_URL = Cypress.env('FRONTEND_URL') || 'http://localhost:5173';
 
   before(() => {

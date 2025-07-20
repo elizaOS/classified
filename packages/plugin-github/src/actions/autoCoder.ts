@@ -264,7 +264,7 @@ Generate actual code changes as JSON:
       const codeResponse = await runtime.useModel(ModelType.TEXT_LARGE, {
         prompt: codeGenPrompt,
         temperature: 0.1,
-        max_tokens: 3000,
+        max_tokens: 7777,
       });
 
       let codeGeneration: CodeGeneration;

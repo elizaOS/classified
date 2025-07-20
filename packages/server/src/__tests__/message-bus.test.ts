@@ -61,7 +61,7 @@ describe('MessageBusService', () => {
       .mockReturnValue(Promise.resolve({ serverId: '789e1234-e89b-12d3-a456-426614174000' }));
     mockRuntime.getMemoriesByRoomIds = jest.fn().mockReturnValue(Promise.resolve([]));
     mockRuntime.emitEvent = jest.fn().mockReturnValue(Promise.resolve(undefined));
-    mockRuntime.getSetting = jest.fn().mockReturnValue('http://localhost:3000');
+    mockRuntime.getSetting = jest.fn().mockReturnValue('http://localhost:7777');
 
     // Mock successful fetch responses
     mockFetch.mockImplementation((url) => {

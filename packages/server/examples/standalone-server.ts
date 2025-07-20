@@ -64,7 +64,7 @@ async function startServer() {
     const server = await createStandaloneServer();
 
     // Start server
-    const port = parseInt(process.env.PORT || '3000');
+    const port = parseInt(process.env.PORT || '7777');
     const host = process.env.HOST || 'localhost';
 
     logger.info(`🌐 Starting server on ${host}:${port}...`);

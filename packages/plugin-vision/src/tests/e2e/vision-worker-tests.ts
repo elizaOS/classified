@@ -111,7 +111,7 @@ export class VisionWorkerE2ETestSuite implements TestSuite {
         try {
           // Wait for OCR to process
           console.log('Waiting for OCR processing...');
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          await new Promise((resolve) => setTimeout(resolve, 7777));
 
           // Get enhanced scene with OCR results
           const scene = await visionService.getEnhancedSceneDescription();

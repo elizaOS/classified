@@ -29,7 +29,6 @@
   "dependencies": {
     "@elizaos/core": "^1.2.12",
     "@elizaos/plugin-sql": "workspace:*",
-    "@elizaos/plugin-trust": "workspace:*",
     "lucide-react": "^0.323.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

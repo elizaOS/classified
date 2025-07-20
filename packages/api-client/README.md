@@ -15,7 +15,7 @@ import { ElizaClient } from '@elizaos/api-client';
 
 // Create client instance
 const client = ElizaClient.create({
-  baseUrl: 'http://localhost:3000',
+  baseUrl: 'http://localhost:7777',
   apiKey: 'your-api-key', // optional
 });
 

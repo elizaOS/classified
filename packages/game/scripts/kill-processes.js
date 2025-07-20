@@ -63,7 +63,7 @@ async function main() {
   
   try {
     // Kill by port
-    await killPortProcesses([3000, 5173, 5174]);
+    await killPortProcesses([7777, 5173, 5173]);
     
     // Kill by process name
     await killElizaProcesses();

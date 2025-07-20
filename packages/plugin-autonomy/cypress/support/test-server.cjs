@@ -4,7 +4,7 @@ const { fileURLToPath } = require('url');
 const fs = require('fs');
 
 const app = express();
-const PORT = 3000;
+const PORT = 7777;
 
 // Enable JSON parsing
 app.use(express.json());

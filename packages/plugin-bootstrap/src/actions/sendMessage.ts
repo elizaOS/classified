@@ -172,6 +172,13 @@ export const sendMessageAction: Action = {
     // Get all components for the current room to understand available sources
     const roomComponents = await runtime.getComponents(message.roomId, worldId, agentId);
 
+    // Handle null or undefined result from getComponents
+    if (!roomComponents || !Array.isArray(roomComponents)) {
+      // Default to allowing send message if components cannot be determined
+      // This ensures the action doesn't fail due to infrastructure issues
+      return true;
+    }
+
     // Get source types from room components
     const availableSources = new Set(roomComponents.map((c) => c.type));
 

@@ -66,7 +66,7 @@ async function createTestRuntime(): Promise<IAgentRuntime> {
   const runtime = new AgentRuntime({
     character,
     token: 'test-agent-token-' + Date.now(),
-    serverUrl: 'http://localhost:3000',
+    serverUrl: 'http://localhost:7777',
     supabaseClient: null,
     fetch: fetch,
   });

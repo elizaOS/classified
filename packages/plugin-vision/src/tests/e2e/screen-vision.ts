@@ -56,7 +56,7 @@ export class ScreenVisionE2ETestSuite implements TestSuite {
         await visionService.setVisionMode(VisionMode.SCREEN);
 
         // Wait for capture
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 7777));
 
         const screenCapture = await visionService.getScreenCapture();
         if (!screenCapture) {

@@ -8,7 +8,7 @@ class TestRunner {
   constructor() {
     this.backendProcess = null;
     this.frontendProcess = null;
-    this.BACKEND_PORT = 3000;
+    this.BACKEND_PORT = 7777;
     this.FRONTEND_PORT = 5173;
   }
 
@@ -62,7 +62,7 @@ class TestRunner {
 
       this.backendProcess.stdout.on('data', (data) => {
         const output = data.toString();
-        if (output.includes('AgentServer is listening on port 3000') && !hasStarted) {
+        if (output.includes('AgentServer is listening on port 7777') && !hasStarted) {
           hasStarted = true;
           clearTimeout(timeout);
           this.success('Backend started successfully');

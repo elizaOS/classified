@@ -1,7 +1,6 @@
 import { relations, sql } from 'drizzle-orm';
 import {
   pgTable,
-  pgSchema,
   text,
   integer,
   index,
@@ -12,13 +11,13 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-// Define the todo schema namespace
-export const todoSchema = pgSchema('todo');
+// Define the todo tables without schema namespace for better compatibility
+// PGLite and some environments don't support PostgreSQL schemas
 
 /**
  * Todos table - stores the main todo items
  */
-export const todosTable = todoSchema.table(
+export const todosTable = pgTable(
   'todos',
   {
     id: uuid('id').primaryKey().defaultRandom(),
@@ -40,7 +39,7 @@ export const todosTable = todoSchema.table(
     updatedAt: timestamp('updated_at')
       .default(sql`now()`)
       .notNull(),
-    metadata: jsonb('metadata').default('{}').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, any>>().default({}).notNull(),
   },
   (table) => ({
     agentIdIndex: index('idx_todos_agent').on(table.agentId),
@@ -57,15 +56,13 @@ export const todosTable = todoSchema.table(
 /**
  * Todo tags table - stores tags associated with todos
  */
-export const todoTagsTable = todoSchema.table(
+export const todoTagsTable = pgTable(
   'todo_tags',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     todoId: uuid('todo_id')
-      .references(() => todosTable.id, {
-        onDelete: 'cascade',
-      })
-      .notNull(),
+      .notNull()
+      .references(() => todosTable.id, { onDelete: 'cascade' }),
     tag: text('tag').notNull(),
     createdAt: timestamp('created_at')
       .default(sql`now()`)
@@ -79,13 +76,13 @@ export const todoTagsTable = todoSchema.table(
 );
 
 /**
- * Relations
+ * Relations between tables
  */
-export const todosRelations = relations(todosTable, ({ many }) => ({
+export const todoRelations = relations(todosTable, ({ many }) => ({
   tags: many(todoTagsTable),
 }));
 
-export const todoTagsRelations = relations(todoTagsTable, ({ one }) => ({
+export const todoTagRelations = relations(todoTagsTable, ({ one }) => ({
   todo: one(todosTable, {
     fields: [todoTagsTable.todoId],
     references: [todosTable.id],

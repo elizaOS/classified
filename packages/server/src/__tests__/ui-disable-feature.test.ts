@@ -166,18 +166,18 @@ describe('UI Disable Feature Integration', () => {
       };
 
       // Test production with UI enabled
-      const prodEnabled = generateStartupMessage(true, 3000, 'production');
+      const prodEnabled = generateStartupMessage(true, 7777, 'production');
       expect(prodEnabled?.type).toBe('dashboard');
-      expect(prodEnabled?.message).toContain('http://localhost:3000');
+      expect(prodEnabled?.message).toContain('http://localhost:7777');
 
       // Test production with UI disabled
-      const prodDisabled = generateStartupMessage(false, 3000, 'production');
+      const prodDisabled = generateStartupMessage(false, 7777, 'production');
       expect(prodDisabled?.type).toBe('api-only');
       expect(prodDisabled?.message).toContain('Web UI disabled.');
       expect(prodDisabled?.message).toContain('API endpoints available at:');
 
       // Test development (no message)
-      const devResult = generateStartupMessage(true, 3000, 'development');
+      const devResult = generateStartupMessage(true, 7777, 'development');
       expect(devResult).toBeNull();
     });
   });

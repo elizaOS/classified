@@ -102,8 +102,8 @@ LOG_LEVEL=debug elizaos start
 
 After starting, your agent will be available at:
 
-- **Web Interface**: http://localhost:3000
-- **API Endpoint**: http://localhost:3000/api
+- **Web Interface**: http://localhost:7777
+- **API Endpoint**: http://localhost:7777/api
 
 #### 5. Development Workflow
 
@@ -163,7 +163,7 @@ NODE_ENV=development elizaos start      # Development mode with extra logging
 - Use `elizaos --help` to see all available commands and global options
 - Use `elizaos <command> --help` for detailed help on any specific command
 - Use `LOG_LEVEL=debug` during development to see detailed execution flow
-- Check the web interface at http://localhost:3000 for real-time agent status
+- Check the web interface at http://localhost:7777 for real-time agent status
 - Use `elizaos test` frequently to catch issues early
 - Keep your `.env` file secure and never commit it to version control
 
@@ -232,7 +232,7 @@ bun start
 
 ### Interact via Browser
 
-Once Eliza is running, access the modern web interface at http://localhost:3000. It has been professionally redesigned and features:
+Once Eliza is running, access the modern web interface at http://localhost:7777. It has been professionally redesigned and features:
 
 - A welcoming dashboard with a gradient hero section and clear calls-to-action for creating agents and groups.
 - Visually enhanced cards for managing agents and groups, including status indicators and member counts.

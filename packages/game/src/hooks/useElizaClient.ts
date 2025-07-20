@@ -21,9 +21,9 @@ interface UseElizaClientReturn {
 }
 
 export function useElizaClient({
-  baseUrl = 'http://localhost:3000',
+  baseUrl = 'http://localhost:7777',
   userId,
-  agentId = '00000000-0000-0000-0000-000000000001',
+  agentId = '2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f',
   onMessage,
   onConnectionChange,
 }: UseElizaClientOptions): UseElizaClientReturn {
@@ -141,7 +141,7 @@ export function useElizaClient({
         socketRef.current = null;
       }
     };
-  }, [baseUrl, onConnectionChange]);
+  }, [baseUrl]); // Remove onConnectionChange from dependencies
 
   // Get or create DM channel
   useEffect(() => {
@@ -202,7 +202,7 @@ export function useElizaClient({
     };
 
     setupChannel();
-  }, [isConnected, onMessage]);
+  }, [isConnected]); // Remove onMessage from dependencies
 
   // Set up message broadcast listener
   useEffect(() => {

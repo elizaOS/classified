@@ -35,10 +35,10 @@ const server = new AgentServer();
 await server.initialize();
 
 // Start the server
-const port = 3000;
+const port = 7777;
 server.start(port);
 
-// Server is now running at http://localhost:3000
+// Server is now running at http://localhost:7777
 ```
 
 ### Advanced Configuration
@@ -71,7 +71,7 @@ server.registerMiddleware((req, res, next) => {
 });
 
 // Start the server
-server.start(3000);
+server.start(7777);
 ```
 
 ## API Endpoints
@@ -103,11 +103,11 @@ server.start(3000);
 
 ## WebSocket Events
 
-Connect to `ws://localhost:3000/ws` for real-time communication:
+Connect to `ws://localhost:7777/ws` for real-time communication:
 
 ```javascript
 // Client-side WebSocket connection
-const ws = new WebSocket('ws://localhost:3000/ws');
+const ws = new WebSocket('ws://localhost:7777/ws');
 
 // Send message
 ws.send(
@@ -155,7 +155,7 @@ app.get('/custom', (req, res) => {
   res.json({ message: 'Custom endpoint' });
 });
 
-app.listen(3000);
+app.listen(7777);
 ```
 
 ### Programmatic Agent Management
@@ -186,7 +186,7 @@ const runtime = new AgentRuntime({
 await server.registerAgent(runtime);
 
 // Start server
-server.start(3000);
+server.start(7777);
 ```
 
 ## Configuration
@@ -195,7 +195,7 @@ server.start(3000);
 
 The server respects these environment variables:
 
-- `PORT` - Server port (default: 3000)
+- `PORT` - Server port (default: 7777)
 - `HOST` - Server host (default: localhost)
 - `DATABASE_URL` - PostgreSQL connection string
 - `SQLITE_PATH` - Path to SQLite database file

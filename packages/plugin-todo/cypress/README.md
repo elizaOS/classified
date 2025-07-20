@@ -24,7 +24,7 @@ and frontend routes provided by the plugin.
 ### Prerequisites
 
 1. The Eliza server must be running with the Todo plugin loaded
-2. The server should be accessible at the configured port (default: 3000)
+2. The server should be accessible at the configured port (default: 7777)
 
 ### Manual Testing
 
@@ -62,8 +62,8 @@ npm run test:e2e:ci
 
 ## Test Configuration
 
-- **Base URL**: http://localhost:3000 (configured in cypress.config.ts)
-- **Server Port**: The test scripts use port 3000 by default
+- **Base URL**: http://localhost:7777 (configured in cypress.config.ts)
+- **Server Port**: The test scripts use port 7777 by default
 
 ## Known Issues
 

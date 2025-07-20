@@ -1,5 +1,5 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
-import { logger } from '@elizaos/core';
+import { logger, Service } from '@elizaos/core';
 import { and, desc, eq, isNull, or, not, sql } from 'drizzle-orm';
 import { todosTable, todoTagsTable } from '../schema';
 
@@ -483,4 +483,115 @@ export class TodoDataService {
  */
 export function createTodoDataService(runtime: IAgentRuntime): TodoDataService {
   return new TodoDataService(runtime);
+}
+
+/**
+ * Service wrapper for TodoDataService to be registered with the plugin
+ */
+export class TodoDataServiceWrapper extends Service {
+  static serviceType = 'todo' as any;
+
+  private todoDataService: TodoDataService | null = null;
+
+  capabilityDescription = 'Manages todo data storage and retrieval';
+
+  async stop(): Promise<void> {
+    this.todoDataService = null;
+  }
+
+  static async start(runtime: IAgentRuntime): Promise<TodoDataServiceWrapper> {
+    const service = new TodoDataServiceWrapper();
+
+    if (!runtime.db) {
+      logger.warn('Database not available, TodoDataService will be limited');
+    } else {
+      service.todoDataService = new TodoDataService(runtime);
+    }
+
+    return service;
+  }
+
+  /**
+   * Get the underlying TodoDataService instance
+   */
+  getDataService(): TodoDataService | null {
+    return this.todoDataService;
+  }
+
+  /**
+   * Create a new todo (delegated to service)
+   */
+  async createTodo(params: {
+    agentId: UUID;
+    worldId: UUID;
+    roomId: UUID;
+    entityId: UUID;
+    name: string;
+    description?: string;
+    type: 'daily' | 'one-off' | 'aspirational';
+    priority?: number;
+    isUrgent?: boolean;
+    dueDate?: Date;
+    metadata?: any;
+    tags?: string[];
+  }): Promise<UUID | null> {
+    if (!this.todoDataService) {
+      throw new Error('TodoDataService not available');
+    }
+    return this.todoDataService.createTodo(params);
+  }
+
+  /**
+   * Get todos with optional filters (delegated to service)
+   */
+  async getTodos(filters?: {
+    agentId?: UUID;
+    worldId?: UUID;
+    roomId?: UUID;
+    entityId?: UUID;
+    type?: 'daily' | 'one-off' | 'aspirational';
+    isCompleted?: boolean;
+    isUrgent?: boolean;
+    tags?: string[];
+    limit?: number;
+  }): Promise<TodoData[]> {
+    if (!this.todoDataService) {
+      return [];
+    }
+    return this.todoDataService.getTodos(filters);
+  }
+
+  /**
+   * Update a todo (delegated to service)
+   */
+  async updateTodo(
+    todoId: UUID,
+    updates: {
+      name?: string;
+      description?: string;
+      type?: 'daily' | 'one-off' | 'aspirational';
+      priority?: number;
+      isUrgent?: boolean;
+      isCompleted?: boolean;
+      dueDate?: Date;
+      completedAt?: Date;
+      metadata?: any;
+      tags?: string[];
+    }
+  ): Promise<boolean> {
+    if (!this.todoDataService) {
+      throw new Error('TodoDataService not available');
+    }
+    return this.todoDataService.updateTodo(todoId, updates);
+  }
+
+  /**
+   * Delete a todo (delegated to service)
+   */
+  async deleteTodo(todoId: UUID): Promise<boolean> {
+    if (!this.todoDataService) {
+      throw new Error('TodoDataService not available');
+    }
+    return this.todoDataService.deleteTodo(todoId);
+  }
 }

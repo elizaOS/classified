@@ -1,23 +1,22 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   pgTable,
-  pgSchema,
-  uuid,
+  text,
+  index,
   timestamp,
   boolean,
   jsonb,
-  text,
-  index,
+  uuid,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-// Define the goals schema namespace
-export const goalsSchema = pgSchema('goals');
+// Define the goals tables without schema namespace for better compatibility
+// PGLite and some environments don't support PostgreSQL schemas
 
 /**
  * Goals table - stores long-term achievable goals
  */
-export const goalsTable = goalsSchema.table(
+export const goalsTable = pgTable(
   'goals',
   {
     id: uuid('id').notNull().primaryKey(),
@@ -44,15 +43,13 @@ export const goalsTable = goalsSchema.table(
 /**
  * Goal tags table - stores tags associated with goals
  */
-export const goalTagsTable = goalsSchema.table(
+export const goalTagsTable = pgTable(
   'goal_tags',
   {
-    id: uuid('id').notNull().primaryKey(),
+    id: uuid('id').primaryKey().defaultRandom(),
     goalId: uuid('goal_id')
-      .references(() => goalsTable.id, {
-        onDelete: 'cascade',
-      })
-      .notNull(),
+      .notNull()
+      .references(() => goalsTable.id, { onDelete: 'cascade' }),
     tag: text('tag').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
@@ -64,13 +61,13 @@ export const goalTagsTable = goalsSchema.table(
 );
 
 /**
- * Relations
+ * Relations between tables
  */
-export const goalsRelations = relations(goalsTable, ({ many }) => ({
+export const goalRelations = relations(goalsTable, ({ many }) => ({
   tags: many(goalTagsTable),
 }));
 
-export const goalTagsRelations = relations(goalTagsTable, ({ one }) => ({
+export const goalTagRelations = relations(goalTagsTable, ({ one }) => ({
   goal: one(goalsTable, {
     fields: [goalTagsTable.goalId],
     references: [goalsTable.id],

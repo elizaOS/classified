@@ -331,7 +331,7 @@ export class VisionBasicE2ETestSuite implements TestSuite {
 
         // Wait for scene processing to accumulate frames
         console.log('  Waiting for scene analysis...');
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 7777));
 
         // Get scene description
         const scene = await visionService.getSceneDescription();

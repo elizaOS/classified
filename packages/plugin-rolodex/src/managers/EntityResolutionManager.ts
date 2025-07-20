@@ -107,6 +107,48 @@ export interface EntityMergeProposal {
     relationshipImpactRisk: number;
     overallRisk: number;
   };
+  // Enhanced bidirectional verification
+  bidirectionalEvidence?: BidirectionalEvidence;
+  requiresConfirmation?: boolean;
+  pendingConfirmation?: Array<{
+    platform: string;
+    handle: string;
+    requiredFrom: UUID;
+    claimedBy: UUID;
+    timestamp: Date;
+  }>;
+}
+
+export interface BidirectionalEvidence {
+  platformClaims: Map<string, PlatformClaim[]>;
+  confirmations: Map<string, PlatformConfirmation[]>;
+  bidirectionalStrength: number;
+  requiredConfirmations: number;
+  receivedConfirmations: number;
+}
+
+export interface PlatformClaim {
+  platform: string;
+  handle: string;
+  claimedBy: UUID;
+  claimedFrom: UUID; // The entity making the claim
+  claimedAbout: UUID; // The entity being claimed
+  confidence: number;
+  timestamp: Date;
+  source: 'user_statement' | 'profile_link' | 'cross_reference' | 'behavioral_pattern';
+  evidence: string;
+}
+
+export interface PlatformConfirmation {
+  platform: string;
+  handle: string;
+  confirmedBy: UUID;
+  confirmsEntity: UUID;
+  confirmsClaim: UUID; // References the original claim ID
+  confidence: number;
+  timestamp: Date;
+  method: 'direct_statement' | 'profile_verification' | 'behavioral_match' | 'admin_override';
+  evidence: string;
 }
 
 export interface IdentityGraph {
@@ -179,6 +221,11 @@ export class EntityResolutionManager {
     this.runtime = runtime;
     this.eventBridge = eventBridge;
   }
+
+  // Enhanced bidirectional verification storage
+  private platformClaims: Map<string, PlatformClaim[]> = new Map();
+  private platformConfirmations: Map<string, PlatformConfirmation[]> = new Map();
+  private pendingMerges: Map<string, EntityMergeProposal> = new Map();
 
   async initialize(): Promise<void> {
     // Load existing identity graphs
@@ -1475,5 +1522,405 @@ Respond with only the numeric score (e.g., "0.65")`;
     } catch (error) {
       logger.error('[EntityResolutionManager] Error redirecting relationships:', error);
     }
+  }
+
+  // === Bidirectional Verification System ===
+
+  /**
+   * Record a platform identity claim (e.g., "My Twitter is @john")
+   */
+  async recordPlatformClaim(
+    claimedBy: UUID,
+    claimedFrom: UUID,
+    claimedAbout: UUID,
+    platform: string,
+    handle: string,
+    confidence: number,
+    source: PlatformClaim['source'],
+    evidence: string
+  ): Promise<string> {
+    const claimId = `${platform}:${handle}:${claimedBy}:${Date.now()}`;
+    
+    const claim: PlatformClaim = {
+      platform,
+      handle,
+      claimedBy,
+      claimedFrom,
+      claimedAbout,
+      confidence,
+      timestamp: new Date(),
+      source,
+      evidence,
+    };
+
+    const platformKey = `${platform}:${handle}`;
+    const existingClaims = this.platformClaims.get(platformKey) || [];
+    existingClaims.push(claim);
+    this.platformClaims.set(platformKey, existingClaims);
+
+    logger.info(`[EntityResolutionManager] Recorded platform claim: ${claimedBy} claims ${platform}:${handle} for entity ${claimedAbout}`);
+
+    // Check if this creates a bidirectional match opportunity
+    await this.checkForBidirectionalMatch(claimedAbout, platform, handle);
+
+    return claimId;
+  }
+
+  /**
+   * Record a platform identity confirmation (e.g., user confirms from their Twitter account)
+   */
+  async recordPlatformConfirmation(
+    confirmedBy: UUID,
+    confirmsEntity: UUID,
+    platform: string,
+    handle: string,
+    confirmsClaim: UUID,
+    confidence: number,
+    method: PlatformConfirmation['method'],
+    evidence: string
+  ): Promise<boolean> {
+    const confirmation: PlatformConfirmation = {
+      platform,
+      handle,
+      confirmedBy,
+      confirmsEntity,
+      confirmsClaim,
+      confidence,
+      timestamp: new Date(),
+      method,
+      evidence,
+    };
+
+    const platformKey = `${platform}:${handle}`;
+    const existingConfirmations = this.platformConfirmations.get(platformKey) || [];
+    existingConfirmations.push(confirmation);
+    this.platformConfirmations.set(platformKey, existingConfirmations);
+
+    logger.info(`[EntityResolutionManager] Recorded platform confirmation: ${confirmedBy} confirms ${platform}:${handle} for entity ${confirmsEntity}`);
+
+    // Check if this completes a bidirectional verification
+    const completed = await this.checkForCompletedVerification(confirmsEntity, platform, handle);
+    
+    return completed;
+  }
+
+  /**
+   * Check if a claim creates a bidirectional match opportunity
+   */
+  private async checkForBidirectionalMatch(
+    entityId: UUID,
+    platform: string,
+    handle: string
+  ): Promise<void> {
+    const platformKey = `${platform}:${handle}`;
+    const claims = this.platformClaims.get(platformKey) || [];
+    
+    // Look for claims about different entities using the same platform handle
+    const conflictingClaims = claims.filter(claim => 
+      claim.claimedAbout !== entityId && claim.platform === platform && claim.handle === handle
+    );
+
+    if (conflictingClaims.length > 0) {
+      logger.info(`[EntityResolutionManager] Potential entity merge opportunity detected for ${platform}:${handle}`);
+      
+      // Create or update merge proposal
+      const mergeKey = `${entityId}:${conflictingClaims[0].claimedAbout}`;
+      await this.createBidirectionalMergeProposal(entityId, conflictingClaims[0].claimedAbout, platform, handle, claims);
+    }
+  }
+
+  /**
+   * Check if a confirmation completes bidirectional verification
+   */
+  private async checkForCompletedVerification(
+    entityId: UUID,
+    platform: string,
+    handle: string
+  ): Promise<boolean> {
+    const platformKey = `${platform}:${handle}`;
+    const claims = this.platformClaims.get(platformKey) || [];
+    const confirmations = this.platformConfirmations.get(platformKey) || [];
+
+    // Find claims about this entity
+    const entityClaims = claims.filter(claim => claim.claimedAbout === entityId);
+    const entityConfirmations = confirmations.filter(conf => conf.confirmsEntity === entityId);
+
+    // Check if we have both claim and confirmation
+    if (entityClaims.length > 0 && entityConfirmations.length > 0) {
+      logger.info(`[EntityResolutionManager] Bidirectional verification completed for entity ${entityId} on ${platform}:${handle}`);
+      
+      // Look for pending merge proposals that can now be executed
+      await this.processPendingMerges(entityId, platform, handle);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Create a bidirectional merge proposal
+   */
+  private async createBidirectionalMergeProposal(
+    entityA: UUID,
+    entityB: UUID,
+    platform: string,
+    handle: string,
+    allClaims: PlatformClaim[]
+  ): Promise<void> {
+    const mergeKey = [entityA, entityB].sort().join(':');
+    
+    // Check if proposal already exists
+    if (this.pendingMerges.has(mergeKey)) {
+      logger.debug(`[EntityResolutionManager] Merge proposal already exists for ${mergeKey}`);
+      return;
+    }
+
+    try {
+      const primaryEntity = await this.runtime.getEntityById(entityA);
+      const candidateEntity = await this.runtime.getEntityById(entityB);
+
+      if (!primaryEntity || !candidateEntity) {
+        logger.warn(`[EntityResolutionManager] Could not find entities for merge proposal: ${entityA}, ${entityB}`);
+        return;
+      }
+
+      // Calculate bidirectional evidence strength
+      const bidirectionalEvidence = this.calculateBidirectionalEvidence(platform, handle, allClaims);
+      
+      // Create enhanced merge proposal
+      const proposal: EntityMergeProposal = {
+        primaryEntityId: entityA,
+        candidateEntityIds: [entityB],
+        confidence: bidirectionalEvidence.bidirectionalStrength,
+        mergeStrategy: bidirectionalEvidence.bidirectionalStrength > 0.9 ? 'absorb' : 'merge',
+        conflictResolution: [],
+        preservedData: [],
+        riskAssessment: {
+          dataLossRisk: 0.2,
+          trustImpactRisk: 0.3,
+          relationshipImpactRisk: 0.4,
+          overallRisk: 0.3,
+        },
+        bidirectionalEvidence,
+        requiresConfirmation: bidirectionalEvidence.receivedConfirmations < bidirectionalEvidence.requiredConfirmations,
+        pendingConfirmation: [{
+          platform,
+          handle,
+          requiredFrom: entityB,
+          claimedBy: entityA,
+          timestamp: new Date(),
+        }],
+      };
+
+      this.pendingMerges.set(mergeKey, proposal);
+      
+      logger.info(`[EntityResolutionManager] Created bidirectional merge proposal for entities ${entityA} and ${entityB} via ${platform}:${handle}`);
+
+      // Emit event for external handling
+      if (this.eventBridge) {
+        await this.eventBridge.emit({
+          type: RolodexEventType.MERGE_PROPOSAL_CREATED,
+          timestamp: Date.now(),
+          entityId: entityA,
+          candidateEntityId: entityB,
+          platform,
+          handle,
+          proposal,
+          source: 'bidirectional-verification',
+          metadata: {
+            requiresConfirmation: proposal.requiresConfirmation,
+            pendingConfirmations: proposal.pendingConfirmation?.length || 0,
+          },
+        });
+      }
+    } catch (error) {
+      logger.error(`[EntityResolutionManager] Error creating bidirectional merge proposal:`, error);
+    }
+  }
+
+  /**
+   * Calculate bidirectional evidence strength
+   */
+  private calculateBidirectionalEvidence(
+    platform: string,
+    handle: string,
+    allClaims: PlatformClaim[]
+  ): BidirectionalEvidence {
+    const platformKey = `${platform}:${handle}`;
+    const confirmations = this.platformConfirmations.get(platformKey) || [];
+    
+    // Group claims by entity
+    const claimsByEntity = new Map<UUID, PlatformClaim[]>();
+    for (const claim of allClaims) {
+      const entityClaims = claimsByEntity.get(claim.claimedAbout) || [];
+      entityClaims.push(claim);
+      claimsByEntity.set(claim.claimedAbout, entityClaims);
+    }
+
+    // Group confirmations by entity
+    const confirmationsByEntity = new Map<UUID, PlatformConfirmation[]>();
+    for (const confirmation of confirmations) {
+      const entityConfirmations = confirmationsByEntity.get(confirmation.confirmsEntity) || [];
+      entityConfirmations.push(confirmation);
+      confirmationsByEntity.set(confirmation.confirmsEntity, entityConfirmations);
+    }
+
+    const uniqueEntities = new Set([...claimsByEntity.keys(), ...confirmationsByEntity.keys()]);
+    const requiredConfirmations = uniqueEntities.size;
+    const receivedConfirmations = confirmationsByEntity.size;
+
+    // Calculate bidirectional strength based on claim/confirmation pairs
+    let bidirectionalStrength = 0;
+    for (const entityId of uniqueEntities) {
+      const entityClaims = claimsByEntity.get(entityId) || [];
+      const entityConfirmations = confirmationsByEntity.get(entityId) || [];
+      
+      if (entityClaims.length > 0 && entityConfirmations.length > 0) {
+        // Both claim and confirmation exist - strong bidirectional evidence
+        bidirectionalStrength += 0.5;
+      } else if (entityClaims.length > 0 || entityConfirmations.length > 0) {
+        // Only one side - partial evidence
+        bidirectionalStrength += 0.2;
+      }
+    }
+
+    bidirectionalStrength = Math.min(1, bidirectionalStrength);
+
+    return {
+      platformClaims: claimsByEntity,
+      confirmations: confirmationsByEntity,
+      bidirectionalStrength,
+      requiredConfirmations,
+      receivedConfirmations,
+    };
+  }
+
+  /**
+   * Process pending merges when new confirmations arrive
+   */
+  private async processPendingMerges(
+    entityId: UUID,
+    platform: string,
+    handle: string
+  ): Promise<void> {
+    const relevantMerges = Array.from(this.pendingMerges.entries()).filter(([_, proposal]) =>
+      proposal.primaryEntityId === entityId || proposal.candidateEntityIds.includes(entityId)
+    );
+
+    for (const [mergeKey, proposal] of relevantMerges) {
+      if (!proposal.bidirectionalEvidence) {
+        continue;
+      }
+
+      // Recalculate bidirectional evidence
+      const platformKey = `${platform}:${handle}`;
+      const allClaims = this.platformClaims.get(platformKey) || [];
+      const updatedEvidence = this.calculateBidirectionalEvidence(platform, handle, allClaims);
+
+      // Update proposal
+      proposal.bidirectionalEvidence = updatedEvidence;
+      proposal.confidence = updatedEvidence.bidirectionalStrength;
+      proposal.requiresConfirmation = updatedEvidence.receivedConfirmations < updatedEvidence.requiredConfirmations;
+
+      // Check if merge can now be executed
+      if (!proposal.requiresConfirmation && proposal.confidence > this.resolutionConfig.autoMergeThreshold) {
+        logger.info(`[EntityResolutionManager] Auto-executing bidirectional merge for ${mergeKey}`);
+        
+        const success = await this.executeMerge(proposal);
+        if (success) {
+          this.pendingMerges.delete(mergeKey);
+        }
+      } else if (proposal.confidence > this.resolutionConfig.manualReviewThreshold) {
+        logger.info(`[EntityResolutionManager] Merge ${mergeKey} ready for manual review`);
+        
+        // Emit event for manual review
+        if (this.eventBridge) {
+          await this.eventBridge.emit({
+            type: RolodexEventType.MERGE_READY_FOR_REVIEW,
+            timestamp: Date.now(),
+            entityId: proposal.primaryEntityId,
+            candidateEntityIds: proposal.candidateEntityIds,
+            proposal,
+            source: 'bidirectional-verification',
+            metadata: {
+              platform,
+              handle,
+              confidence: proposal.confidence,
+              bidirectionalEvidence: updatedEvidence,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Get pending merge proposals for review
+   */
+  async getPendingMerges(): Promise<EntityMergeProposal[]> {
+    return Array.from(this.pendingMerges.values());
+  }
+
+  /**
+   * Manually approve a pending merge
+   */
+  async approvePendingMerge(mergeKey: string, approvedBy: UUID): Promise<boolean> {
+    const proposal = this.pendingMerges.get(mergeKey);
+    if (!proposal) {
+      logger.warn(`[EntityResolutionManager] No pending merge found for key: ${mergeKey}`);
+      return false;
+    }
+
+    logger.info(`[EntityResolutionManager] Manual approval of merge ${mergeKey} by ${approvedBy}`);
+    
+    // Add admin override to proposal metadata
+    if (!proposal.preservedData) {
+      proposal.preservedData = [];
+    }
+    proposal.preservedData.push({
+      entityId: approvedBy,
+      field: 'manualApproval',
+      value: true,
+      reason: 'Admin override approval',
+    });
+
+    const success = await this.executeMerge(proposal);
+    if (success) {
+      this.pendingMerges.delete(mergeKey);
+    }
+
+    return success;
+  }
+
+  /**
+   * Get platform claims for debugging/monitoring
+   */
+  async getPlatformClaims(platform?: string, handle?: string): Promise<PlatformClaim[]> {
+    if (platform && handle) {
+      const platformKey = `${platform}:${handle}`;
+      return this.platformClaims.get(platformKey) || [];
+    }
+
+    const allClaims: PlatformClaim[] = [];
+    for (const claims of this.platformClaims.values()) {
+      allClaims.push(...claims);
+    }
+    return allClaims;
+  }
+
+  /**
+   * Get platform confirmations for debugging/monitoring
+   */
+  async getPlatformConfirmations(platform?: string, handle?: string): Promise<PlatformConfirmation[]> {
+    if (platform && handle) {
+      const platformKey = `${platform}:${handle}`;
+      return this.platformConfirmations.get(platformKey) || [];
+    }
+
+    const allConfirmations: PlatformConfirmation[] = [];
+    for (const confirmations of this.platformConfirmations.values()) {
+      allConfirmations.push(...confirmations);
+    }
+    return allConfirmations;
   }
 }

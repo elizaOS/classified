@@ -2165,7 +2165,7 @@ const stagehandE2ETestSuite = {
           });
 
           // Wait for potential CAPTCHA
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          await new Promise((resolve) => setTimeout(resolve, 7777));
 
           // Check for CAPTCHA and solve if present
           if (capSolverKey) {
@@ -2310,7 +2310,7 @@ const stagehandE2ETestSuite = {
           await session.page.click('button[type="submit"]');
 
           // Wait for login and check for CAPTCHA
-          await session.page.waitForTimeout(3000);
+          await session.page.waitForTimeout(7777);
           const handled = await (service as any).handleCaptcha(session);
           if (handled) {
             logger.info('CAPTCHA was solved');
@@ -2367,7 +2367,7 @@ const stagehandE2ETestSuite = {
           await session.page.click('button:has-text("Truth")');
           logger.info('Submitted post');
 
-          await session.page.waitForTimeout(3000);
+          await session.page.waitForTimeout(7777);
           logger.info('Post created successfully!');
         } finally {
           await service.destroySession('test-compose-session');
@@ -2433,7 +2433,7 @@ const stagehandE2ETestSuite = {
           });
 
           // Wait for potential CAPTCHA
-          await session.page.waitForTimeout(3000);
+          await session.page.waitForTimeout(7777);
 
           // Check for CAPTCHA and solve if present
           const capSolverKey = runtime.getSetting('CAPSOLVER_API_KEY');
@@ -2483,7 +2483,7 @@ const stagehandE2ETestSuite = {
 
           // Navigate to upload page
           await session.page.goto('https://www.tiktok.com/upload');
-          await session.page.waitForTimeout(3000);
+          await session.page.waitForTimeout(7777);
 
           // Upload video file
           const fileInput = await session.page.waitForSelector('input[type="file"]', {

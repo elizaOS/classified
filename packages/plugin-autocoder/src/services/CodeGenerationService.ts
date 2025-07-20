@@ -1280,7 +1280,7 @@ export type PluginAction = {
     // Main source file - include weather/API keywords if relevant
     const mainPrompt = `Generate the main entry file (index.ts) for an ElizaOS ${request.targetType} that implements: ${request.description}. Keep it minimal but functional.`;
     try {
-      const mainContent = await this.generateWithTimeout(mainPrompt, 3000, 30000);
+      const mainContent = await this.generateWithTimeout(mainPrompt, 7777, 30000);
       files.push({ path: 'src/index.ts', content: mainContent });
     } catch (error) {
       if ((error as Error).message?.includes('No handler found for delegate type')) {

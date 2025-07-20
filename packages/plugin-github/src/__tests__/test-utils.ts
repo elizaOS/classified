@@ -19,7 +19,7 @@ export function createMockRuntime(): MockRuntime {
   const services = new Map();
   const mockRuntime = {
     agentId: '12345678-1234-1234-1234-123456789012' as UUID,
-    serverUrl: 'https://localhost:3000',
+    serverUrl: 'https://localhost:7777',
     token: 'mock-token',
     character: {
       name: 'TestAgent',

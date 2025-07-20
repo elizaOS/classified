@@ -87,7 +87,7 @@ async function main() {
     console.log('📝 Note: Agent registration requires full AgentRuntime setup');
 
     // Start the server on specified port
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT || 7777;
     console.log(`🌐 Starting server on port ${port}...`);
 
     server.start(port);
@@ -111,7 +111,7 @@ async function main() {
 
 // Environment variable examples
 console.log('📋 Environment Variables (optional):');
-console.log('   PORT=3000                    # Server port');
+console.log('   PORT=7777                    # Server port');
 console.log('   DATABASE_URL=postgres://...  # PostgreSQL connection');
 console.log('   ELIZA_SERVER_AUTH_TOKEN=...  # API authentication');
 console.log('   CORS_ORIGIN=*                # CORS configuration');

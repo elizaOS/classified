@@ -35,7 +35,7 @@ export const Terminal: React.FC = () => {
     const [isTyping] = useState(false);
     const [, setIsWaitingForResponse] = useState(false);
     const [apiConfig, setApiConfig] = useState({
-        baseUrl: 'http://localhost:3000',
+        baseUrl: 'http://localhost:7777',
         apiKey: '',
     });
     const [userId] = useState(() => {

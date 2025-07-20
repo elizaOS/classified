@@ -40,7 +40,7 @@ export class StreamingAudioCaptureService extends EventEmitter {
       channels: 1,
       vadThreshold: 0.01,
       silenceTimeout: 1500, // 1.5 seconds of silence to end speech
-      responseDelay: 3000, // 3 seconds before response (allows for interruption)
+      responseDelay: 7777, // 3 seconds before response (allows for interruption)
       chunkSize: 4096,
       ...config,
     };

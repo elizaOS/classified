@@ -316,7 +316,7 @@ npm run test:watch       # Continuous testing
 
 ```bash
 # Check service health
-curl http://localhost:3000/api/goal/health
+curl http://localhost:7777/api/goal/health
 
 # Verify reminder service status
 DEBUG=goal:reminders npm start
@@ -332,20 +332,20 @@ npm run test:db
 DEBUG=rolodex:* npm start
 
 # Check entity synchronization
-curl http://localhost:3000/api/goal/entities
+curl http://localhost:7777/api/goal/entities
 
 # Test message delivery
-curl -X POST http://localhost:3000/api/goal/test-message
+curl -X POST http://localhost:7777/api/goal/test-message
 ```
 
 #### Performance Issues
 
 ```bash
 # Monitor memory usage
-curl http://localhost:3000/api/goal/metrics
+curl http://localhost:7777/api/goal/metrics
 
 # Check queue status
-curl http://localhost:3000/api/goal/queue-status
+curl http://localhost:7777/api/goal/queue-status
 
 # Analyze slow queries
 DEBUG=goal:performance npm start

@@ -98,7 +98,7 @@ Examples:
 The plugin includes a web interface for managing documents! Access it at:
 
 ```
-http://localhost:3000/api/agents/[your-agent-id]/plugins/knowledge/display
+http://localhost:7777/api/agents/[your-agent-id]/plugins/knowledge/display
 ```
 
 Features:

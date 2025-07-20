@@ -3,7 +3,7 @@ import { ElizaService } from '../src/services/ElizaService';
 async function testElizaService() {
   console.log('🧪 Testing ElizaService Integration...\n');
 
-  const service = new ElizaService('http://localhost:3000');
+  const service = new ElizaService('http://localhost:7777');
 
   try {
     // Test 1: Ping

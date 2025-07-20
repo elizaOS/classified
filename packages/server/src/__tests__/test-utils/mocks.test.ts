@@ -135,7 +135,7 @@ describe('Mock Factory Functions', () => {
 
       // Test address method
       const address = server.address();
-      expect(address).toEqual({ port: 3000 });
+      expect(address).toEqual({ port: 7777 });
     });
   });
 

@@ -30,7 +30,7 @@ function App() {
     const testAgentConnection = useCallback(async (): Promise<boolean> => {
         try {
             // Test basic ElizaOS server connectivity
-            const healthResponse = await fetch('http://localhost:3000/api/server/health', {
+            const healthResponse = await fetch('http://localhost:7777/api/server/health', {
                 method: 'GET',
                 timeout: 5000,
             } as any);
@@ -41,9 +41,9 @@ function App() {
             }
 
             // Test specific plugin endpoints
-            const autonomyResponse = await fetch('http://localhost:3000/autonomy/status', {
+            const autonomyResponse = await fetch('http://localhost:7777/autonomy/status', {
                 method: 'GET',
-                timeout: 3000,
+                timeout: 7777,
             } as any);
 
             // Connection is considered successful if either health or autonomy responds

@@ -35,7 +35,7 @@ describe('SystemService', () => {
     mockGet = mock(() => Promise.resolve({}));
     mockPost = mock(() => Promise.resolve({}));
 
-    systemService = new SystemService({ baseUrl: 'http://localhost:3000', apiKey: 'test-key' });
+    systemService = new SystemService({ baseUrl: 'http://localhost:7777', apiKey: 'test-key' });
     (systemService as any).get = mockGet;
     (systemService as any).post = mockPost;
   });

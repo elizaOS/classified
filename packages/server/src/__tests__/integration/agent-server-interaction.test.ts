@@ -56,7 +56,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
       character: char1,
       adapter: db1,
       token: process.env.OPENAI_API_KEY || 'test-token',
-      serverUrl: 'http://localhost:3000',
+      serverUrl: 'http://localhost:7777',
     } as any);
 
     const char2 = {
@@ -87,7 +87,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
       character: char2,
       adapter: db2,
       token: process.env.OPENAI_API_KEY || 'test-token',
-      serverUrl: 'http://localhost:3000',
+      serverUrl: 'http://localhost:7777',
     } as any);
   });
 

@@ -325,7 +325,7 @@ npm run test:watch       # Continuous testing
 
 ```bash
 # Check service health
-curl http://localhost:3000/api/todo/health
+curl http://localhost:7777/api/todo/health
 
 # Verify reminder service status
 DEBUG=todo:reminders npm start
@@ -341,20 +341,20 @@ npm run test:db
 DEBUG=rolodex:* npm start
 
 # Check entity synchronization
-curl http://localhost:3000/api/todo/entities
+curl http://localhost:7777/api/todo/entities
 
 # Test message delivery
-curl -X POST http://localhost:3000/api/todo/test-message
+curl -X POST http://localhost:7777/api/todo/test-message
 ```
 
 #### Performance Issues
 
 ```bash
 # Monitor memory usage
-curl http://localhost:3000/api/todo/metrics
+curl http://localhost:7777/api/todo/metrics
 
 # Check queue status
-curl http://localhost:3000/api/todo/queue-status
+curl http://localhost:7777/api/todo/queue-status
 
 # Analyze slow queries
 DEBUG=todo:performance npm start

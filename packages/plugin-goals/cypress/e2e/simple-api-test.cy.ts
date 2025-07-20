@@ -1,5 +1,5 @@
 describe('Goals Plugin API Tests', () => {
-  const baseUrl = Cypress.config('baseUrl') || 'http://localhost:3000';
+  const baseUrl = Cypress.config('baseUrl') || 'http://localhost:7777';
 
   describe('Basic Server Tests', () => {
     it('should have the server running', () => {

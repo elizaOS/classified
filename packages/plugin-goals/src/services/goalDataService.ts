@@ -379,7 +379,7 @@ export function createGoalDataService(runtime: IAgentRuntime): GoalDataManager {
  * Service wrapper for the GoalDataService to be registered with the plugin
  */
 export class GoalDataService extends Service {
-  static serviceType = 'GOAL_DATA' as any; // Custom service type for goal data
+  static serviceType = 'goals' as any; // Custom service type for goal data
 
   private goalDataManager: GoalDataManager | null = null;
 
@@ -407,5 +407,68 @@ export class GoalDataService extends Service {
    */
   getDataManager(): GoalDataManager | null {
     return this.goalDataManager;
+  }
+
+  /**
+   * Create a new goal (delegated to manager)
+   */
+  async createGoal(params: {
+    agentId: UUID;
+    ownerType: 'agent' | 'entity';
+    ownerId: UUID;
+    name: string;
+    description?: string;
+    metadata?: Record<string, any>;
+    tags?: string[];
+  }): Promise<UUID | null> {
+    if (!this.goalDataManager) {
+      throw new Error('GoalDataManager not available');
+    }
+    return this.goalDataManager.createGoal(params);
+  }
+
+  /**
+   * Get goals with optional filters (delegated to manager)
+   */
+  async getGoals(filters?: {
+    ownerType?: 'agent' | 'entity';
+    ownerId?: UUID;
+    isCompleted?: boolean;
+    tags?: string[];
+  }): Promise<GoalData[]> {
+    if (!this.goalDataManager) {
+      return [];
+    }
+    return this.goalDataManager.getGoals(filters);
+  }
+
+  /**
+   * Update a goal (delegated to manager)
+   */
+  async updateGoal(
+    goalId: UUID,
+    updates: {
+      name?: string;
+      description?: string;
+      isCompleted?: boolean;
+      completedAt?: Date;
+      metadata?: Record<string, any>;
+      tags?: string[];
+    }
+  ): Promise<boolean> {
+    if (!this.goalDataManager) {
+      throw new Error('GoalDataManager not available');
+    }
+    return this.goalDataManager.updateGoal(goalId, updates);
+  }
+
+  /**
+   * Delete a goal (delegated to manager)
+   */
+  async deleteGoal(goalId: UUID): Promise<boolean> {
+    if (!this.goalDataManager) {
+      throw new Error('GoalDataManager not available');
+    }
+    return this.goalDataManager.deleteGoal(goalId);
   }
 }

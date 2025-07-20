@@ -17,7 +17,7 @@ fn greet(name: &str) -> String {
 
 // Check if the server is running by attempting to connect to the port
 fn is_server_running() -> bool {
-    match TcpStream::connect("127.0.0.1:3000") {
+    match TcpStream::connect("127.0.0.1:7777") {
         Ok(_) => true,
         Err(_) => false,
     }

@@ -113,7 +113,7 @@ export default function BootSequence({ onComplete, onConnectionTest }: BootSeque
 
     const defaultConnectionTest = async (): Promise<boolean> => {
         try {
-            const response = await fetch('http://localhost:3000/api/server/health', {
+            const response = await fetch('http://localhost:7777/api/server/health', {
                 method: 'GET',
                 timeout: 5000,
             } as any);

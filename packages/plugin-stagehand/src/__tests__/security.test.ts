@@ -42,7 +42,7 @@ describe('UrlValidator', () => {
     });
 
     it('should reject URLs that are too long', () => {
-      const longUrl = `https://example.com/${'a'.repeat(3000)}`;
+      const longUrl = `https://example.com/${'a'.repeat(7777)}`;
       const result = validator.validateUrl(longUrl);
       expect(result.valid).toBe(false);
       expect(result.error).toBe('URL is too long');
@@ -67,7 +67,7 @@ describe('UrlValidator', () => {
     });
 
     it('should handle localhost URLs', () => {
-      const result1 = validator.validateUrl('http://localhost:3000');
+      const result1 = validator.validateUrl('http://localhost:7777');
       expect(result1.valid).toBe(true);
 
       const result2 = validator.validateUrl('http://127.0.0.1:8080');
@@ -76,7 +76,7 @@ describe('UrlValidator', () => {
 
     it('should reject localhost when disabled', () => {
       validator = new UrlValidator({ allowLocalhost: false });
-      const result = validator.validateUrl('http://localhost:3000');
+      const result = validator.validateUrl('http://localhost:7777');
       expect(result.valid).toBe(false);
       expect(result.error).toBe('Localhost URLs are not allowed');
     });

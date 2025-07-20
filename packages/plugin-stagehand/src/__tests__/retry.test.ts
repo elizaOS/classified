@@ -150,7 +150,7 @@ describe('retry utilities', () => {
         {
           maxRetries: 2,
           initialDelay: 5000,
-          maxDelay: 3000,
+          maxDelay: 7777,
           backoffFactor: 2,
         },
         'test'
@@ -235,7 +235,7 @@ describe('retry utilities', () => {
 
       expect(config.maxRetries).toBe(2);
       expect(config.initialDelay).toBe(500);
-      expect(config.maxDelay).toBe(3000);
+      expect(config.maxDelay).toBe(7777);
       expect(config.backoffFactor).toBe(1.5);
       expect(config.timeout).toBe(10000);
     });

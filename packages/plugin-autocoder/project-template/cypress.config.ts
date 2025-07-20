@@ -13,7 +13,7 @@ export default defineConfig({
     indexHtmlFile: 'src/__tests__/cypress/support/component-index.html',
   },
   e2e: {
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'http://localhost:7777',
     specPattern: 'src/__tests__/cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
     supportFile: 'src/__tests__/cypress/support/e2e.ts',
     viewportWidth: 1280,

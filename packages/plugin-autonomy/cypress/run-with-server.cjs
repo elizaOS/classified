@@ -4,8 +4,8 @@ const path = require('path');
 // Start the test server
 const testServer = require('./support/test-server.cjs');
 
-const server = testServer.listen(3000, () => {
-  console.log('Test server started on http://localhost:3000');
+const server = testServer.listen(7777, () => {
+  console.log('Test server started on http://localhost:7777');
 
   // Run Cypress after server starts
   const cypressArgs = process.argv.slice(2);

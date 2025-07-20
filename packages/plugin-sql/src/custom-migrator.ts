@@ -978,28 +978,12 @@ export class PluginNamespaceManager {
   constructor(private db: DrizzleDB) {}
 
   async getPluginSchema(pluginName: string): Promise<string> {
-    if (pluginName === '@elizaos/plugin-sql') {
-      // For the core SQL plugin, try to use the current schema if available (for PG)
-      // Otherwise, default to public.
-      try {
-        const result = await this.db.execute(sql.raw('SHOW search_path'));
-        if (result.rows && result.rows.length > 0) {
-          const searchPath = (result.rows[0] as any).search_path;
-          // The search_path can be a comma-separated list, iterate to find the first valid schema
-          const schemas = searchPath.split(',').map((s: string) => s.trim());
-          for (const schema of schemas) {
-            if (schema && !schema.includes('$user')) {
-              return schema;
-            }
-          }
-        }
-      } catch (e) {
-        // This query might fail on PGLite if not supported, fallback to public
-        logger.debug('Could not determine search_path, defaulting to public schema.');
-      }
-      return 'public';
-    }
-    return pluginName.replace(/@elizaos\/plugin-|\W/g, '_').toLowerCase();
+    // Always use the public schema for all plugins to avoid table access issues
+    // The original plugin-specific schema approach caused problems where tables
+    // were created in separate schemas (e.g., 'goals', 'todo') but Drizzle 
+    // queries expected them in the default schema ('public')
+    logger.debug(`[NAMESPACE] Using public schema for plugin: ${pluginName}`);
+    return 'public';
   }
 
   async ensureNamespace(schemaName: string): Promise<void> {

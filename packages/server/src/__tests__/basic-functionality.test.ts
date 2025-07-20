@@ -336,11 +336,11 @@ describe('Basic Server Functionality', () => {
         }
       };
 
-      const uiEnabledMsg = getStartupMessage(true, 3000);
-      const uiDisabledMsg = getStartupMessage(false, 3000);
+      const uiEnabledMsg = getStartupMessage(true, 7777);
+      const uiDisabledMsg = getStartupMessage(false, 7777);
 
       expect(uiEnabledMsg).toContain('dashboard at');
-      expect(uiEnabledMsg).toContain('http://localhost:3000');
+      expect(uiEnabledMsg).toContain('http://localhost:7777');
 
       expect(uiDisabledMsg).toContain('Web UI disabled.');
       expect(uiDisabledMsg).toContain('API endpoints available at:');

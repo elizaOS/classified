@@ -10,7 +10,7 @@ echo "Waiting for server to start..."
 sleep 3
 
 # Check if server is responding
-if curl -s http://localhost:3000/test-components > /dev/null; then
+if curl -s http://localhost:7777/test-components > /dev/null; then
     echo "Server is ready, running Cypress tests..."
     # Run Cypress tests
     npx cypress run

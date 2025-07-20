@@ -19,7 +19,7 @@ class SimpleTestRunner {
     try {
       await execAsync('pkill -f "src-backend" || true');
       await execAsync('pkill -f "vite dev" || true');
-      await execAsync('lsof -ti:3000 | xargs kill -9 || true');
+      await execAsync('lsof -ti:7777 | xargs kill -9 || true');
       await execAsync('lsof -ti:5173 | xargs kill -9 || true');
       await new Promise(resolve => setTimeout(resolve, 2000));
       this.log('✅ Cleanup complete');
@@ -40,7 +40,7 @@ class SimpleTestRunner {
     await new Promise((resolve) => {
       setTimeout(async () => {
         try {
-          const response = await fetch('http://localhost:3000/api/server/health');
+          const response = await fetch('http://localhost:7777/api/server/health');
           if (response.ok) {
             this.log('✅ Backend is ready');
             resolve();
@@ -49,7 +49,7 @@ class SimpleTestRunner {
           this.log('⏳ Waiting for backend...');
           setTimeout(resolve, 2000);
         }
-      }, 3000);
+      }, 7777);
     });
 
     this.log('🌐 Starting frontend server...');
@@ -125,7 +125,7 @@ class SimpleTestRunner {
       await this.startServers();
       
       // Give servers a moment to stabilize
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 7777));
       
       const testsPassed = await this.runCypressTests();
       

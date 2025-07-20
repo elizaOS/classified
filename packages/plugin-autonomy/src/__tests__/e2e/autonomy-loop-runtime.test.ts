@@ -199,7 +199,7 @@ describe('Autonomy Loop Runtime Tests', () => {
 
       // Reset counter and wait 3s
       messageCount = 0;
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 7777));
 
       // Should have ~3 messages with 1s interval
       expect(messageCount).toBeGreaterThanOrEqual(2);

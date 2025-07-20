@@ -218,7 +218,7 @@ describe.skip('Admin Chat Real Runtime Tests', () => {
           text: 'Hello agent, I am just a regular user!',
           source: 'web_gui',
         },
-        createdAt: Date.now() + 3000,
+        createdAt: Date.now() + 7777,
       };
 
       await runtime.createMemory(nonAdminMessage, 'memories');

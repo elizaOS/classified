@@ -160,64 +160,129 @@ export class ExperienceService extends Service {
   async queryExperiences(query: ExperienceQuery): Promise<Experience[]> {
     let results: Experience[] = [];
 
-    // Start with all experiences
-    let candidates = Array.from(this.experiences.values());
+    // If query string provided, use semantic search
+    if (query.query) {
+      const similarExperiences = await this.findSimilarExperiences(query.query, query.limit || 10);
+      let candidates = similarExperiences;
+      
+      // Apply additional filters to semantic search results
+      // Apply additional filters to semantic results
+      if (query.type) {
+        const types = Array.isArray(query.type) ? query.type : [query.type];
+        candidates = candidates.filter((exp) => types.includes(exp.type));
+      }
 
-    // Apply filters
-    if (query.type) {
-      const types = Array.isArray(query.type) ? query.type : [query.type];
-      candidates = candidates.filter((exp) => types.includes(exp.type));
-    }
+      if (query.outcome) {
+        candidates = candidates.filter((exp) => exp.outcome === query.outcome);
+      }
 
-    if (query.outcome) {
-      candidates = candidates.filter((exp) => exp.outcome === query.outcome);
-    }
+      if (query.domain) {
+        const domains = Array.isArray(query.domain)
+          ? query.domain
+          : [query.domain];
+        candidates = candidates.filter((exp) => domains.includes(exp.domain));
+      }
 
-    if (query.domain) {
-      const domains = Array.isArray(query.domain)
-        ? query.domain
-        : [query.domain];
-      candidates = candidates.filter((exp) => domains.includes(exp.domain));
-    }
+      if (query.tags && query.tags.length > 0) {
+        candidates = candidates.filter((exp) =>
+          query.tags!.some((tag) => exp.tags.includes(tag)),
+        );
+      }
 
-    if (query.tags && query.tags.length > 0) {
-      candidates = candidates.filter((exp) =>
-        query.tags!.some((tag) => exp.tags.includes(tag)),
-      );
-    }
+      if (query.minConfidence !== undefined) {
+        candidates = candidates.filter((exp) => {
+          const decayedConfidence = this.decayManager.getDecayedConfidence(exp);
+          return decayedConfidence >= query.minConfidence!;
+        });
+      }
 
-    if (query.minConfidence !== undefined) {
-      candidates = candidates.filter((exp) => {
-        const decayedConfidence = this.decayManager.getDecayedConfidence(exp);
-        return decayedConfidence >= query.minConfidence!;
+      if (query.minImportance !== undefined) {
+        candidates = candidates.filter(
+          (exp) => exp.importance >= query.minImportance!,
+        );
+      }
+
+      if (query.timeRange) {
+        candidates = candidates.filter((exp) => {
+          if (query.timeRange!.start && exp.createdAt < query.timeRange!.start)
+            return false;
+          if (query.timeRange!.end && exp.createdAt > query.timeRange!.end)
+            return false;
+          return true;
+        });
+      }
+      
+      results = candidates;
+
+      // Sort by relevance (considering decayed confidence) - only if not semantic search
+      if (!query.query) {
+        candidates.sort((a, b) => {
+          const scoreA = this.decayManager.getDecayedConfidence(a) * a.importance;
+          const scoreB = this.decayManager.getDecayedConfidence(b) * b.importance;
+          return scoreB - scoreA;
+        });
+      }
+    } else {
+      // Start with all experiences for non-semantic queries
+      let candidates = Array.from(this.experiences.values());
+      
+      // Apply filters for non-semantic search
+      if (query.type) {
+        const types = Array.isArray(query.type) ? query.type : [query.type];
+        candidates = candidates.filter((exp) => types.includes(exp.type));
+      }
+
+      if (query.outcome) {
+        candidates = candidates.filter((exp) => exp.outcome === query.outcome);
+      }
+
+      if (query.domain) {
+        const domains = Array.isArray(query.domain)
+          ? query.domain
+          : [query.domain];
+        candidates = candidates.filter((exp) => domains.includes(exp.domain));
+      }
+
+      if (query.tags && query.tags.length > 0) {
+        candidates = candidates.filter((exp) =>
+          query.tags!.some((tag) => exp.tags.includes(tag)),
+        );
+      }
+
+      if (query.minConfidence !== undefined) {
+        candidates = candidates.filter((exp) => {
+          const decayedConfidence = this.decayManager.getDecayedConfidence(exp);
+          return decayedConfidence >= query.minConfidence!;
+        });
+      }
+
+      if (query.minImportance !== undefined) {
+        candidates = candidates.filter(
+          (exp) => exp.importance >= query.minImportance!,
+        );
+      }
+
+      if (query.timeRange) {
+        candidates = candidates.filter((exp) => {
+          if (query.timeRange!.start && exp.createdAt < query.timeRange!.start)
+            return false;
+          if (query.timeRange!.end && exp.createdAt > query.timeRange!.end)
+            return false;
+          return true;
+        });
+      }
+
+      // Sort by relevance (considering decayed confidence)
+      candidates.sort((a, b) => {
+        const scoreA = this.decayManager.getDecayedConfidence(a) * a.importance;
+        const scoreB = this.decayManager.getDecayedConfidence(b) * b.importance;
+        return scoreB - scoreA;
       });
+      
+      // Apply limit
+      results = candidates.slice(0, query.limit || 10);
     }
 
-    if (query.minImportance !== undefined) {
-      candidates = candidates.filter(
-        (exp) => exp.importance >= query.minImportance!,
-      );
-    }
-
-    if (query.timeRange) {
-      candidates = candidates.filter((exp) => {
-        if (query.timeRange!.start && exp.createdAt < query.timeRange!.start)
-          return false;
-        if (query.timeRange!.end && exp.createdAt > query.timeRange!.end)
-          return false;
-        return true;
-      });
-    }
-
-    // Sort by relevance (considering decayed confidence)
-    candidates.sort((a, b) => {
-      const scoreA = this.decayManager.getDecayedConfidence(a) * a.importance;
-      const scoreB = this.decayManager.getDecayedConfidence(b) * b.importance;
-      return scoreB - scoreA;
-    });
-
-    // Apply limit
-    results = candidates.slice(0, query.limit || 10);
 
     // Include related experiences if requested
     if (query.includeRelated) {

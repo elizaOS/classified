@@ -178,7 +178,7 @@ describe('Server Package Compatibility', () => {
         }
       };
 
-      expect(() => validatePort(3000)).not.toThrow();
+      expect(() => validatePort(7777)).not.toThrow();
       expect(() => validatePort(null)).toThrow('Invalid port number: null');
       expect(() => validatePort('invalid')).toThrow('Invalid port number: invalid');
 
