@@ -142,6 +142,7 @@ export const completeTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'COMPLETE_TODO',
             error: 'Missing state context',
@@ -160,6 +161,7 @@ export const completeTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'COMPLETE_TODO',
             error: 'Missing room or entity context',
@@ -187,6 +189,7 @@ export const completeTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'COMPLETE_TODO',
             error: 'No incomplete tasks found',
@@ -214,6 +217,7 @@ export const completeTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'COMPLETE_TODO',
             error: 'Could not identify which task to complete',
@@ -237,6 +241,7 @@ export const completeTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'COMPLETE_TODO',
             error: `Task not found: ${taskCompletion.taskName}`,
@@ -284,6 +289,7 @@ export const completeTodoAction: Action = {
       }
 
       return {
+        success: true,
         data: {
           actionName: 'COMPLETE_TODO',
           taskId: task.id,
@@ -308,6 +314,7 @@ export const completeTodoAction: Action = {
         });
       }
       return {
+        success: false,
         data: {
           actionName: 'COMPLETE_TODO',
           error: error instanceof Error ? error.message : 'Unknown error',

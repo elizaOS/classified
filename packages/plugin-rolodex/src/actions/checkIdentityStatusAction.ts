@@ -62,6 +62,7 @@ export const checkIdentityStatusAction: Action = {
         }
 
         return {
+          success: false,
           text: response.text,
           data: { error: 'No entity specified' },
         };
@@ -80,6 +81,7 @@ export const checkIdentityStatusAction: Action = {
         }
 
         return {
+          success: false,
           text: response.text,
           data: { error: 'Service method not available' },
         };
@@ -97,6 +99,7 @@ export const checkIdentityStatusAction: Action = {
         }
 
         return {
+          success: true,
           text: response.text,
           data: { entityName, found: false },
         };
@@ -165,6 +168,7 @@ export const checkIdentityStatusAction: Action = {
       }
 
       return {
+        success: true,
         text: responseText,
         data: {
           entityId: entity.id || entity.entityId,
@@ -184,6 +188,7 @@ export const checkIdentityStatusAction: Action = {
       }
 
       return {
+        success: false,
         text: errorMessage,
         data: { error: (error as Error).message },
       };

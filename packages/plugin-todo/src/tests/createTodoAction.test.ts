@@ -1,7 +1,8 @@
+// FIXME: @elizaos/core/test-utils not properly exported in build - commenting out imports until core issue is resolved
 import type { HandlerCallback, IAgentRuntime, Memory, State, UUID } from '@elizaos/core';
 import { describe, expect, it } from 'bun:test';
 import { createTodoAction } from '../actions/createTodo';
-import { createMockRuntime } from '@elizaos/core/test-utils';
+import { createMockRuntime } from './test-utils';
 
 describe('createTodoAction', () => {
   let mockRuntime: IAgentRuntime;
@@ -14,10 +15,11 @@ describe('createTodoAction', () => {
     // @ts-ignore - test mock
     mockRuntime = createMockRuntime({
       worldId: 'test-world' as UUID,
+      // @ts-ignore - simplified for testing
       useModel: () => Promise.resolve('<response></response>'), // Empty response to trigger failure path
       composeState: () => Promise.resolve(mockState),
       db: null, // Will cause data service to handle gracefully
-      getRoom: () => Promise.resolve({ worldId: 'test-world' }),
+      getRoom: () => Promise.resolve({ id: 'room-1' as UUID, worldId: 'test-world' as UUID, source: 'test', type: 'test' } as any),
     });
 
     mockState = {

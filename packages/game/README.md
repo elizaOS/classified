@@ -1,187 +1,344 @@
-# ElizaOS Terminal
+# ELIZA Game - AI Agent Sandbox Terminal
 
-A retro terminal-style chat application for interacting with ElizaOS agents, featuring a 90s hacker aesthetic.
-
-![Terminal Screenshot](./docs/screenshot.png)
+A comprehensive game interface for interacting with autonomous AI agents built on ElizaOS. Features real-time chat, autonomous thinking mode, goal/task management, and complete agent capability control.
 
 ## Features
 
-- 🖥️ **Terminal-style UI**: Classic green-on-black terminal interface
-- 💬 **Real-time Chat**: WebSocket-based communication with ElizaOS agents
-- 📊 **System Monitor**: Live log streaming and process monitoring
-- 🎮 **Command History**: Navigate through previous messages with arrow keys
-- 🔌 **Offline Support**: Automatic reconnection and message queuing
-- 🖼️ **Desktop App**: Built with Tauri for native performance
+- 🤖 **Autonomous AI Agent** - Real ElizaOS agent with independent thinking
+- 💬 **Real-time Chat** - Natural conversation interface with WebSocket communication
+- 🧠 **Autonomy Control** - Enable/disable autonomous thinking mode
+- 📋 **Goals & Tasks** - View and manage agent's self-generated objectives
+- 🧭 **Agent Capabilities** - Toggle plugins (shell, browser, vision, etc.)
+- 👁️ **Monologue View** - See the agent's internal thought process
+- 📁 **Knowledge Management** - File upload and knowledge base interaction
+- ⚙️ **Agent Configuration** - Customize model settings and behavior
+- 🧪 **Comprehensive Testing** - Full test suite with real API validation
 
 ## Prerequisites
 
-- Node.js 18+ and npm
-- Rust (for Tauri development)
-- An OpenAI API key (or other supported LLM provider)
+- Node.js 20+ (recommended: use fnm or nvm)
+- Bun (recommended) or npm
+- Git
+- OpenAI API key and/or Anthropic API key
 
-## Installation
+## Quick Start
 
-1. Clone the repository and navigate to the game package:
+### Installation
 
 ```bash
+# Clone the ElizaOS repository
+git clone https://github.com/ai16z/eliza.git
+cd eliza
+
+# Install dependencies
+npm install
+
+# Navigate to game package
 cd packages/game
-```
 
-2. Install dependencies:
-
-```bash
+# Install game-specific dependencies
 npm install
 ```
 
-3. Create a `.env` file in the package root:
+### Configuration
+
+Create a `.env` file in the project root with your API keys:
+
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+```
+
+### Running the Game
 
 ```bash
-cp .env.example .env
-```
+# Run comprehensive test suite (recommended first run)
+npm run test
 
-4. Add your OpenAI API key to the `.env` file:
-
-```
-OPENAI_API_KEY=your_api_key_here
-```
-
-## Development
-
-### Running the Web Version
-
-Start both the backend server and frontend development server:
-
-```bash
+# Start development environment
 npm run dev
+
+# Or run components separately
+npm run dev:backend  # Backend on port 3000
+npm run dev:frontend # Frontend on port 5173
 ```
 
-The application will be available at:
-
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3000
-
-### Running the Desktop App
-
-Build the backend and start the Tauri development environment:
-
-```bash
-npm run tauri:dev
-```
-
-## Building
-
-### Web Build
-
-```bash
-npm run build
-```
-
-This creates:
-
-- `dist/` - Frontend production build
-- `dist-backend/` - Bundled backend server
-
-### Desktop Build
-
-```bash
-npm run tauri:build
-```
-
-This creates platform-specific installers in `src-tauri/target/release/bundle/`.
+Visit http://localhost:5173 to access the game interface.
 
 ## Testing
 
-Run the E2E test suite:
+The project includes a comprehensive test suite that validates real functionality:
+
+### Running Tests
 
 ```bash
-npm run test:e2e
+# Run full test suite (API + E2E + Autonomy)
+npm run test
+
+# Open Cypress test runner
+npm run test:open
 ```
 
-Run tests with UI mode:
+### Test Coverage
 
-```bash
-npm run test:e2e:ui
-```
+- ✅ **API Integration Tests** - All endpoints verified with real requests
+- ✅ **Autonomy Functionality** - Enable/disable/toggle operations tested
+- ✅ **Frontend Integration** - UI component interactions validated
+- ✅ **Real Agent Runtime** - Tests against actual ElizaOS agent
+- ✅ **Error Handling** - Graceful failure scenarios covered
+- ✅ **Production Ready** - No mocks, tests real system integration
+
+### Test Philosophy
+
+- **Real API Keys** - Tests use actual AI models (OpenAI/Anthropic)
+- **Live Database** - PGLite in-memory database for testing
+- **No Mocks** - Tests validate real system integration
+- **Comprehensive** - Tests both API and UI functionality
 
 ## Architecture
 
-The application consists of three main components:
+### Backend (`src-backend/`)
 
-### Backend Server
+- **`server.ts`** - Main server entry point using ElizaOS AgentServer
+- **`game-api-plugin.ts`** - Custom API routes plugin for game interface  
+- **`terminal-character.ts`** - Agent character configuration and personality
+- **ElizaOS Runtime** - Real autonomous agent with plugin ecosystem
+- **PGLite Database** - In-memory PostgreSQL for development/testing
 
-- Built on `@elizaos/server`
-- Provides REST API and WebSocket endpoints
-- Manages ElizaOS agent runtime
-- Uses PGLite for local database storage
+### Frontend (`src/`)
 
-### Frontend
+- **React + Vite** - Modern frontend stack with TypeScript
+- **`GameInterface.tsx`** - Main game component with chat and controls
+- **Real-time WebSocket** - Live agent communication via socket.io
+- **Terminal UI** - Retro aesthetic with modern functionality
+- **Responsive Design** - Works on desktop and mobile
 
-- React with TypeScript
-- Terminal-inspired UI components
-- Real-time WebSocket communication
-- Command history and keyboard navigation
+### Key Components
 
-### Desktop Wrapper
+- **Autonomy System** - Independent agent thinking and goal setting
+- **Plugin Management** - Dynamic control over agent capabilities  
+- **Memory System** - Persistent conversation and learning storage
+- **Testing Framework** - Comprehensive validation of all systems
 
-- Tauri-based native application
-- Bundles backend server with frontend
-- Manages server lifecycle
+## API Endpoints
+
+The game provides a comprehensive REST API for agent interaction:
+
+### Core APIs
+
+```bash
+# Health check
+GET /api/server/health
+
+# Agent data
+GET /api/goals      # Agent's self-generated goals
+GET /api/todos      # Agent's task list  
+GET /api/memories   # Conversation history
+
+# Agent settings
+GET /api/agents/default/settings/vision
+POST /api/agents/default/settings
+```
+
+### Autonomy Control
+
+```bash
+# Status
+GET /autonomy/status
+
+# Control
+POST /autonomy/enable   # Enable autonomous thinking
+POST /autonomy/disable  # Disable autonomous thinking
+POST /autonomy/toggle   # Toggle current state
+```
+
+### Capability Management
+
+```bash
+# Shell access
+GET /api/agents/default/capabilities/shell
+POST /api/agents/default/capabilities/shell/toggle
+
+# Browser automation
+GET /api/agents/default/capabilities/browser  
+POST /api/agents/default/capabilities/browser/toggle
+
+# Vision/camera
+POST /api/agents/default/vision/refresh
+```
+
+## Autonomy System
+
+The ELIZA Game features a complete autonomy system where the agent operates independently:
+
+### Key Features
+
+- **Starts by default** - Autonomy is enabled on first run
+- **Independent thinking** - Agent generates autonomous thoughts and plans
+- **Goal setting** - Creates and pursues self-directed objectives
+- **Task management** - Breaks down goals into actionable todos
+- **Real-time control** - Enable/disable via game interface or API
+
+### Testing Autonomy
+
+```bash
+# Check current status
+curl http://localhost:3000/autonomy/status
+
+# Enable autonomous thinking
+curl -X POST http://localhost:3000/autonomy/enable
+
+# Disable autonomous thinking
+curl -X POST http://localhost:3000/autonomy/disable
+
+# Toggle state
+curl -X POST http://localhost:3000/autonomy/toggle
+```
+
+### Monitoring Autonomy
+
+- **Monologue View** - See agent's internal thoughts in real-time
+- **Goals Panel** - View agent's self-generated objectives
+- **Todos Panel** - Monitor agent's task planning
+- **Status Indicator** - Visual feedback on autonomy state
 
 ## Configuration
 
 ### Environment Variables
 
-| Variable         | Description               | Default     |
-| ---------------- | ------------------------- | ----------- |
-| `PORT`           | Server port               | 3000        |
-| `OPENAI_API_KEY` | OpenAI API key            | Required    |
-| `LOG_LEVEL`      | Logging level             | info        |
-| `POSTGRES_URL`   | PostgreSQL URL (optional) | Uses PGLite |
+```env
+# Required
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Optional
+PORT=3000                    # Backend server port
+DATABASE_PATH=./.elizadb     # Database storage path
+LOG_LEVEL=info              # Logging verbosity
+NODE_ENV=development        # Environment mode
+```
 
 ### Character Customization
 
-The Terminal agent personality can be customized in `src-backend/server.ts`. Modify the `terminalElizaCharacter` object to change:
+Customize the agent personality in `src-backend/terminal-character.ts`:
 
-- System prompt
-- Message examples
-- Topics of interest
-- Communication style
+- **System prompt** - Core personality and behavior
+- **Message examples** - Training data for conversation style  
+- **Topics** - Areas of interest and expertise
+- **Bio elements** - Character background and traits
+- **Knowledge** - Initial files and information
 
-## Keyboard Shortcuts
+## Development
 
-- `Enter` - Send message
-- `Shift+Enter` - New line in message
-- `↑` - Previous command (when input is empty)
-- `↓` - Next command in history
+### Available Scripts
+
+```bash
+npm run dev              # Start full development environment
+npm run build            # Build for production
+npm run test             # Run comprehensive test suite
+npm run test:open        # Open Cypress test runner
+npm run dev:backend      # Backend only (port 3000)
+npm run dev:frontend     # Frontend only (port 5173)
+npm run kill-processes   # Kill all running processes
+```
+
+### Development Workflow
+
+1. **Make changes** to source code
+2. **Run tests** with `npm run test` to verify functionality
+3. **Start dev environment** with `npm run dev`
+4. **Test in browser** at http://localhost:5173
+5. **Verify autonomy** functionality via API or UI
+
+### Code Style
+
+- **TypeScript** - Strict typing throughout
+- **React Hooks** - Modern functional components
+- **ElizaOS Patterns** - Follow plugin architecture guidelines
+- **Real Testing** - No mocks, test actual functionality
 
 ## Troubleshooting
 
-### Connection Issues
+### Common Issues
 
-- Ensure the backend server is running on port 3000
-- Check browser console for WebSocket errors
-- Verify no firewall is blocking connections
+**Port conflicts:**
+```bash
+npm run kill-processes
+npm run dev
+```
 
-### Agent Not Responding
+**API connection errors:**
+- Verify `.env` file has valid API keys
+- Check backend is running on port 3000  
+- Ensure no firewall blocking localhost
 
-- Check your OpenAI API key is valid
-- Verify the backend server logs for errors
-- Ensure you have API credits available
+**Frontend not loading:**
+- Clear browser cache and refresh
+- Check browser console for errors
+- Verify frontend is running on port 5173
 
-### Build Failures
+**Agent not responding:**
+- Check autonomy is enabled in capabilities panel
+- Verify API keys are valid and have credits
+- Look at browser console for WebSocket errors
+- Check backend logs for runtime errors
 
-- Clear node_modules and reinstall: `rm -rf node_modules && npm install`
-- Ensure Rust is installed for Tauri builds
-- Check you have sufficient disk space
+**Tests failing:**
+- Ensure API keys are valid
+- Check no other processes using ports 3000/5173
+- Run `npm run kill-processes` and retry
+- Verify database permissions
+
+### Logs and Debugging
+
+- **Backend logs** - Terminal running `npm run dev:backend`
+- **Frontend logs** - Browser developer tools console  
+- **Agent logs** - Backend includes detailed ElizaOS runtime logs
+- **Test logs** - `npm run test` provides comprehensive output
+- **API testing** - Use curl or Postman to test endpoints directly
+
+### Performance Tips
+
+- **API Rate Limits** - Monitor API usage to avoid hitting limits
+- **Memory Usage** - Agent maintains conversation history in memory
+- **Database Size** - PGLite database grows with agent interactions
+- **Resource Monitor** - Watch system resources during long sessions
+
+## Production Deployment
+
+```bash
+# Build optimized version
+npm run build
+
+# Output files
+# - dist-backend/server.js (backend)  
+# - dist/ (frontend static files)
+
+# Run production server
+cd dist-backend
+node server.js
+```
+
+For production deployment:
+- Use environment variables for configuration
+- Consider PostgreSQL instead of PGLite for persistence
+- Implement proper logging and monitoring
+- Set up reverse proxy (nginx) for static file serving
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
+3. Make changes and add comprehensive tests
+4. Run `npm run test` to verify all tests pass
+5. Submit a pull request with detailed description
+
+**Testing Requirements:**
+- All new features must include tests
+- Tests must use real API calls (no mocks)
+- API endpoints must be validated
+- UI interactions must have Cypress tests
 
 ## License
 
-MIT
+MIT License - see the main ElizaOS repository for complete details.

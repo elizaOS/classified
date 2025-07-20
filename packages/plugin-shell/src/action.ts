@@ -160,12 +160,20 @@ export const runShellCommandAction: Action = {
   similes: ['EXECUTE_SHELL_COMMAND', 'TERMINAL_COMMAND', 'RUN_COMMAND'],
   description:
     'Executes a shell command on the host system and returns its output, error, and exit code. Handles `cd` to change current working directory for the session. Returns command details for chaining with other shell actions like CLEAR_SHELL_HISTORY.',
-  enabled: false, // Disabled by default - extremely dangerous, allows arbitrary command execution
   validate: async (
     runtime: IAgentRuntime,
     _message: Memory,
     _state?: State
   ): Promise<boolean> => {
+    // Check if shell capability is enabled in runtime settings
+    const shellEnabled = runtime.getSetting('ENABLE_SHELL') === 'true' || 
+                         runtime.getSetting('SHELL_ENABLED') === 'true';
+    
+    if (!shellEnabled) {
+      logger.debug('[runShellCommandAction] Shell capability disabled in settings.');
+      return false;
+    }
+
     const shellService = runtime.getService<ShellService>('SHELL');
     if (!shellService) {
       logger.warn(
@@ -173,7 +181,7 @@ export const runShellCommandAction: Action = {
       );
       return false;
     }
-    return true; // Always true if service is available
+    return true;
   },
   handler: async (
     runtime: IAgentRuntime,
@@ -202,6 +210,7 @@ export const runShellCommandAction: Action = {
           success: false,
           error: 'ShellService not available',
         },
+        success: false,
       };
     }
 
@@ -281,6 +290,7 @@ export const runShellCommandAction: Action = {
           success: false,
           error: 'No command provided',
         },
+        success: false,
       };
     }
 
@@ -410,6 +420,7 @@ Respond using XML format:
           outputLength: output?.length || 0,
           errorLength: error?.length || 0,
         },
+        success: exitCode === 0,
       };
     } catch (e: any) {
       logger.error(
@@ -427,12 +438,13 @@ Respond using XML format:
         data: {
           actionName: 'RUN_SHELL_COMMAND',
           error: e.message,
-          command: commandToRun,
+          command: message.content?.text || '',
         },
         values: {
           success: false,
           error: e.message,
         },
+        success: false,
       };
     }
   },
@@ -508,12 +520,20 @@ export const clearShellHistoryAction: Action = {
   similes: ['RESET_SHELL', 'CLEAR_TERMINAL'],
   description:
     'Clears the recorded history of shell commands for the current session. Often used after running sensitive commands or as part of security cleanup workflows.',
-  enabled: false, // Disabled by default - can affect forensics and debugging
   validate: async (
     runtime: IAgentRuntime,
     _message: Memory,
     _state?: State
   ): Promise<boolean> => {
+    // Check if shell capability is enabled in runtime settings
+    const shellEnabled = runtime.getSetting('ENABLE_SHELL') === 'true' || 
+                         runtime.getSetting('SHELL_ENABLED') === 'true';
+    
+    if (!shellEnabled) {
+      logger.debug('[clearShellHistoryAction] Shell capability disabled in settings.');
+      return false;
+    }
+
     const shellService = runtime.getService<ShellService>('SHELL');
     return !!shellService;
   },
@@ -542,6 +562,7 @@ export const clearShellHistoryAction: Action = {
           success: false,
           error: 'ShellService not available',
         },
+        success: false,
       };
     }
 
@@ -562,6 +583,7 @@ export const clearShellHistoryAction: Action = {
           success: true,
           cleared: true,
         },
+        success: true,
       };
     } catch (e: any) {
       logger.error('[clearShellHistoryAction] Error clearing history:', e);
@@ -581,6 +603,7 @@ export const clearShellHistoryAction: Action = {
           success: false,
           error: e.message,
         },
+        success: false,
       };
     }
   },
@@ -619,13 +642,21 @@ export const killAutonomousAction: Action = {
   similes: ['STOP_AUTONOMOUS', 'HALT_AUTONOMOUS', 'KILL_AUTO_LOOP'],
   description:
     'Stops the autonomous agent loop for debugging purposes. Can be chained with RUN_SHELL_COMMAND to check process status before/after stopping.',
-  enabled: false, // Disabled by default - can disrupt agent operation
   validate: async (
-    _runtime: IAgentRuntime,
+    runtime: IAgentRuntime,
     _message: Memory,
     _state?: State
   ): Promise<boolean> => {
-    // Always allow this action for debugging
+    // Check if shell capability is enabled in runtime settings
+    const shellEnabled = runtime.getSetting('ENABLE_SHELL') === 'true' || 
+                         runtime.getSetting('SHELL_ENABLED') === 'true';
+    
+    if (!shellEnabled) {
+      logger.debug('[killAutonomousAction] Shell capability disabled in settings.');
+      return false;
+    }
+
+    // Always allow this action for debugging if shell is enabled
     return true;
   },
   handler: async (
@@ -662,6 +693,7 @@ export const killAutonomousAction: Action = {
             success: true,
             stopped: true,
           },
+          success: true,
         };
       } else {
         const thought = 'Autonomous service not found or already stopped.';
@@ -684,6 +716,7 @@ export const killAutonomousAction: Action = {
             success: true,
             stopped: false,
           },
+          success: true,
         };
       }
     } catch (error: any) {
@@ -711,6 +744,7 @@ export const killAutonomousAction: Action = {
           success: false,
           error: error.message,
         },
+        success: false,
       };
     }
   },

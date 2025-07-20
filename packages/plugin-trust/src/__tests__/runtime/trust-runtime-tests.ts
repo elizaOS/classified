@@ -189,7 +189,7 @@ export class TrustRuntimeTests implements TestSuite {
         const state = await runtime.composeState(message);
         const result = await action.handler(runtime, message, state);
 
-        if (!result || result === true || !('text' in result) || typeof result.text !== 'string') {
+        if (!result || typeof result !== 'object' || !('text' in result) || typeof result.text !== 'string') {
           throw new Error('EVALUATE_TRUST action did not return expected result');
         }
 

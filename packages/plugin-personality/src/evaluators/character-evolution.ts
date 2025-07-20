@@ -14,6 +14,7 @@ const CharacterEvolutionSchema = z.object({
   shouldModify: z.boolean().describe('Whether character modification is recommended'),
   confidence: z.number().min(0).max(1).describe('Confidence level in the modification suggestion'),
   modifications: z.object({
+    name: z.string().optional().describe('New name if a more fitting identity emerges'),
     system: z
       .string()
       .optional()
@@ -235,6 +236,7 @@ EVOLUTION DECISION FRAMEWORK:
 - Consider safety and appropriateness of all changes
 
 MODIFICATION PRIORITIES:
+- name: ONLY if a truly fitting identity emerges organically (very rare, reserved for major personality shifts)
 - system: ONLY for fundamental behavioral misalignment (rare)
 - bio: New traits that emerge from successful interactions
 - topics: Domains where agent showed interest/competence

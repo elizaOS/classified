@@ -247,7 +247,7 @@ describe('Rolodex Actions', () => {
         mockCallback
       );
 
-      expect(result).toEqual({ text: expect.stringContaining('trouble tracking') });
+      expect(result).toEqual({ success: false, text: expect.stringContaining('trouble tracking') });
       expect(mockCallback).toHaveBeenCalledWith(
         expect.objectContaining({
           text: expect.stringContaining('trouble tracking'),
@@ -272,7 +272,7 @@ describe('Rolodex Actions', () => {
         mockCallback
       );
 
-      expect(result).toEqual({ text: expect.stringContaining("couldn't identify") });
+      expect(result).toEqual({ success: false, text: expect.stringContaining("couldn't identify") });
       expect(mockCallback).toHaveBeenCalledWith(
         expect.objectContaining({
           text: expect.stringContaining("couldn't identify"),

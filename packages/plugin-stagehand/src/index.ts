@@ -272,9 +272,24 @@ const browserNavigateAction: Action = {
   similes: ['GO_TO_URL', 'OPEN_WEBSITE', 'VISIT_PAGE', 'NAVIGATE_TO'],
   description:
     'Navigate the browser to a specified URL. Can be chained with BROWSER_EXTRACT to get content or BROWSER_SCREENSHOT to capture the page',
-  enabled: false, // Disabled by default - can access potentially malicious websites
 
-  validate: async (_runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
+  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
+    // Check if browser capability is enabled in runtime settings
+    const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
+                           runtime.getSetting('BROWSER_ENABLED') === 'true';
+    
+    if (!browserEnabled) {
+      logger.debug('Browser capability disabled in settings.');
+      return false;
+    }
+
+    // Check if stagehand service is available
+    const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+    if (!service) {
+      logger.debug('Stagehand service not available.');
+      return false;
+    }
+
     const url = extractUrl(message.content.text || '');
     return url !== null;
   },
@@ -296,6 +311,7 @@ const browserNavigateAction: Action = {
         handleBrowserError(error, callback, 'navigate to the requested page');
         return {
           text: 'Browser service is not available',
+          success: false,
           data: {
             actionName: 'BROWSER_NAVIGATE',
             error: 'service_not_available',
@@ -318,6 +334,7 @@ const browserNavigateAction: Action = {
         handleBrowserError(error, callback, 'navigate to a page');
         return {
           text: "I couldn't find a URL in your request. Please provide a valid URL to navigate to.",
+          success: false,
           data: {
             actionName: 'BROWSER_NAVIGATE',
             error: 'no_url_found',
@@ -336,7 +353,8 @@ const browserNavigateAction: Action = {
         if (error instanceof BrowserSecurityError) {
           handleBrowserError(error, callback);
           return {
-            text: 'Security error: Cannot navigate to restricted URL',
+        text: 'Security error: Cannot navigate to restricted URL',
+        success: false,
             data: {
               actionName: 'BROWSER_NAVIGATE',
               error: 'security_error',
@@ -378,6 +396,7 @@ const browserNavigateAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_NAVIGATE',
           url,
@@ -404,6 +423,7 @@ const browserNavigateAction: Action = {
       }
       return {
         text: 'Failed to navigate to the requested page',
+        success: false,
         data: {
           actionName: 'BROWSER_NAVIGATE',
           error: error instanceof Error ? error.message : 'unknown_error',
@@ -480,8 +500,22 @@ const browserBackAction: Action = {
     'Navigate back in browser history. Can be chained with BROWSER_EXTRACT to get content from the previous page or BROWSER_FORWARD to return',
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
+    // Check if browser capability is enabled in runtime settings
+    const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
+                           runtime.getSetting('BROWSER_ENABLED') === 'true';
+    
+    if (!browserEnabled) {
+      logger.debug('Browser capability disabled in settings.');
+      return false;
+    }
+
     const service = runtime.getService<StagehandService>(StagehandService.serviceType);
-    const session = await service?.getCurrentSession();
+    if (!service) {
+      logger.debug('Stagehand service not available.');
+      return false;
+    }
+    
+    const session = await service.getCurrentSession();
     return session !== undefined;
   },
 
@@ -501,7 +535,8 @@ const browserBackAction: Action = {
         const error = new BrowserServiceNotAvailableError();
         handleBrowserError(error, callback, 'go back to the previous page');
         return {
-          text: 'Browser service is not available',
+        text: 'Browser service is not available',
+        success: true,
           data: {
             actionName: 'BROWSER_BACK',
             error: 'service_not_available',
@@ -518,7 +553,8 @@ const browserBackAction: Action = {
         const error = new BrowserSessionError('No active browser session');
         handleBrowserError(error, callback, 'go back');
         return {
-          text: 'No active browser session. Please navigate to a page first.',
+        text: 'No active browser session. Please navigate to a page first.',
+        success: false,
           data: {
             actionName: 'BROWSER_BACK',
             error: 'no_session',
@@ -545,6 +581,7 @@ const browserBackAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_BACK',
           url,
@@ -562,6 +599,7 @@ const browserBackAction: Action = {
       handleBrowserError(browserError, callback);
       return {
         text: 'Failed to navigate back',
+        success: false,
         data: {
           actionName: 'BROWSER_BACK',
           error: error instanceof Error ? error.message : 'unknown_error',
@@ -621,8 +659,22 @@ const browserForwardAction: Action = {
     'Navigate forward in browser history. Can be chained with BROWSER_BACK for navigation or BROWSER_EXTRACT to get content',
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
+    // Check if browser capability is enabled in runtime settings
+    const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
+                           runtime.getSetting('BROWSER_ENABLED') === 'true';
+    
+    if (!browserEnabled) {
+      logger.debug('Browser capability disabled in settings.');
+      return false;
+    }
+
     const service = runtime.getService<StagehandService>(StagehandService.serviceType);
-    const session = await service?.getCurrentSession();
+    if (!service) {
+      logger.debug('Stagehand service not available.');
+      return false;
+    }
+    
+    const session = await service.getCurrentSession();
     return session !== undefined;
   },
 
@@ -650,7 +702,8 @@ const browserForwardAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'No active browser session. Please navigate to a page first.',
+        text: 'No active browser session. Please navigate to a page first.',
+        success: false,
           data: {
             actionName: 'BROWSER_FORWARD',
             error: 'no_session',
@@ -677,6 +730,7 @@ const browserForwardAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_FORWARD',
           url,
@@ -697,6 +751,7 @@ const browserForwardAction: Action = {
       });
       return {
         text: 'Failed to navigate forward',
+        success: false,
         data: {
           actionName: 'BROWSER_FORWARD',
           error: error instanceof Error ? error.message : 'unknown_error',
@@ -756,8 +811,22 @@ const browserRefreshAction: Action = {
     'Refresh the current browser page. Can be chained with BROWSER_EXTRACT to get updated content or BROWSER_SCREENSHOT to capture refreshed state',
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
+    // Check if browser capability is enabled in runtime settings
+    const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
+                           runtime.getSetting('BROWSER_ENABLED') === 'true';
+    
+    if (!browserEnabled) {
+      logger.debug('Browser capability disabled in settings.');
+      return false;
+    }
+
     const service = runtime.getService<StagehandService>(StagehandService.serviceType);
-    const session = await service?.getCurrentSession();
+    if (!service) {
+      logger.debug('Stagehand service not available.');
+      return false;
+    }
+    
+    const session = await service.getCurrentSession();
     return session !== undefined;
   },
 
@@ -785,7 +854,8 @@ const browserRefreshAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'No active browser session. Please navigate to a page first.',
+        text: 'No active browser session. Please navigate to a page first.',
+        success: false,
           data: {
             actionName: 'BROWSER_REFRESH',
             error: 'no_session',
@@ -812,6 +882,7 @@ const browserRefreshAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_REFRESH',
           url,
@@ -832,6 +903,7 @@ const browserRefreshAction: Action = {
       });
       return {
         text: 'Failed to refresh the page',
+        success: false,
         data: {
           actionName: 'BROWSER_REFRESH',
           error: error instanceof Error ? error.message : 'unknown_error',
@@ -889,7 +961,6 @@ const browserClickAction: Action = {
   similes: ['CLICK_ELEMENT', 'CLICK_BUTTON', 'CLICK_LINK', 'CLICK_ON'],
   description:
     'Click on an element in the browser using natural language description. Can be chained with BROWSER_TYPE to fill forms or BROWSER_EXTRACT to get results after clicking',
-  enabled: false, // Disabled by default - can trigger unintended actions on websites
 
   validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
     const service = runtime.getService<StagehandService>(StagehandService.serviceType);
@@ -927,7 +998,8 @@ const browserClickAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'No active browser session. Please navigate to a page first.',
+        text: 'No active browser session. Please navigate to a page first.',
+        success: false,
           data: {
             actionName: 'BROWSER_CLICK',
             error: 'no_session',
@@ -957,6 +1029,7 @@ const browserClickAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_CLICK',
           element: elementDescription,
@@ -975,6 +1048,7 @@ const browserClickAction: Action = {
       });
       return {
         text: 'Failed to click on the requested element',
+        success: false,
         data: {
           actionName: 'BROWSER_CLICK',
           error: error instanceof Error ? error.message : 'unknown_error',
@@ -1048,7 +1122,6 @@ const browserTypeAction: Action = {
   similes: ['TYPE_TEXT', 'ENTER_TEXT', 'FILL_FIELD', 'INPUT_TEXT'],
   description:
     'Type text into an input field or element. Can be chained with BROWSER_CLICK to select fields or BROWSER_SELECT to complete forms',
-  enabled: false, // Disabled by default - can input sensitive data or trigger unintended form submissions
 
   validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
     const service = runtime.getService<StagehandService>(StagehandService.serviceType);
@@ -1090,7 +1163,8 @@ const browserTypeAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'No active browser session. Please navigate to a page first.',
+        text: 'No active browser session. Please navigate to a page first.',
+        success: false,
           data: {
             actionName: 'BROWSER_TYPE',
             error: 'no_session',
@@ -1115,7 +1189,8 @@ const browserTypeAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'Could not understand the type command. Please use format: "type \'text\' in field"',
+        text: 'Could not understand the type command. Please use format: "type \'text\' in field"',
+        success: false,
           data: {
             actionName: 'BROWSER_TYPE',
             error: 'parse_error',
@@ -1143,6 +1218,7 @@ const browserTypeAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_TYPE',
           typedText: textToType,
@@ -1163,6 +1239,7 @@ const browserTypeAction: Action = {
       });
       return {
         text: 'Failed to type in the requested field',
+        success: false,
         data: {
           actionName: 'BROWSER_TYPE',
           error: error instanceof Error ? error.message : 'unknown_error',
@@ -1272,7 +1349,8 @@ const browserSelectAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'No active browser session. Please navigate to a page first.',
+        text: 'No active browser session. Please navigate to a page first.',
+        success: false,
           data: {
             actionName: 'BROWSER_SELECT',
             error: 'no_session',
@@ -1296,7 +1374,8 @@ const browserSelectAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'Could not understand the select command. Please use format: "select \'option\' from dropdown"',
+        text: 'Could not understand the select command. Please use format: "select \'option\' from dropdown"',
+        success: false,
           data: {
             actionName: 'BROWSER_SELECT',
             error: 'parse_error',
@@ -1324,6 +1403,7 @@ const browserSelectAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_SELECT',
           selectedOption: optionToSelect,
@@ -1344,6 +1424,7 @@ const browserSelectAction: Action = {
       });
       return {
         text: 'Failed to select from the dropdown',
+        success: false,
         data: {
           actionName: 'BROWSER_SELECT',
           error: error instanceof Error ? error.message : 'unknown_error',
@@ -1458,7 +1539,8 @@ const browserExtractAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'No active browser session. Please navigate to a page first.',
+        text: 'No active browser session. Please navigate to a page first.',
+        success: false,
           data: {
             actionName: 'BROWSER_EXTRACT',
             error: 'no_session',
@@ -1494,6 +1576,7 @@ const browserExtractAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_EXTRACT',
           extracted: extractedData.data,
@@ -1515,6 +1598,7 @@ const browserExtractAction: Action = {
       });
       return {
         text: 'Failed to extract data from the page',
+        success: false,
         data: {
           actionName: 'BROWSER_EXTRACT',
           error: error instanceof Error ? error.message : 'unknown_error',
@@ -1624,7 +1708,8 @@ const browserScreenshotAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'No active browser session. Please navigate to a page first.',
+        text: 'No active browser session. Please navigate to a page first.',
+        success: false,
           data: {
             actionName: 'BROWSER_SCREENSHOT',
             error: 'no_session',
@@ -1660,6 +1745,7 @@ const browserScreenshotAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_SCREENSHOT',
           screenshot: base64Screenshot,
@@ -1683,6 +1769,7 @@ const browserScreenshotAction: Action = {
       });
       return {
         text: 'Failed to take screenshot',
+        success: false,
         data: {
           actionName: 'BROWSER_SCREENSHOT',
           error: error instanceof Error ? error.message : 'unknown_error',
@@ -1756,7 +1843,6 @@ const browserSolveCaptchaAction: Action = {
   similes: ['SOLVE_CAPTCHA', 'HANDLE_CAPTCHA', 'BYPASS_CAPTCHA'],
   description:
     'Detect and solve CAPTCHA on the current page. Can be chained with BROWSER_NAVIGATE to handle protected pages or BROWSER_CLICK to proceed after solving',
-  enabled: false, // Disabled by default - CAPTCHA bypassing can violate website terms of service
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     const service = runtime.getService<StagehandService>(StagehandService.serviceType);
@@ -1793,7 +1879,8 @@ const browserSolveCaptchaAction: Action = {
           source: message.content.source,
         });
         return {
-          text: 'No active browser session. Please navigate to a page first.',
+        text: 'No active browser session. Please navigate to a page first.',
+        success: false,
           data: {
             actionName: 'BROWSER_SOLVE_CAPTCHA',
             error: 'no_session',
@@ -1820,6 +1907,7 @@ const browserSolveCaptchaAction: Action = {
       await callback?.(responseContent);
       return {
         text: responseContent.text,
+        success: true,
         data: {
           actionName: 'BROWSER_SOLVE_CAPTCHA',
           captchaSolved: solved,
@@ -1840,6 +1928,7 @@ const browserSolveCaptchaAction: Action = {
       });
       return {
         text: 'Failed to solve CAPTCHA',
+        success: false,
         data: {
           actionName: 'BROWSER_SOLVE_CAPTCHA',
           error: error instanceof Error ? error.message : 'unknown_error',

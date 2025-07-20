@@ -47,6 +47,17 @@ export const describeSceneAction: Action = {
   description:
     'Analyzes the current visual scene and provides a detailed description of what the agent sees through the camera. Returns scene analysis data including people count, objects, and camera info for action chaining.',
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
+    // Check if vision capabilities are enabled in runtime settings
+    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
+                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
+                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+    
+    if (!cameraEnabled && !screenEnabled) {
+      logger.debug('[describeSceneAction] Vision capabilities disabled in settings.');
+      return false;
+    }
+
     const visionService = runtime.getService<VisionService>('VISION');
     return !!visionService && visionService.isActive();
   },
@@ -72,6 +83,7 @@ export const describeSceneAction: Action = {
         });
       }
       return {
+        success: false,
         text: 'Vision service unavailable - cannot analyze scene',
         values: {
           success: false,
@@ -101,6 +113,7 @@ export const describeSceneAction: Action = {
           });
         }
         return {
+          success: false,
           text: 'Camera connected but no scene analyzed yet',
           values: {
             success: false,
@@ -177,6 +190,7 @@ export const describeSceneAction: Action = {
       }
 
       return {
+        success: true,
         text: description,
         values: {
           success: true,
@@ -210,6 +224,7 @@ export const describeSceneAction: Action = {
       }
 
       return {
+        success: false,
         text: 'Error analyzing scene',
         values: {
           success: false,
@@ -256,8 +271,19 @@ export const captureImageAction: Action = {
   similes: ['TAKE_PHOTO', 'SCREENSHOT', 'CAPTURE_FRAME', 'TAKE_PICTURE'],
   description:
     'Captures the current frame from the camera and saves it as an image attachment. Returns image data with camera info and timestamp for action chaining. Can be combined with DESCRIBE_SCENE for analysis or NAME_ENTITY for identification workflows.',
-  enabled: false, // Disabled by default - privacy-sensitive, can capture images
+  // Note: This action is disabled by default - privacy-sensitive, can capture images
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
+    // Check if camera or screen capture capabilities are enabled in runtime settings
+    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
+                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
+                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+    
+    if (!cameraEnabled && !screenEnabled) {
+      logger.debug('[captureImageAction] Vision capture capabilities disabled in settings.');
+      return false;
+    }
+
     const visionService = runtime.getService<VisionService>('VISION');
     return !!visionService && visionService.isActive();
   },
@@ -283,6 +309,7 @@ export const captureImageAction: Action = {
         });
       }
       return {
+        success: false,
         text: 'Vision service unavailable - cannot capture image',
         values: {
           success: false,
@@ -312,6 +339,7 @@ export const captureImageAction: Action = {
           });
         }
         return {
+          success: false,
           text: 'Failed to capture image from camera',
           values: {
             success: false,
@@ -360,6 +388,7 @@ export const captureImageAction: Action = {
       }
 
       return {
+        success: true,
         text: `I've captured an image from the camera at ${timestamp}.`,
         values: {
           success: true,
@@ -389,6 +418,7 @@ export const captureImageAction: Action = {
       }
 
       return {
+        success: false,
         text: 'Error capturing image',
         values: {
           success: false,
@@ -444,7 +474,7 @@ export const killAutonomousAction: Action = {
   name: 'KILL_AUTONOMOUS',
   similes: ['STOP_AUTONOMOUS', 'HALT_AUTONOMOUS', 'KILL_AUTO_LOOP'],
   description: 'Stops the autonomous agent loop for debugging purposes.',
-  enabled: false, // Disabled by default - potentially dangerous, can halt autonomous operations
+  // Note: This action is disabled by default - potentially dangerous, can halt autonomous operations
   validate: async (_runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Always allow this action for debugging
     return true;
@@ -542,6 +572,17 @@ export const setVisionModeAction: Action = {
     'disable vision',
   ],
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
+    // Check if any vision capabilities are enabled in runtime settings
+    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
+                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
+                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+    
+    if (!cameraEnabled && !screenEnabled) {
+      logger.debug('[setVisionModeAction] Vision capabilities disabled in settings.');
+      return false;
+    }
+
     const visionService = runtime.getService<VisionService>('VISION');
     return visionService !== null;
   },
@@ -724,6 +765,17 @@ export const nameEntityAction: Action = {
   ],
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
+    // Check if vision capabilities are enabled in runtime settings
+    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
+                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
+                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+    
+    if (!cameraEnabled && !screenEnabled) {
+      logger.debug('Vision capabilities disabled in settings.');
+      return false;
+    }
+
     const visionService = runtime.getService<VisionService>('VISION');
     return visionService?.isActive() || false;
   },
@@ -850,7 +902,7 @@ export const nameEntityAction: Action = {
 export const identifyPersonAction: Action = {
   name: 'IDENTIFY_PERSON',
   description: 'Identify a person in view if they have been seen before',
-  enabled: false, // Disabled by default - privacy-sensitive, can identify and recognize people
+  // Note: This action is disabled by default - privacy-sensitive, can identify and recognize people
   similes: [
     'who is that',
     'who is the person',
@@ -877,6 +929,17 @@ export const identifyPersonAction: Action = {
   ],
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
+    // Check if vision capabilities are enabled in runtime settings
+    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
+                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
+                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+    
+    if (!cameraEnabled && !screenEnabled) {
+      logger.debug('Vision capabilities disabled in settings.');
+      return false;
+    }
+
     const visionService = runtime.getService<VisionService>('VISION');
     return visionService?.isActive() || false;
   },
@@ -1012,7 +1075,7 @@ export const identifyPersonAction: Action = {
 export const trackEntityAction: Action = {
   name: 'TRACK_ENTITY',
   description: 'Start tracking a specific person or object in view',
-  enabled: false, // Disabled by default - privacy-sensitive, can track and monitor people
+  // Note: This action is disabled by default - privacy-sensitive, can track and monitor people
   similes: [
     'track the {description}',
     'follow the {description}',
@@ -1038,6 +1101,17 @@ export const trackEntityAction: Action = {
   ],
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
+    // Check if vision capabilities are enabled in runtime settings
+    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
+                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
+                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+    
+    if (!cameraEnabled && !screenEnabled) {
+      logger.debug('Vision capabilities disabled in settings.');
+      return false;
+    }
+
     const visionService = runtime.getService<VisionService>('VISION');
     return visionService?.isActive() || false;
   },

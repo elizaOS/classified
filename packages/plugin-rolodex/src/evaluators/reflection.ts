@@ -171,6 +171,7 @@ async function handler(
   if (!agentId || !roomId) {
     logger.warn('Missing agentId or roomId in message', message);
     return {
+      success: false,
       values: { error: true },
       data: { error: 'Missing agentId or roomId' },
       text: 'Missing required identifiers in message.',
@@ -213,6 +214,7 @@ async function handler(
     if (!reflection) {
       logger.warn('Getting reflection failed - empty response', prompt);
       return {
+        success: false,
         values: { error: true },
         data: { error: 'Empty reflection response' },
         text: 'Failed to generate reflection.',
@@ -223,6 +225,7 @@ async function handler(
     if (!reflection.facts || !Array.isArray(reflection.facts)) {
       logger.warn('Getting reflection failed - invalid facts structure', reflection);
       return {
+        success: false,
         values: { error: true },
         data: { error: 'Invalid facts structure' },
         text: 'Failed to validate reflection structure.',
@@ -232,6 +235,7 @@ async function handler(
     if (!reflection.relationships || !Array.isArray(reflection.relationships)) {
       logger.warn('Getting reflection failed - invalid relationships structure', reflection);
       return {
+        success: false,
         values: { error: true },
         data: { error: 'Invalid relationships structure' },
         text: 'Failed to validate reflection structure.',
@@ -332,6 +336,7 @@ async function handler(
     );
 
     return {
+      success: true,
       values: {
         facts: newFacts.length,
         relationships: reflection.relationships.length,
@@ -345,6 +350,7 @@ async function handler(
   } catch (error) {
     logger.error('Error in reflection handler:', error);
     return {
+      success: false,
       values: { error: true },
       data: { error: error instanceof Error ? error.message : 'Unknown error' },
       text: 'An error occurred during reflection processing.',

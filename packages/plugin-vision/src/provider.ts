@@ -33,6 +33,27 @@ export const visionProvider: Provider = {
       };
     }
 
+    // Check if vision features are enabled via settings
+    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+    const microphoneEnabled = runtime.getSetting('ENABLE_MICROPHONE') === 'true' || runtime.getSetting('VISION_MICROPHONE_ENABLED') === 'true';
+    
+    // If all vision features are disabled, return disabled state
+    if (!cameraEnabled && !screenEnabled) {
+      return {
+        values: {
+          visionAvailable: false,
+          visionEnabled: false,
+          sceneDescription: 'Vision services are currently disabled.',
+          cameraStatus: cameraEnabled ? 'Camera enabled but service disabled' : 'Camera disabled',
+          screenStatus: screenEnabled ? 'Screen capture enabled but service disabled' : 'Screen capture disabled',
+          microphoneStatus: microphoneEnabled ? 'Microphone enabled but service disabled' : 'Microphone disabled',
+        },
+        text: addHeader('# Visual Perception', 'Vision services are currently disabled. Camera: ' + (cameraEnabled ? 'enabled' : 'disabled') + ', Screen: ' + (screenEnabled ? 'enabled' : 'disabled') + ', Microphone: ' + (microphoneEnabled ? 'enabled' : 'disabled') + '.'),
+        data: { hasVision: false, visionDisabled: true },
+      };
+    }
+
     // Get current scene description (enhanced if screen is enabled)
     const sceneDescription =
       (await visionService.getEnhancedSceneDescription()) ||

@@ -82,7 +82,7 @@ export interface LearningInsight {
   lastUpdated: Date;
 }
 
-export class AutonomousRelationshipManager {
+export class RelationshipManager {
   private runtime: IAgentRuntime;
   private rolodexService?: RolodexService;
   private eventBridge?: EventBridge;
@@ -120,7 +120,7 @@ export class AutonomousRelationshipManager {
   }
 
   async initialize(): Promise<void> {
-    logger.info('[AutonomousRelationshipManager] Initializing...');
+    logger.info('[RelationshipManager] Initializing...');
 
     // Get services
     this.rolodexService = this.runtime.getService('rolodex') as RolodexService;
@@ -135,7 +135,7 @@ export class AutonomousRelationshipManager {
     // Subscribe to events
     this.subscribeToEvents();
 
-    logger.info('[AutonomousRelationshipManager] Initialized successfully');
+    logger.info('[RelationshipManager] Initialized successfully');
   }
 
   async start(): Promise<void> {
@@ -143,7 +143,7 @@ export class AutonomousRelationshipManager {
       return;
     }
 
-    logger.info('[AutonomousRelationshipManager] Starting autonomous operations...');
+    logger.info('[RelationshipManager] Starting autonomous operations...');
     this.isActive = true;
 
     // Start periodic health checks
@@ -178,7 +178,7 @@ export class AutonomousRelationshipManager {
   }
 
   async stop(): Promise<void> {
-    logger.info('[AutonomousRelationshipManager] Stopping autonomous operations...');
+    logger.info('[RelationshipManager] Stopping autonomous operations...');
     this.isActive = false;
 
     if (this.healthCheckInterval) {
@@ -202,7 +202,7 @@ export class AutonomousRelationshipManager {
       execute: async (runtime, options, task) => {
         const { entityId, reason } = options as any;
         logger.info(
-          `[AutonomousRelationshipManager] Executing check-in for ${entityId}: ${reason}`
+          `[RelationshipManager] Executing check-in for ${entityId}: ${reason}`
         );
 
         // Create a friendly check-in message
@@ -243,7 +243,7 @@ export class AutonomousRelationshipManager {
       execute: async (runtime, options, task) => {
         const { entityId, trustIssue, suggestedAction } = options as any;
         logger.warn(
-          `[AutonomousRelationshipManager] Trust intervention for ${entityId}: ${trustIssue}`
+          `[RelationshipManager] Trust intervention for ${entityId}: ${trustIssue}`
         );
 
         // Take appropriate action based on trust issue
@@ -270,7 +270,7 @@ export class AutonomousRelationshipManager {
             // Set entity state to limited
             await runtime.setParticipantUserState(task.roomId!, entityId, 'MUTED');
             logger.info(
-              `[AutonomousRelationshipManager] Limited interaction with ${entityId} due to trust concerns`
+              `[RelationshipManager] Limited interaction with ${entityId} due to trust concerns`
             );
             break;
 
@@ -302,7 +302,7 @@ export class AutonomousRelationshipManager {
       execute: async (runtime, options, task) => {
         const { entityId, pattern, adjustment } = options as any;
         logger.info(
-          `[AutonomousRelationshipManager] Pattern adjustment for ${entityId}: ${pattern}`
+          `[RelationshipManager] Pattern adjustment for ${entityId}: ${pattern}`
         );
 
         // Apply adjustment based on detected pattern
@@ -384,7 +384,7 @@ export class AutonomousRelationshipManager {
       // Listen for relationship health changes
       this.eventBridge.on(RolodexEventType.RELATIONSHIP_HEALTH_CHANGED, async (event: any) => {
         logger.info(
-          `[AutonomousRelationshipManager] Relationship health changed for ${event.entityId}: ${event.currentStatus}`
+          `[RelationshipManager] Relationship health changed for ${event.entityId}: ${event.currentStatus}`
         );
 
         // Take action if health is critical
@@ -448,7 +448,7 @@ export class AutonomousRelationshipManager {
       return [];
     }
 
-    logger.info('[AutonomousRelationshipManager] Performing relationship health check...');
+    logger.info('[RelationshipManager] Performing relationship health check...');
     const healthReports: RelationshipHealth[] = [];
 
     try {
@@ -507,7 +507,7 @@ export class AutonomousRelationshipManager {
       }
 
       logger.info(
-        `[AutonomousRelationshipManager] Health check complete. Processed ${healthReports.length} relationships`
+        `[RelationshipManager] Health check complete. Processed ${healthReports.length} relationships`
       );
 
       // Emit health check completion event through EventBridge
@@ -540,7 +540,7 @@ export class AutonomousRelationshipManager {
         });
       }
     } catch (error) {
-      logger.error('[AutonomousRelationshipManager] Error during health check:', error);
+      logger.error('[RelationshipManager] Error during health check:', error);
 
       // Emit error event through EventBridge
       if (this.eventBridge) {
@@ -651,7 +651,7 @@ export class AutonomousRelationshipManager {
 
   private async handleUnhealthyRelationship(health: RelationshipHealth): Promise<void> {
     logger.info(
-      `[AutonomousRelationshipManager] Handling unhealthy relationship: ${health.entityId} (${health.status})`
+      `[RelationshipManager] Handling unhealthy relationship: ${health.entityId} (${health.status})`
     );
 
     if (!this.config.autoEngagementEnabled) {
@@ -803,7 +803,7 @@ export class AutonomousRelationshipManager {
     });
 
     logger.info(
-      `[AutonomousRelationshipManager] Scheduled engagement with ${entityId} for ${scheduledDate.toISOString()}`
+      `[RelationshipManager] Scheduled engagement with ${entityId} for ${scheduledDate.toISOString()}`
     );
   }
 
@@ -812,7 +812,7 @@ export class AutonomousRelationshipManager {
       return;
     }
 
-    logger.info('[AutonomousRelationshipManager] Running pattern detection...');
+    logger.info('[RelationshipManager] Running pattern detection...');
 
     try {
       const contacts = await this.rolodexService.searchEntities('', 1000);
@@ -911,10 +911,10 @@ export class AutonomousRelationshipManager {
       }
 
       logger.info(
-        `[AutonomousRelationshipManager] Pattern detection complete. Found ${patternsDetected.length} patterns and ${anomaliesDetected.length} anomalies`
+        `[RelationshipManager] Pattern detection complete. Found ${patternsDetected.length} patterns and ${anomaliesDetected.length} anomalies`
       );
     } catch (error) {
-      logger.error('[AutonomousRelationshipManager] Error during pattern detection:', error);
+      logger.error('[RelationshipManager] Error during pattern detection:', error);
 
       // Emit error event through EventBridge
       if (this.eventBridge) {
@@ -1088,7 +1088,7 @@ export class AutonomousRelationshipManager {
   }
 
   private async handleDetectedPattern(entityId: UUID, pattern: any): Promise<void> {
-    logger.info(`[AutonomousRelationshipManager] Detected pattern for ${entityId}:`, pattern);
+    logger.info(`[RelationshipManager] Detected pattern for ${entityId}:`, pattern);
 
     // Create task for pattern-based adjustment
     const rooms = await this.runtime.getRoomsForParticipant(entityId);
@@ -1133,10 +1133,10 @@ export class AutonomousRelationshipManager {
   }
 
   private async handleAnomaly(entityId: UUID, anomaly: any): Promise<void> {
-    logger.warn(`[AutonomousRelationshipManager] Anomaly detected for ${entityId}:`, anomaly);
+    logger.warn(`[RelationshipManager] Anomaly detected for ${entityId}:`, anomaly);
 
     // Remove the security threat check as it's not available
-    logger.warn(`[AutonomousRelationshipManager] Anomaly detected for ${entityId}:`, anomaly);
+    logger.warn(`[RelationshipManager] Anomaly detected for ${entityId}:`, anomaly);
   }
 
   private async updateRelationshipFromInteraction(message: Memory): Promise<void> {
@@ -1164,7 +1164,7 @@ export class AutonomousRelationshipManager {
 
   private async handleSignificantTrustChange(entityId: UUID, change: number): Promise<void> {
     logger.info(
-      `[AutonomousRelationshipManager] Significant trust change for ${entityId}: ${change}`
+      `[RelationshipManager] Significant trust change for ${entityId}: ${change}`
     );
 
     const rooms = await this.runtime.getRoomsForParticipant(entityId);
@@ -1195,7 +1195,7 @@ export class AutonomousRelationshipManager {
 
   private async quarantineEntity(entityId: UUID): Promise<void> {
     logger.warn(
-      `[AutonomousRelationshipManager] Quarantining entity ${entityId} due to security threat`
+      `[RelationshipManager] Quarantining entity ${entityId} due to security threat`
     );
 
     // Set entity to muted in all rooms
@@ -1206,7 +1206,7 @@ export class AutonomousRelationshipManager {
 
     // Privacy setting not available, log instead
     logger.info(
-      `[AutonomousRelationshipManager] Entity ${entityId} has been quarantined (muted in all rooms)`
+      `[RelationshipManager] Entity ${entityId} has been quarantined (muted in all rooms)`
     );
   }
 
@@ -1219,7 +1219,7 @@ export class AutonomousRelationshipManager {
       return;
     }
 
-    logger.info('[AutonomousRelationshipManager] Making autonomous decisions...');
+    logger.info('[RelationshipManager] Making autonomous decisions...');
 
     try {
       const contacts = await this.rolodexService.searchEntities('', 1000);
@@ -1269,11 +1269,11 @@ export class AutonomousRelationshipManager {
       }
 
       logger.info(
-        `[AutonomousRelationshipManager] Decision making complete. Executed ${autoExecutableDecisions.length} decisions, ${approvalRequiredDecisions.length} pending approval`
+        `[RelationshipManager] Decision making complete. Executed ${autoExecutableDecisions.length} decisions, ${approvalRequiredDecisions.length} pending approval`
       );
     } catch (error) {
       logger.error(
-        '[AutonomousRelationshipManager] Error during autonomous decision making:',
+        '[RelationshipManager] Error during autonomous decision making:',
         error
       );
     }
@@ -1416,7 +1416,7 @@ export class AutonomousRelationshipManager {
 
   private async executeAutonomousDecision(decision: AutonomousDecision): Promise<void> {
     logger.info(
-      `[AutonomousRelationshipManager] Executing autonomous decision for ${decision.entityId}: ${decision.action}`
+      `[RelationshipManager] Executing autonomous decision for ${decision.entityId}: ${decision.action}`
     );
 
     try {
@@ -1443,7 +1443,7 @@ export class AutonomousRelationshipManager {
 
         default:
           logger.warn(
-            `[AutonomousRelationshipManager] Unknown decision type: ${decision.decisionType}`
+            `[RelationshipManager] Unknown decision type: ${decision.decisionType}`
           );
       }
 
@@ -1467,7 +1467,7 @@ export class AutonomousRelationshipManager {
         });
       }
     } catch (error) {
-      logger.error('[AutonomousRelationshipManager] Failed to execute decision:', error);
+      logger.error('[RelationshipManager] Failed to execute decision:', error);
 
       // Record failed decision
       decision.metadata = {
@@ -1631,7 +1631,7 @@ export class AutonomousRelationshipManager {
       return;
     }
 
-    logger.info('[AutonomousRelationshipManager] Updating learning insights...');
+    logger.info('[RelationshipManager] Updating learning insights...');
 
     try {
       const contacts = await this.rolodexService.searchEntities('', 1000);
@@ -1654,7 +1654,7 @@ export class AutonomousRelationshipManager {
       }
 
       logger.info(
-        `[AutonomousRelationshipManager] Learning update complete. Generated ${newInsights.length} new insights`
+        `[RelationshipManager] Learning update complete. Generated ${newInsights.length} new insights`
       );
 
       // Emit learning completion event
@@ -1681,7 +1681,7 @@ export class AutonomousRelationshipManager {
         });
       }
     } catch (error) {
-      logger.error('[AutonomousRelationshipManager] Error during learning update:', error);
+      logger.error('[RelationshipManager] Error during learning update:', error);
     }
   }
 
@@ -1969,7 +1969,7 @@ export class AutonomousRelationshipManager {
     totalDecisionsMade: number;
     totalInsightsLearned: number;
     averageHealthScore: number;
-    config: typeof AutonomousRelationshipManager.prototype.config;
+    config: typeof RelationshipManager.prototype.config;
   }> {
     const totalEntitiesTracked = this.decisionHistory.size;
     const totalDecisionsMade = Array.from(this.decisionHistory.values()).reduce(

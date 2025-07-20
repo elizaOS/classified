@@ -172,6 +172,7 @@ export const confirmGoalAction: Action = {
             success: false,
             errorType: 'missing_state_context',
           },
+          success: false,
         };
       }
 
@@ -194,6 +195,7 @@ export const confirmGoalAction: Action = {
             success: false,
             errorType: 'no_pending_goal',
           },
+          success: false,
         };
       }
 
@@ -215,6 +217,7 @@ export const confirmGoalAction: Action = {
             success: false,
             errorType: 'missing_context',
           },
+          success: false,
         };
       }
 
@@ -242,6 +245,7 @@ export const confirmGoalAction: Action = {
             awaiting_confirmation: true,
             goalName: pendingGoal.name,
           },
+          success: false,
         };
       }
 
@@ -269,6 +273,7 @@ export const confirmGoalAction: Action = {
             goalCancelled: true,
             goalName: pendingGoal.name,
           },
+          success: true,
         };
       }
 
@@ -305,6 +310,7 @@ export const confirmGoalAction: Action = {
             errorType: 'duplicate_goal',
             goalName: pendingGoal.name,
           },
+          success: false,
         };
       }
 
@@ -379,6 +385,7 @@ export const confirmGoalAction: Action = {
           goalId: createdGoalId,
           goalName: pendingGoal.name,
         },
+        success: true,
       };
     } catch (error) {
       logger.error('Error in confirmGoal handler:', error);
@@ -402,6 +409,7 @@ export const confirmGoalAction: Action = {
           errorType: 'execution_error',
           hasError: true,
         },
+        success: false,
       };
     }
   },

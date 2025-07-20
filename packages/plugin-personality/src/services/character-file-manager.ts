@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 // Validation schema for character modifications
 const CharacterModificationSchema = z.object({
+  name: z.string().optional().describe('Character name'),
   system: z
     .string()
     .optional()
@@ -118,6 +119,23 @@ export class CharacterFileManager extends Service {
   }
 
   private setupValidationRules(): void {
+    // Name validation - ensure safe and reasonable names
+    this.validationRules.set('name', (name: string) => {
+      if (typeof name !== 'string') {
+        return false;
+      }
+      return (
+        name.length > 0 &&
+        name.length < 100 &&
+        /^[a-zA-Z0-9\s\-_]+$/.test(name) && // Alphanumeric, spaces, hyphens, underscores only
+        !name.toLowerCase().includes('admin') && // Prevent impersonation
+        !name.toLowerCase().includes('system') &&
+        !name.toLowerCase().includes('root') &&
+        !name.trim().startsWith(' ') && // No leading/trailing spaces
+        !name.trim().endsWith(' ')
+      );
+    });
+
     // System prompt validation - ensure safe and reasonable content
     this.validationRules.set('system', (system: string) => {
       if (typeof system !== 'string') {
@@ -268,6 +286,16 @@ export class CharacterFileManager extends Service {
       const currentCharacter = { ...this.runtime.character };
 
       // Apply modifications using merge logic (additive, not replacement)
+
+      // Handle name modification - direct replacement
+      if (modification.name) {
+        const oldName = currentCharacter.name;
+        currentCharacter.name = modification.name;
+        logger.info('Character name changed', {
+          oldName,
+          newName: modification.name,
+        });
+      }
 
       // Handle system prompt modification - this is a direct replacement, not additive
       if (modification.system) {

@@ -164,6 +164,7 @@ export const confirmTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'CONFIRM_TODO',
             error: 'Missing state context',
@@ -184,6 +185,7 @@ export const confirmTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'CONFIRM_TODO',
             error: 'No pending todo to confirm',
@@ -204,6 +206,7 @@ export const confirmTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'CONFIRM_TODO',
             error: 'Missing room or entity context',
@@ -227,6 +230,7 @@ export const confirmTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'CONFIRM_TODO',
             error: 'Message not related to confirmation',
@@ -252,6 +256,7 @@ export const confirmTodoAction: Action = {
           });
         }
         return {
+          success: true,
           data: {
             actionName: 'CONFIRM_TODO',
             result: 'Task creation cancelled',
@@ -287,6 +292,7 @@ export const confirmTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'CONFIRM_TODO',
             error: 'Duplicate task found',
@@ -353,6 +359,7 @@ export const confirmTodoAction: Action = {
       }
 
       return {
+        success: true,
         data: {
           actionName: 'CONFIRM_TODO',
           createdTodoId,
@@ -381,6 +388,7 @@ export const confirmTodoAction: Action = {
       }
 
       return {
+        success: false,
         data: {
           actionName: 'CONFIRM_TODO',
           error: error instanceof Error ? error.message : String(error),

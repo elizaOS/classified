@@ -235,6 +235,7 @@ export const removeEntityAction: Action = {
         return {
           text: errorText,
           data: { removed: false, relationshipsRemoved: 0 },
+          success: false,
         };
       }
 
@@ -252,6 +253,7 @@ export const removeEntityAction: Action = {
         return {
           text: errorText,
           data: { removed: false, relationshipsRemoved: 0 },
+          success: false,
         };
       }
 
@@ -315,6 +317,7 @@ export const removeEntityAction: Action = {
           removed: true,
           relationshipsRemoved: removeRelationships ? relationshipCount : 0,
         },
+        success: true,
       };
     } catch (error) {
       logger.error('[RemoveEntity] Error removing entity:', error);
@@ -335,6 +338,7 @@ export const removeEntityAction: Action = {
       return {
         text: errorText,
         data: { removed: false, relationshipsRemoved: 0 },
+        success: false,
       };
     }
   },

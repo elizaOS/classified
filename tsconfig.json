@@ -12,5 +12,5 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": "."
   },
-  "files": []
+  "include": ["packages/*/src/**/*", "packages/*/test/**/*", "packages/*/tests/**/*"]
 }

@@ -98,6 +98,7 @@ export const getNewsAction: Action = {
       }
 
       return {
+        success: true,
         values: {
           topic,
           headlineCount: headlines.length,

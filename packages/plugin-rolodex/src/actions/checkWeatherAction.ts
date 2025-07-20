@@ -81,6 +81,7 @@ export const checkWeatherAction: Action = {
       }
 
       return {
+        success: true,
         values: {
           location: weatherData.location,
           temperature: weatherData.temperature,

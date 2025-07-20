@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { todosTable, todoTagsTable, todoSchema } from '../schema';
+import { todosTable, todoTagsTable, todoSchemaExport } from '../schema';
 import { getTableColumns } from 'drizzle-orm';
 
 describe('Todo Schema', () => {
@@ -76,16 +76,16 @@ describe('Todo Schema', () => {
     });
   });
 
-  describe('todoSchema export', () => {
+  describe('todoSchemaExport export', () => {
     it('should export correct schema structure', () => {
-      expect(todoSchema).toBeDefined();
-      expect(todoSchema.todosTable).toBeDefined();
-      expect(todoSchema.todoTagsTable).toBeDefined();
+      expect(todoSchemaExport).toBeDefined();
+      expect(todoSchemaExport.todosTable).toBeDefined();
+      expect(todoSchemaExport.todoTagsTable).toBeDefined();
 
       // Verify tables property for compatibility
-      expect(todoSchema.tables).toBeDefined();
-      expect(todoSchema.tables.todos).toBeDefined();
-      expect(todoSchema.tables.todoTags).toBeDefined();
+      expect(todoSchemaExport.tables).toBeDefined();
+      expect(todoSchemaExport.tables.todos).toBeDefined();
+      expect(todoSchemaExport.tables.todoTags).toBeDefined();
     });
   });
 });

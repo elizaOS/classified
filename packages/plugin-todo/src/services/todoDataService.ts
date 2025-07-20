@@ -1,6 +1,6 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { logger } from '@elizaos/core';
-import { and, desc, eq, isNull, or, not } from 'drizzle-orm';
+import { and, desc, eq, isNull, or, not, sql } from 'drizzle-orm';
 import { todosTable, todoTagsTable } from '../schema';
 
 /**
@@ -73,7 +73,7 @@ export class TodoDataService {
           description: data.description,
           type: data.type,
           priority: data.priority,
-          isUrgent: data.isUrgent || false,
+          isUrgent: data.isUrgent,
           dueDate: data.dueDate,
           metadata: data.metadata || {},
         })

@@ -79,6 +79,7 @@ export const getStockPriceAction: Action = {
       }
 
       return {
+        success: true,
         values: {
           symbol: stockData.symbol,
           price: parseFloat(stockData.price),

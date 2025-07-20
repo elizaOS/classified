@@ -14,7 +14,7 @@ import {
   ModelType,
   ContentType,
 } from '@elizaos/core';
-import { createMockRuntime } from '@elizaos/core/test-utils';
+import { createMockRuntime } from './test-utils';
 import { ShellService } from '../service';
 import { shellProvider } from '../provider';
 import {
@@ -55,7 +55,7 @@ describe('ShellService', () => {
     beforeEach: () => {
       // Use unified mock runtime
       const mockRuntime = createMockRuntime({
-        agentId: 'test-agent-id',
+        agentId: '00000000-0000-0000-0000-000000000001' as any,
         getService: mock(),
         createMemory: mock(),
         composeState: mock(),
@@ -117,7 +117,7 @@ describe('ShellService', () => {
   const filesystemOperationsSuite = new TestSuite('Filesystem Operations', {
     beforeEach: () => {
       const mockRuntime = createMockRuntime({
-        agentId: 'test-agent-id',
+        agentId: '00000000-0000-0000-0000-000000000001' as any,
         getService: mock(),
         createMemory: mock(),
         composeState: mock(),
@@ -434,8 +434,14 @@ describe('Shell Actions', () => {
       } as unknown as ShellService;
 
       const mockRuntime = createMockRuntime({
-        agentId: 'test-agent-id',
+        agentId: '00000000-0000-0000-0000-000000000001' as any,
         getService: mock().mockReturnValue(mockShellService),
+        getSetting: mock().mockImplementation((key: string) => {
+          if (key === 'ENABLE_SHELL' || key === 'SHELL_ENABLED') {
+            return 'true';
+          }
+          return null;
+        }),
         createMemory: mock(),
         composeState: mock().mockResolvedValue({
           values: {},
@@ -647,7 +653,7 @@ describe('Shell Actions', () => {
         } as unknown as ShellService;
 
         const mockRuntime = createMockRuntime({
-          agentId: 'test-agent-id',
+          agentId: '00000000-0000-0000-0000-000000000001' as any,
           getService: mock().mockReturnValue(mockShellService),
           createMemory: mock(),
           composeState: mock().mockResolvedValue({

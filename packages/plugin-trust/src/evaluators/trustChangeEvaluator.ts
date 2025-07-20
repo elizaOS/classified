@@ -14,7 +14,7 @@ export const trustChangeEvaluator: Evaluator = {
     const trustService = runtime.getService<any>('trust');
 
     if (!trustService) {
-      return null;
+      return;
     }
 
     try {
@@ -28,209 +28,62 @@ export const trustChangeEvaluator: Evaluator = {
         const analysis = await (llmEvaluator as any).analyzeBehavior([content], [], entityId);
 
         // Determine trust impact based on analysis
-        if (analysis.riskScore < 0.3) {
-          // Positive behavior
-          await trustService.recordInteraction({
-            sourceEntityId: entityId,
-            targetEntityId: runtime.agentId,
+        let impact = 0;
+        if (analysis.trustIndicators?.positive > analysis.trustIndicators?.negative) {
+          impact = 0.05; // Positive trust change
+        } else if (analysis.trustIndicators?.negative > analysis.trustIndicators?.positive) {
+          impact = -0.05; // Negative trust change
+        }
+
+        if (impact !== 0) {
+          await trustService.updateTrustScore(entityId, impact, 'llm_behavior_analysis');
+          logger.debug(`[TrustChangeEvaluator] LLM-based trust updated for ${entityId}: ${impact}`);
+        }
+
+        return;
+      }
+
+      // Fallback to pattern-based evaluation
+      // List of evidence types and their keywords
+      const evidencePatterns: Record<string, { keywords: string[]; impact: number; type: TrustEvidenceType }> =
+        {
+          positive: {
+            keywords: ['thank', 'helpful', 'great', 'awesome', 'excellent', 'appreciate'],
+            impact: 0.05,
             type: TrustEvidenceType.HELPFUL_ACTION,
-            timestamp: Date.now(),
-            impact: 10,
-            details: {
-              description: 'Positive behavior detected via LLM analysis',
-              messageId: message.id,
-              roomId: message.roomId,
-              autoDetected: true,
-              personality: analysis.personality,
-            },
-            context: {
-              roomId: message.roomId,
-            },
-          });
-
-          logger.info('[TrustChangeEvaluator] LLM detected positive behavior:', {
-            entityId,
-            personality: analysis.personality,
-          });
-
-          return {
-            text: 'Noted positive behavior (+10 trust)',
-            data: { impact: 10, positive: true, llmAnalysis: true },
-          };
-        } else if (analysis.riskScore > 0.7) {
-          // Negative behavior
-          const impact = analysis.riskScore > 0.85 ? -25 : -15;
-          await trustService.recordInteraction({
-            sourceEntityId: entityId,
-            targetEntityId: runtime.agentId,
+          },
+          task: {
+            keywords: ['completed', 'finished', 'done', 'achieved', 'accomplished'],
+            impact: 0.1,
+            type: TrustEvidenceType.SUCCESSFUL_TRANSACTION,
+          },
+          challenge: {
+            keywords: ['problem', 'issue', 'error', 'failed', 'mistake'],
+            impact: -0.05,
             type: TrustEvidenceType.SUSPICIOUS_ACTIVITY,
-            timestamp: Date.now(),
-            impact,
-            details: {
-              description: 'Suspicious behavior detected via LLM analysis',
-              messageId: message.id,
-              roomId: message.roomId,
-              autoDetected: true,
-              anomalies: analysis.anomalies,
-              riskScore: analysis.riskScore,
-            },
-            context: {
-              roomId: message.roomId,
-            },
-          });
-
-          logger.warn('[TrustChangeEvaluator] LLM detected suspicious behavior:', {
-            entityId,
-            riskScore: analysis.riskScore,
-            anomalies: analysis.anomalies,
-          });
-
-          return {
-            text: `Noted concerning behavior (${impact} trust)`,
-            data: { impact, positive: false, llmAnalysis: true },
-          };
-        }
-
-        // Neutral behavior - no trust change
-        return null;
-      }
-
-      // Fallback to pattern matching only if LLM is not available
-      // Define patterns for trust-affecting behaviors
-      const positivePatterns = [
-        {
-          pattern: /thank you|thanks|appreciate|grateful/i,
-          type: TrustEvidenceType.HELPFUL_ACTION,
-          impact: 5,
-        },
-        {
-          pattern: /helped|assisted|supported|solved/i,
-          type: TrustEvidenceType.HELPFUL_ACTION,
-          impact: 10,
-        },
-        {
-          pattern: /kept.*promise|delivered|followed through/i,
-          type: TrustEvidenceType.PROMISE_KEPT,
-          impact: 15,
-        },
-        {
-          pattern: /contributed|shared|provided/i,
-          type: TrustEvidenceType.COMMUNITY_CONTRIBUTION,
-          impact: 8,
-        },
-      ];
-
-      const negativePatterns = [
-        { pattern: /spam|flood|repeat/i, type: TrustEvidenceType.SPAM_BEHAVIOR, impact: -10 },
-        {
-          pattern: /broke.*promise|failed to|didn't deliver/i,
-          type: TrustEvidenceType.PROMISE_BROKEN,
-          impact: -15,
-        },
-        { pattern: /hack|exploit|cheat/i, type: TrustEvidenceType.SECURITY_VIOLATION, impact: -25 },
-        { pattern: /harass|abuse|threat/i, type: TrustEvidenceType.HARMFUL_ACTION, impact: -20 },
-      ];
-
-      // Check for positive behaviors
-      for (const { pattern, type, impact } of positivePatterns) {
-        if (pattern.test(content)) {
-          await trustService.recordInteraction({
-            sourceEntityId: entityId,
-            targetEntityId: runtime.agentId,
-            type,
-            timestamp: Date.now(),
-            impact,
-            details: {
-              description: `Positive behavior detected: ${type}`,
-              messageId: message.id,
-              roomId: message.roomId,
-              autoDetected: true,
-            },
-            context: {
-              roomId: message.roomId,
-            },
-          });
-
-          logger.info('[TrustChangeEvaluator] Recorded positive behavior:', {
-            entityId,
-            type,
-            impact,
-          });
-
-          return {
-            text: `Noted positive behavior: ${type} (+${impact} trust)`,
-            data: { type, impact, positive: true },
-          };
-        }
-      }
-
-      // Check for negative behaviors
-      for (const { pattern, type, impact } of negativePatterns) {
-        if (pattern.test(content)) {
-          await trustService.recordInteraction({
-            sourceEntityId: entityId,
-            targetEntityId: runtime.agentId,
-            type,
-            timestamp: Date.now(),
-            impact,
-            details: {
-              description: `Negative behavior detected: ${type}`,
-              messageId: message.id,
-              roomId: message.roomId,
-              autoDetected: true,
-            },
-            context: {
-              roomId: message.roomId,
-            },
-          });
-
-          logger.warn('[TrustChangeEvaluator] Recorded negative behavior:', {
-            entityId,
-            type,
-            impact,
-          });
-
-          return {
-            text: `Noted concerning behavior: ${type} (${impact} trust)`,
-            data: { type, impact, positive: false },
-          };
-        }
-      }
-
-      // Check for message frequency (spam detection)
-      // TODO: Implement proper message frequency check using components or another method
-      // For now, skip this check
-      /*
-      const recentMessages = await runtime.store.getRecentMessages(entityId, 60000); // Last minute
-      if (recentMessages.length > 10) {
-        await trustEngine.recordInteraction({
-          sourceEntityId: entityId,
-          targetEntityId: runtime.agentId,
-          type: TrustEvidenceType.SPAM_BEHAVIOR,
-          timestamp: Date.now(),
-          impact: -5,
-          details: {
-            description: 'High message frequency detected',
-            messageCount: recentMessages.length,
-            roomId: message.roomId,
-            autoDetected: true,
           },
-          context: {
-            roomId: message.roomId,
+          violation: {
+            keywords: ['violated', 'breach', 'unauthorized', 'forbidden', 'illegal'],
+            impact: -0.2,
+            type: TrustEvidenceType.SECURITY_VIOLATION,
           },
-        });
+        };
 
-        logger.warn('[TrustChangeEvaluator] High message frequency detected:', {
-          entityId,
-          messageCount: recentMessages.length,
-        });
+      // Check for evidence patterns
+      for (const [key, pattern] of Object.entries(evidencePatterns)) {
+        const hasKeyword = pattern.keywords.some((keyword) => content.includes(keyword));
+        if (hasKeyword && entityId) {
+          await trustService.updateTrustScore(entityId, pattern.impact, pattern.type);
+          logger.debug(
+            `[TrustChangeEvaluator] Pattern-based trust updated for ${entityId}: ${
+              pattern.impact
+            } (type: ${pattern.type})`
+          );
+          return;
+        }
       }
-      */
-
-      return null;
     } catch (error) {
-      logger.error('[TrustChangeEvaluator] Error evaluating trust changes:', error);
-      return null;
+      logger.error('[TrustChangeEvaluator] Error evaluating trust change:', error);
     }
   },
 

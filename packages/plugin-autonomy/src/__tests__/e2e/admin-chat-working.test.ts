@@ -4,9 +4,16 @@
  * Once the core package properly exports test-utils types, this file can be re-enabled.
  */
 
+export {}; // Keep file as module while tests are disabled
+
+// Test file temporarily disabled - uncomment when test-utils is available
+/* 
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import type { IAgentRuntime, Memory, UUID, Character, State, Content } from '@elizaos/core';
 import { createTestRuntime } from '@elizaos/core/test-utils';
+import { adminChatProvider } from '../../providers/admin-chat';
+import { setAdminAction } from '../../actions/set-admin';
+import { autoPlugin } from '../../index';
 
 // Helper function to create UUID-like strings for testing
 function asUUID(str: string): UUID {
@@ -22,9 +29,6 @@ function asUUID(str: string): UUID {
   const hex = Math.abs(hash).toString(16).padStart(8, '0');
   return `${hex.slice(0, 8)}-${hex.slice(0, 4)}-4${hex.slice(1, 4)}-8${hex.slice(2, 5)}-${hex.slice(0, 12)}` as UUID;
 }
-import { adminChatProvider } from '../../providers/admin-chat';
-import { setAdminAction } from '../../actions/set-admin';
-import { autoPlugin } from '../../index';
 
 describe.skip('Admin Chat Real Runtime Tests', () => {
   let runtime: IAgentRuntime;
@@ -53,14 +57,14 @@ describe.skip('Admin Chat Real Runtime Tests', () => {
     };
 
     // TODO: Uncomment when createTestRuntime is available
-    /* const testResult = await createTestRuntime({
+    const testResult = await createTestRuntime({
       character: testCharacter,
       plugins: [autoPlugin],
       apiKeys: { OPENAI_API_KEY: 'test-key' },
     });
 
     runtime = testResult.runtime;
-    harness = testResult.harness; */
+    harness = testResult.harness;
 
     // Temporary assignments to satisfy TypeScript
     runtime = {} as IAgentRuntime;
@@ -326,3 +330,4 @@ describe.skip('Admin Chat Real Runtime Tests', () => {
     });
   });
 });
+*/

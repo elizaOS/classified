@@ -14,7 +14,8 @@ import { updateGoalAction } from './actions/updateGoal.js';
 import { goalsProvider } from './providers/goals.js';
 
 // Import services
-import { GoalDataService } from './services/goalDataService.js';
+import { GoalDataService, GoalDataManager } from './services/goalDataService.js';
+import { GoalInitializationService } from './services/goalInitializationService.js';
 
 // Import schema
 import { goalSchema } from './schema.js';
@@ -25,6 +26,7 @@ import { goalSchema } from './schema.js';
 import { GoalsPluginE2ETestSuite } from './tests';
 import { testSuites as e2eTestSuites } from './__tests__/e2e';
 
+
 /**
  * The GoalsPlugin provides goal management functionality,
  * including creating, completing, updating, and canceling goals.
@@ -33,6 +35,7 @@ export const GoalsPlugin: Plugin = {
   name: 'goals',
   description: 'Provides goal management functionality for tracking and achieving objectives.',
   providers: [goalsProvider],
+  dependencies: ['@elizaos/plugin-sql'],
   testDependencies: ['@elizaos/plugin-sql'],
   actions: [
     createGoalAction,
@@ -41,7 +44,7 @@ export const GoalsPlugin: Plugin = {
     updateGoalAction,
     cancelGoalAction,
   ],
-  services: [GoalDataService],
+  services: [GoalDataService], // Removed GoalInitializationService for now due to database timing issues
   routes,
   schema: goalSchema,
   tests: [GoalsPluginE2ETestSuite, ...e2eTestSuites],
@@ -56,14 +59,18 @@ export const GoalsPlugin: Plugin = {
 
       // Database migrations are handled by the SQL plugin
       if (runtime.db) {
-        logger.info('Database available, GoalsPlugin ready for operation');
+        logger.info('[Goals Plugin] Database available, GoalsPlugin ready for operation');
+        
+        // Note: Initial goals creation will be deferred until after migrations
+        // This is handled by a separate initialization service
+        
       } else {
-        logger.warn('No database instance available, operations will be limited');
+        logger.warn('[Goals Plugin] No database instance available, operations will be limited');
       }
 
-      logger.info('GoalsPlugin initialized successfully');
+      logger.info('[Goals Plugin] GoalsPlugin initialized successfully');
     } catch (error) {
-      logger.error('Error initializing GoalsPlugin:', error);
+      logger.error('[Goals Plugin] Error initializing GoalsPlugin:', error);
       throw error;
     }
   },

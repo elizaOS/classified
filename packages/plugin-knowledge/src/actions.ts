@@ -239,6 +239,7 @@ export const processKnowledgeAction: Action = {
               await callback(response);
             }
             return {
+              success: false,
               data: {
                 actionName: 'PROCESS_KNOWLEDGE',
                 error: 'File not found',
@@ -300,6 +301,7 @@ export const processKnowledgeAction: Action = {
               await callback(response);
             }
             return {
+              success: false,
               data: {
                 actionName: 'PROCESS_KNOWLEDGE',
                 error: 'No content provided',
@@ -342,6 +344,7 @@ export const processKnowledgeAction: Action = {
       }
 
       return {
+        success: true,
         data: {
           actionName: 'PROCESS_KNOWLEDGE',
           processedCount,
@@ -366,6 +369,7 @@ export const processKnowledgeAction: Action = {
       }
 
       return {
+        success: false,
         data: {
           actionName: 'PROCESS_KNOWLEDGE',
           error: error instanceof Error ? error.message : String(error),
@@ -498,6 +502,7 @@ export const searchKnowledgeAction: Action = {
           await callback(response);
         }
         return {
+          success: false,
           data: {
             actionName: 'SEARCH_KNOWLEDGE',
             error: 'No search query provided',
@@ -541,6 +546,7 @@ export const searchKnowledgeAction: Action = {
       }
 
       return {
+        success: true,
         data: {
           actionName: 'SEARCH_KNOWLEDGE',
           query,
@@ -565,6 +571,7 @@ export const searchKnowledgeAction: Action = {
       }
 
       return {
+        success: false,
         data: {
           actionName: 'SEARCH_KNOWLEDGE',
           error: error instanceof Error ? error.message : String(error),
@@ -716,6 +723,7 @@ export const advancedSearchAction: Action = {
       }
 
       return {
+        success: true,
         data: {
           actionName: 'ADVANCED_KNOWLEDGE_SEARCH',
           results: results.results,
@@ -737,6 +745,7 @@ export const advancedSearchAction: Action = {
         await callback(errorResponse);
       }
       return {
+        success: false,
         data: {
           actionName: 'ADVANCED_KNOWLEDGE_SEARCH',
           error: String(error),
@@ -854,6 +863,7 @@ ${
       }
 
       return {
+        success: true,
         data: {
           actionName: 'KNOWLEDGE_ANALYTICS',
           analytics,
@@ -874,6 +884,7 @@ ${
         await callback(errorResponse);
       }
       return {
+        success: false,
         data: {
           actionName: 'KNOWLEDGE_ANALYTICS',
           error: String(error),
@@ -968,6 +979,7 @@ export const exportKnowledgeAction: Action = {
       }
 
       return {
+        success: true,
         data: {
           actionName: 'EXPORT_KNOWLEDGE',
           format,
@@ -990,6 +1002,7 @@ export const exportKnowledgeAction: Action = {
         await callback(errorResponse);
       }
       return {
+        success: false,
         data: {
           actionName: 'EXPORT_KNOWLEDGE',
           error: String(error),
@@ -1093,6 +1106,7 @@ export const ingestGitHubAction: Action = {
           await callback(errorResponse);
         }
         return {
+          success: false,
           data: {
             actionName: 'INGEST_GITHUB_REPO',
             error: 'No valid GitHub URL found',
@@ -1148,6 +1162,7 @@ export const ingestGitHubAction: Action = {
         }
 
         return {
+          success: true,
           data: {
             actionName: 'INGEST_GITHUB_REPO',
             repoUrl: ingestionOptions.repoUrl,
@@ -1169,6 +1184,7 @@ export const ingestGitHubAction: Action = {
           await callback(response);
         }
         return {
+          success: false,
           data: {
             actionName: 'INGEST_GITHUB_REPO',
             error: ingestionError.message,
@@ -1188,6 +1204,7 @@ export const ingestGitHubAction: Action = {
         await callback(errorResponse);
       }
       return {
+        success: false,
         data: {
           actionName: 'INGEST_GITHUB_REPO',
           error: error.message,
@@ -1289,6 +1306,7 @@ export const ingestWebPageAction: Action = {
           await callback(errorResponse);
         }
         return {
+          success: false,
           data: {
             actionName: 'INGEST_WEB_PAGE',
             error: 'No valid URL found',
@@ -1338,6 +1356,7 @@ export const ingestWebPageAction: Action = {
         }
 
         return {
+          success: true,
           data: {
             actionName: 'INGEST_WEB_PAGE',
             url: ingestionOptions.url,
@@ -1358,6 +1377,7 @@ export const ingestWebPageAction: Action = {
           await callback(response);
         }
         return {
+          success: false,
           data: {
             actionName: 'INGEST_WEB_PAGE',
             error: ingestionError.message,
@@ -1377,6 +1397,7 @@ export const ingestWebPageAction: Action = {
         await callback(errorResponse);
       }
       return {
+        success: false,
         data: {
           actionName: 'INGEST_WEB_PAGE',
           error: error.message,

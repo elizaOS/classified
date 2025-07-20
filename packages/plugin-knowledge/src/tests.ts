@@ -570,7 +570,7 @@ export class KnowledgeTestSuite implements TestSuite {
         }
 
         // Verify service is registered
-        runtime.services.set(KnowledgeService.serviceType as any, service);
+        (runtime.services as any).set(KnowledgeService.serviceType, service);
         const retrievedService = runtime.getService(KnowledgeService.serviceType);
 
         if (retrievedService !== service) {
@@ -650,7 +650,7 @@ export class KnowledgeTestSuite implements TestSuite {
       name: 'Should add knowledge successfully',
       fn: async (runtime: IAgentRuntime) => {
         const service = await KnowledgeService.start(runtime);
-        runtime.services.set(KnowledgeService.serviceType as any, service);
+        (runtime.services as any).set(KnowledgeService.serviceType, service);
 
         const testDocument = {
           clientDocumentId: uuidv4() as UUID,
@@ -690,7 +690,7 @@ export class KnowledgeTestSuite implements TestSuite {
       name: 'Should handle duplicate document uploads',
       fn: async (runtime: IAgentRuntime) => {
         const service = await KnowledgeService.start(runtime);
-        runtime.services.set(KnowledgeService.serviceType as any, service);
+        (runtime.services as any).set(KnowledgeService.serviceType, service);
 
         const testDocument = {
           clientDocumentId: uuidv4() as UUID,
@@ -726,7 +726,7 @@ export class KnowledgeTestSuite implements TestSuite {
       name: 'Should retrieve knowledge based on query',
       fn: async (runtime: IAgentRuntime) => {
         const service = await KnowledgeService.start(runtime);
-        runtime.services.set(KnowledgeService.serviceType as any, service);
+        (runtime.services as any).set(KnowledgeService.serviceType, service);
 
         // Add some test knowledge
         const testDocument = {
@@ -777,7 +777,7 @@ export class KnowledgeTestSuite implements TestSuite {
       name: 'Should format knowledge in provider output',
       fn: async (runtime: IAgentRuntime) => {
         const service = await KnowledgeService.start(runtime);
-        runtime.services.set('knowledge' as any, service);
+        (runtime.services as any).set('knowledge', service);
 
         // Add test knowledge
         const testDocument = {
@@ -900,7 +900,7 @@ export class KnowledgeTestSuite implements TestSuite {
       name: 'Should handle and log errors appropriately',
       fn: async (runtime: IAgentRuntime) => {
         const service = await KnowledgeService.start(runtime);
-        runtime.services.set(KnowledgeService.serviceType as any, service);
+        (runtime.services as any).set(KnowledgeService.serviceType, service);
 
         // Clear previous mock calls
         mockLogger.clearCalls();
@@ -971,8 +971,8 @@ export class KnowledgeTestSuite implements TestSuite {
 
         // Start service
         const service = await KnowledgeService.start(runtime);
-        runtime.services.set(KnowledgeService.serviceType as any, service);
-        runtime.services.set('knowledge' as any, service);
+        (runtime.services as any).set(KnowledgeService.serviceType, service);
+        (runtime.services as any).set('knowledge', service);
 
         // Register provider
         runtime.registerProvider(knowledgeProvider);
@@ -1048,7 +1048,7 @@ export class KnowledgeTestSuite implements TestSuite {
       name: 'Should handle large documents with chunking',
       fn: async (runtime: IAgentRuntime) => {
         const service = await KnowledgeService.start(runtime);
-        runtime.services.set(KnowledgeService.serviceType as any, service);
+        (runtime.services as any).set(KnowledgeService.serviceType, service);
 
         // Create a large document
         const largeContent = Array(100)
@@ -1136,7 +1136,7 @@ export class KnowledgeTestSuite implements TestSuite {
         runtime.setSetting('KNOWLEDGE_USE_NEW_TABLES', 'true');
 
         const service = await KnowledgeService.start(runtime);
-        runtime.services.set(KnowledgeService.serviceType as any, service);
+        (runtime.services as any).set(KnowledgeService.serviceType, service);
 
         // Test document creation with new tables
         const testDocument = {
@@ -1222,7 +1222,7 @@ export class KnowledgeTestSuite implements TestSuite {
             TEXT_EMBEDDING_MODEL: 'text-embedding-3-small',
           });
 
-          runtime.services.set(KnowledgeService.serviceType as any, service);
+          (runtime.services as any).set(KnowledgeService.serviceType, service);
 
           // Wait for document loading to complete (service has 1s delay + processing time)
           await new Promise((resolve) => setTimeout(resolve, 5000));

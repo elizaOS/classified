@@ -165,6 +165,7 @@ export const findEntityAction: Action = {
         }
 
         return {
+          success: false,
           text: response.text,
           data: { error: 'No search query provided' },
         };
@@ -183,6 +184,7 @@ export const findEntityAction: Action = {
         }
 
         return {
+          success: false,
           text: response.text,
           data: { error: 'Search method not available' },
         };
@@ -201,6 +203,7 @@ export const findEntityAction: Action = {
         }
 
         return {
+          success: true,
           text: response.text,
           data: { searchQuery, found: false },
         };
@@ -233,6 +236,7 @@ export const findEntityAction: Action = {
       }
 
       return {
+        success: true,
         text: responseText,
         data: {
           searchQuery,
@@ -257,6 +261,7 @@ export const findEntityAction: Action = {
       }
 
       return {
+        success: false,
         text: errorMsg,
         data: { error: (error as Error).message },
       };

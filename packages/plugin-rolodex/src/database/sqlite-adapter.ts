@@ -244,7 +244,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
       relationship.sourceEntityId,
       relationship.targetEntityId,
       relationship.agentId,
-      relationship.relationshipType || 'unknown',
+      (relationship.metadata as any)?.relationshipType || 'unknown',
       JSON.stringify(relationship.tags || []),
       JSON.stringify(relationship.metadata || {})
     );
@@ -261,14 +261,16 @@ export class SQLiteAdapter extends DatabaseAdapter {
       return undefined;
     }
 
+    const metadata = JSON.parse(row.metadata || '{}');
+    metadata.relationshipType = row.type;
+    
     return {
       id: asUUID(row.id),
       sourceEntityId: asUUID(row.source_entity_id),
       targetEntityId: asUUID(row.target_entity_id),
       agentId: asUUID(row.agent_id),
-      relationshipType: row.type,
       tags: JSON.parse(row.tags),
-      metadata: JSON.parse(row.metadata),
+      metadata: metadata,
     };
   }
 
@@ -280,7 +282,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
     `);
 
     stmt.run(
-      relationship.relationshipType || 'unknown',
+      (relationship.metadata as any)?.relationshipType || 'unknown',
       JSON.stringify(relationship.tags || []),
       JSON.stringify(relationship.metadata || {}),
       relationship.id

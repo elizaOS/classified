@@ -11,6 +11,17 @@ coverage = true
 cache = true
 auto = "fallback"
 
+# Trusted dependencies that require postinstall scripts or native bindings
+trustedDependencies = [
+  "@tensorflow/tfjs-node",
+  "@tensorflow-models/coco-ssd",
+  "@tensorflow-models/pose-detection",
+  "@tensorflow-models/posenet",
+  "@tensorflow-models/mobilenet",
+  "canvas",
+  "sharp"
+]
+
 [run]
 # Bun runtime optimizations
 shell = "system"

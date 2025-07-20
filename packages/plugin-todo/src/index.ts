@@ -17,7 +17,7 @@ import { TodoReminderService } from './services/reminderService';
 import { TodoIntegrationBridge } from './services/integrationBridge';
 
 // Import schema
-import { todoSchema } from './schema';
+import { todoSchemaExport } from './schema';
 
 // Import table schemas for registration
 
@@ -45,7 +45,7 @@ export const TodoPlugin: Plugin = {
   ],
   services: [TodoReminderService, TodoIntegrationBridge],
   routes,
-  schema: todoSchema,
+  schema: todoSchemaExport,
   tests: [TodoPluginE2ETestSuite, ...e2eTestSuites],
   init: async (_config: Record<string, string>, _runtime: any) => {
     // Plugin initialization - services are automatically started by the runtime
@@ -71,4 +71,4 @@ export type { CacheEntry, CacheStats } from './services/cacheManager.js';
 export type { NotificationData, NotificationPreferences } from './services/notificationManager.js';
 
 // Export schema
-export { todoSchema } from './schema.js';
+export { todoSchemaExport as todoSchema } from './schema.js';

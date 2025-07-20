@@ -1,21 +1,10 @@
 import type { Plugin, IAgentRuntime } from '@elizaos/core';
 import { logger } from '@elizaos/core';
 
-import { characterEvolutionEvaluator } from './evaluators/character-evolution.js';
-import { modifyCharacterAction } from './actions/modify-character.js';
-import { restoreCharacterAction } from './actions/restore-character.js';
-import { characterEvolutionProvider } from './providers/character-evolution.js';
-import { CharacterFileManager } from './services/character-file-manager.js';
-import testSuites from './__tests__/e2e/index.js';
-// Test imports removed - tests now use bun:test format
-// Temporarily comment out scenarios until type issues are resolved
-// import adminCharacterModificationScenario from './scenarios/admin-character-modification.js';
-// import agentSelfModificationScenario from './scenarios/agent-self-modification.js';
-// import personalityEvolutionScenario from './scenarios/personality-evolution.js';
-// import personalityResistanceScenario from './scenarios/personality-resistance.js';
-// import selectivePersonalityChangesScenario from './scenarios/selective-personality-changes.js';
-// import coreIdentityPreservationScenario from './scenarios/core-identity-preservation.js';
-
+import { characterEvolutionEvaluator } from './evaluators/character-evolution';
+import { modifyCharacterAction } from './actions/modify-character';
+import { CharacterFileManager } from './services/character-file-manager';
+import testSuites from './__tests__/e2e/index';
 /**
  * Self-Modification Plugin for ElizaOS
  *
@@ -38,21 +27,11 @@ export const selfModificationPlugin: Plugin = {
 
   // Core components
   evaluators: [characterEvolutionEvaluator],
-  actions: [modifyCharacterAction, restoreCharacterAction],
-  providers: [characterEvolutionProvider],
+  actions: [modifyCharacterAction],
   services: [CharacterFileManager],
 
   // Test suites removed - now using bun:test format
   tests: testSuites,
-
-  scenarios: [
-    // adminCharacterModificationScenario,
-    // agentSelfModificationScenario,
-    // personalityEvolutionScenario,
-    // personalityResistanceScenario,
-    // selectivePersonalityChangesScenario,
-    // coreIdentityPreservationScenario
-  ],
 
   // Plugin configuration
   config: {
@@ -148,8 +127,6 @@ export const selfModificationPlugin: Plugin = {
 export {
   characterEvolutionEvaluator,
   modifyCharacterAction,
-  restoreCharacterAction,
-  characterEvolutionProvider,
   CharacterFileManager,
 };
 

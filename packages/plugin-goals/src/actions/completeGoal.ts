@@ -56,7 +56,7 @@ export const completeGoalAction: Action = {
             error: true,
           });
         }
-        return { text: errorMessage };
+        return { text: errorMessage, success: false };
       }
 
       // Create data service
@@ -86,7 +86,7 @@ export const completeGoalAction: Action = {
             actions: ['COMPLETE_GOAL'],
           });
         }
-        return { text: responseText };
+        return { text: responseText, success: false };
       }
 
       // Use Claude to find the best matching goal
@@ -116,7 +116,7 @@ If none match well, return 0.`;
             actions: ['COMPLETE_GOAL'],
           });
         }
-        return { text: responseText };
+        return { text: responseText, success: false };
       }
 
       const goal = activeGoals[matchIndex];
@@ -146,6 +146,7 @@ If none match well, return 0.`;
           goalId: goal.id,
           goalName: goal.name,
         },
+        success: true,
       };
     } catch (error) {
       logger.error('Error completing goal:', error);
@@ -158,7 +159,7 @@ If none match well, return 0.`;
         });
       }
 
-      return { text: errorMessage };
+      return { text: errorMessage, success: false };
     }
   },
   examples: [

@@ -1,6 +1,7 @@
 import { relations } from 'drizzle-orm';
 import {
   pgTable,
+  pgSchema,
   uuid,
   timestamp,
   boolean,
@@ -10,10 +11,13 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
+// Define the goals schema namespace
+export const goalsSchema = pgSchema('goals');
+
 /**
  * Goals table - stores long-term achievable goals
  */
-export const goalsTable = pgTable(
+export const goalsTable = goalsSchema.table(
   'goals',
   {
     id: uuid('id').notNull().primaryKey(),
@@ -40,7 +44,7 @@ export const goalsTable = pgTable(
 /**
  * Goal tags table - stores tags associated with goals
  */
-export const goalTagsTable = pgTable(
+export const goalTagsTable = goalsSchema.table(
   'goal_tags',
   {
     id: uuid('id').notNull().primaryKey(),

@@ -76,6 +76,7 @@ export const storeSecretAction: Action = {
       }
 
       return {
+        success: true,
         values: {
           storedKeys,
           count: storedKeys.length,

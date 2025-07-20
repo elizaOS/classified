@@ -95,11 +95,12 @@ describe('RolodexService', () => {
             id: asUUID(stringToUuid('rel-1')),
             sourceEntityId: entityId,
             targetEntityId: asUUID(stringToUuid('sarah')),
-            relationshipType: 'colleague',
             strength: 80,
             sentiment: 75,
             lastInteraction: new Date().toISOString(),
-            metadata: {},
+            metadata: {
+              relationshipType: 'colleague',
+            },
           },
         ]),
       } as any;
@@ -107,7 +108,7 @@ describe('RolodexService', () => {
       const relationships = await service.getRelationships(entityId);
 
       expect(relationships).toHaveLength(1);
-      expect(relationships[0].relationshipType).toBe('colleague');
+      expect((relationships[0].metadata as any)?.relationshipType).toBe('colleague');
     });
   });
 

@@ -1,366 +1,131 @@
-# @elizaos/plugin-autonomy
+# ElizaOS Autonomy Plugin
 
-A sophisticated autonomous agent plugin for ElizaOS that implements the OODA
-(Observe-Orient-Decide-Act) loop for intelligent decision-making.
+A clean, focused autonomy plugin that enables autonomous agent behavior with admin chat integration.
 
 ## Overview
 
-This plugin transforms ElizaOS agents into truly autonomous entities capable of:
+This plugin provides exactly **3 components**:
 
-- **Observing** their environment and gathering information
-- **Orienting** themselves by analyzing patterns and context
-- **Deciding** on optimal actions based on goals and priorities
-- **Acting** on decisions with resource management
-- **Learning** from outcomes to improve future performance
+1. **AutonomyService**: Autonomous loop service that can be controlled via API
+2. **adminChatProvider**: Provides conversation history with admin user (autonomous context only)
+3. **sendToAdminAction**: Allows agent to send messages to admin (autonomous context only)
 
-## Key Features
+## Components
 
-### OODA Loop Implementation
+### AutonomyService
 
-- Full Observe-Orient-Decide-Act cycle with reflection phase
-- Adaptive behavior based on performance metrics
-- Goal-driven decision making with priority management
-- Resource-aware action execution
+- **Purpose**: Runs an autonomous thinking loop in a dedicated room
+- **Controls**: Can be started/stopped and interval can be adjusted (5s - 10m)
+- **Persistence**: State is saved in agent settings (AUTONOMY_ENABLED)
+- **Room**: Creates dedicated autonomous room for internal thoughts
 
-### Comprehensive Logging
+**Methods:**
+- `startLoop()` - Start autonomous thinking
+- `stopLoop()` - Stop autonomous thinking  
+- `setLoopInterval(ms)` - Set thinking interval
+- `isLoopRunning()` - Check if running
+- `getAutonomousRoomId()` - Get the autonomous room ID
 
-- Structured logging with multiple levels (DEBUG, INFO, WARN, ERROR, FATAL)
-- File-based logging with run tracking
-- Phase-specific logging for each OODA cycle
-- Metrics and performance tracking
+### adminChatProvider
 
-### Real-World Scenarios
+- **Purpose**: Provides recent conversation history with admin user
+- **Context**: Only active in autonomous room (validates room ID)
+- **Configuration**: Requires `ADMIN_USER_ID` setting
+- **Output**: Formatted conversation history for agent context
 
-- Documentation research and report generation
-- GitHub repository analysis
-- System health monitoring
-- Learning path execution
+### sendToAdminAction
 
-### Error Handling & Recovery
-
-- Graceful degradation when dependencies are missing
-- Error recovery strategies
-- Resource constraint management
-- Timeout handling for long-running actions
-
-## Installation
-
-```bash
-npm install @elizaos/plugin-autonomy
-```
+- **Purpose**: Allows agent to message admin from autonomous thoughts
+- **Validation**: Only works in autonomous room, requires admin configuration
+- **Behavior**: Finds admin's room and sends contextual message
 
 ## Configuration
 
-### Environment Variables
-
-```bash
-# Logging Configuration
-AUTONOMOUS_FILE_LOGGING=true          # Enable file logging
-AUTONOMOUS_LOG_DIR=./logs/autonomy    # Log directory
-AUTONOMOUS_LOG_LEVEL=INFO             # Log level (DEBUG, INFO, WARN, ERROR, FATAL)
-
-# OODA Loop Configuration
-AUTONOMOUS_LOOP_INTERVAL=5000         # Base cycle time in milliseconds
-AUTONOMOUS_MAX_CONCURRENT=3           # Maximum concurrent actions
-AUTONOMOUS_ACTION_TIMEOUT=60000       # Action timeout in milliseconds
-```
-
-### Character Configuration
-
-Add goals to your character configuration:
+Add these settings to your character configuration:
 
 ```json
 {
-  "name": "AutonomousAgent",
   "settings": {
-    "goals": [
-      {
-        "id": "goal-1",
-        "description": "Learn and improve capabilities",
-        "priority": 1,
-        "progress": 0
-      },
-      {
-        "id": "goal-2",
-        "description": "Complete assigned tasks efficiently",
-        "priority": 2,
-        "progress": 0
-      }
-    ]
+    "ADMIN_USER_ID": "user-uuid-here",
+    "AUTONOMY_AUTO_START": true,
+    "AUTONOMY_ENABLED": false
   }
 }
 ```
+
+### Settings
+
+- `ADMIN_USER_ID`: UUID of the admin user for chat history and messaging
+- `AUTONOMY_AUTO_START`: Whether to start autonomy loop on agent startup  
+- `AUTONOMY_ENABLED`: Current state of autonomy (managed by service)
 
 ## Usage
 
-### Basic Setup
+### Installation
 
-```typescript
-import { autoPlugin } from '@elizaos/plugin-autonomy';
-
-const agent = new Agent({
-  plugins: [autoPlugin],
-  character: {
-    name: 'AutonomousAgent',
-    // ... other character config
-  },
-});
-```
-
-### With Additional Plugins
-
-For full functionality, combine with other plugins:
-
-```typescript
-import { autoPlugin } from '@elizaos/plugin-autonomy';
-import { todoPlugin } from '@elizaos/plugin-todo';
-import { browserPlugin } from '@elizaos/plugin-browser';
-import { shellPlugin } from '@elizaos/plugin-shell';
-
-const agent = new Agent({
-  plugins: [
-    autoPlugin,
-    todoPlugin, // For task management
-    browserPlugin, // For web interactions
-    shellPlugin, // For system operations
-  ],
-});
-```
-
-## How It Works
-
-### The OODA Loop
-
-1. **Observe Phase**
-
-   - Monitors active tasks and TODOs
-   - Checks system resource status
-   - Reviews recent messages and interactions
-   - Tracks goal progress
-
-2. **Orient Phase**
-
-   - Analyzes observations for patterns
-   - Updates environmental factors
-   - Adjusts goal priorities
-   - Identifies opportunities and constraints
-
-3. **Decide Phase**
-
-   - Makes urgent decisions for critical issues
-   - Plans goal-based actions
-   - Considers resource constraints
-   - Evaluates alternatives
-
-4. **Act Phase**
-
-   - Executes chosen actions with timeouts
-   - Manages concurrent operations
-   - Tracks resource usage
-   - Handles errors gracefully
-
-5. **Reflect Phase**
-   - Calculates success metrics
-   - Updates historical context
-   - Adjusts strategies based on outcomes
-   - Learns from successes and failures
-
-### Adaptive Behavior
-
-The agent adapts its behavior based on:
-
-- **Error rates**: Reduces concurrent actions if errors are high
-- **Resource efficiency**: Increases activity when resources are available
-- **Decision frequency**: Adjusts cycle time based on workload
-- **Goal progress**: Reprioritizes based on achievement
-
-## Logging
-
-### File Logging Structure
-
-When file logging is enabled, each OODA run creates a detailed log file:
-
-```
-logs/autonomy/
-├── run_abc123_2024-01-20T10-30-00.log
-├── run_def456_2024-01-20T10-35-00.log
-└── ...
-```
-
-### Log Format
+Add to your character's plugins array:
 
 ```json
 {
-  "runId": "abc123",
-  "timestamp": 1705749000000,
-  "level": "INFO",
-  "phase": "DECIDING",
-  "message": "Completed decision phase",
-  "data": {
-    "decisionCount": 2,
-    "types": ["CONTINUE_TASK", "SYSTEM_HEALTH_CHECK"]
-  }
+  "plugins": ["@elizaos/plugin-autonomy"]
 }
 ```
 
-### Viewing Logs
+### Control via Service
 
-Use the included log viewer (coming soon) or parse JSON logs:
+```typescript
+const autonomyService = runtime.getService('autonomy');
 
-```bash
-# View latest run
-cat logs/autonomy/run_* | tail -n 100 | jq '.'
+// Start/stop
+await autonomyService.startLoop();
+await autonomyService.stopLoop();
 
-# Filter by phase
-cat logs/autonomy/run_* | jq 'select(.phase == "DECIDING")'
-
-# Check errors
-cat logs/autonomy/run_* | jq 'select(.level == "ERROR")'
+// Configure
+autonomyService.setLoopInterval(60000); // 1 minute
+const isRunning = autonomyService.isLoopRunning();
 ```
 
-## Available Actions
+## Autonomous Context
 
-### Documentation Research
+The plugin creates a dedicated "autonomous room" where the agent thinks independently. In this context:
 
-```
-"Research documentation on [topic]"
-```
-
-- Browses documentation sites
-- Extracts key information
-- Creates structured reports
-
-### GitHub Analysis
-
-```
-"Analyze trending GitHub repositories in [language]"
-"Analyze repository https://github.com/owner/repo"
-```
-
-- Explores trending repositories
-- Clones and analyzes code
-- Creates analysis summaries
-
-### System Health
-
-```
-"Check system health"
-```
-
-- Monitors CPU, memory, disk usage
-- Creates maintenance tasks
-- Generates health reports
-
-### Learning Paths
-
-```
-"Learn [technology] programming tutorial"
-```
-
-- Follows online tutorials
-- Executes code examples
-- Tracks learning progress
+- **Admin chat provider** supplies conversation history for context
+- **Send to admin action** becomes available to message the admin
+- **Regular channels** don't have these capabilities (prevents misuse)
 
 ## Testing
 
-### Run Tests
+The plugin includes comprehensive tests:
 
 ```bash
-# Run all tests including OODA loop tests
-npm test
-
-# Run only E2E tests
-npm run test:e2e
+elizaos test # Runs all plugin tests including autonomy
 ```
 
-### Test Categories
+Tests validate:
+- Service lifecycle (start/stop/interval)
+- Provider context validation (autonomous vs regular rooms)
+- Action validation and execution
+- Admin configuration requirements
 
-1. **Unit Tests**: Component isolation tests
-2. **E2E Tests**: Full OODA loop integration
-3. **Scenario Tests**: Real-world task execution
-4. **Performance Tests**: Resource usage and adaptation
+## Architecture
 
-## Development
-
-### Adding Custom Goals
-
-```typescript
-const customGoals = [
-  {
-    id: generateId(),
-    description: 'Monitor competitor activity',
-    priority: 1,
-    progress: 0,
-    subGoals: [
-      // Optional sub-goals
-    ],
-  },
-];
-
-// Pass in character settings
-const character = {
-  settings: {
-    goals: customGoals,
-  },
-};
+```
+Autonomous Loop (30s default)
+         ↓
+    Autonomous Room
+         ↓
+   Admin Chat Context ← (Provider)
+         ↓
+   Agent Thinking/Actions
+         ↓
+   Send to Admin ← (Action, if needed)
 ```
 
-### Custom Actions
+The agent continuously thinks in its autonomous room, has access to admin conversation history for context, and can proactively message the admin when appropriate.
 
-Implement actions that the OODA loop can execute:
+## Security
 
-```typescript
-const customAction: Action = {
-  name: 'CUSTOM_ANALYSIS',
-  description: 'Performs custom analysis',
-  validate: async (runtime, message) => {
-    // Validation logic
-    return true;
-  },
-  handler: async (runtime, message, state, options, callback) => {
-    // Action implementation
-    callback({
-      text: 'Analysis complete',
-      actions: ['CUSTOM_ANALYSIS'],
-    });
-  },
-};
-```
-
-## Troubleshooting
-
-### Agent Not Making Decisions
-
-- Check if tasks exist with appropriate tags
-- Verify goal configuration
-- Enable DEBUG logging to see OODA phases
-
-### High Resource Usage
-
-- Adjust `AUTONOMOUS_MAX_CONCURRENT`
-- Increase `AUTONOMOUS_LOOP_INTERVAL`
-- Check for resource-intensive actions
-
-### Missing Dependencies
-
-- Ensure required plugins are installed
-- Check for `getTasks` method availability
-- Review error logs for missing methods
-
-## Future Roadmap
-
-- [ ] Web UI for monitoring OODA cycles
-- [ ] Cypress-based frontend testing
-- [ ] Advanced learning algorithms
-- [ ] Multi-agent coordination
-- [ ] Plugin-specific goal templates
-- [ ] Real-time metrics dashboard
-
-## Contributing
-
-Contributions are welcome! Please read our contributing guidelines and submit
-pull requests to our repository.
-
-## License
-
-MIT
+- **Context isolation**: Admin features only work in autonomous room
+- **Validation**: All components validate context before execution
+- **Configuration required**: Admin features require explicit admin user setup
+- **Rate limiting**: Built-in interval limits (5s minimum, 10m maximum)

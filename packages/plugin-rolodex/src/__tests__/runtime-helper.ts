@@ -203,8 +203,8 @@ export async function cleanupRuntime(runtime: IAgentRuntime): Promise<void> {
     if (runtime.services && runtime.services instanceof Map) {
       for (const [name, service] of runtime.services) {
         try {
-          if (service && typeof service.stop === 'function') {
-            await service.stop();
+          if (service && typeof (service as any).stop === 'function') {
+            await (service as any).stop();
           }
         } catch (error) {
           console.error(`Error stopping service ${name}:`, error);
@@ -234,8 +234,8 @@ export function getService<T>(runtime: IAgentRuntime, serviceName: string): T {
   // If still not found, try to find by type
   if (!service && runtime.services) {
     for (const [key, svc] of runtime.services) {
-      if (svc.constructor.name === 'RolodexService' || (key as string) === 'rolodex') {
-        service = svc;
+      if ((svc as any).constructor.name === 'RolodexService' || (key as string) === 'rolodex') {
+        service = svc as any;
         break;
       }
     }

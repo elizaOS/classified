@@ -236,6 +236,7 @@ export const createGoalAction: Action = {
             success: false,
             error: 'Failed to understand goal',
           },
+          success: false,
         };
       }
 
@@ -268,6 +269,7 @@ export const createGoalAction: Action = {
             error: 'Goal limit reached',
             goalCount: activeGoalCount,
           },
+          success: false,
         };
       }
 
@@ -295,6 +297,7 @@ export const createGoalAction: Action = {
             hasSimilar: true,
             similarGoal: similarityCheck.similarGoalName,
           },
+          success: false,
         };
       }
 
@@ -353,6 +356,7 @@ export const createGoalAction: Action = {
           ownerType: goalInfo.ownerType,
           totalGoals: activeGoalCount + 1,
         },
+        success: true,
       };
     } catch (error) {
       logger.error('Error in createGoal handler:', error);
@@ -372,6 +376,7 @@ export const createGoalAction: Action = {
           success: false,
           error: error instanceof Error ? error.message : String(error),
         },
+        success: false,
       };
     }
   },

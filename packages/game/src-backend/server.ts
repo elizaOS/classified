@@ -1,22 +1,28 @@
 import { AgentRuntime, Plugin } from '@elizaos/core';
 import bootstrapPlugin from '@elizaos/plugin-bootstrap';
 import openaiPlugin from '@elizaos/plugin-openai';
-import sqlPlugin from '@elizaos/plugin-sql';
+import sqlPlugin, { createDatabaseAdapter, DatabaseMigrationService } from '@elizaos/plugin-sql';
+import autonomyPlugin from '@elizaos/plugin-autonomy';
+import { shellPlugin } from '@elizaos/plugin-shell';
+import { stagehandPlugin } from '@elizaos/plugin-stagehand';
+import visionPlugin from '@elizaos/plugin-vision';
+import { GoalsPlugin } from '@elizaos/plugin-goals';
+import { TodoPlugin } from '@elizaos/plugin-todo';
+import KnowledgePlugin from '@elizaos/plugin-knowledge';
+import personalityPlugin from '@elizaos/plugin-personality';
+import { experiencePlugin } from '@elizaos/plugin-experience';
 import { AgentServer } from '@elizaos/server';
+import { terminalCharacter } from './terminal-character.js';
+import { gameAPIPlugin } from './game-api-plugin.js';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-// Import commented out - will use a different approach
-// import { internalMessageBus } from '@elizaos/server';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config();
-
-// Store active agent runtimes
-const activeAgents = new Map<string, AgentRuntime>();
 
 // Function to start an agent runtime (following CLI pattern)
 async function startAgent(character: any, server: any) {
@@ -24,18 +30,61 @@ async function startAgent(character: any, server: any) {
   
   try {
     
+    // Create plugin list with all required plugins including our Game API plugin
+    const plugins: Plugin[] = [
+      sqlPlugin,
+      bootstrapPlugin,
+      openaiPlugin as any,
+      autonomyPlugin,
+      shellPlugin,
+      visionPlugin,
+      stagehandPlugin,
+      GoalsPlugin,
+      TodoPlugin,
+      KnowledgePlugin,
+      personalityPlugin,
+      experiencePlugin,
+      gameAPIPlugin  // Our custom API routes plugin
+    ];
+
+    // Create database adapter first
+    const dbAdapter = createDatabaseAdapter({
+      dataDir: process.env.DATABASE_PATH || './.elizadb'
+    }, character.id);
+    
+    await dbAdapter.init();
+    console.log('[AGENT START] Database adapter initialized');
+    
+    // Run migrations BEFORE creating runtime
+    try {
+      const db = dbAdapter.db;
+      console.log('[AGENT START] Running database migrations...');
+      
+      const migrationService = new DatabaseMigrationService();
+      await migrationService.initializeWithDatabase(db);
+      migrationService.discoverAndRegisterPluginSchemas(plugins);
+      await migrationService.runAllPluginMigrations();
+      
+      console.log('[AGENT START] All plugin migrations completed successfully');
+    } catch (error) {
+      console.error('[AGENT START] Failed to run plugin migrations:', error);
+      throw error;
+    }
+
+    // Now create runtime with pre-initialized database
     const runtime = new AgentRuntime({
       character,
-      plugins: [sqlPlugin, bootstrapPlugin, openaiPlugin as any]
-     });
+      plugins
+    });
     
+    // Register the database adapter
+    runtime.registerDatabaseAdapter(dbAdapter);
+    
+    // Initialize runtime (tables already exist)
     await runtime.initialize();
     
     // Register the runtime with the server
     server.registerAgent(runtime);
-    
-    // Store the runtime
-    activeAgents.set(runtime.agentId, runtime);
     
     console.log('[AGENT START] ✅ Agent started successfully:', runtime.agentId);
     return runtime;
@@ -45,25 +94,12 @@ async function startAgent(character: any, server: any) {
   }
 }
 
-// Function to stop an agent runtime
-async function stopAgent(runtime: AgentRuntime, server: any) {
-  console.log('[AGENT STOP] Stopping agent:', runtime.agentId);
-  
-  // Remove from active agents
-  activeAgents.delete(runtime.agentId);
-  
-  // Unregister from server
-  server.unregisterAgent(runtime.agentId);
-  
-  console.log('[AGENT STOP] ✅ Agent stopped successfully');
-}
-
 async function startServer() {
   try {
     console.log('[BACKEND] Initializing ElizaOS Terminal Server...');
 
     // Ensure data directory exists
-    const dataDir = path.join(__dirname, '..', '..', 'data');
+    const dataDir = path.join(__dirname, '..', 'data');
     await fs.mkdir(dataDir, { recursive: true });
 
     // Create server instance
@@ -75,51 +111,46 @@ async function startServer() {
       postgresUrl: undefined, // Use PGLite
     });
 
-    // Add startAgent and stopAgent methods to match CLI pattern
-    (server as any).startAgent = (character: any) => startAgent(character, server);
-    (server as any).stopAgent = (runtime: AgentRuntime) => stopAgent(runtime, server);
-
     console.log('[BACKEND] Server initialized with PGLite database');
+
+    // API routes are now handled by the gameAPIPlugin which is registered with the agent
 
     // Start the server
     const port = process.env.PORT || 3000;
     await server.start(Number(port));
 
-    console.log('[BACKEND] Server started on port ' + port);
+    console.log('[BACKEND] ✅ Server started on port ' + port);
     console.log('[BACKEND] Server running at http://localhost:' + port);
 
-    // Directly load and start default agent
-    const characterPath = path.join(__dirname, '..', 'terminal-character.json');
-    const characterData = await fs.readFile(characterPath, 'utf-8');
-    const character = JSON.parse(characterData);
-
-    // Ensure required plugins are included (preserve existing plugins)
-    const requiredPlugins = [
-      '@elizaos/plugin-sql'
-    ];
-    
-    // Add required plugins if not already present
-    character.plugins = character.plugins || [];
-    for (const plugin of requiredPlugins) {
-      if (!character.plugins.includes(plugin)) {
-        character.plugins.push(plugin);
-      }
-    }
-
+    // Now start the agent
     console.log('[BACKEND] Starting default Terminal agent...');
+    const character = terminalCharacter;
     const runtime = await startAgent(character, server);
     console.log('[BACKEND] ✅ Terminal agent started successfully!');
+
+    // Test that our APIs are working
+    setTimeout(async () => {
+      try {
+        console.log('[BACKEND] Testing API endpoints...');
+        
+        const healthResponse = await fetch(`http://localhost:${port}/api/server/health`);
+        console.log(`[BACKEND] Health check: ${healthResponse.ok ? '✅' : '❌'} (${healthResponse.status})`);
+        
+        const goalsResponse = await fetch(`http://localhost:${port}/api/goals`);
+        console.log(`[BACKEND] Goals API: ${goalsResponse.ok ? '✅' : '❌'} (${goalsResponse.status})`);
+        
+        const autonomyResponse = await fetch(`http://localhost:${port}/autonomy/status`);
+        console.log(`[BACKEND] Autonomy API: ${autonomyResponse.ok ? '✅' : '❌'} (${autonomyResponse.status})`);
+        
+        console.log('[BACKEND] API endpoint testing complete');
+      } catch (error) {
+        console.error('[BACKEND] API endpoint test failed:', error);
+      }
+    }, 2000);
 
     // Handle graceful shutdown
     process.on('SIGINT', async () => {
       console.log('\n[BACKEND] Shutting down server...');
-      
-      // Stop all agent runtimes
-      for (const [agentId, runtime] of activeAgents) {
-        console.log(`[BACKEND] Stopping agent runtime: ${agentId}`);
-        await stopAgent(runtime, server);
-      }
-      
       await server.stop();
       process.exit(0);
     });

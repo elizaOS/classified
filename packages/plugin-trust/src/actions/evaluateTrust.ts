@@ -76,6 +76,7 @@ export const evaluateTrustAction: Action = {
             success: false,
             entityFound: false,
           },
+          success: false,
         };
       }
     } else {
@@ -128,6 +129,7 @@ Last Updated: ${new Date(trustProfile.lastUpdated).toLocaleString()}`,
             trustScore: trustProfile.overall,
             confidence: trustProfile.confidence,
           },
+          success: true,
         };
       } else {
         const trustLevel =
@@ -142,7 +144,9 @@ Last Updated: ${new Date(trustProfile.lastUpdated).toLocaleString()}`,
                   : 'Very Low';
 
         return {
-          text: `Trust Level: ${trustLevel} (${trustProfile.overall}/100)`,
+          text: `Trust Level: ${trustLevel} (${trustProfile.overall}/100) with ${
+            (trustProfile.confidence * 100).toFixed(0)
+          }% confidence`,
           data: {
             actionName: 'EVALUATE_TRUST',
             entityId: targetEntityId,
@@ -156,6 +160,7 @@ Last Updated: ${new Date(trustProfile.lastUpdated).toLocaleString()}`,
             trustLevel,
             confidence: trustProfile.confidence,
           },
+          success: true,
         };
       }
     } catch (error) {
@@ -169,6 +174,7 @@ Last Updated: ${new Date(trustProfile.lastUpdated).toLocaleString()}`,
         values: {
           success: false,
         },
+        success: false,
       };
     }
   },

@@ -111,6 +111,7 @@ Return format:
       }
 
       return {
+        success: true,
         text: responseText,
         data: {
           entityId,
@@ -129,6 +130,7 @@ Return format:
       }
 
       return {
+        success: false,
         text: errorMsg,
         data: { error: (error as Error).message },
       };

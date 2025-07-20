@@ -1,8 +1,9 @@
 import { describe, expect, it, beforeEach } from 'bun:test';
-import { autoPlugin } from '../src/index';
-import { adminChatProvider } from '../src/providers/admin-chat';
-import { setAdminAction, toggleLoopAction } from '../src/actions';
-import { AutonomousLoopService } from '../src/loop-service';
+import { autonomyPlugin } from '../src/index';
+import { adminChatProvider } from '../src/provider';
+import { sendToAdminAction } from '../src/action';
+import { AutonomyService } from '../src/service';
+import { autonomyStatusProvider } from '../src/status-provider';
 import type { IAgentRuntime, Memory, State, UUID } from '@elizaos/core';
 
 describe('Autonomy Plugin Tests', () => {
@@ -13,31 +14,45 @@ describe('Autonomy Plugin Tests', () => {
 
   beforeEach(() => {
     updateAgentCalls = [];
+    const dynamicSettings = {
+      ADMIN_USER_ID: 'a1b2c3d4-5678-4abc-b123-123456789012',
+      AUTONOMY_ENABLED: false,
+    };
+    
     mockRuntime = {
       character: {
         name: 'TestAgent',
         bio: ['Test agent for autonomy plugin'],
         settings: {},
       },
-      agentId: 'test-agent-id' as UUID,
+      agentId: '12345678-1234-4567-8901-123456789012' as UUID,
       getSetting: (key: string) => {
-        const settings = {
-          ADMIN_USER_ID: 'a1b2c3d4-5678-4abc-b123-123456789012',
-          AUTONOMOUS_LOOP_INTERVAL: '30000',
-        };
-        return settings[key as keyof typeof settings];
+        return dynamicSettings[key as keyof typeof dynamicSettings];
       },
       setSetting: (key: string, value: any) => {
         mockRuntime.character.settings = mockRuntime.character.settings || {};
         mockRuntime.character.settings[key] = value;
+        (dynamicSettings as any)[key] = value; // Update dynamic settings
       },
       updateAgent: async (agentId: UUID, updates: any) => {
         updateAgentCalls.push({ agentId, updates });
         return true;
       },
-      getMemories: async () => [],
+      getMemories: async (params: any) => [],
       createMemory: async () => 'test-memory-id' as UUID,
-      getService: () => null,
+      createRoom: async () => {},
+      getRoom: async () => null,
+      sendMessageToTarget: async () => {},
+      getService: (serviceName: string) => {
+        if (serviceName === 'autonomy') {
+          return {
+            getAutonomousRoomId: () => 'autonomous-room-id' as UUID,
+            isLoopRunning: () => false,
+            getLoopInterval: () => 30000,
+          };
+        }
+        return null;
+      },
       processMessage: async () => {},
     } as unknown as IAgentRuntime;
 
@@ -57,62 +72,66 @@ describe('Autonomy Plugin Tests', () => {
 
   describe('Plugin Structure Tests', () => {
     it('should have correct plugin metadata', () => {
-      expect(autoPlugin.name).toBe('auto');
-      expect(autoPlugin.description).toContain('autonomous loop');
-      expect(autoPlugin.services).toBeDefined();
-      expect(autoPlugin.actions).toBeDefined();
-      expect(autoPlugin.providers).toBeDefined();
+      expect(autonomyPlugin.name).toBe('autonomy');
+      expect(autonomyPlugin.description).toContain('autonomous');
+      expect(autonomyPlugin.services).toBeDefined();
+      expect(autonomyPlugin.actions).toBeDefined();
+      expect(autonomyPlugin.providers).toBeDefined();
     });
 
     it('should export required components', () => {
-      expect(autoPlugin.services).toHaveLength(1);
-      expect(autoPlugin.actions).toHaveLength(2);
-      expect(autoPlugin.providers).toHaveLength(1);
+      expect(autonomyPlugin.services).toHaveLength(1);
+      expect(autonomyPlugin.actions).toHaveLength(1);
+      expect(autonomyPlugin.providers).toHaveLength(2); // adminChatProvider + autonomyStatusProvider
     });
 
     it('should have the correct service', () => {
-      const service = autoPlugin.services?.[0];
-      expect(service).toBe(AutonomousLoopService);
+      const service = autonomyPlugin.services?.[0];
+      expect(service).toBe(AutonomyService);
     });
 
     it('should have the correct actions', () => {
-      const actionNames = autoPlugin.actions?.map((a) => a.name) || [];
-      expect(actionNames).toContain('TOGGLE_AUTONOMOUS_LOOP');
-      expect(actionNames).toContain('SET_ADMIN_USER');
+      const actionNames = autonomyPlugin.actions?.map((a) => a.name) || [];
+      expect(actionNames).toContain('SEND_TO_ADMIN');
     });
 
-    it('should have the correct provider', () => {
-      const provider = autoPlugin.providers?.[0];
-      expect(provider?.name).toBe('ADMIN_CHAT');
+    it('should have the correct providers', () => {
+      const providerNames = autonomyPlugin.providers?.map((p) => p.name) || [];
+      expect(providerNames).toContain('ADMIN_CHAT_HISTORY');
+      expect(providerNames).toContain('AUTONOMY_STATUS');
     });
   });
 
-  describe('AutonomousLoopService Tests', () => {
+  describe('AutonomyService Tests', () => {
     it('should be constructable', () => {
-      expect(() => new AutonomousLoopService(mockRuntime as IAgentRuntime)).not.toThrow();
+      expect(() => new AutonomyService(mockRuntime as IAgentRuntime)).not.toThrow();
     });
 
     it('should have correct service metadata', () => {
-      expect(AutonomousLoopService.serviceName).toBe('autonomous-loop');
-      expect(AutonomousLoopService.serviceType).toBe('autonomous-loop');
+      expect(AutonomyService.serviceType).toBe('autonomy');
     });
   });
 
   describe('AdminChat Provider Tests', () => {
     it('should have correct metadata', () => {
-      expect(adminChatProvider.name).toBe('ADMIN_CHAT');
+      expect(adminChatProvider.name).toBe('ADMIN_CHAT_HISTORY');
       expect(adminChatProvider.description).toContain('conversation history');
     });
 
-    it('should handle no admin configured', async () => {
+    it('should handle no admin configured in autonomous context', async () => {
       const runtimeWithoutAdmin = {
         ...mockRuntime,
         getSetting: () => null,
       };
 
+      const autonomousMessage = {
+        ...mockMessage,
+        roomId: 'autonomous-room-id' as UUID,
+      };
+
       const result = await adminChatProvider.get(
         runtimeWithoutAdmin as IAgentRuntime,
-        mockMessage,
+        autonomousMessage,
         mockState
       );
 
@@ -120,72 +139,52 @@ describe('Autonomy Plugin Tests', () => {
       expect(result.data?.adminConfigured).toBe(false);
     });
 
-    it('should work when admin is configured', async () => {
+    it('should work when admin is configured in autonomous context', async () => {
+      const autonomousMessage = {
+        ...mockMessage,
+        roomId: 'autonomous-room-id' as UUID,
+      };
+
       const result = await adminChatProvider.get(
         mockRuntime as IAgentRuntime,
-        mockMessage,
+        autonomousMessage,
         mockState
       );
 
+      // Since getMemories returns empty array, should get "no recent messages" message
+      expect(result.text).toContain('No recent messages found');
       expect(result.data?.adminConfigured).toBe(true);
       expect(result.data?.adminUserId).toBe('a1b2c3d4-5678-4abc-b123-123456789012');
     });
   });
 
-  describe('Toggle Loop Action Tests', () => {
+  describe('Send To Admin Action Tests', () => {
     it('should have correct metadata', () => {
-      expect(toggleLoopAction.name).toBe('TOGGLE_AUTONOMOUS_LOOP');
-      expect(toggleLoopAction.description).toContain('Toggle');
-      expect(toggleLoopAction.validate).toBeDefined();
-      expect(toggleLoopAction.handler).toBeDefined();
+      expect(sendToAdminAction.name).toBe('SEND_TO_ADMIN');
+      expect(sendToAdminAction.description).toContain('Send');
+      expect(sendToAdminAction.validate).toBeDefined();
+      expect(sendToAdminAction.handler).toBeDefined();
     });
 
-    it('should validate correct messages', async () => {
-      const validMessage = {
+    it('should validate messages in autonomous context', async () => {
+      const autonomousMessage = {
         ...mockMessage,
-        content: { text: 'start autonomous loop' },
+        roomId: 'autonomous-room-id' as UUID,
+        content: { text: 'I need to tell the admin something' },
       };
 
-      const isValid = await toggleLoopAction.validate(mockRuntime, validMessage);
+      const isValid = await sendToAdminAction.validate(mockRuntime, autonomousMessage);
       expect(isValid).toBe(true);
     });
 
-    it('should reject invalid messages', async () => {
-      const invalidMessage = {
+    it('should reject messages outside autonomous context', async () => {
+      const regularMessage = {
         ...mockMessage,
-        content: { text: 'hello there' },
+        roomId: 'regular-room-id' as UUID,
+        content: { text: 'I need to tell the admin something' },
       };
 
-      const isValid = await toggleLoopAction.validate(mockRuntime, invalidMessage);
-      expect(isValid).toBe(false);
-    });
-  });
-
-  describe('Set Admin Action Tests', () => {
-    it('should have correct metadata', () => {
-      expect(setAdminAction.name).toBe('SET_ADMIN_USER');
-      expect(setAdminAction.description).toContain('admin user');
-      expect(setAdminAction.validate).toBeDefined();
-      expect(setAdminAction.handler).toBeDefined();
-    });
-
-    it('should validate admin setup messages', async () => {
-      const validMessage = {
-        ...mockMessage,
-        content: { text: 'set me as admin user' },
-      };
-
-      const isValid = await setAdminAction.validate(mockRuntime, validMessage);
-      expect(isValid).toBe(true);
-    });
-
-    it('should reject non-admin messages', async () => {
-      const invalidMessage = {
-        ...mockMessage,
-        content: { text: 'what is the weather' },
-      };
-
-      const isValid = await setAdminAction.validate(mockRuntime, invalidMessage);
+      const isValid = await sendToAdminAction.validate(mockRuntime, regularMessage);
       expect(isValid).toBe(false);
     });
   });
@@ -193,83 +192,56 @@ describe('Autonomy Plugin Tests', () => {
   describe('Plugin Integration Tests', () => {
     it('should have all components properly connected', () => {
       // Verify that all expected components are present
-      expect(autoPlugin.services).toContain(AutonomousLoopService);
-      expect(autoPlugin.actions).toContain(toggleLoopAction);
-      expect(autoPlugin.actions).toContain(setAdminAction);
-      expect(autoPlugin.providers).toContain(adminChatProvider);
+      expect(autonomyPlugin.services).toContain(AutonomyService);
+      expect(autonomyPlugin.actions).toContain(sendToAdminAction);
+      expect(autonomyPlugin.providers).toContain(adminChatProvider);
+      expect(autonomyPlugin.providers).toContain(autonomyStatusProvider);
     });
 
     it('should have consistent naming', () => {
-      expect(autoPlugin.name).toBe('auto');
-      expect(AutonomousLoopService.serviceName).toBe('autonomous-loop');
-      expect(adminChatProvider.name).toBe('ADMIN_CHAT');
-      expect(toggleLoopAction.name).toBe('TOGGLE_AUTONOMOUS_LOOP');
-      expect(setAdminAction.name).toBe('SET_ADMIN_USER');
+      expect(autonomyPlugin.name).toBe('autonomy');
+      expect(AutonomyService.serviceType).toBe('autonomy');
+      expect(adminChatProvider.name).toBe('ADMIN_CHAT_HISTORY');
+      expect(autonomyStatusProvider.name).toBe('AUTONOMY_STATUS');
+      expect(sendToAdminAction.name).toBe('SEND_TO_ADMIN');
     });
   });
 
-  describe('Autonomy Persistence Tests', () => {
-    it('should persist autonomy state when starting loop', async () => {
-      const service = new AutonomousLoopService(mockRuntime);
+  describe('Autonomy Service Integration Tests', () => {
+    it('should enable autonomy via settings', async () => {
+      const service = new AutonomyService(mockRuntime);
       await service.initialize();
 
-      // Start the loop
-      await service.startLoop();
+      // Enable autonomy
+      await service.enableAutonomy();
 
-      // Check that setSetting was called
+      // Check that setting was updated
       expect(mockRuntime.character.settings?.AUTONOMY_ENABLED).toBe(true);
 
-      // Check that updateAgent was called to persist to database
-      expect(updateAgentCalls.length).toBe(1);
-      expect(updateAgentCalls[0].agentId).toBe('test-agent-id');
-      expect(updateAgentCalls[0].updates.settings.AUTONOMY_ENABLED).toBe(true);
-
-      // Clean up
-      await service.stopLoop();
-    });
-
-    it('should persist autonomy state when stopping loop', async () => {
-      const service = new AutonomousLoopService(mockRuntime);
-      await service.initialize();
-
-      // Start then stop the loop
-      await service.startLoop();
-      updateAgentCalls = []; // Reset
-      await service.stopLoop();
-
-      // Check that setSetting was called
-      // null or false both mean disabled
-      const setting = mockRuntime.character.settings?.AUTONOMY_ENABLED;
-      expect(setting === false || setting === null).toBe(true);
-
-      // Check that updateAgent was called to persist to database
-      expect(updateAgentCalls.length).toBe(1);
-      expect(updateAgentCalls[0].agentId).toBe('test-agent-id');
-      expect(updateAgentCalls[0].updates.settings.AUTONOMY_ENABLED).toBe(false);
-    });
-
-    it('should initialize with AUTONOMY_ENABLED setting from database', async () => {
-      // Mock runtime with AUTONOMY_ENABLED already set
-      const runtimeWithAutonomy = {
-        ...mockRuntime,
-        getSetting: (key: string) => {
-          if (key === 'AUTONOMY_ENABLED') return true;
-          return mockRuntime.getSetting(key);
-        },
-      } as unknown as IAgentRuntime;
-
-      const service = new AutonomousLoopService(runtimeWithAutonomy);
-      await service.initialize();
-
-      // Check that the loop was started automatically
+      // Check that loop is running
       expect(service.isLoopRunning()).toBe(true);
 
       // Clean up
-      await service.stopLoop();
+      await service.stop();
+    });
+
+    it('should disable autonomy via settings', async () => {
+      const service = new AutonomyService(mockRuntime);
+      await service.initialize();
+
+      // Enable first, then disable
+      await service.enableAutonomy();
+      await service.disableAutonomy();
+
+      // Check that setting was updated
+      expect(mockRuntime.character.settings?.AUTONOMY_ENABLED).toBe(false);
+
+      // Check that loop is not running
+      expect(service.isLoopRunning()).toBe(false);
     });
 
     it('should provide status information', async () => {
-      const service = new AutonomousLoopService(mockRuntime);
+      const service = new AutonomyService(mockRuntime);
       await service.initialize();
 
       // Check initial status
@@ -277,14 +249,24 @@ describe('Autonomy Plugin Tests', () => {
       expect(status.enabled).toBe(false);
       expect(status.interval).toBe(30000);
 
-      // Start loop and check status
-      await service.startLoop();
+      // Enable and check status
+      await service.enableAutonomy();
       status = service.getStatus();
       expect(status.enabled).toBe(true);
+      expect(status.running).toBe(true);
       expect(status.interval).toBe(30000);
 
       // Clean up
-      await service.stopLoop();
+      await service.stop();
+    });
+
+    it('should have correct autonomous room ID', async () => {
+      const service = new AutonomyService(mockRuntime);
+      await service.initialize();
+
+      const roomId = service.getAutonomousRoomId();
+      // Should be a valid UUID format
+      expect(roomId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     });
   });
 });

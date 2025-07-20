@@ -1,7 +1,7 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { createGoalAction } from '../actions/createGoal';
 import { completeGoalAction } from '../actions/completeGoal';
-import { createMockRuntime } from '@elizaos/core/test-utils';
+import { createMockRuntime } from './test-utils';
 import type { IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
 
 describe('Goal Action Handlers', () => {

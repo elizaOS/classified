@@ -36,6 +36,7 @@ export function useElizaClient({
   const serviceRef = useRef<ElizaService | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const userIdRef = useRef<string>(userId || uuidv4());
+  const connectionStateRef = useRef<'disconnected' | 'connecting' | 'connected'>('disconnected');
 
   // Initialize service
   useEffect(() => {
@@ -46,20 +47,50 @@ export function useElizaClient({
 
   // Connect to WebSocket
   useEffect(() => {
-    // Prevent multiple connections
-    if (socketRef.current?.connected) {
-      console.log('[ElizaClient] Socket already connected, skipping');
+    // Skip WebSocket connection if disabled (for testing)
+    if (typeof window !== 'undefined' && localStorage.getItem('disableWebSocket') === 'true') {
+      console.log('[ElizaClient] WebSocket disabled by localStorage flag');
       return;
     }
 
-    // Connect to WebSocket
-    const socket = io(baseUrl, {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
-    });
+    // Add a debounce delay to prevent rapid connect/disconnect cycles
+    let connectTimeout: NodeJS.Timeout;
+    let isCleanedUp = false;
 
-          socketRef.current = socket;
+    // Prevent multiple connections
+    if (socketRef.current) {
+      console.log('[ElizaClient] Socket already exists, cleaning up first');
+      socketRef.current.disconnect();
+      socketRef.current = null;
+      connectionStateRef.current = 'disconnected';
+    }
+
+    // Check if we're already in the process of connecting
+    if (connectionStateRef.current === 'connecting') {
+      console.log('[ElizaClient] Connection already in progress, skipping');
+      return;
+    }
+
+    connectionStateRef.current = 'connecting';
+
+    // Debounce connection attempts to avoid rapid cycling
+    connectTimeout = setTimeout(() => {
+      if (isCleanedUp || connectionStateRef.current !== 'connecting') return;
+
+      console.log('[ElizaClient] Creating new socket connection');
+      
+      // Connect to WebSocket with rate limit-friendly settings
+      const socket = io(baseUrl, {
+        reconnection: true,
+        reconnectionDelay: 5000, // Increased from 2000 to avoid rate limiting
+        reconnectionDelayMax: 30000, // Max delay between reconnection attempts
+        reconnectionAttempts: 5, // Increased from 3
+        timeout: 20000, // Increased from 10000
+        forceNew: true, // Force new connection to avoid reusing stale connections
+        transports: ['websocket'], // Use only websocket transport
+      });
+
+      socketRef.current = socket;
 
       // Add debugging for all socket events
       socket.onAny((eventName, ...args) => {
@@ -73,32 +104,42 @@ export function useElizaClient({
       });
 
       socket.on('connect', () => {
-      console.log('[ElizaClient] Connected to WebSocket');
-      setIsConnected(true);
-      onConnectionChange?.(true);
-    });
+        console.log('[ElizaClient] Connected to WebSocket');
+        connectionStateRef.current = 'connected';
+        setIsConnected(true);
+        onConnectionChange?.(true);
+      });
 
-    socket.on('disconnect', () => {
-      console.log('[ElizaClient] WebSocket disconnected');
-      setIsConnected(false);
-      onConnectionChange?.(false);
-    });
+      socket.on('disconnect', () => {
+        console.log('[ElizaClient] WebSocket disconnected');
+        connectionStateRef.current = 'disconnected';
+        setIsConnected(false);
+        onConnectionChange?.(false);
+      });
 
-    socket.on('error', (error) => {
-      console.error('[ElizaClient] WebSocket error:', error);
-      setError(error.toString());
-    });
+      socket.on('error', (error) => {
+        console.error('[ElizaClient] WebSocket error:', error);
+        connectionStateRef.current = 'disconnected';
+        setError(error.toString());
+      });
 
-    // Add connection error handler
-    socket.on('connect_error', (error) => {
-      console.error('[ElizaClient] WebSocket connection error:', error.message);
-      setError(`Connection error: ${error.message}`);
-    });
+      // Add connection error handler
+      socket.on('connect_error', (error) => {
+        console.error('[ElizaClient] WebSocket connection error:', error.message);
+        connectionStateRef.current = 'disconnected';
+        setError(`Connection error: ${error.message}`);
+      });
+    }, 2000); // Increased debounce delay to 2 seconds
 
     return () => {
       console.log('[ElizaClient] Cleaning up socket connection');
-      socket.disconnect();
-      socketRef.current = null;
+      isCleanedUp = true;
+      clearTimeout(connectTimeout);
+      connectionStateRef.current = 'disconnected';
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
   }, [baseUrl, onConnectionChange]);
 
@@ -112,6 +153,9 @@ export function useElizaClient({
         setError(null);
 
         const service = serviceRef.current!;
+        
+        // Add a delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Get or create DM channel
         const channel = await service.getOrCreateDmChannel();

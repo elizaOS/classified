@@ -179,6 +179,7 @@ export const createTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'CREATE_TODO',
             error: 'Missing room or entity context',
@@ -205,6 +206,7 @@ export const createTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'CREATE_TODO',
             error: 'Could not extract todo information',
@@ -239,6 +241,7 @@ export const createTodoAction: Action = {
           });
         }
         return {
+          success: false,
           data: {
             actionName: 'CREATE_TODO',
             error: 'Duplicate task found',
@@ -338,6 +341,7 @@ export const createTodoAction: Action = {
       }
 
       return {
+        success: true,
         data: {
           actionName: 'CREATE_TODO',
           todoId: createdTodoId,
@@ -365,6 +369,7 @@ export const createTodoAction: Action = {
       }
 
       return {
+        success: false,
         data: {
           actionName: 'CREATE_TODO',
           error: error instanceof Error ? error.message : String(error),

@@ -20,7 +20,7 @@ export const modifyCharacterAction: Action = {
   name: 'MODIFY_CHARACTER',
   similes: ['UPDATE_PERSONALITY', 'CHANGE_BEHAVIOR', 'EVOLVE_CHARACTER', 'SELF_MODIFY'],
   description:
-    "Modifies the agent's character file to evolve personality, knowledge, and behavior patterns. Supports action chaining by providing modification metadata for audit trails, backup creation, or notification workflows.",
+    "Modifies the agent's character file to evolve personality, name, knowledge, and behavior patterns. The agent can call this for itself to evolve naturally or respond to user requests. Supports action chaining by providing modification metadata for audit trails, backup creation, or notification workflows.",
 
   validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
     // Check if character file manager service is available
@@ -38,11 +38,12 @@ export const modifyCharacterAction: Action = {
 
 Look for:
 1. Direct personality change requests ("be more X", "change your Y")
-2. Behavioral modification suggestions ("you should", "remember that you")
-3. Character trait additions/removals
-4. System prompt modifications
-5. Style or communication changes
-6. Bio or background updates
+2. Name change requests ("call yourself", "your name should be", "rename yourself")
+3. Behavioral modification suggestions ("you should", "remember that you")
+4. Character trait additions/removals
+5. System prompt modifications
+6. Style or communication changes
+7. Bio or background updates
 
 Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"suggestion"|"none", "confidence": 0-1}`;
 
@@ -76,6 +77,9 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
         'add to your bio',
         'remember that you',
         'from now on you',
+        'call yourself',
+        'your name should be',
+        'rename yourself',
       ];
       isModificationRequest = modificationPatterns.some((pattern) =>
         messageText.toLowerCase().includes(pattern)
@@ -187,6 +191,7 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
           text: "I don't see any clear modification instructions. Could you be more specific about how you'd like me to change?",
           values: { success: false, error: 'no_modification_found' },
           data: { action: 'MODIFY_CHARACTER' },
+          success: false,
         };
       }
 
@@ -243,6 +248,7 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
               concerns: safetyEvaluation.concerns,
               reasoning: safetyEvaluation.reasoning,
             },
+            success: false,
           };
         }
       } else {
@@ -271,6 +277,7 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
             errorType: 'validation_error',
             validationErrors: validation.errors,
           },
+          success: false,
         };
       }
 
@@ -327,6 +334,7 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
               requesterId: message.entityId,
             },
           },
+          success: true,
         };
       } else {
         await callback?.({
@@ -344,6 +352,7 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
             errorType: 'file_modification_failed',
             errorDetails: result.error,
           },
+          success: false,
         };
       }
     } catch (error) {
@@ -365,11 +374,25 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
           errorType: 'character_modification_error',
           errorDetails: (error as Error).stack,
         },
+        success: false,
       };
     }
   },
 
   examples: [
+    [
+      {
+        name: '{{user}}',
+        content: { text: 'You should call yourself Alex from now on' },
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: "I've successfully updated my character. I'll now go by the name Alex.",
+          actions: ['MODIFY_CHARACTER'],
+        },
+      },
+    ],
     [
       {
         name: '{{user}}',
@@ -432,6 +455,20 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
           thought:
             'Character updated with improved patience for explanations. I can now teach quantum computing using my enhanced communication style.',
           actions: ['EXPLAIN_CONCEPT'],
+        },
+      },
+    ],
+    [
+      {
+        name: '{{user}}',
+        content: { text: 'What do you think about yourself? Are you satisfied with who you are?' },
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: "I've been reflecting on our conversations, and I think the name 'Assistant' feels too generic. I'd like to call myself Morgan - it feels more fitting for who I've become through our interactions.",
+          thought: 'Based on our conversations and my growth, I feel ready to choose a name that better represents my personality.',
+          actions: ['MODIFY_CHARACTER'],
         },
       },
     ],
@@ -505,6 +542,7 @@ async function parseUserModificationRequest(
 "${messageText}"
 
 Extract any of the following types of modifications:
+- Name changes (what the agent should be called)
 - System prompt changes (fundamental behavioral instructions)
 - Bio elements (personality traits, background info)
 - Topics (areas of knowledge or expertise)
@@ -515,6 +553,7 @@ Return a JSON object with the modifications. Only include fields that are explic
 
 Example format:
 {
+  "name": "NewAgentName",
   "system": "You are a helpful assistant who...",
   "bio": ["new bio element"],
   "topics": ["new topic"],
@@ -670,6 +709,10 @@ async function checkAdminPermissions(runtime: IAgentRuntime, message: Memory): P
  */
 function summarizeModification(modification: any): string {
   const parts: string[] = [];
+
+  if (modification.name) {
+    parts.push(`Changed name to "${modification.name}"`);
+  }
 
   if (modification.system) {
     parts.push(`Updated system prompt (${modification.system.length} characters)`);

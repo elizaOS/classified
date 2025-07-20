@@ -1,17 +1,19 @@
+// FIXME: @elizaos/core/test-utils not properly exported in build - commenting out imports until core issue is resolved
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { TodoPlugin } from '../index';
 import { createTodoDataService } from '../services/todoDataService';
 import { TodoReminderService } from '../services/reminderService';
 import { TodoIntegrationBridge } from '../services/integrationBridge';
-import { createMockRuntime } from '@elizaos/core/test-utils';
+import { createMockRuntime } from './test-utils';
 
 // Mock runtime for testing
 // @ts-ignore - test mock
 const mockRuntime = createMockRuntime({
   db: null, // Will be skipped in services
   getService: () => null,
+  // @ts-ignore - simplified for testing
   useModel: () => Promise.resolve('Mock response'),
-  composeState: () => Promise.resolve({ data: {} }),
+  composeState: () => Promise.resolve({ values: {}, text: '', data: {} }),
   getRoom: () => Promise.resolve(null),
   emitEvent: () => Promise.resolve(),
 });

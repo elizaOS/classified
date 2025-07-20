@@ -101,20 +101,20 @@ export const realRelationshipInferenceTests: TestSuite = {
           }
 
           // Verify relationship type was inferred
-          if (!relationship.relationshipType) {
+          if (!relationship.metadata?.relationshipType) {
             throw new Error('Relationship type not determined');
           }
-          console.log(`✓ Inferred relationship type: ${relationship.relationshipType}`);
+          console.log(`✓ Inferred relationship type: ${relationship.metadata.relationshipType}`);
 
           // Check strength calculation
           if (
-            relationship.strength === undefined ||
-            relationship.strength < 0 ||
-            relationship.strength > 100
+            relationship.metadata?.strength === undefined ||
+            (relationship.metadata.strength as number) < 0 ||
+            (relationship.metadata.strength as number) > 100
           ) {
-            throw new Error(`Invalid relationship strength: ${relationship.strength}`);
+            throw new Error(`Invalid relationship strength: ${relationship.metadata?.strength}`);
           }
-          console.log(`✓ Calculated strength: ${relationship.strength}%`);
+          console.log(`✓ Calculated strength: ${relationship.metadata.strength}%`);
 
           // Verify sentiment analysis if expected
           if (
@@ -131,19 +131,19 @@ export const realRelationshipInferenceTests: TestSuite = {
           }
 
           // Test-specific validations
-          if (test.expectedType && relationship.relationshipType !== test.expectedType) {
+          if (test.expectedType && relationship.metadata?.relationshipType !== test.expectedType) {
             console.log(
-              `⚠️ Expected type "${test.expectedType}" but got "${relationship.relationshipType}"`
+              `⚠️ Expected type "${test.expectedType}" but got "${relationship.metadata.relationshipType}"`
             );
             // This is a warning, not a failure - LLM might choose different but valid types
           }
 
           if (
             test.expectedStrength &&
-            Math.abs(relationship.strength - test.expectedStrength) > 30
+            Math.abs((relationship.metadata?.strength as number) - test.expectedStrength) > 30
           ) {
             console.log(
-              `⚠️ Expected strength ~${test.expectedStrength} but got ${relationship.strength}`
+              `⚠️ Expected strength ~${test.expectedStrength} but got ${relationship.metadata?.strength}`
             );
           }
         }
@@ -229,9 +229,9 @@ export const realRelationshipInferenceTests: TestSuite = {
           }
 
           console.log(
-            `✓ Detected relationship type: ${relationship.relationshipType || 'unknown'}`
+            `✓ Detected relationship type: ${relationship.metadata?.relationshipType || 'unknown'}`
           );
-          console.log(`✓ Strength: ${relationship.strength || 0}%`);
+          console.log(`✓ Strength: ${relationship.metadata?.strength || 0}%`);
 
           // Check if metadata captures complexity
           if (relationship.metadata) {
@@ -243,7 +243,7 @@ export const realRelationshipInferenceTests: TestSuite = {
           }
 
           // Verify the relationship captures nuance
-          if (!relationship.relationshipType || relationship.strength === 0) {
+          if (!relationship.metadata?.relationshipType || relationship.metadata?.strength === 0) {
             throw new Error('Complex relationship not properly analyzed');
           }
         }
@@ -332,8 +332,8 @@ export const realRelationshipInferenceTests: TestSuite = {
             throw new Error('Failed to update relationship');
           }
 
-          console.log(`✓ Relationship type: ${relationship.relationshipType || 'unknown'}`);
-          const currentStrength = relationship.strength || 0;
+          console.log(`✓ Relationship type: ${relationship.metadata?.relationshipType || 'unknown'}`);
+          const currentStrength = (relationship.metadata?.strength as number) || 0;
           console.log(`✓ Current strength: ${currentStrength}%`);
 
           // Verify strength is in expected range
@@ -366,7 +366,7 @@ export const realRelationshipInferenceTests: TestSuite = {
           throw new Error('Final relationship not found');
         }
 
-        const finalStrength = isabelRelationship.strength || 0;
+        const finalStrength = (isabelRelationship.metadata?.strength as number) || 0;
         if (finalStrength < 70) {
           throw new Error('Expected strong final relationship after positive resolution');
         }

@@ -1,93 +1,41 @@
-import { type Route, type IAgentRuntime } from '@elizaos/core';
-import { AutonomousLoopService } from './loop-service.js';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import type { Route } from '@elizaos/core';
 
-// Define the equivalent of __dirname for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Resolve the path to the frontend distribution directory
-const frontendDist = path.resolve(__dirname, '../dist');
-const assetsPath = path.resolve(frontendDist, 'assets');
-
+/**
+ * Simple API routes for controlling autonomy via settings
+ */
 export const autonomyRoutes: Route[] = [
-  // Frontend UI routes
-  {
-    path: '/autonomy',
-    type: 'GET',
-    public: true,
-    name: 'Autonomy UI',
-    handler: async (_req: any, res: any, _runtime: IAgentRuntime) => {
-      const indexPath = path.resolve(frontendDist, 'index.html');
-      if (fs.existsSync(indexPath)) {
-        const htmlContent = fs.readFileSync(indexPath, 'utf-8');
-        res.setHeader('Content-Type', 'text/html');
-        res.send(htmlContent);
-      } else {
-        res.status(404).send('Autonomy UI not found. Please build the frontend.');
-      }
-    },
-  },
-  {
-    path: '/autonomy/assets/*',
-    type: 'GET',
-    public: true,
-    name: 'Autonomy Assets',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
-      const assetRelativePath = req.params[0];
-      if (!assetRelativePath) {
-        return res.status(400).send('Invalid asset path');
-      }
-
-      const filePath = path.resolve(assetsPath, assetRelativePath);
-
-      // Basic security check to prevent path traversal
-      if (!filePath.startsWith(assetsPath)) {
-        return res.status(403).send('Forbidden');
-      }
-
-      if (fs.existsSync(filePath)) {
-        res.sendFile(filePath);
-      } else {
-        res.status(404).send('Asset not found');
-      }
-    },
-  },
-  // API routes
   {
     path: '/autonomy/status',
     type: 'GET',
-    public: true,
-    name: 'Get Autonomy Status',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService<AutonomousLoopService>('autonomous-loop');
-
+        const autonomyService = runtime.getService('autonomy');
+        
         if (!autonomyService) {
           return res.status(503).json({
-            success: false,
-            error: 'Autonomy service not available',
+            error: 'Autonomy service not available'
           });
         }
 
-        const status = autonomyService.getStatus();
+        const status = (autonomyService as any).getStatus();
 
-        res.json({
+        return res.json({
           success: true,
           data: {
             enabled: status.enabled,
+            running: status.running,
             interval: status.interval,
+            intervalSeconds: Math.round(status.interval / 1000),
+            autonomousRoomId: status.autonomousRoomId,
             agentId: runtime.agentId,
-            characterName: runtime.character.name,
-          },
+            characterName: runtime.character?.name || 'Agent'
+          }
         });
       } catch (error) {
-        console.error('[Autonomy API] Error getting status:', error);
-        res.status(500).json({
+        console.error('[AutonomyAPI] Status error:', error);
+        return res.status(500).json({
           success: false,
-          error: 'Failed to get autonomy status',
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     },
@@ -96,35 +44,34 @@ export const autonomyRoutes: Route[] = [
   {
     path: '/autonomy/enable',
     type: 'POST',
-    public: true,
-    name: 'Enable Autonomy',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService<AutonomousLoopService>('autonomous-loop');
-
+        const autonomyService = runtime.getService('autonomy');
+        
         if (!autonomyService) {
           return res.status(503).json({
             success: false,
-            error: 'Autonomy service not available',
+            error: 'Autonomy service not available'
           });
         }
 
-        await autonomyService.startLoop();
+        await (autonomyService as any).enableAutonomy();
+        const status = (autonomyService as any).getStatus();
 
-        res.json({
+        return res.json({
           success: true,
-          message: 'Autonomy enabled successfully',
+          message: 'Autonomy enabled',
           data: {
-            enabled: true,
-            interval: autonomyService.getLoopInterval(),
-            agentId: runtime.agentId,
-          },
+            enabled: status.enabled,
+            running: status.running,
+            interval: status.interval
+          }
         });
       } catch (error) {
-        console.error('[Autonomy API] Error enabling autonomy:', error);
-        res.status(500).json({
+        console.error('[AutonomyAPI] Enable error:', error);
+        return res.status(500).json({
           success: false,
-          error: 'Failed to enable autonomy',
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     },
@@ -133,35 +80,34 @@ export const autonomyRoutes: Route[] = [
   {
     path: '/autonomy/disable',
     type: 'POST',
-    public: true,
-    name: 'Disable Autonomy',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService<AutonomousLoopService>('autonomous-loop');
-
+        const autonomyService = runtime.getService('autonomy');
+        
         if (!autonomyService) {
           return res.status(503).json({
             success: false,
-            error: 'Autonomy service not available',
+            error: 'Autonomy service not available'
           });
         }
 
-        await autonomyService.stopLoop();
+        await (autonomyService as any).disableAutonomy();
+        const status = (autonomyService as any).getStatus();
 
-        res.json({
+        return res.json({
           success: true,
-          message: 'Autonomy disabled successfully',
+          message: 'Autonomy disabled',
           data: {
-            enabled: false,
-            interval: autonomyService.getLoopInterval(),
-            agentId: runtime.agentId,
-          },
+            enabled: status.enabled,
+            running: status.running,
+            interval: status.interval
+          }
         });
       } catch (error) {
-        console.error('[Autonomy API] Error disabling autonomy:', error);
-        res.status(500).json({
+        console.error('[AutonomyAPI] Disable error:', error);
+        return res.status(500).json({
           success: false,
-          error: 'Failed to disable autonomy',
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     },
@@ -170,43 +116,41 @@ export const autonomyRoutes: Route[] = [
   {
     path: '/autonomy/toggle',
     type: 'POST',
-    public: true,
-    name: 'Toggle Autonomy',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService<AutonomousLoopService>('autonomous-loop');
-
+        const autonomyService = runtime.getService('autonomy');
+        
         if (!autonomyService) {
           return res.status(503).json({
             success: false,
-            error: 'Autonomy service not available',
+            error: 'Autonomy service not available'
           });
         }
 
-        const currentStatus = autonomyService.getStatus();
-
+        const currentStatus = (autonomyService as any).getStatus();
+        
         if (currentStatus.enabled) {
-          await autonomyService.stopLoop();
+          await (autonomyService as any).disableAutonomy();
         } else {
-          await autonomyService.startLoop();
+          await (autonomyService as any).enableAutonomy();
         }
 
-        const newStatus = autonomyService.getStatus();
+        const newStatus = (autonomyService as any).getStatus();
 
-        res.json({
+        return res.json({
           success: true,
-          message: `Autonomy ${newStatus.enabled ? 'enabled' : 'disabled'} successfully`,
+          message: newStatus.enabled ? 'Autonomy enabled' : 'Autonomy disabled',
           data: {
             enabled: newStatus.enabled,
-            interval: newStatus.interval,
-            agentId: runtime.agentId,
-          },
+            running: newStatus.running,
+            interval: newStatus.interval
+          }
         });
       } catch (error) {
-        console.error('[Autonomy API] Error toggling autonomy:', error);
-        res.status(500).json({
+        console.error('[AutonomyAPI] Toggle error:', error);
+        return res.status(500).json({
           success: false,
-          error: 'Failed to toggle autonomy',
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     },
@@ -215,46 +159,44 @@ export const autonomyRoutes: Route[] = [
   {
     path: '/autonomy/interval',
     type: 'POST',
-    public: true,
-    name: 'Set Autonomy Interval',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: any, res: any, runtime: any) => {
       try {
-        const autonomyService = runtime.getService<AutonomousLoopService>('autonomous-loop');
-
+        const autonomyService = runtime.getService('autonomy');
+        
         if (!autonomyService) {
           return res.status(503).json({
             success: false,
-            error: 'Autonomy service not available',
+            error: 'Autonomy service not available'
           });
         }
 
         const { interval } = req.body;
-
-        if (!interval || typeof interval !== 'number' || interval < 1000) {
+        
+        if (typeof interval !== 'number' || interval < 5000 || interval > 600000) {
           return res.status(400).json({
             success: false,
-            error: 'Invalid interval. Must be a number >= 1000 (milliseconds)',
+            error: 'Interval must be a number between 5000ms (5s) and 600000ms (10m)'
           });
         }
 
-        autonomyService.setLoopInterval(interval);
+        (autonomyService as any).setLoopInterval(interval);
+        const status = (autonomyService as any).getStatus();
 
-        res.json({
+        return res.json({
           success: true,
-          message: 'Autonomy interval updated successfully',
+          message: 'Interval updated',
           data: {
-            interval: autonomyService.getLoopInterval(),
-            enabled: autonomyService.getStatus().enabled,
-            agentId: runtime.agentId,
-          },
+            interval: status.interval,
+            intervalSeconds: Math.round(status.interval / 1000)
+          }
         });
       } catch (error) {
-        console.error('[Autonomy API] Error setting interval:', error);
-        res.status(500).json({
+        console.error('[AutonomyAPI] Interval error:', error);
+        return res.status(500).json({
           success: false,
-          error: 'Failed to set autonomy interval',
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     },
-  },
+  }
 ];

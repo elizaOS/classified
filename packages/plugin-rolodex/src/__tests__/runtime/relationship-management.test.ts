@@ -61,8 +61,8 @@ export const relationshipManagementRuntimeTests: TestSuite = {
 
         if (relationships.length > 0) {
           const relationship = relationships[0];
-          console.log('✓ Relationship type:', relationship.relationshipType);
-          console.log('✓ Relationship strength:', relationship.strength || 0);
+          console.log('✓ Relationship type:', relationship.metadata?.relationshipType);
+          console.log('✓ Relationship strength:', relationship.metadata?.strength || 0);
           console.log('✓ Metadata:', JSON.stringify(relationship.metadata));
         }
 
@@ -134,10 +134,10 @@ export const relationshipManagementRuntimeTests: TestSuite = {
           throw new Error('Relationship with Grace not found');
         }
 
-        console.log('✓ Final relationship strength:', graceRelationship.strength || 0);
+        console.log('✓ Final relationship strength:', graceRelationship.metadata?.strength || 0);
         console.log('✓ Interaction count:', graceRelationship.metadata?.interactionCount);
 
-        if (graceRelationship.strength || 0 < 0.5) {
+        if (Number(graceRelationship.metadata?.strength || 0) < 0.5) {
           throw new Error('Relationship strength did not increase with interactions');
         }
 
@@ -203,7 +203,7 @@ export const relationshipManagementRuntimeTests: TestSuite = {
           // Check for management relationships
           const managementRels = helenRelationships.filter(
             (r) =>
-              r.relationshipType &&
+              r.metadata?.relationshipType &&
               Array.isArray(r.metadata?.tags) &&
               r.metadata.tags.indexOf('manage') !== -1
           );

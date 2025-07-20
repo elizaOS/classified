@@ -1,6 +1,7 @@
+// FIXME: @elizaos/core/test-utils not properly exported in build - commenting out imports until core issue is resolved
 import { describe, it, expect } from 'bun:test';
 import { TodoPlugin } from '../index';
-import { createMockRuntime } from '@elizaos/core/test-utils';
+// import { createMockRuntime } from '@elizaos/core/test-utils';
 import type { IAgentRuntime } from '@elizaos/core';
 
 describe('TodoPlugin Initialization', () => {

@@ -93,8 +93,12 @@ export class RealRuntimeTestRunner {
   async teardown() {
     if (this.runtime) {
       // Clean up runtime resources
-      for (const service of this.runtime.services.values()) {
-        await service.stop();
+      for (const serviceArray of this.runtime.services.values()) {
+        for (const service of serviceArray) {
+          if (service && typeof service.stop === 'function') {
+            await service.stop();
+          }
+        }
       }
       this.runtime = null;
     }

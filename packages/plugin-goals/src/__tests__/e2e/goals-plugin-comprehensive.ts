@@ -428,7 +428,8 @@ export const GoalsPluginComprehensiveE2ETestSuite: TestSuite = {
 
         // Process the message through the runtime (this tests the full pipeline)
         try {
-          await runtime.processMessage(goalMessage);
+          const state = { values: {}, data: {}, text: '' };
+          await runtime.processActions(goalMessage, [], state, async () => []);
           console.log('✓ Message processed without errors');
         } catch (error) {
           // This might fail if dependencies aren't available, but shouldn't crash

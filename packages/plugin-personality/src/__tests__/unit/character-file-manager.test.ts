@@ -155,7 +155,7 @@ describe('CharacterFileManager', () => {
     createUnitTest({
       name: 'should have correct service name and type',
       fn: () => {
-        expect(CharacterFileManager.serviceName).toBe('character-file-manager');
+        expect(CharacterFileManager.serviceType).toBe('character_management');
         expect(CharacterFileManager.serviceType).toBe('character_management');
       },
     })

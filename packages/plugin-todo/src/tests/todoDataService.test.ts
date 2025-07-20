@@ -1,6 +1,7 @@
+// FIXME: @elizaos/core/test-utils not properly exported in build - commenting out imports until core issue is resolved
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-import { createMockRuntime } from '@elizaos/core/test-utils';
+import { createMockRuntime } from './test-utils';
 import { todosTable, todoTagsTable } from '../schema.ts';
 import { createTodoDataService, TodoDataService } from '../services/todoDataService.ts';
 
@@ -45,10 +46,11 @@ describe('TodoDataService', () => {
       execute: mock(),
     };
 
+    // Use createMockRuntime with the mockDb
     mockRuntime = createMockRuntime({
       agentId: 'test-agent' as UUID,
       db: mockDb,
-    }) as any;
+    });
 
     service = createTodoDataService(mockRuntime);
   });

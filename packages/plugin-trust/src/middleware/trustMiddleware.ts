@@ -150,6 +150,7 @@ export class TrustMiddleware {
               text: result
                 ? `Action ${action.name} executed successfully`
                 : `Action ${action.name} returned false`,
+              success: !!result,
             };
           }
           return result;

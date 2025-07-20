@@ -49,6 +49,7 @@ export const recordTrustInteractionAction: Action = {
         values: {
           success: false,
         },
+        success: false,
       };
     }
 
@@ -65,16 +66,17 @@ export const recordTrustInteractionAction: Action = {
     if (!matchedType) {
       logger.error('[RecordTrustInteraction] Invalid evidence type:', evidenceType);
       return {
-        text: `Invalid interaction type. Valid types are: ${validTypes.join(', ')}`,
+        text: `Invalid interaction type: ${evidenceType}. Valid types are: ${validTypes.join(', ')}`,
         data: {
           actionName: 'RECORD_TRUST_INTERACTION',
-          error: 'Invalid evidence type',
+          error: 'Invalid interaction type',
           providedType: evidenceType,
           validTypes,
         },
         values: {
           success: false,
         },
+        success: false,
       };
     }
 
@@ -127,6 +129,7 @@ export const recordTrustInteractionAction: Action = {
           impact: interaction.impact,
           targetEntityId: interaction.targetEntityId,
         },
+        success: true,
       };
     } catch (error) {
       logger.error('[RecordTrustInteraction] Error recording interaction:', error);
@@ -139,6 +142,7 @@ export const recordTrustInteractionAction: Action = {
         values: {
           success: false,
         },
+        success: false,
       };
     }
   },

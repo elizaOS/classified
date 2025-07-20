@@ -199,28 +199,70 @@ export const exampleTrustAwarePlugin: Plugin = {
         const trustServiceWrapper = runtime.getService('trust') as any;
         if (!trustServiceWrapper || !trustServiceWrapper.trustService) {
           logger.error('Trust service not available');
-          return false;
+          return {
+            success: false,
+            text: 'Trust service not available',
+            values: { success: false },
+            data: { error: 'Trust service not available' },
+          };
         }
 
         const trustService = trustServiceWrapper.trustService as TrustService;
+        const entityId = message.entityId;
 
-        // Check access
+        if (!entityId) {
+          return {
+            success: false,
+            text: 'No entity ID found in message',
+            values: { success: false },
+            data: { error: 'No entity ID found' },
+          };
+        }
+
+        // Check if the entity has permission to perform this sensitive action
         const hasAccess = await trustService.checkPermission(
-          message.entityId,
-          'sensitive-action' as UUID,
-          'system' as UUID,
+          entityId,
+          'sensitive-action' as any,
+          runtime.agentId,
           {
             roomId: message.roomId,
           }
         );
 
         if (!hasAccess.allowed) {
-          return false;
+          return {
+            success: false,
+            text: 'Access denied: insufficient trust level or missing permissions',
+            values: { 
+              success: false,
+              allowed: false,
+              reason: hasAccess.reason,
+            },
+            data: { 
+              error: 'Access denied',
+              reason: hasAccess.reason,
+              method: hasAccess.method,
+              grantedBy: hasAccess.grantedBy,
+            },
+          };
         }
 
-        // Execute action
-        logger.info('Executing sensitive action');
-        return true;
+        // Execute the sensitive action
+        logger.info('Executing sensitive action with trust verification');
+        
+        return {
+          success: true,
+          text: 'Sensitive action executed successfully',
+          values: { 
+            success: true,
+            allowed: true,
+          },
+          data: { 
+            actionName: 'sensitive-action',
+            executedBy: entityId,
+            timestamp: Date.now(),
+          },
+        };
       },
     },
   ],

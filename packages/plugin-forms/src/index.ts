@@ -1,4 +1,4 @@
-import type { Plugin, ISchemaProvider } from '@elizaos/core';
+import type { Plugin } from '@elizaos/core';
 
 import { FormsService } from './services/forms-service';
 import { formsProvider } from './providers/forms-provider';
@@ -22,84 +22,6 @@ export { createFormAction, updateFormAction, cancelFormAction };
 
 // Export schema
 export { formsSchema };
-
-/**
- * Schema provider for forms plugin dynamic migration
- */
-const formsSchemaProvider: ISchemaProvider = {
-  getPluginName: () => '@elizaos/plugin-forms',
-  getSchemaDefinition: () => ({
-    version: '1.0.0',
-    tables: [
-      {
-        name: 'forms',
-        columns: [
-          { name: 'id', type: 'uuid', primaryKey: true },
-          { name: 'agent_id', type: 'uuid', notNull: true },
-          { name: 'name', type: 'text', notNull: true },
-          { name: 'description', type: 'text' },
-          { name: 'status', type: 'text', notNull: true },
-          { name: 'current_step_index', type: 'integer', notNull: true, defaultValue: 0 },
-          { name: 'steps', type: 'json', notNull: true },
-          { name: 'created_at', type: 'timestamp', notNull: true },
-          { name: 'updated_at', type: 'timestamp', notNull: true },
-          { name: 'completed_at', type: 'timestamp' },
-          { name: 'metadata', type: 'json', notNull: true, defaultValue: '{}' }
-        ],
-        indexes: [
-          { name: 'idx_forms_agent', columns: ['agent_id'] },
-          { name: 'idx_forms_status', columns: ['status'] },
-          { name: 'idx_forms_created_at', columns: ['created_at'] },
-          { name: 'idx_forms_updated_at', columns: ['updated_at'] }
-        ]
-      },
-      {
-        name: 'form_fields',
-        columns: [
-          { name: 'id', type: 'uuid', primaryKey: true },
-          { name: 'form_id', type: 'uuid', notNull: true, references: { table: 'forms', column: 'id', onDelete: 'CASCADE' } },
-          { name: 'step_id', type: 'text', notNull: true },
-          { name: 'field_id', type: 'text', notNull: true },
-          { name: 'label', type: 'text', notNull: true },
-          { name: 'type', type: 'text', notNull: true },
-          { name: 'value', type: 'text' },
-          { name: 'is_secret', type: 'boolean', notNull: true, defaultValue: false },
-          { name: 'is_optional', type: 'boolean', notNull: true, defaultValue: false },
-          { name: 'description', type: 'text' },
-          { name: 'criteria', type: 'text' },
-          { name: 'error', type: 'text' },
-          { name: 'metadata', type: 'json', notNull: true, defaultValue: '{}' },
-          { name: 'created_at', type: 'timestamp', notNull: true },
-          { name: 'updated_at', type: 'timestamp', notNull: true }
-        ],
-        indexes: [
-          { name: 'idx_form_fields_form', columns: ['form_id'] },
-          { name: 'idx_form_fields_step', columns: ['step_id'] },
-          { name: 'idx_form_fields_field', columns: ['field_id'] },
-          { name: 'idx_form_step_field', columns: ['form_id', 'step_id', 'field_id'] }
-        ],
-        dependencies: ['forms']
-      },
-      {
-        name: 'form_templates',
-        columns: [
-          { name: 'id', type: 'uuid', primaryKey: true },
-          { name: 'agent_id', type: 'uuid' },
-          { name: 'name', type: 'text', notNull: true },
-          { name: 'description', type: 'text' },
-          { name: 'steps', type: 'json', notNull: true },
-          { name: 'metadata', type: 'json', notNull: true, defaultValue: '{}' },
-          { name: 'created_at', type: 'timestamp', notNull: true },
-          { name: 'updated_at', type: 'timestamp', notNull: true }
-        ],
-        indexes: [
-          { name: 'idx_form_templates_name', columns: ['name'] },
-          { name: 'idx_form_templates_agent', columns: ['agent_id'] }
-        ]
-      }
-    ]
-  })
-};
 
 /**
  * Forms Plugin for ElizaOS
@@ -130,10 +52,7 @@ export const formsPlugin: Plugin = {
   providers: [formsProvider],
   actions: [createFormAction, updateFormAction, cancelFormAction],
 
-  // Schema provider for database migrations
-  schemaProvider: formsSchemaProvider,
-
-  // Legacy schema for backward compatibility
+  // Database schema for migrations
   schema: formsSchema,
 
   // No evaluators needed for this plugin

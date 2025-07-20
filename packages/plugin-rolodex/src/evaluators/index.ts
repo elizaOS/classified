@@ -24,6 +24,7 @@ export const debugEvaluator: Evaluator = {
       text: message.content?.text?.substring(0, 50) || 'No text',
     });
     return {
+      success: true,
       values: { debugRan: true },
       data: { timestamp: Date.now() },
       text: 'Debug evaluator ran successfully',

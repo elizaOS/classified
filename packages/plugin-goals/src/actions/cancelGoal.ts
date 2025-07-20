@@ -156,6 +156,7 @@ export const cancelGoalAction: Action = {
             success: false,
             error: 'No state context',
           },
+          success: false,
         };
       }
       if (!message.roomId) {
@@ -175,6 +176,7 @@ export const cancelGoalAction: Action = {
             success: false,
             error: 'Missing room context',
           },
+          success: false,
         };
       }
       const dataService = createGoalDataService(runtime);
@@ -205,6 +207,7 @@ export const cancelGoalAction: Action = {
             error: 'No active goals',
             hasActiveGoals: false,
           },
+          success: false,
         };
       }
 
@@ -234,6 +237,7 @@ export const cancelGoalAction: Action = {
             error: 'Goal not found',
             needsClarification: true,
           },
+          success: false,
         };
       }
 
@@ -258,6 +262,7 @@ export const cancelGoalAction: Action = {
             success: false,
             error: 'Goal not found',
           },
+          success: false,
         };
       }
 
@@ -285,6 +290,7 @@ export const cancelGoalAction: Action = {
             goalName: goalToCancel.name,
             remainingGoalsCount: activeGoals.length - 1,
           },
+          success: true,
         };
       } else {
         throw new Error('Failed to delete goal');
@@ -307,6 +313,7 @@ export const cancelGoalAction: Action = {
           success: false,
           error: error instanceof Error ? error.message : String(error),
         },
+        success: false,
       };
     }
   },

@@ -44,7 +44,7 @@ interface CameraDevice {
 }
 
 export class VisionService extends Service {
-  static override serviceType: ServiceTypeName = VisionServiceType.VISION;
+  static override serviceType: ServiceTypeName = 'VISION' as ServiceTypeName;
   override capabilityDescription =
     'Provides visual perception through camera integration and scene analysis.';
 
@@ -124,6 +124,22 @@ export class VisionService extends Service {
   }
 
   private parseConfig(runtime: IAgentRuntime): VisionConfig {
+    // Check if individual components are enabled
+    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+    
+    // Determine vision mode based on enabled components
+    let visionMode: VisionMode;
+    if (cameraEnabled && screenEnabled) {
+      visionMode = VisionMode.BOTH;
+    } else if (cameraEnabled) {
+      visionMode = VisionMode.CAMERA;
+    } else if (screenEnabled) {
+      visionMode = VisionMode.SCREEN;
+    } else {
+      visionMode = VisionMode.OFF;
+    }
+
     return {
       ...this.DEFAULT_CONFIG,
       cameraName: runtime.getSetting('CAMERA_NAME') || runtime.getSetting('VISION_CAMERA_NAME'),
@@ -158,8 +174,7 @@ export class VisionService extends Service {
           runtime.getSetting('VLM_CHANGE_THRESHOLD') ||
             runtime.getSetting('VISION_VLM_CHANGE_THRESHOLD')
         ) || this.DEFAULT_CONFIG.vlmChangeThreshold,
-      visionMode:
-        (runtime.getSetting('VISION_MODE') as VisionMode) || this.DEFAULT_CONFIG.visionMode,
+      visionMode: visionMode,  // Use calculated vision mode
       screenCaptureInterval:
         Number(
           runtime.getSetting('SCREEN_CAPTURE_INTERVAL') ||
@@ -1349,6 +1364,80 @@ export class VisionService extends Service {
     await this.ocrService.dispose();
 
     logger.info('[VisionService] Stopped.');
+  }
+
+  public async refresh(): Promise<void> {
+    logger.info('[VisionService] Refreshing vision service with updated settings...');
+
+    try {
+      // Stop current processing
+      this.stopProcessing();
+
+      // Re-parse configuration from current runtime settings
+      this.visionConfig = this.parseConfig(this.runtime);
+      logger.info('[VisionService] Updated configuration:', this.visionConfig);
+
+      // If vision is completely disabled, stop everything
+      if (this.visionConfig.visionMode === VisionMode.OFF) {
+        logger.info('[VisionService] Vision disabled - stopping all services');
+        await this.cleanupServices();
+        return;
+      }
+
+      // Reinitialize based on new settings
+      await this.reinitializeServices();
+
+      logger.info('[VisionService] Refresh completed successfully');
+    } catch (error) {
+      logger.error('[VisionService] Error during refresh:', error);
+      throw error;
+    }
+  }
+
+  private async cleanupServices(): Promise<void> {
+    // Stop audio services
+    if (this.audioCapture) {
+      await this.audioCapture.stop();
+      this.audioCapture = null;
+    }
+    if (this.streamingAudioCapture) {
+      await this.streamingAudioCapture.stop();
+      this.streamingAudioCapture = null;
+    }
+
+    // Reset camera
+    this.camera = null;
+    this.lastFrame = null;
+    this.lastSceneDescription = null;
+    this.lastScreenCapture = null;
+    this.lastEnhancedScene = null;
+  }
+
+  private async reinitializeServices(): Promise<void> {
+    // Cleanup existing services first
+    await this.cleanupServices();
+
+    // Initialize screen vision if enabled
+    if (
+      this.visionConfig.visionMode === VisionMode.SCREEN ||
+      this.visionConfig.visionMode === VisionMode.BOTH
+    ) {
+      await this.initializeScreenVision();
+    }
+
+    // Initialize camera if enabled
+    if (
+      this.visionConfig.visionMode === VisionMode.CAMERA ||
+      this.visionConfig.visionMode === VisionMode.BOTH
+    ) {
+      await this.initializeCameraVision();
+    }
+
+    // Initialize audio capture if enabled
+    await this.initializeAudioCapture();
+
+    // Start processing for new mode
+    this.startProcessing();
   }
 
   private async findCamera(): Promise<CameraDevice | null> {

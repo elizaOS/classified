@@ -536,16 +536,19 @@ async function updateRelationship(
         lastAnalyzed: Date.now(),
       };
 
-      const updatedStrength = Math.min(
-        1.0,
-        (relationship.strength || 0.3) + indicators.length * 0.1
-      );
+      const currentMetadata = relationship.metadata || {};
+      const currentStrength = (currentMetadata as any)?.strength || 0.3;
+      const updatedStrength = Math.min(1.0, currentStrength + indicators.length * 0.1);
+      
+      const updatedRelationshipMetadata = {
+        ...updatedMetadata,
+        relationshipType: primaryType,
+        strength: updatedStrength,
+      };
 
       await runtime.updateRelationship({
         ...relationship,
-        relationshipType: primaryType,
-        strength: updatedStrength,
-        metadata: updatedMetadata,
+        metadata: updatedRelationshipMetadata,
       });
 
       logger.info('[RelationshipExtraction] Updated existing relationship', {
@@ -575,7 +578,7 @@ async function updateRelationship(
             sentiment,
             indicators: [...existingFallbackIndicators, ...indicators],
             relationshipType: primaryType,
-            strength: Math.min(1.0, (relationship.strength || 0.3) + indicators.length * 0.1),
+            strength: Math.min(1.0, ((relationship.metadata as any)?.strength || 0.3) + indicators.length * 0.1),
             lastInteractionAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           },

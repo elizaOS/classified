@@ -297,7 +297,7 @@ body {
 
 /* Cursor and Animations */
 .cursor-blink {
-  display: inline-block;
+  display: inline;
   animation: blink 1s infinite;
   color: var(--text-primary);
   font-weight: bold;

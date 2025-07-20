@@ -253,12 +253,13 @@ export const updateGoalAction: Action = {
         return {
           data: {
             actionName: 'UPDATE_GOAL',
-            error: 'No active goals',
+            error: 'No state context',
           },
           values: {
             success: false,
-            error: 'No active goals',
+            error: 'No state context',
           },
+          success: false,
         };
       }
 
@@ -298,6 +299,7 @@ export const updateGoalAction: Action = {
             success: false,
             error: 'No active goals',
           },
+          success: false,
         };
       }
 
@@ -328,6 +330,7 @@ export const updateGoalAction: Action = {
             error: 'Goal not found',
             needsClarification: true,
           },
+          success: false,
         };
       }
 
@@ -350,6 +353,7 @@ export const updateGoalAction: Action = {
             success: false,
             error: 'Goal not found',
           },
+          success: false,
         };
       }
 
@@ -374,6 +378,7 @@ export const updateGoalAction: Action = {
             success: false,
             error: 'Invalid update',
           },
+          success: false,
         };
       }
 
@@ -410,6 +415,7 @@ export const updateGoalAction: Action = {
           goalName: goal.name,
           updatedFields: Object.keys(update),
         },
+        success: true,
       };
     } catch (error) {
       logger.error('Error in updateGoal handler:', error);
@@ -429,6 +435,7 @@ export const updateGoalAction: Action = {
           success: false,
           error: error instanceof Error ? error.message : String(error),
         },
+        success: false,
       };
     }
   },

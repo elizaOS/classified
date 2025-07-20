@@ -196,6 +196,7 @@ export const updateEntityAction: Action = {
           source: message.content.source,
         });
         return {
+          success: false,
           values: { error: true },
           data: { error: 'Entity not found' },
           text: "I'm not sure which entity you're trying to update. Could you please specify who you're talking about?",
@@ -233,6 +234,7 @@ export const updateEntityAction: Action = {
           source: message.content.source,
         });
         return {
+          success: false,
           values: { error: true },
           data: { error: 'Failed to parse component data' },
           text: "I couldn't properly understand the component information. Please try again with more specific information.",
@@ -270,6 +272,7 @@ export const updateEntityAction: Action = {
           source: message.content.source,
         });
         return {
+          success: true,
           values: { entityId: entity.id, componentType },
           data: { success: true },
           text: `I've updated the ${componentType} information for ${entity.names[0]}.`,
@@ -293,6 +296,7 @@ export const updateEntityAction: Action = {
           source: message.content.source,
         });
         return {
+          success: true,
           values: { entityId: entity.id, componentType },
           data: { success: true, created: true },
           text: `I've added new ${componentType} information for ${entity.names[0]}.`,
@@ -306,6 +310,7 @@ export const updateEntityAction: Action = {
         source: message.content.source,
       });
       return {
+        success: false,
         values: { error: true },
         data: { error: error instanceof Error ? error.message : 'Unknown error' },
         text: 'There was an error processing the entity information.',

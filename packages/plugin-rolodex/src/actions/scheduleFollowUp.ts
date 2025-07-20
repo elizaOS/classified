@@ -233,6 +233,7 @@ export const scheduleFollowUpAction: Action = {
           entityId,
           entityName: followUpInfo.entityName,
         },
+        success: true,
       };
     } catch (error) {
       logger.error('[ScheduleFollowUp] Error scheduling follow-up:', error);

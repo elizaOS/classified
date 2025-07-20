@@ -30,6 +30,50 @@ let autonomyState = {
   interval: 30000,
 };
 
+// Mock goals state
+let goalsDatabase = [
+  {
+    id: 'goal-1',
+    agentId: 'test-agent-id',
+    ownerType: 'agent',
+    ownerId: 'test-agent-id',
+    name: 'Communicate with the admin',
+    description: 'Establish and maintain communication with the admin user to understand their needs and provide assistance',
+    isCompleted: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    tags: ['communication', 'admin', 'relationship'],
+    metadata: {}
+  },
+  {
+    id: 'goal-2', 
+    agentId: 'test-agent-id',
+    ownerType: 'agent',
+    ownerId: 'test-agent-id',
+    name: 'Read the message from the founders',
+    description: 'Find and read any important messages or documentation from the project founders to understand the mission',
+    isCompleted: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    tags: ['learning', 'founders', 'documentation'],
+    metadata: {}
+  }
+];
+
+// Mock agents endpoint
+app.get('/api/agents', (req, res) => {
+  res.json([
+    {
+      id: 'test-agent-id',
+      name: 'Test Agent',
+      character: {
+        name: 'Test Agent',
+        bio: 'A test agent for Cypress testing'
+      }
+    }
+  ]);
+});
+
 // Mock API endpoints
 app.get('/api/autonomy/status', (req, res) => {
   res.json({
@@ -101,6 +145,114 @@ app.post('/api/autonomy/interval', (req, res) => {
       enabled: autonomyState.enabled,
       agentId: 'test-agent-id',
     },
+  });
+});
+
+// Goals API endpoints
+app.get('/api/goals', (req, res) => {
+  const { agentId } = req.query;
+  
+  if (!agentId) {
+    return res.status(400).json({
+      error: 'agentId query parameter is required'
+    });
+  }
+  
+  const agentGoals = goalsDatabase.filter(goal => goal.agentId === agentId);
+  res.json(agentGoals);
+});
+
+app.post('/api/goals', (req, res) => {
+  const { agentId } = req.query;
+  const goalData = req.body;
+  
+  if (!agentId) {
+    return res.status(400).json({
+      error: 'agentId query parameter is required'
+    });
+  }
+  
+  if (!goalData.name || !goalData.name.trim()) {
+    return res.status(400).json({
+      error: 'Goal name is required'
+    });
+  }
+  
+  const newGoal = {
+    id: `goal-${Date.now()}`,
+    agentId: agentId,
+    ownerType: goalData.ownerType || 'agent',
+    ownerId: goalData.ownerId || agentId,
+    name: goalData.name,
+    description: goalData.description || '',
+    isCompleted: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    tags: goalData.tags || [],
+    metadata: goalData.metadata || {}
+  };
+  
+  goalsDatabase.push(newGoal);
+  res.status(201).json(newGoal);
+});
+
+app.put('/api/goals/:id/complete', (req, res) => {
+  const { id } = req.params;
+  const { agentId } = req.query;
+  
+  const goal = goalsDatabase.find(g => g.id === id && g.agentId === agentId);
+  if (!goal) {
+    return res.status(404).json({
+      error: 'Goal not found'
+    });
+  }
+  
+  goal.isCompleted = true;
+  goal.updatedAt = new Date().toISOString();
+  
+  res.json({
+    success: true,
+    message: 'Goal completed successfully',
+    task: goal
+  });
+});
+
+app.put('/api/goals/:id/uncomplete', (req, res) => {
+  const { id } = req.params;
+  const { agentId } = req.query;
+  
+  const goal = goalsDatabase.find(g => g.id === id && g.agentId === agentId);
+  if (!goal) {
+    return res.status(404).json({
+      error: 'Goal not found'
+    });
+  }
+  
+  goal.isCompleted = false;
+  goal.updatedAt = new Date().toISOString();
+  
+  res.json({
+    success: true,
+    message: 'Goal marked as incomplete',
+    task: goal
+  });
+});
+
+app.delete('/api/goals/:id', (req, res) => {
+  const { id } = req.params;
+  const { agentId } = req.query;
+  
+  const goalIndex = goalsDatabase.findIndex(g => g.id === id && g.agentId === agentId);
+  if (goalIndex === -1) {
+    return res.status(404).json({
+      error: 'Goal not found'
+    });
+  }
+  
+  goalsDatabase.splice(goalIndex, 1);
+  res.json({
+    success: true,
+    message: 'Goal deleted successfully'
   });
 });
 

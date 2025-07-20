@@ -162,6 +162,7 @@ export const updateRoleAction: Action = {
           success: false,
           error: 'World not found',
         },
+        success: false,
       };
     }
 
@@ -249,6 +250,7 @@ export const updateRoleAction: Action = {
           success: false,
           message: 'No valid role assignments found',
         },
+        success: false,
       };
     }
 
@@ -308,6 +310,7 @@ export const updateRoleAction: Action = {
       text: worldUpdated
         ? `Successfully updated ${updatedRoles.length} role(s).`
         : 'No roles were updated.',
+      success: worldUpdated,
     };
   },
 

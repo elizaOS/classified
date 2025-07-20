@@ -1,6 +1,7 @@
+// FIXME: @elizaos/core/test-utils not properly exported in build - commenting out imports until core issue is resolved
 import { describe, it, expect } from 'bun:test';
 import { todosProvider } from '../providers/todos';
-import { createMockRuntime } from '@elizaos/core/test-utils';
+// import { createMockRuntime } from '@elizaos/core/test-utils';
 import type { IAgentRuntime, Memory, State, UUID } from '@elizaos/core';
 
 describe('todosProvider', () => {

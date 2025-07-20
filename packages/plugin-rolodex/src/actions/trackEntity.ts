@@ -73,7 +73,7 @@ If no clear entity is mentioned, return null.`;
             error: true,
           });
         }
-        return { text: "I couldn't identify who to track information about." };
+        return { text: "I couldn't identify who to track information about.", success: false };
       }
 
       // Create or update entity
@@ -107,6 +107,7 @@ If no clear entity is mentioned, return null.`;
       return {
         data: { entity },
         text: responseText,
+        success: true,
       };
     } catch (error) {
       logger.error('Error in track entity action', error);
@@ -116,7 +117,7 @@ If no clear entity is mentioned, return null.`;
           error: true,
         });
       }
-      return { text: 'I had trouble tracking that information. Please try again.' };
+      return { text: 'I had trouble tracking that information. Please try again.', success: false };
     }
   },
 
