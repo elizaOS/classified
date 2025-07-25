@@ -1369,7 +1369,7 @@ export async function runPluginMigrations(
         if (tableDef.name === 'embeddings') {
           // Check if pgvector extension is available
           try {
-            await this.db.execute(sql.raw("SELECT 1 FROM pg_extension WHERE extname = 'vector'"));
+            await db.execute(sql.raw("SELECT 1 FROM pg_extension WHERE extname = 'vector'"));
             console.log(`[CUSTOM MIGRATOR] pgvector extension found, creating embeddings table`);
           } catch (extensionError) {
             console.warn(`[CUSTOM MIGRATOR] Skipping embeddings table - pgvector extension not available`);

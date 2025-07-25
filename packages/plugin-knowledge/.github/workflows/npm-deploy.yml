@@ -100,13 +100,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: 'v${{ needs.verify_version.outputs.version }}'
-          release_name: 'v${{ needs.verify_version.outputs.version }}'
-          body: 'Release v${{ needs.verify_version.outputs.version }}'
+          name: 'v${{ needs.verify_version.outputs.version }}'
+          generate_release_notes: true
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

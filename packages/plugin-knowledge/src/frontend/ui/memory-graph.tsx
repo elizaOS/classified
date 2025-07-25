@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { Memory, UUID } from '@elizaos/core';
+// @ts-ignore
 import ForceGraph2D, { ForceGraphMethods, LinkObject, NodeObject } from 'react-force-graph-2d';
 import { ExtendedMemoryMetadata } from '../../types';
 
@@ -30,6 +31,16 @@ const processGraphData = (memories: Memory[]) => {
   // Identify documents and fragments
   const documents: MemoryNode[] = [];
   const fragments: MemoryNode[] = [];
+  const documentFragmentCounts = new Map<UUID, number>();
+
+  // First pass: count fragments per document
+  memories.forEach((memory) => {
+    const metadata = memory.metadata as MemoryMetadata;
+    if (metadata?.type === 'fragment' && metadata.documentId) {
+      const count = documentFragmentCounts.get(metadata.documentId as UUID) || 0;
+      documentFragmentCounts.set(metadata.documentId as UUID, count + 1);
+    }
+  });
 
   memories.forEach((memory) => {
     const metadata = memory.metadata as MemoryMetadata;
@@ -38,10 +49,33 @@ const processGraphData = (memories: Memory[]) => {
       return;
     }
 
+    // Get a meaningful name for the node
+    const getNodeName = () => {
+      let baseName = '';
+      if (metadata.title) baseName = metadata.title;
+      else if (metadata.filename) baseName = metadata.filename;
+      else if (metadata.originalFilename) baseName = metadata.originalFilename;
+      else if (metadata.path) baseName = metadata.path.split('/').pop() || metadata.path;
+      else {
+        const nodeType = (metadata.type || '').toLowerCase() === 'document' ? 'Doc' : 'Fragment';
+        baseName = `${nodeType} ${memory.id ? memory.id.substring(0, 8) : 'Unknown'}`;
+      }
+
+      // Add fragment count for documents
+      if (metadata.type === 'document' && memory.id) {
+        const fragmentCount = documentFragmentCounts.get(memory.id as UUID) || 0;
+        if (fragmentCount > 0) {
+          baseName += ` (${fragmentCount} fragments)`;
+        }
+      }
+
+      return baseName;
+    };
+
     const memoryNode: MemoryNode = {
       id: memory.id,
-      name: metadata.title || memory.id.substring(0, 8),
-      memory,
+      name: getNodeName(),
+      memory: memory,
       val: 3, // Reduced base node size
       type: (metadata.type || '').toLowerCase() === 'document' ? 'document' : 'fragment',
     };
@@ -86,7 +120,7 @@ const processGraphData = (memories: Memory[]) => {
 };
 
 export function MemoryGraph({ memories, onNodeClick, selectedMemoryId }: MemoryGraphProps) {
-  const graphRef = useRef<ForceGraphMethods<MemoryNode, MemoryLink> | undefined>(undefined);
+  const graphRef = useRef<any>(null);
   const [initialized, setInitialized] = useState(false);
   const [shouldRender, setShouldRender] = useState(true);
   const [graphData, setGraphData] = useState<{ nodes: MemoryNode[]; links: MemoryLink[] }>({
@@ -111,7 +145,7 @@ export function MemoryGraph({ memories, onNodeClick, selectedMemoryId }: MemoryG
   useEffect(() => {
     return () => {
       // Clean up references on unmount
-      graphRef.current = undefined;
+      graphRef.current = null;
       setInitialized(false);
       setShouldRender(false);
     };
@@ -149,7 +183,7 @@ export function MemoryGraph({ memories, onNodeClick, selectedMemoryId }: MemoryG
   }, [selectedMemoryId, initialized, graphData.nodes]);
 
   // Graph initialization and configuration
-  const handleGraphInit = useCallback((graph: ForceGraphMethods<MemoryNode, MemoryLink>) => {
+  const handleGraphInit = useCallback((graph: ForceGraphMethods) => {
     graphRef.current = graph;
 
     // Configure the graph force simulation only if graphRef is defined
@@ -190,8 +224,15 @@ export function MemoryGraph({ memories, onNodeClick, selectedMemoryId }: MemoryG
     <div ref={containerRef} className="w-full h-full relative">
       {renderLegend()}
       {shouldRender && (
-        <ForceGraph2D<MemoryNode, MemoryLink>
-          ref={graphRef}
+        <ForceGraph2D
+          {...({
+            ref: (graph: any) => {
+              graphRef.current = graph;
+              if (graph && !initialized) {
+                handleGraphInit(graph);
+              }
+            },
+          } as any)}
           graphData={graphData}
           width={dimensions.width}
           height={dimensions.height}
@@ -211,7 +252,7 @@ export function MemoryGraph({ memories, onNodeClick, selectedMemoryId }: MemoryG
           }
           nodeLabel={(node: MemoryNode) => {
             const metadata = node.memory.metadata as MemoryMetadata;
-            return `${node.type === 'document' ? '📄 Document' : '📝 Fragment'}: ${metadata.title || node.id.substring(0, 8)}`;
+            return `${node.type === 'document' ? 'Document' : 'Fragment'}: ${metadata.title || node.id.substring(0, 8)}`;
           }}
           onNodeClick={(node: MemoryNode) => {
             onNodeClick(node.memory);
@@ -219,11 +260,6 @@ export function MemoryGraph({ memories, onNodeClick, selectedMemoryId }: MemoryG
           onNodeDragEnd={(node: MemoryNode) => {
             node.fx = node.x;
             node.fy = node.y;
-          }}
-          onEngineStop={() => {
-            if (graphRef.current && !initialized) {
-              handleGraphInit(graphRef.current);
-            }
           }}
           cooldownTicks={100}
           nodeCanvasObjectMode={(node: MemoryNode) =>

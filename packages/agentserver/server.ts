@@ -1,62 +1,104 @@
-// Load DOM polyfills FIRST to prevent DOMMatrix errors - embedded for binary compatibility
-// Mock DOMMatrix for PDF.js compatibility
-const mockDOMMatrix = class MockDOMMatrix {
-  a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
-  constructor(init?: any) {
-    if (typeof init === 'string') {
-      Object.assign(this, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+// CRITICAL: Load professional DOMMatrix polyfill FIRST before any other imports
+import DOMMatrix from '@thednp/dommatrix';
+
+// Set up all DOM polyfills IMMEDIATELY to prevent any timing issues
+(function setupDOMPolyfills() {
+  console.log('[DOM-POLYFILL] Setting up comprehensive DOM polyfills with professional DOMMatrix');
+  
+  // Collect all available global contexts safely
+  const contexts = [];
+  try { if (typeof globalThis !== 'undefined') contexts.push(globalThis); } catch (e) {}
+  try { if (typeof global !== 'undefined') contexts.push(global); } catch (e) {}
+  try { if (typeof window !== 'undefined') contexts.push(window); } catch (e) {}
+  try { if (typeof self !== 'undefined') contexts.push(self); } catch (e) {}
+  
+  // Professional DOMMatrix implementation
+  for (const ctx of contexts) {
+    if (ctx && typeof ctx === 'object') {
+      ctx.DOMMatrix = DOMMatrix;
+      ctx.CSSMatrix = DOMMatrix;
+      ctx.WebKitCSSMatrix = DOMMatrix;
     }
-    return this;
   }
-  translate() { return this; }
-  scale() { return this; }
-  rotate() { return this; }
-  multiply() { return this; }
-  inverse() { return this; }
-  toString() { return 'matrix(1, 0, 0, 1, 0, 0)'; }
-  static fromMatrix() { return new mockDOMMatrix(); }
-  static fromFloat32Array() { return new mockDOMMatrix(); }
-  static fromFloat64Array() { return new mockDOMMatrix(); }
-};
-
-// Set on all possible global objects
-globalThis.DOMMatrix = mockDOMMatrix as any;
-if (typeof global !== 'undefined') {
-  (global as any).DOMMatrix = mockDOMMatrix;
-}
-
-// Mock ImageData for canvas compatibility
-if (typeof globalThis.ImageData === 'undefined') {
-  globalThis.ImageData = class MockImageData {
-    constructor(width: number, height: number) {
-      return {
-        width,
-        height,
-        data: new Uint8ClampedArray(width * height * 4)
-      };
+  
+  // Additional DOM API polyfills
+  class ImageDataPolyfill {
+    constructor(dataOrWidth, height, width) {
+      if (dataOrWidth instanceof Uint8ClampedArray) {
+        this.data = dataOrWidth;
+        this.width = height;
+        this.height = width || height;
+      } else {
+        this.width = dataOrWidth || 0;
+        this.height = height || 0;
+        this.data = new Uint8ClampedArray((dataOrWidth || 0) * (height || 0) * 4);
+      }
+      this.colorSpace = 'srgb';
     }
-  } as any;
-}
-
-// Mock Path2D for canvas compatibility
-if (typeof globalThis.Path2D === 'undefined') {
-  globalThis.Path2D = class MockPath2D {
-    constructor() {
-      return {
-        moveTo: () => {},
-        lineTo: () => {},
-        closePath: () => {},
-        arc: () => {},
-        arcTo: () => {},
-        bezierCurveTo: () => {},
-        quadraticCurveTo: () => {},
-        rect: () => {}
-      };
+  }
+  
+  class Path2DPolyfill {
+    constructor(path) { this.path = path || ''; }
+    addPath() {} arc() {} arcTo() {} bezierCurveTo() {} closePath() {}
+    ellipse() {} lineTo() {} moveTo() {} quadraticCurveTo() {} rect() {}
+  }
+  
+  class HTMLCanvasElementPolyfill {
+    constructor() { 
+      this.width = 300; 
+      this.height = 150; 
     }
-  } as any;
-}
-
-console.log('[DOM-POLYFILL] Server-only DOM polyfills loaded directly in server.ts');
+    
+    getContext(type) {
+      if (type === '2d') {
+        return {
+          arc: () => {}, beginPath: () => {}, clearRect: () => {}, closePath: () => {},
+          createImageData: (w, h) => new ImageDataPolyfill(w, h),
+          drawImage: () => {}, fill: () => {}, fillRect: () => {},
+          getImageData: (x, y, w, h) => new ImageDataPolyfill(w, h),
+          lineTo: () => {}, moveTo: () => {}, putImageData: () => {},
+          restore: () => {}, save: () => {}, scale: () => {}, stroke: () => {},
+          translate: () => {}, transform: () => {}, setTransform: () => {},
+          canvas: this, fillStyle: '#000000', strokeStyle: '#000000',
+          globalAlpha: 1.0, lineWidth: 1.0, font: '10px sans-serif'
+        };
+      }
+      return null;
+    }
+    
+    toDataURL() { 
+      return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='; 
+    }
+  }
+  
+  // Apply polyfills to all contexts if not already defined
+  for (const ctx of contexts) {
+    if (ctx && typeof ctx === 'object') {
+      if (!ctx.ImageData) ctx.ImageData = ImageDataPolyfill;
+      if (!ctx.Path2D) ctx.Path2D = Path2DPolyfill;
+      if (!ctx.HTMLCanvasElement) ctx.HTMLCanvasElement = HTMLCanvasElementPolyfill;
+      
+      // Basic document polyfill if needed
+      if (!ctx.document) {
+        ctx.document = {
+          createElement: (tagName) => {
+            if (tagName.toLowerCase() === 'canvas') {
+              return new HTMLCanvasElementPolyfill();
+            }
+            return { tagName, setAttribute: () => {}, getAttribute: () => null };
+          },
+          querySelector: () => null,
+          querySelectorAll: () => []
+        };
+      }
+    }
+  }
+  
+  console.log('[DOM-POLYFILL] ✅ All DOM polyfills loaded successfully');
+  console.log('[DOM-POLYFILL] - Professional DOMMatrix from @thednp/dommatrix');
+  console.log('[DOM-POLYFILL] - ImageData, Path2D, HTMLCanvasElement polyfills');
+  console.log('[DOM-POLYFILL] - Basic document polyfill');
+})();
 
 // Set environment variables for clean logging
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
@@ -69,6 +111,7 @@ import {
   UUID
 } from '@elizaos/core';
 import { createGoalDataService, GoalsPlugin } from '@elizaos/plugin-goals';
+import { TodoPlugin } from '@elizaos/plugin-todo';
 import { AgentServer } from '@elizaos/server';
 import { DatabaseMigrationService } from '@elizaos/plugin-sql';
 import * as dotenv from 'dotenv';
@@ -166,8 +209,11 @@ export async function startServer() {
     const shouldResetDb = isDevelopment && (process.env.RESET_DB === 'true' || process.argv.includes('--reset-db'));
     
     // Check if PostgreSQL is actually available before trying to reset
-    let postgresAvailable = false;
-    if (databaseUrl) {
+    // In containers, always assume PostgreSQL is available to prevent fallback to PGLite
+    let postgresAvailable = isContainer ? true : false;
+    
+    // Only check PostgreSQL availability for non-container environments
+    if (!isContainer && databaseUrl) {
       try {
         const { Client } = await import('pg');
         const testClient = new Client({
@@ -250,10 +296,36 @@ export async function startServer() {
     if (shouldUsePostgres && postgresAvailable) {
       const dbUrl = databaseUrl || `postgresql://eliza:eliza_secure_pass@${postgresHost}/eliza_game`;
       console.log(`[BACKEND] Using PostgreSQL database${isContainer ? ' (containerized environment)' : databaseUrl ? ' from DATABASE_URL' : ' (compiled build)'}`);
-      await server.initialize({
-        dataDir,
-        postgresUrl: dbUrl
-      });
+      
+      // In containers, retry initialization to wait for PostgreSQL
+      if (isContainer) {
+        const maxRetries = 30; // 30 seconds total
+        let retries = 0;
+        let initialized = false;
+        
+        while (!initialized && retries < maxRetries) {
+          try {
+            await server.initialize({
+              dataDir,
+              postgresUrl: dbUrl
+            });
+            initialized = true;
+          } catch (error) {
+            retries++;
+            if (retries < maxRetries) {
+              console.log(`[BACKEND] Waiting for PostgreSQL... (${retries}/${maxRetries})`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } else {
+              throw new Error(`Failed to connect to PostgreSQL after ${maxRetries} attempts: ${error.message}`);
+            }
+          }
+        }
+      } else {
+        await server.initialize({
+          dataDir,
+          postgresUrl: dbUrl
+        });
+      }
     } else {
       console.log('[BACKEND] Using PGLite database for local development');
       await server.initialize({
@@ -263,20 +335,20 @@ export async function startServer() {
 
     console.log(`[BACKEND] Server initialized with ${postgresAvailable ? 'PostgreSQL' : 'PGLite'} database`);
 
-    // Run goals plugin migration to ensure goals table exists
-    console.log('[BACKEND] Running goals plugin migration...');
+    // Run plugin migrations for goals and todos to ensure tables exist
+    console.log('[BACKEND] Running plugin migrations for goals and todos...');
     try {
       const db = (server.database as any).getDatabase();
       const migrationService = new DatabaseMigrationService();
       await migrationService.initializeWithDatabase(db);
       
-      // Register and migrate goals plugin schema
-      migrationService.discoverAndRegisterPluginSchemas([GoalsPlugin]);
+      // Register and migrate goals and todo plugin schemas
+      migrationService.discoverAndRegisterPluginSchemas([GoalsPlugin, TodoPlugin]);
       await migrationService.runAllPluginMigrations();
       
-      console.log('[BACKEND] ✅ Goals plugin migration completed');
+      console.log('[BACKEND] ✅ Plugin migrations completed successfully');
     } catch (migrationError) {
-      console.error('[BACKEND] ❌ Failed to run goals plugin migration:', migrationError);
+      console.error('[BACKEND] ❌ Failed to run plugin migrations:', migrationError);
       // Continue anyway - the agent runtime will try again
     }
 

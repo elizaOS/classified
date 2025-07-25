@@ -2,7 +2,6 @@ import React from 'react';
 import type { UUID, Memory } from '@elizaos/core';
 import {
   Book,
-  Clock,
   File,
   FileText,
   LoaderIcon,
@@ -12,6 +11,7 @@ import {
   Network,
   Search,
   Info,
+  ArrowLeft,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,7 +22,7 @@ type MemoryMetadata = ExtendedMemoryMetadata;
 // Use local UI components instead of importing from client
 import { Badge } from './badge';
 import { Button } from './button';
-import { Card, CardFooter, CardHeader } from './card';
+import { Card } from './card';
 import { Input } from './input';
 import { MemoryGraph } from './memory-graph';
 
@@ -57,9 +57,7 @@ const Dialog = ({
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
 }) => {
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
   return (
     <div
       className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
@@ -240,9 +238,6 @@ const getCorrectMimeType = (file: File): string => {
   return file.type || 'application/octet-stream';
 };
 
-// API base URL - use the backend server and knowledge plugin path
-const API_BASE_URL = 'http://localhost:7777/knowledge';
-
 const apiClient = {
   getKnowledgeDocuments: async (
     agentId: UUID,
@@ -250,17 +245,11 @@ const apiClient = {
   ) => {
     const params = new URLSearchParams();
     params.append('agentId', agentId);
-    if (options?.limit) {
-      params.append('limit', options.limit.toString());
-    }
-    if (options?.before) {
-      params.append('before', options.before.toString());
-    }
-    if (options?.includeEmbedding) {
-      params.append('includeEmbedding', 'true');
-    }
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.before) params.append('before', options.before.toString());
+    if (options?.includeEmbedding) params.append('includeEmbedding', 'true');
 
-    const response = await fetch(`${API_BASE_URL}/documents?${params.toString()}`);
+    const response = await fetch(`/api/documents?${params.toString()}`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch knowledge documents: ${response.status} ${errorText}`);
@@ -270,21 +259,21 @@ const apiClient = {
 
   getKnowledgeChunks: async (
     agentId: UUID,
-    options?: { limit?: number; before?: number; documentId?: UUID }
+    options?: {
+      limit?: number;
+      before?: number;
+      documentId?: UUID;
+      documentsOnly?: boolean;
+    }
   ) => {
     const params = new URLSearchParams();
     params.append('agentId', agentId);
-    if (options?.limit) {
-      params.append('limit', options.limit.toString());
-    }
-    if (options?.before) {
-      params.append('before', options.before.toString());
-    }
-    if (options?.documentId) {
-      params.append('documentId', options.documentId);
-    }
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.before) params.append('before', options.before.toString());
+    if (options?.documentId) params.append('documentId', options.documentId);
+    if (options?.documentsOnly) params.append('documentsOnly', 'true');
 
-    const response = await fetch(`${API_BASE_URL}/knowledges?${params.toString()}`);
+    const response = await fetch(`/api/knowledges?${params.toString()}`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch knowledge chunks: ${response.status} ${errorText}`);
@@ -296,16 +285,14 @@ const apiClient = {
     const params = new URLSearchParams();
     params.append('agentId', agentId);
 
-    const response = await fetch(`${API_BASE_URL}/documents/${knowledgeId}?${params.toString()}`, {
+    const response = await fetch(`/api/documents/${knowledgeId}?${params.toString()}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to delete knowledge document: ${response.status} ${errorText}`);
     }
-    if (response.status === 204) {
-      return;
-    }
+    if (response.status === 204) return;
     return await response.json();
   },
 
@@ -320,7 +307,7 @@ const apiClient = {
     }
     formData.append('agentId', agentId);
 
-    const response = await fetch(`${API_BASE_URL}/documents`, {
+    const response = await fetch(`/api/documents`, {
       method: 'POST',
       body: formData,
     });
@@ -343,7 +330,7 @@ const apiClient = {
     params.append('threshold', threshold.toString());
     params.append('limit', limit.toString());
 
-    const response = await fetch(`${API_BASE_URL}/search?${params.toString()}`);
+    const response = await fetch(`/api/search?${params.toString()}`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to search knowledge: ${response.status} ${errorText}`);
@@ -367,50 +354,55 @@ const useKnowledgeDocuments = (
   });
 };
 
-const useKnowledgeChunks = (agentId: UUID, enabled: boolean = true, documentIdFilter?: UUID) => {
-  // Query to get fragments (chunks)
-  const {
-    data: chunks = [],
-    isLoading: chunksLoading,
-    error: chunksError,
-  } = useQuery<Memory[], Error>({
-    queryKey: ['agents', agentId, 'knowledge', 'chunks', { documentIdFilter }],
-    queryFn: async () => {
-      const response = await apiClient.getKnowledgeChunks(agentId, {
-        documentId: documentIdFilter,
-      });
-      return response.data.chunks || [];
-    },
-    enabled,
-  });
-
-  // Query to get documents
+const useKnowledgeChunks = (agentId: UUID, enabled: boolean = true, selectedDocumentId?: UUID) => {
+  // Query for documents only (initial load)
   const {
     data: documents = [],
     isLoading: documentsLoading,
     error: documentsError,
   } = useQuery<Memory[], Error>({
-    queryKey: ['agents', agentId, 'knowledge', 'documents-for-graph'],
+    queryKey: ['agents', agentId, 'knowledge', 'documents-graph'],
     queryFn: async () => {
-      const response = await apiClient.getKnowledgeDocuments(agentId, { includeEmbedding: false });
+      const response = await apiClient.getKnowledgeDocuments(agentId, {
+        includeEmbedding: false,
+      });
       return response.data.memories || [];
     },
-    enabled,
+    enabled: enabled && !selectedDocumentId,
   });
 
-  // Combine documents and fragments
-  const allMemories = [...documents, ...chunks];
-  const isLoading = chunksLoading || documentsLoading;
-  const error = chunksError || documentsError;
+  // Query for specific document with all its fragments
+  const {
+    data: documentWithFragments = [],
+    isLoading: fragmentsLoading,
+    error: fragmentsError,
+  } = useQuery<Memory[], Error>({
+    queryKey: ['agents', agentId, 'knowledge', 'document-fragments', selectedDocumentId],
+    queryFn: async () => {
+      if (!selectedDocumentId) return [];
 
-  console.log(
-    `Documents: ${documents.length}, Fragments: ${chunks.length}, Total: ${allMemories.length}`
-  );
+      const response = await apiClient.getKnowledgeChunks(agentId, {
+        documentId: selectedDocumentId,
+      });
+      return response.data.chunks || [];
+    },
+    enabled: enabled && !!selectedDocumentId,
+  });
+
+  // Combine the data appropriately
+  const allMemories = selectedDocumentId ? documentWithFragments : documents;
+  const isLoading = documentsLoading || fragmentsLoading;
+  const error = documentsError || fragmentsError;
 
   return {
     data: allMemories,
     isLoading,
     error,
+    documents: selectedDocumentId ? documents : allMemories,
+    fragments: selectedDocumentId
+      ? documentWithFragments.filter((m: Memory) => (m.metadata as any)?.type === 'fragment')
+      : [],
+    mode: selectedDocumentId ? 'document-fragments' : 'documents-only',
   };
 };
 
@@ -436,7 +428,6 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
-  const [documentIdFilter, setDocumentIdFilter] = useState<UUID | undefined>(undefined);
   const [pdfZoom, setPdfZoom] = useState(1.0);
   const [showUrlDialog, setShowUrlDialog] = useState(false);
   const [urlInput, setUrlInput] = useState('');
@@ -451,6 +442,10 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [filenameFilter, setFilenameFilter] = useState('');
+  const [selectedDocumentForGraph, setSelectedDocumentForGraph] = useState<UUID | undefined>(
+    undefined
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -469,17 +464,39 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     data: graphMemories = [],
     isLoading: graphLoading,
     error: graphError,
-  } = useKnowledgeChunks(agentId, viewMode === 'graph' && !showSearch, documentIdFilter);
+    documents: graphDocuments = [],
+    fragments: graphFragments = [],
+  } = useKnowledgeChunks(agentId, viewMode === 'graph' && !showSearch, selectedDocumentForGraph);
 
   // Use the appropriate data based on the mode
   const isLoading = viewMode === 'list' ? documentsLoading : graphLoading;
   const error = viewMode === 'list' ? documentsError : graphError;
   const memories = viewMode === 'list' ? documentsOnly : graphMemories;
 
+  // Calculate counts for display
+  const documentCount = viewMode === 'list' ? documentsOnly.length : graphDocuments.length;
+  const fragmentCount = viewMode === 'graph' ? graphFragments.length : 0;
+
   const { mutate: deleteKnowledgeDoc } = useDeleteKnowledgeDocument(agentId);
 
+  // Filter memories by filename in list view
+  const filteredMemories = React.useMemo(() => {
+    if (viewMode !== 'list' || !filenameFilter.trim()) {
+      return memories;
+    }
+
+    return memories.filter((memory) => {
+      const metadata = (memory.metadata as MemoryMetadata) || {};
+      const filename = metadata.filename || metadata.originalFilename || metadata.path || '';
+      return filename.toLowerCase().includes(filenameFilter.toLowerCase());
+    });
+  }, [memories, filenameFilter, viewMode]);
+
+  const visibleMemories = filteredMemories.slice(0, visibleItems);
+  const hasMoreToLoad = visibleItems < filteredMemories.length;
+
   const handleScroll = useCallback(() => {
-    if (!scrollContainerRef.current || loadingMore || visibleItems >= memories.length) {
+    if (!scrollContainerRef.current || loadingMore || visibleItems >= filteredMemories.length) {
       return;
     }
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
@@ -487,15 +504,35 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     if (scrolledToBottom) {
       setLoadingMore(true);
       setTimeout(() => {
-        setVisibleItems((prev) => Math.min(prev + ITEMS_PER_PAGE, memories.length));
+        setVisibleItems((prev) => Math.min(prev + ITEMS_PER_PAGE, filteredMemories.length));
         setLoadingMore(false);
       }, 300);
     }
-  }, [loadingMore, visibleItems, memories.length]);
+  }, [loadingMore, visibleItems, filteredMemories.length]);
 
   useEffect(() => {
     setVisibleItems(ITEMS_PER_PAGE);
   }, []);
+
+  // Reset visible items when filter changes
+  useEffect(() => {
+    setVisibleItems(ITEMS_PER_PAGE);
+  }, [filenameFilter]);
+
+  // Handle escape key to close document detail modal
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && viewingContent) {
+        setViewingContent(null);
+        setPdfZoom(1.0); // Reset zoom when closing
+      }
+    };
+
+    if (viewingContent) {
+      document.addEventListener('keydown', handleEscapeKey);
+      return () => document.removeEventListener('keydown', handleEscapeKey);
+    }
+  }, [viewingContent]);
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -505,13 +542,13 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     }
   }, [handleScroll]);
 
-  if (isLoading && (!memories || memories.length === 0)) {
+  if (isLoading && (!memories || memories.length === 0) && !showSearch) {
     return (
       <div className="flex items-center justify-center h-40">Loading knowledge documents...</div>
     );
   }
 
-  if (error) {
+  if (error && !showSearch) {
     return (
       <div className="flex items-center justify-center h-40 text-destructive">
         Error loading knowledge documents: {error.message}
@@ -528,23 +565,22 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     const ext = fileName.split('.').pop()?.toLowerCase();
     switch (ext) {
       case 'md':
-        return <File className="h-4 w-4 text-blue-500" />;
+        return <File className="h-5 w-5 text-blue-500" />;
       case 'js':
       case 'ts':
       case 'jsx':
       case 'tsx':
-        return <File className="h-4 w-4 text-yellow-500" />;
+        return <File className="h-5 w-5 text-yellow-500" />;
       case 'json':
-        return <File className="h-4 w-4 text-green-500" />;
+        return <File className="h-5 w-5 text-green-500" />;
       case 'pdf':
-        return <FileText className="h-4 w-4 text-red-500" />;
+        return <FileText className="h-5 w-5 text-red-500" />;
       default:
-        return <FileText className="h-4 w-4 text-gray-500" />;
+        return <FileText className="h-5 w-5 text-gray-500" />;
     }
   };
 
   const handleDelete = (knowledgeId: string) => {
-    // eslint-disable-next-line no-alert
     if (knowledgeId && window.confirm('Are you sure you want to delete this document?')) {
       deleteKnowledgeDoc({ knowledgeId: knowledgeId as UUID });
       setViewingContent(null);
@@ -552,9 +588,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
   };
 
   const handleUploadClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
+    if (fileInputRef.current) fileInputRef.current.click();
   };
 
   const handleUrlUploadClick = () => {
@@ -580,13 +614,40 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
       setUrls([...urls, urlInput]);
       setUrlInput('');
       setUrlError(null);
-    } catch (_e) {
+    } catch (e) {
       setUrlError('Invalid URL');
     }
   };
 
   const removeUrl = (urlToRemove: string) => {
     setUrls(urls.filter((url) => url !== urlToRemove));
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchError('Please enter a search query');
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+    setSearchResults([]);
+
+    try {
+      const result = await apiClient.searchKnowledge(agentId, searchQuery, searchThreshold);
+      setSearchResults(result.data.results || []);
+
+      if (result.data.results.length === 0) {
+        setSearchError(
+          'No results found. Try adjusting your search query or lowering the similarity threshold.'
+        );
+      }
+    } catch (error: any) {
+      setSearchError(error.message || 'Failed to search knowledge');
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleUrlSubmit = async () => {
@@ -597,7 +658,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
         if (url.protocol.startsWith('http') && !urls.includes(urlInput)) {
           setUrls([...urls, urlInput]);
         }
-      } catch (_e) {
+      } catch (e) {
         // If the input is not a valid URL, just ignore it
       }
     }
@@ -612,7 +673,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     setUrlError(null);
 
     try {
-      const result = await fetch(`${API_BASE_URL}/documents`, {
+      const result = await fetch(`/api/documents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -653,9 +714,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0) {
-      return;
-    }
+    if (!files || files.length === 0) return;
     setIsUploading(true);
     try {
       const fileArray = Array.from(files);
@@ -670,7 +729,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
       }
       formData.append('agentId', agentId);
 
-      const response = await fetch(`${API_BASE_URL}/documents`, {
+      const response = await fetch('/api/documents', {
         method: 'POST',
         body: formData,
       });
@@ -723,36 +782,6 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchError('Please enter a search query');
-      return;
-    }
-
-    setIsSearching(true);
-    setSearchError(null);
-    setSearchResults([]);
-
-    try {
-      const result = await apiClient.searchKnowledge(agentId, searchQuery, searchThreshold);
-      setSearchResults(result.data.results || []);
-
-      if (result.data.results.length === 0) {
-        setSearchError(
-          'No results found. Try adjusting your search query or lowering the similarity threshold.'
-        );
-      }
-    } catch (error: any) {
-      setSearchError(error.message || 'Failed to search knowledge');
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const visibleMemories = memories.slice(0, visibleItems);
-  const hasMoreToLoad = visibleItems < memories.length;
-
   const LoadingIndicator = () => (
     <div className="flex justify-center p-4">
       {loadingMore ? (
@@ -764,7 +793,13 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setVisibleItems((prev) => prev + ITEMS_PER_PAGE)}
+          onClick={() => {
+            setLoadingMore(true);
+            setTimeout(() => {
+              setVisibleItems((prev) => Math.min(prev + ITEMS_PER_PAGE, filteredMemories.length));
+              setLoadingMore(false);
+            }, 100);
+          }}
           className="text-xs"
         >
           Show more
@@ -785,87 +820,230 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     </div>
   );
 
+  const HeaderControls = () => {
+    if (isDocumentFocused) {
+      // Simplified controls when document is focused
+      return (
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode('list')}
+            className="flex-shrink-0"
+            title="Switch to List view to see documents only"
+          >
+            <List className="h-4 w-4 mr-2" />
+            <span>List View</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSelectedDocumentForGraph(undefined);
+              setSelectedMemory(null);
+            }}
+            className="flex-shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            <span>Overview Graph</span>
+          </Button>
+        </>
+      );
+    }
+
+    if (showSearch) {
+      // Search mode: only show List View button
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setShowSearch(false);
+            setSearchQuery('');
+            setSearchResults([]);
+            setSearchError(null);
+            setViewMode('list');
+          }}
+          className="flex-shrink-0"
+          title="Exit search and return to List view"
+        >
+          <List className="h-4 w-4 mr-2" />
+          <span className="hidden md:inline">List View</span>
+          <span className="md:hidden">List</span>
+        </Button>
+      );
+    }
+
+    if (viewMode === 'graph') {
+      // Graph mode: only show List View button
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setViewMode('list')}
+          className="flex-shrink-0"
+          title="Switch to List view to see documents only"
+        >
+          <List className="h-4 w-4 mr-2" />
+          <span className="hidden md:inline">List View</span>
+          <span className="md:hidden">List</span>
+        </Button>
+      );
+    }
+
+    // List mode: show full controls
+    return (
+      <>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setViewMode('graph')}
+          className="flex-shrink-0"
+          title="Switch to Graph view to see documents and fragments"
+        >
+          <Network className="h-4 w-4 mr-2" />
+          <span className="hidden md:inline">Graph View</span>
+          <span className="md:hidden">Graph</span>
+        </Button>
+        <div className="flex gap-2 ml-auto sm:ml-0">
+          <Button
+            variant="outline"
+            onClick={() => setShowSearch(true)}
+            size="sm"
+            className="flex-shrink-0"
+          >
+            <Search className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Search</span>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleUrlUploadClick}
+            size="sm"
+            className="flex-shrink-0"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 sm:mr-2"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            <span className="hidden sm:inline">URL</span>
+          </Button>
+          <Button
+            onClick={handleUploadClick}
+            disabled={isUploading}
+            size="sm"
+            className="flex-shrink-0"
+          >
+            {isUploading ? (
+              <LoaderIcon className="h-4 w-4 animate-spin sm:mr-2" />
+            ) : (
+              <Upload className="h-4 w-4 sm:mr-2" />
+            )}
+            <span className="hidden sm:inline">Upload</span>
+          </Button>
+        </div>
+      </>
+    );
+  };
+
   const KnowledgeCard = ({ memory, index }: { memory: Memory; index: number }) => {
     const metadata = (memory.metadata as MemoryMetadata) || {};
-    const title = metadata.title || memory.id || 'Unknown Document';
-    const filename = metadata.filename || 'Unknown Document';
-    const fileExt = metadata.fileExt || filename.split('.').pop()?.toLowerCase() || '';
-    const displayName = title || filename;
-    const subtitle = metadata.path || filename;
+
+    // Try to get a meaningful name from various metadata fields
+    const getDocumentName = () => {
+      if (metadata.title) return metadata.title;
+      if (metadata.filename) return metadata.filename;
+      if (metadata.originalFilename) return metadata.originalFilename;
+      if (metadata.path) return metadata.path.split('/').pop() || metadata.path;
+      if (memory.id) return `Document ${memory.id.substring(0, 8)}`;
+      return `Document ${index + 1}`;
+    };
+
+    const getFileExtension = () => {
+      if (metadata.fileExt) return metadata.fileExt.toLowerCase();
+      const filename = metadata.filename || metadata.originalFilename || metadata.path || '';
+      return filename.split('.').pop()?.toLowerCase() || 'doc';
+    };
+
+    const getSubtitle = () => {
+      if (metadata.path) return metadata.path;
+      if (metadata.filename) return metadata.filename;
+      if (metadata.originalFilename) return metadata.originalFilename;
+      if (metadata.source) return `Source: ${metadata.source}`;
+      return 'Knowledge Document';
+    };
+
+    const displayName = getDocumentName();
+    const subtitle = getSubtitle();
+    const fileExt = getFileExtension();
 
     return (
       <button
         key={memory.id || index}
         type="button"
-        className="w-full text-left"
+        className="w-full text-left hover:bg-accent/5 transition-colors group border-b border-border/30 cursor-pointer"
         onClick={() => setViewingContent(memory)}
       >
-        <Card className="hover:bg-accent/10 transition-colors relative group" data-testid="card">
-          <div className="absolute top-3 left-3 opacity-70">{getFileIcon(filename)}</div>
-          <CardHeader className="p-3 pb-2 pl-10">
-            <div className="text-xs text-muted-foreground mb-1 line-clamp-1">{subtitle}</div>
-            <div className="mb-2">
-              <div className="text-sm font-medium mb-1">{displayName}</div>
-              {metadata.description && (
-                <div className="text-xs text-muted-foreground line-clamp-2">
-                  {metadata.description}
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardFooter className="p-2 border-t bg-muted/30 text-xs text-muted-foreground">
-            <div className="flex justify-between items-center w-full">
-              <div className="flex items-center">
-                <Clock className="h-3 w-3 mr-1.5" />
-                <span>
-                  {new Date(memory.createdAt || 0).toLocaleString(undefined, {
-                    month: 'numeric',
-                    day: 'numeric',
-                    year: 'numeric',
-                    hour: 'numeric',
-                    minute: 'numeric',
-                  })}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="px-1.5 py-0 h-5">
-                  {fileExt || 'unknown document'}
+        <div className="flex items-center px-1 py-2 min-h-[2rem]">
+          {/* Left side: Icon + Filename + Pill + Date */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="flex-shrink-0">{getFileIcon(displayName)}</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium truncate">{subtitle}</span>
+                <Badge variant="outline" className="px-1 py-0 h-4 text-xs flex-shrink-0">
+                  {fileExt || 'doc'}
                 </Badge>
-                {memory.id && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      if (e) {
-                        e.stopPropagation();
-                        e.preventDefault();
-                      }
-                      handleDelete(memory.id || '');
-                    }}
-                    title="Delete knowledge"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {new Date(memory.createdAt || 0).toLocaleString(undefined, {
+                  month: 'numeric',
+                  day: 'numeric',
+                  year: '2-digit',
+                  hour: 'numeric',
+                  minute: 'numeric',
+                })}
               </div>
             </div>
-          </CardFooter>
-        </Card>
+          </div>
+
+          {/* Right side: Delete button */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {memory.id && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  if (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }
+                  handleDelete(memory.id || '');
+                }}
+                title="Delete knowledge"
+              >
+                <Trash2 className="h-3 w-3 text-destructive" />
+              </Button>
+            )}
+          </div>
+        </div>
       </button>
     );
-  };
-
-  // Add a function to handle the filtering of chunks by document
-  const handleDocumentFilter = (docId?: UUID) => {
-    setDocumentIdFilter(docId === documentIdFilter ? undefined : docId);
   };
 
   // Component to display the details of a fragment or document
   const MemoryDetails = ({ memory }: { memory: Memory }) => {
     const metadata = memory.metadata as MemoryMetadata;
     const isFragment = metadata?.type === 'fragment';
-    const _isDocument = metadata?.type === 'document';
 
     return (
       <div className="border-t border-border bg-card text-card-foreground h-full flex flex-col">
@@ -940,111 +1118,30 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     );
   };
 
+  // Check if we're in a focused document view that needs simplified controls
+  const isDocumentFocused = viewMode === 'graph' && selectedDocumentForGraph && !showSearch;
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border-b gap-3">
+      <div
+        className={`flex flex-col sm:flex-row items-start sm:items-center justify-between border-b gap-3 ${
+          isDocumentFocused ? 'p-6 pb-4' : 'p-4'
+        }`}
+      >
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold">Knowledge</h2>
           <p className="text-xs text-muted-foreground">
             {showSearch
               ? 'Searching knowledge fragments'
               : viewMode === 'list'
-                ? 'Viewing documents only'
-                : 'Viewing documents and their fragments'}
+                ? `Viewing ${documentCount} document${documentCount !== 1 ? 's' : ''}`
+                : isDocumentFocused
+                  ? `Inspecting document with ${fragmentCount} fragment${fragmentCount !== 1 ? 's' : ''}`
+                  : `Viewing ${documentCount} document${documentCount !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setViewMode(viewMode === 'list' ? 'graph' : 'list')}
-            className="flex-shrink-0"
-            title={
-              viewMode === 'list'
-                ? 'Switch to Graph view to see documents and fragments'
-                : 'Switch to List view to see documents only'
-            }
-            disabled={showSearch}
-          >
-            {viewMode === 'list' ? (
-              <>
-                <Network className="h-4 w-4 mr-2" />
-                <span className="hidden md:inline">Graph View</span>
-                <span className="md:hidden">Graph</span>
-              </>
-            ) : (
-              <>
-                <List className="h-4 w-4 mr-2" />
-                <span className="hidden md:inline">List View</span>
-                <span className="md:hidden">List</span>
-              </>
-            )}
-          </Button>
-          {viewMode === 'graph' && documentIdFilter && !showSearch && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDocumentIdFilter(undefined)}
-              className="flex-shrink-0"
-            >
-              <span className="hidden sm:inline">Clear Filter</span>
-              <span className="sm:hidden">Clear</span>
-            </Button>
-          )}
-          <div className="flex gap-2 ml-auto sm:ml-0">
-            <Button
-              variant={showSearch ? 'default' : 'outline'}
-              onClick={() => {
-                setShowSearch(!showSearch);
-                if (showSearch) {
-                  // if turning search OFF
-                  setSearchQuery('');
-                  setSearchResults([]);
-                  setSearchError(null);
-                }
-              }}
-              size="sm"
-              className="flex-shrink-0"
-            >
-              <Search className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Search</span>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleUrlUploadClick}
-              size="sm"
-              className="flex-shrink-0"
-              disabled={showSearch}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 sm:mr-2"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-              </svg>
-              <span className="hidden sm:inline">URL</span>
-            </Button>
-            <Button
-              onClick={handleUploadClick}
-              disabled={isUploading || showSearch}
-              size="sm"
-              className="flex-shrink-0"
-            >
-              {isUploading ? (
-                <LoaderIcon className="h-4 w-4 animate-spin sm:mr-2" />
-              ) : (
-                <Upload className="h-4 w-4 sm:mr-2" />
-              )}
-              <span className="hidden sm:inline">Upload</span>
-            </Button>
-          </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <HeaderControls />
         </div>
       </div>
 
@@ -1054,7 +1151,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Info className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Search your knowledge base using semantic vector search. Adjust the similarity
                 threshold to control how closely results must match your query.
               </p>
@@ -1256,24 +1353,42 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
                   {searchResults.map((result, index) => (
                     <div
                       key={result.id || index}
-                      className="border border-border rounded-md p-3 bg-card hover:bg-accent/10 transition-colors"
+                      className="border border-border rounded-md p-3 bg-card hover:bg-accent/10 transition-colors cursor-pointer"
+                      onClick={() => setViewingContent(result)}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-xs">
                             {(result.similarity * 100).toFixed(1)}% match
                           </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {result.metadata?.documentFilename || 'Unknown Document'}
-                          </span>
                         </div>
                       </div>
-                      <p className="text-sm line-clamp-3">{result.content?.text || 'No content'}</p>
-                      {result.metadata?.position !== undefined && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Fragment position: {result.metadata.position}
+                      <p className="text-sm line-clamp-4 mb-2">
+                        {result.content?.text || 'No content'}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          {result.metadata?.position !== undefined && (
+                            <span>Fragment #{result.metadata.position}</span>
+                          )}
                         </div>
-                      )}
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-3 w-3"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                          </svg>
+                          <span>Read more</span>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1296,40 +1411,24 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
               className={`p-4 overflow-hidden ${selectedMemory ? 'h-1/3' : 'flex-1'} transition-all duration-300`}
             >
               <MemoryGraph
-                memories={memories}
+                memories={graphMemories}
                 onNodeClick={(memory) => {
                   setSelectedMemory(memory);
-                  // If this is a document, filter to show only its chunks
-                  if (
-                    memory.metadata &&
-                    typeof memory.metadata === 'object' &&
-                    'type' in memory.metadata &&
-                    (memory.metadata.type || '').toLowerCase() === 'document' &&
-                    !('documentId' in memory.metadata)
-                  ) {
-                    handleDocumentFilter(memory.id as UUID);
+
+                  // If clicking on a document, load its fragments
+                  const metadata = memory.metadata as any;
+                  if (metadata?.type === 'document') {
+                    setSelectedDocumentForGraph(memory.id as UUID);
                   }
                 }}
                 selectedMemoryId={selectedMemory?.id}
               />
-              {documentIdFilter && (
-                <div className="absolute top-16 left-4 bg-card/90 backdrop-blur-sm text-card-foreground p-2 rounded-md shadow-sm border border-border">
-                  <span className="text-xs text-muted-foreground flex items-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-3 w-3 mr-1.5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                    </svg>
-                    Filtering by document ID:{' '}
-                    <span className="font-mono ml-1">{documentIdFilter.substring(0, 8)}...</span>
-                  </span>
+              {viewMode === 'graph' && graphLoading && selectedDocumentForGraph && (
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-card/90 backdrop-blur-sm p-4 rounded-lg shadow-lg border border-border">
+                  <div className="flex items-center gap-2">
+                    <LoaderIcon className="h-5 w-5 animate-spin" />
+                    <span>Loading document fragments...</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -1342,13 +1441,25 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
             )}
           </div>
         ) : (
-          <div ref={scrollContainerRef} className="h-full overflow-y-auto p-4">
-            <div className="grid gap-3">
-              {visibleMemories.map((memory, index) => (
-                <KnowledgeCard key={memory.id || index} memory={memory} index={index} />
-              ))}
+          <div className="h-full flex flex-col">
+            {/* Filename filter search bar */}
+            <div className="flex-shrink-0 p-4 pb-2 border-b border-border/30">
+              <Input
+                placeholder="Filter by filename..."
+                value={filenameFilter}
+                onChange={(e) => setFilenameFilter(e.target.value)}
+                className="w-full text-sm"
+              />
             </div>
-            {hasMoreToLoad && <LoadingIndicator />}
+
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 pt-2">
+              <div className="grid gap-1.5">
+                {visibleMemories.map((memory, index) => (
+                  <KnowledgeCard key={memory.id || index} memory={memory} index={index} />
+                ))}
+              </div>
+              {hasMoreToLoad && <LoadingIndicator />}
+            </div>
           </div>
         )}
       </div>

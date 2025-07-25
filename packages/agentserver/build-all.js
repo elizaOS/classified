@@ -5,12 +5,77 @@
 import { $ } from 'bun';
 import { existsSync } from 'fs';
 
+async function cleanContainerCache() {
+  console.log('🧹 Cleaning container cache and removing old agent images...');
+  
+  try {
+    // Check if podman is available
+    try {
+      await $`podman --version`.quiet();
+    } catch {
+      console.log('⚠️  Podman not available, skipping container cache cleanup');
+      return;
+    }
+
+    // Remove existing agent container images to force fresh build
+    const agentImages = [
+      'eliza-agent-server:latest',
+      'eliza-agent:latest',
+      'eliza-agent-working:latest'
+    ];
+
+    for (const image of agentImages) {
+      try {
+        console.log(`🗑️  Removing existing image: ${image}`);
+        await $`podman rmi ${image}`.quiet();
+        console.log(`✅ Removed ${image}`);
+      } catch (error) {
+        // Image might not exist, which is fine
+        console.log(`ℹ️  Image ${image} not found (this is ok)`);
+      }
+    }
+
+    // Stop and remove any running agent containers
+    const containerNames = ['eliza-agent', 'eliza-agent-server'];
+    for (const name of containerNames) {
+      try {
+        console.log(`🛑 Stopping and removing container: ${name}`);
+        await $`podman stop ${name}`.quiet();
+        await $`podman rm ${name}`.quiet();
+        console.log(`✅ Removed container ${name}`);
+      } catch (error) {
+        // Container might not exist, which is fine
+        console.log(`ℹ️  Container ${name} not found (this is ok)`);
+      }
+    }
+
+    // Clean dangling images and build cache
+    try {
+      console.log('🧹 Cleaning dangling images and build cache...');
+      await $`podman image prune -f`.quiet();
+      await $`podman system prune -f`.quiet();
+      console.log('✅ Container cache cleaned');
+    } catch (error) {
+      console.warn('⚠️  Failed to clean build cache:', error.message);
+    }
+
+    console.log('✅ Container cache cleanup completed\n');
+  } catch (error) {
+    console.warn('⚠️  Container cache cleanup failed:', error.message);
+    console.log('⚠️  Continuing with build process...\n');
+  }
+}
+
 async function buildEverything() {
   console.log('🚀 ElizaOS Agent Server - Complete Build Process\n');
 
   try {
+    // Step 0: Clean container cache and remove existing agent images
+    console.log('🧹 Step 0/4: Cleaning container cache and removing old agent images...');
+    await cleanContainerCache();
+
     // Step 1: Build the backend
-    console.log('📦 Step 1/3: Building backend...');
+    console.log('📦 Step 1/4: Building backend...');
     await $`bun build.js`;
 
     // Verify backend build
@@ -20,7 +85,7 @@ async function buildEverything() {
     console.log('✅ Backend built successfully\n');
 
     // Step 2: Build Linux binary
-    console.log('🔨 Step 2/3: Building Linux binary...');
+    console.log('🔨 Step 2/4: Building Linux binary...');
 
     // Ensure DOM polyfill exists
     if (!existsSync('./dom-polyfill.ts')) {
@@ -60,7 +125,7 @@ async function buildEverything() {
     console.log(`✅ Linux binaries created:\n${stats.trim()}\n`);
 
     // Step 3: Build Podman image
-    console.log('🐳 Step 3/3: Building Podman image...');
+    console.log('🐳 Step 3/4: Building Podman image...');
 
     // Verify podman is available
     try {
@@ -76,8 +141,8 @@ async function buildEverything() {
     const arch = process.arch;
     const platform = arch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
     
-    console.log(`📦 Building container for platform: ${platform}`);
-    await $`podman build --platform ${platform} -t ${imageName} -f Dockerfile .`;
+    console.log(`📦 Building container for platform: ${platform} (no cache)`);
+    await $`podman build --no-cache --platform ${platform} -t ${imageName} -f Dockerfile .`;
 
     // Tag for Rust compatibility
     await $`podman tag ${imageName} eliza-agent:latest`;
@@ -100,4 +165,9 @@ async function buildEverything() {
 }
 
 // Run the complete build
-await buildEverything();
+if (import.meta.main) {
+  await buildEverything();
+}
+
+// Export functions for use by other scripts
+export { cleanContainerCache, buildEverything };

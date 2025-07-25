@@ -8,6 +8,7 @@
     "dev": "cd ../agentserver && bun run build && cd ../game && concurrently \"vite dev\" \"cd src-tauri && USE_SMALL_MODELS=true cargo tauri dev\"",
     "start": "cd ../agentserver && bun run build && cd ../game && concurrently \"vite\" \"cd src-tauri && USE_SMALL_MODELS=true cargo tauri dev\"",
     "build": "cd ../agentserver && bun run build && cd ../game && vite build && cd src-tauri && cargo tauri build",
+    "clean": "cd ../agentserver && bun run clean",
     "test": "cypress run",
     "lint": "eslint . --fix && prettier --write ."
   },

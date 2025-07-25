@@ -665,7 +665,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
             agentId: entity.agentId || this.agentId,
             createdAt: new Date(),
             updatedAt: new Date(),
-            names: entity.names,
+            names: Array.isArray(entity.names) ? entity.names : [entity.names].filter(Boolean),
             metadata: entity.metadata || {},
           }));
           

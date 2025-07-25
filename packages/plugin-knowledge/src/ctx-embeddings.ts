@@ -429,7 +429,7 @@ export function getPromptForMimeType(
     minTokens = CONTEXT_TARGETS.TECHNICAL.MIN_TOKENS;
     maxTokens = CONTEXT_TARGETS.TECHNICAL.MAX_TOKENS;
     promptTemplate = TECHNICAL_PROMPT_TEMPLATE;
-    console.debug('Using technical documentation prompt template');
+    // Using technical documentation prompt template
   }
 
   return getContextualizationPrompt(docContent, chunkContent, minTokens, maxTokens, promptTemplate);
@@ -608,14 +608,6 @@ export function getChunkWithContext(chunkContent: string, generatedContext: stri
   if (!generatedContext || generatedContext.trim() === '') {
     console.warn('Generated context is empty. Falling back to original chunk content.');
     return chunkContent;
-  }
-
-  // Verify that the generated context contains the original chunk
-  if (!generatedContext.includes(chunkContent)) {
-    console.warn(
-      'Generated context does not contain the original chunk. Appending original to ensure data integrity.'
-    );
-    return `${generatedContext.trim()}\n\n${chunkContent}`;
   }
 
   return generatedContext.trim();

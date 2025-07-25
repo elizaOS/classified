@@ -1,11 +1,12 @@
 # ElizaOS Agent Server - Optimized for self-contained binary
 FROM debian:12-slim
 
-# Install minimal runtime dependencies
+# Install minimal runtime dependencies including PostgreSQL client for database management
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     dumb-init \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1001 eliza \
     && useradd -u 1001 -g eliza -m eliza
@@ -27,6 +28,10 @@ RUN chmod +x ./server ./health-check.sh && \
 RUN mkdir -p /app/data /app/logs /app/knowledge && \
     chown -R eliza:eliza /app
 
+# Copy startup script
+COPY --chown=eliza:eliza docker-startup.sh ./docker-startup.sh
+RUN chmod +x ./docker-startup.sh
+
 # Switch to non-root user
 USER eliza
 
@@ -40,8 +45,12 @@ EXPOSE 7777
 # Environment variables for production
 ENV NODE_ENV=production \
     PORT=7777 \
-    LOG_LEVEL=info
+    LOG_LEVEL=info \
+    DOCKER_CONTAINER=true \
+    POSTGRES_URL="postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza_game" \
+    DATABASE_URL="postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza_game" \
+    RESET_DB=false
 
 # Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["./server"]
+CMD ["./docker-startup.sh"]

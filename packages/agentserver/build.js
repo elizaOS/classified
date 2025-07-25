@@ -10,8 +10,11 @@ const __dirname = path.dirname(__filename);
 // Read package.json to get dependencies
 const packageJson = JSON.parse(readFileSync(path.join(__dirname, '.', 'package.json'), 'utf-8'));
 
-// All workspace dependencies should be bundled
-// Removed unused 'external' variable - using hardcoded list in esbuild config instead
+// Get all workspace dependencies that should be bundled
+const workspaceDependencies = Object.keys(packageJson.dependencies || {})
+  .filter(dep => packageJson.dependencies[dep].startsWith('workspace:'));
+
+console.log('Workspace dependencies to bundle:', workspaceDependencies);
 
 async function build() {
   try {
@@ -23,30 +26,48 @@ async function build() {
       format: 'esm',
       outfile: path.join(__dirname, '.', 'dist-backend', 'server.js'),
       external: [
-        // Only externalize these specific problematic modules
+        // Canvas has native dependencies that can't be bundled
         'canvas',
         '@napi-rs/canvas',
-        '@napi-rs/canvas-darwin-arm64',
-        '@napi-rs/canvas-linux-arm64',
-        'bufferutil',
-        'utf-8-validate',
-        // PDF.js and canvas-related dependencies
-        'pdfjs-dist',
-        'dommatrix',
-        'DOMMatrix',
-        // TensorFlow and ML-related dependencies that are too large to bundle
-        '@tensorflow/tfjs-node',
-        '@tensorflow/tfjs',
-        'tfjs_binding.node',
-        'sharp',
-        'opencv4nodejs',
-        // Legacy pino-pretty (now using adze logger)
         'pino-pretty',
         // Playwright and its native dependencies
         'playwright',
         'playwright-core',
-        'fsevents'
+        '@playwright/test',
+        // Native node modules that can't be bundled
+        'fsevents',
+        // External dependencies for the stagehand plugin
+        '@browserbasehq/stagehand',
+        'electron'
       ],
+      // Add a plugin to resolve workspace dependencies
+      plugins: [{
+        name: 'workspace-resolver',
+        setup(build) {
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Resolve @elizaos/* packages to their dist directories
+          build.onResolve({ filter: /^@elizaos\// }, args => {
+            const packageName = args.path;
+            const packageDir = packageName.replace('@elizaos/', '');
+            const packagePath = path.resolve(__dirname, '..', packageDir, 'dist', 'index.js');
+            
+            // Check if the built package exists
+            if (fs.existsSync(packagePath)) {
+              return { path: packagePath };
+            }
+            
+            // Fallback to source if dist doesn't exist
+            const srcPath = path.resolve(__dirname, '..', packageDir, 'src', 'index.ts');
+            if (fs.existsSync(srcPath)) {
+              return { path: srcPath };
+            }
+            
+            return null;
+          });
+        }
+      }],
       sourcemap: true,
       minify: false,
       loader: {
@@ -56,7 +77,102 @@ async function build() {
       resolveExtensions: ['.ts', '.js', '.json'],
       tsconfig: path.join(__dirname, '.', 'tsconfig.backend.json'),
       banner: {
-        js: 'import { createRequire as __createRequire } from "module"; const require = __createRequire(import.meta.url);'
+        js: `// CRITICAL: Load DOM polyfills FIRST before any module execution
+import { createRequire as __createRequire } from "module"; 
+const require = __createRequire(import.meta.url);
+
+// INLINE DOM POLYFILLS - MUST BE FIRST
+(function() {
+  console.log('[POLYFILL-BANNER] Loading critical DOM polyfills...');
+  
+  if (typeof globalThis.DOMMatrix === 'undefined') {
+    globalThis.DOMMatrix = class MockDOMMatrix {
+      constructor(init) {
+        this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+        if (typeof init === 'string') {
+          Object.assign(this, { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+        } else if (init && typeof init === 'object') {
+          Object.assign(this, init);
+        }
+        return this;
+      }
+      translate(x = 0, y = 0) { return this; }
+      scale(x = 1, y = x) { return this; }
+      rotate(angle = 0) { return this; }
+      multiply(matrix) { return this; }
+      inverse() { return this; }
+      toString() { return \`matrix(\${this.a}, \${this.b}, \${this.c}, \${this.d}, \${this.e}, \${this.f})\`; }
+      static fromMatrix(matrix) { return new globalThis.DOMMatrix(matrix); }
+      static fromFloat32Array(array) { return new globalThis.DOMMatrix(); }
+      static fromFloat64Array(array) { return new globalThis.DOMMatrix(); }
+    };
+  }
+  
+  if (typeof globalThis.ImageData === 'undefined') {
+    globalThis.ImageData = class MockImageData {
+      constructor(dataOrWidth, height, width) {
+        if (dataOrWidth instanceof Uint8ClampedArray) {
+          this.data = dataOrWidth;
+          this.width = height;
+          this.height = width || height;
+        } else {
+          this.width = dataOrWidth || 0;
+          this.height = height || 0;
+          this.data = new Uint8ClampedArray((dataOrWidth || 0) * (height || 0) * 4);
+        }
+        this.colorSpace = 'srgb';
+      }
+    };
+  }
+  
+  if (typeof globalThis.Path2D === 'undefined') {
+    globalThis.Path2D = class MockPath2D {
+      constructor(path) { this.path = path || ''; }
+      addPath() {} arc() {} arcTo() {} bezierCurveTo() {} closePath() {}
+      ellipse() {} lineTo() {} moveTo() {} quadraticCurveTo() {} rect() {}
+    };
+  }
+  
+  if (typeof globalThis.HTMLCanvasElement === 'undefined') {
+    globalThis.HTMLCanvasElement = class MockHTMLCanvasElement {
+      constructor() { this.width = 300; this.height = 150; }
+      getContext(type) {
+        if (type === '2d') {
+          return {
+            arc: () => {}, beginPath: () => {}, clearRect: () => {}, closePath: () => {},
+            createImageData: () => new globalThis.ImageData(1, 1),
+            drawImage: () => {}, fill: () => {}, fillRect: () => {},
+            getImageData: () => new globalThis.ImageData(1, 1),
+            lineTo: () => {}, moveTo: () => {}, putImageData: () => {},
+            restore: () => {}, save: () => {}, scale: () => {}, stroke: () => {},
+            translate: () => {}, canvas: this, fillStyle: '#000', strokeStyle: '#000'
+          };
+        }
+        return null;
+      }
+      toDataURL() { return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='; }
+    };
+  }
+  
+  // Set on all global contexts - but check for existence first
+  const contexts = [];
+  try { if (typeof globalThis !== 'undefined') contexts.push(globalThis); } catch (e) {}
+  try { if (typeof global !== 'undefined') contexts.push(global); } catch (e) {}
+  try { if (typeof window !== 'undefined') contexts.push(window); } catch (e) {}
+  try { if (typeof self !== 'undefined') contexts.push(self); } catch (e) {}
+  for (const ctx of contexts) {
+    try {
+      if (ctx && typeof ctx === 'object') {
+        ctx.DOMMatrix = globalThis.DOMMatrix;
+        ctx.ImageData = globalThis.ImageData;
+        ctx.Path2D = globalThis.Path2D;
+        ctx.HTMLCanvasElement = globalThis.HTMLCanvasElement;
+      }
+    } catch (e) {}
+  }
+  
+  console.log('[POLYFILL-BANNER] ✅ Critical DOM polyfills loaded');
+})();`
       }
     });
 

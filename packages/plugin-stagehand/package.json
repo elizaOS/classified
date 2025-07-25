@@ -46,6 +46,7 @@
     "@elizaos/plugin-discord": "github:elizaos-plugins/plugin-discord#v1.0.10",
     "@elizaos/plugin-knowledge": "1.0.4",
     "@elizaos/plugin-telegram": "github:elizaos-plugins/plugin-telegram#v1.0.2",
+    "@napi-rs/canvas": "^0.1.74",
     "axios": "^1.7.7",
     "playwright": "^1.48.0",
     "ws": "^8.18.0",

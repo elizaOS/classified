@@ -1,132 +1,56 @@
 import {
   Content,
-  createLogger,
   createUniqueUuid,
   FragmentMetadata,
   IAgentRuntime,
   KnowledgeItem,
+  logger,
   Memory,
   MemoryMetadata,
   MemoryType,
-  Metadata,
   ModelType,
   Semaphore,
   Service,
   splitChunks,
   UUID,
-  stringToUuid,
+  Metadata,
 } from '@elizaos/core';
-import { loadDocsFromPath } from './docs-loader.ts';
 import {
   createDocumentMemory,
   extractTextFromDocument,
   processFragmentsSynchronously,
 } from './document-processor.ts';
-import { DocumentRepository, FragmentRepository } from './repositories/index.ts';
-import { validateModelConfig } from './config.ts';
-import type {
-  KnowledgeConfig,
-  LoadResult,
-  AddKnowledgeOptions,
-  KnowledgeSearchOptions,
-  KnowledgeSearchResult,
-  BatchKnowledgeOperation,
-  BatchOperationResult,
-  KnowledgeAnalytics,
-  KnowledgeExportOptions,
-  KnowledgeImportOptions,
-  GitHubIngestionOptions,
-  GitHubIngestionResult,
-  WebPageIngestionOptions,
-  WebPageIngestionResult,
-} from './types.ts';
-import { isBinaryContentType, looksLikeBase64 } from './utils.ts';
-import { ingestGitHubRepository, ingestWebPage } from './ingestion-utils.ts';
+import { validateModelConfig } from './config';
+import { AddKnowledgeOptions } from './types.ts';
+import type { KnowledgeConfig, LoadResult } from './types';
+import { loadDocsFromPath } from './docs-loader';
+import { isBinaryContentType, looksLikeBase64, generateContentBasedId } from './utils.ts';
 
-const logger = createLogger({ agentName: 'KnowledgeService' });
-
-/**
- * Helper function to parse boolean environment variables
- * @param value The value to parse (string | boolean | undefined)
- * @returns boolean
- */
-function parseBooleanEnv(value: string | boolean | undefined): boolean {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  if (typeof value === 'string') {
-    return value.toLowerCase() === 'true';
-  }
-  return false;
-}
+const parseBooleanEnv = (value: any): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return false; // Default to false if undefined or other type
+};
 
 /**
  * Knowledge Service - Provides retrieval augmented generation capabilities
  */
 export class KnowledgeService extends Service {
   static readonly serviceType = 'knowledge';
-  public config: Metadata;
-  private knowledgeConfig: KnowledgeConfig;
+  public override config: Metadata = {};
+  private knowledgeConfig: KnowledgeConfig = {} as KnowledgeConfig;
   capabilityDescription =
     'Provides Retrieval Augmented Generation capabilities, including knowledge upload and querying.';
 
   private knowledgeProcessingSemaphore: Semaphore;
-  private documentRepo?: DocumentRepository;
-  private fragmentRepo?: FragmentRepository;
-  private useNewTables: boolean = false; // Feature flag for new implementation
 
   /**
    * Create a new Knowledge service
    * @param runtime Agent runtime
    */
-  constructor(runtime?: IAgentRuntime, config?: Partial<KnowledgeConfig>) {
+  constructor(runtime: IAgentRuntime, config?: Partial<KnowledgeConfig>) {
     super(runtime);
-
     this.knowledgeProcessingSemaphore = new Semaphore(10);
-
-    // Use validated model config but override with environment variables directly
-    const validatedConfig = runtime ? validateModelConfig(runtime) : {
-      CTX_KNOWLEDGE_ENABLED: false,
-      LOAD_DOCS_ON_STARTUP: false,
-      MAX_INPUT_TOKENS: 4000,
-      MAX_OUTPUT_TOKENS: 4096,
-      EMBEDDING_PROVIDER: '',
-      TEXT_PROVIDER: undefined,
-      TEXT_EMBEDDING_MODEL: '',
-    };
-
-    this.knowledgeConfig = {
-      CTX_KNOWLEDGE_ENABLED: process.env.CTX_KNOWLEDGE_ENABLED === 'true' || validatedConfig.CTX_KNOWLEDGE_ENABLED || false,
-      LOAD_DOCS_ON_STARTUP: process.env.LOAD_DOCS_ON_STARTUP === 'true' || validatedConfig.LOAD_DOCS_ON_STARTUP || false,
-      MAX_INPUT_TOKENS: validatedConfig.MAX_INPUT_TOKENS ?? config?.MAX_INPUT_TOKENS,
-      MAX_OUTPUT_TOKENS: validatedConfig.MAX_OUTPUT_TOKENS ?? config?.MAX_OUTPUT_TOKENS,
-      EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER || validatedConfig.EMBEDDING_PROVIDER || config?.EMBEDDING_PROVIDER,
-      TEXT_PROVIDER: process.env.TEXT_PROVIDER || validatedConfig.TEXT_PROVIDER || config?.TEXT_PROVIDER,
-      TEXT_EMBEDDING_MODEL: process.env.TEXT_EMBEDDING_MODEL || validatedConfig.TEXT_EMBEDDING_MODEL || config?.TEXT_EMBEDDING_MODEL,
-    };
-
-    // Store config as Metadata for base class compatibility
-    this.config = { ...this.knowledgeConfig } as Metadata;
-
-    // Check if we should use new tables (feature flag)
-    this.useNewTables = parseBooleanEnv(this.runtime?.getSetting('KNOWLEDGE_USE_NEW_TABLES'));
-
-    if (this.runtime) {
-      logger.info(
-        `KnowledgeService initialized for agent ${this.runtime.agentId} with config:`,
-        this.knowledgeConfig,
-        `useNewTables: ${this.useNewTables}`
-      );
-      
-      logger.info(`LOAD_DOCS_ON_STARTUP: ${this.knowledgeConfig.LOAD_DOCS_ON_STARTUP}`);
-      logger.info(`CTX_KNOWLEDGE_ENABLED: ${this.knowledgeConfig.CTX_KNOWLEDGE_ENABLED}`);
-
-      if (this.knowledgeConfig.LOAD_DOCS_ON_STARTUP) {
-        this.loadInitialDocuments().catch((error) => {
-          logger.error('Error during initial document loading in KnowledgeService:', error);
-        });
-      }
-    }
   }
 
   private async loadInitialDocuments(): Promise<void> {
@@ -161,7 +85,94 @@ export class KnowledgeService extends Service {
    */
   static async start(runtime: IAgentRuntime): Promise<KnowledgeService> {
     logger.info(`Starting Knowledge service for agent: ${runtime.agentId}`);
+
+    logger.info('Initializing Knowledge Plugin...');
+    let validatedConfig: any = {};
+    try {
+      // Validate the model configuration
+      logger.info('Validating model configuration for Knowledge plugin...');
+
+      logger.debug(`[Knowledge Plugin] INIT DEBUG:`);
+      logger.debug(
+        `[Knowledge Plugin] - process.env.CTX_KNOWLEDGE_ENABLED: '${process.env.CTX_KNOWLEDGE_ENABLED}'`
+      );
+
+      // just for debug/check
+      const config = {
+        CTX_KNOWLEDGE_ENABLED: parseBooleanEnv(runtime.getSetting('CTX_KNOWLEDGE_ENABLED')),
+      };
+
+      logger.debug(
+        `[Knowledge Plugin] - config.CTX_KNOWLEDGE_ENABLED: '${config.CTX_KNOWLEDGE_ENABLED}'`
+      );
+      logger.debug(
+        `[Knowledge Plugin] - runtime.getSetting('CTX_KNOWLEDGE_ENABLED'): '${runtime.getSetting('CTX_KNOWLEDGE_ENABLED')}'`
+      );
+
+      validatedConfig = validateModelConfig(runtime);
+
+      // Help inform how this was detected
+      const ctxEnabledFromEnv = parseBooleanEnv(process.env.CTX_KNOWLEDGE_ENABLED);
+      const ctxEnabledFromRuntime = parseBooleanEnv(runtime.getSetting('CTX_KNOWLEDGE_ENABLED'));
+      const ctxEnabledFromValidated = validatedConfig.CTX_KNOWLEDGE_ENABLED;
+
+      // Use the most permissive check during initialization
+      const finalCtxEnabled = ctxEnabledFromValidated;
+
+      logger.debug(`[Knowledge Plugin] CTX_KNOWLEDGE_ENABLED sources:`);
+      logger.debug(`[Knowledge Plugin] - From env: ${ctxEnabledFromEnv}`);
+      logger.debug(`[Knowledge Plugin] - From runtime: ${ctxEnabledFromRuntime}`);
+      logger.debug(`[Knowledge Plugin] - FINAL RESULT: ${finalCtxEnabled}`);
+
+      // Log the operational mode
+      if (finalCtxEnabled) {
+        logger.info('Running in Contextual Knowledge mode with text generation capabilities.');
+        logger.info(
+          `Using ${validatedConfig.EMBEDDING_PROVIDER || 'auto-detected'} for embeddings and ${validatedConfig.TEXT_PROVIDER} for text generation.`
+        );
+        logger.info(`Text model: ${validatedConfig.TEXT_MODEL}`);
+      } else {
+        const usingPluginOpenAI = !process.env.EMBEDDING_PROVIDER;
+
+        logger.warn(
+          'Running in Basic Embedding mode - documents will NOT be enriched with context!'
+        );
+        logger.info('To enable contextual enrichment:');
+        logger.info('   - Set CTX_KNOWLEDGE_ENABLED=true');
+        logger.info('   - Configure TEXT_PROVIDER (anthropic/openai/openrouter/google)');
+        logger.info('   - Configure TEXT_MODEL and API key');
+
+        if (usingPluginOpenAI) {
+          logger.info('Using auto-detected configuration from plugin-openai for embeddings.');
+        } else {
+          logger.info(
+            `Using ${validatedConfig.EMBEDDING_PROVIDER} for embeddings with ${validatedConfig.TEXT_EMBEDDING_MODEL}.`
+          );
+        }
+      }
+
+      logger.success('Model configuration validated successfully.');
+      logger.success(`Knowledge Plugin initialized for agent: ${runtime.character.name}`);
+
+      logger.info(
+        'Knowledge Plugin initialized. Frontend panel should be discoverable via its public route.'
+      );
+    } catch (error) {
+      logger.error('Failed to initialize Knowledge plugin:', error);
+      throw error;
+    }
+
     const service = new KnowledgeService(runtime);
+    service.config = validatedConfig; // as Metadata
+
+    if (service.config.LOAD_DOCS_ON_STARTUP) {
+      logger.info('LOAD_DOCS_ON_STARTUP is enabled. Loading documents from docs folder...');
+      service.loadInitialDocuments().catch((error) => {
+        logger.error('Error during initial document loading in KnowledgeService:', error);
+      });
+    } else {
+      logger.info('LOAD_DOCS_ON_STARTUP is disabled. Skipping automatic document loading.');
+    }
 
     // Process character knowledge AFTER service is initialized
     if (service.runtime.character?.knowledge && service.runtime.character.knowledge.length > 0) {
@@ -192,7 +203,7 @@ export class KnowledgeService extends Service {
    */
   static async stop(runtime: IAgentRuntime): Promise<void> {
     logger.info(`Stopping Knowledge service for agent: ${runtime.agentId}`);
-    const service = runtime.getService<KnowledgeService>(KnowledgeService.serviceType);
+    const service = runtime.getService(KnowledgeService.serviceType);
     if (!service) {
       logger.warn(`KnowledgeService not found for agent ${runtime.agentId} during stop.`);
     }
@@ -206,7 +217,7 @@ export class KnowledgeService extends Service {
    * Stop the service
    */
   async stop(): Promise<void> {
-    logger.info(`Knowledge service stopping for agent: ${this.runtime.agentId}`);
+    logger.info(`Knowledge service stopping for agent: ${this.runtime.character?.name}`);
   }
 
   /**
@@ -221,38 +232,36 @@ export class KnowledgeService extends Service {
   }> {
     // Use agentId from options if provided (from frontend), otherwise fall back to runtime
     const agentId = options.agentId || (this.runtime.agentId as UUID);
-    logger.info(
-      `KnowledgeService processing document for agent: ${agentId}, file: ${options.originalFilename}, type: ${options.contentType}`
-    );
 
-    // Check if document already exists in database using clientDocumentId as the primary key for "documents" table
+    // Generate content-based ID to ensure consistency
+    const contentBasedId = generateContentBasedId(options.content, agentId, {
+      includeFilename: options.originalFilename,
+      contentType: options.contentType,
+      maxChars: 2000, // Use first 2KB of content for ID generation
+    }) as UUID;
+
+    logger.info(`Processing "${options.originalFilename}" (${options.contentType})`);
+
+    // Check if document already exists in database using content-based ID
     try {
-      // The `getMemoryById` in runtime usually searches generic memories.
-      // We need a way to specifically query the 'documents' table or ensure clientDocumentId is unique across all memories if used as ID.
-      // For now, assuming clientDocumentId is the ID used when creating document memory.
-      const existingDocument = await this.runtime.getMemoryById(options.clientDocumentId);
+      const existingDocument = await this.runtime.getMemoryById(contentBasedId);
       if (existingDocument && existingDocument.metadata?.type === MemoryType.DOCUMENT) {
-        logger.info(
-          `Document ${options.originalFilename} with ID ${options.clientDocumentId} already exists. Skipping processing.`
-        );
+        logger.info(`"${options.originalFilename}" already exists - skipping`);
 
         // Count existing fragments for this document
         const fragments = await this.runtime.getMemories({
           tableName: 'knowledge',
-          // Assuming fragments store original documentId in metadata.documentId
-          // This query might need adjustment based on actual fragment metadata structure.
-          // A more robust way would be to query where metadata.documentId === options.clientDocumentId
         });
 
         // Filter fragments related to this specific document
         const relatedFragments = fragments.filter(
           (f) =>
             f.metadata?.type === MemoryType.FRAGMENT &&
-            (f.metadata as FragmentMetadata).documentId === options.clientDocumentId
+            (f.metadata as FragmentMetadata).documentId === contentBasedId
         );
 
         return {
-          clientDocumentId: options.clientDocumentId,
+          clientDocumentId: contentBasedId,
           storedDocumentMemoryId: existingDocument.id as UUID,
           fragmentCount: relatedFragments.length,
         };
@@ -260,11 +269,15 @@ export class KnowledgeService extends Service {
     } catch (error) {
       // Document doesn't exist or other error, continue with processing
       logger.debug(
-        `Document ${options.clientDocumentId} not found or error checking existence, proceeding with processing: ${error instanceof Error ? error.message : String(error)}`
+        `Document ${contentBasedId} not found or error checking existence, proceeding with processing: ${error instanceof Error ? error.message : String(error)}`
       );
     }
 
-    return this.processDocument(options);
+    // Process the document with the content-based ID
+    return this.processDocument({
+      ...options,
+      clientDocumentId: contentBasedId,
+    });
   }
 
   /**
@@ -390,7 +403,7 @@ export class KnowledgeService extends Service {
       const memoryWithScope = {
         ...documentMemory,
         id: clientDocumentId, // Ensure the ID of the memory is the clientDocumentId
-        agentId,
+        agentId: agentId,
         roomId: roomId || agentId,
         entityId: entityId || agentId,
       };
@@ -417,11 +430,10 @@ export class KnowledgeService extends Service {
         roomId: roomId || agentId,
         entityId: entityId || agentId,
         worldId: worldId || agentId,
+        documentTitle: originalFilename,
       });
 
-      logger.info(
-        `KnowledgeService: Document ${originalFilename} processed with ${fragmentCount} fragments for agent ${agentId}`
-      );
+      logger.debug(`"${originalFilename}" stored with ${fragmentCount} fragments`);
 
       return {
         clientDocumentId,
@@ -455,7 +467,7 @@ export class KnowledgeService extends Service {
     message: Memory,
     scope?: { roomId?: UUID; worldId?: UUID; entityId?: UUID }
   ): Promise<KnowledgeItem[]> {
-    logger.debug(`KnowledgeService: getKnowledge called for message id: ${message.id}`);
+    logger.debug('KnowledgeService: getKnowledge called for message id: ' + message.id);
     if (!message?.content?.text || message?.content?.text.trim().length === 0) {
       logger.warn('KnowledgeService: Invalid or empty message content for knowledge query.');
       return [];
@@ -466,31 +478,17 @@ export class KnowledgeService extends Service {
     });
 
     const filterScope: { roomId?: UUID; worldId?: UUID; entityId?: UUID } = {};
-    if (scope?.roomId) {
-      filterScope.roomId = scope.roomId;
-    }
-    if (scope?.worldId) {
-      filterScope.worldId = scope.worldId;
-    }
-    if (scope?.entityId) {
-      filterScope.entityId = scope.entityId;
-    }
-
-    // Use configurable search parameters
-    const matchThreshold = this.knowledgeConfig.SEARCH_MATCH_THRESHOLD
-      ? Number(this.knowledgeConfig.SEARCH_MATCH_THRESHOLD)
-      : 0.1;
-    const resultCount = this.knowledgeConfig.SEARCH_RESULT_COUNT
-      ? Number(this.knowledgeConfig.SEARCH_RESULT_COUNT)
-      : 20;
+    if (scope?.roomId) filterScope.roomId = scope.roomId;
+    if (scope?.worldId) filterScope.worldId = scope.worldId;
+    if (scope?.entityId) filterScope.entityId = scope.entityId;
 
     const fragments = await this.runtime.searchMemories({
       tableName: 'knowledge',
       embedding,
       query: message.content.text,
       ...filterScope,
-      count: resultCount,
-      match_threshold: matchThreshold,
+      count: 20,
+      match_threshold: 0.1, // TODO: Make configurable
     });
 
     return fragments
@@ -504,6 +502,142 @@ export class KnowledgeService extends Service {
       }));
   }
 
+  /**
+   * Enrich a conversation memory with RAG metadata
+   * This can be called after response generation to add RAG tracking data
+   * @param memoryId The ID of the conversation memory to enrich
+   * @param ragMetadata The RAG metadata to add
+   */
+  async enrichConversationMemoryWithRAG(
+    memoryId: UUID,
+    ragMetadata: {
+      retrievedFragments: Array<{
+        fragmentId: UUID;
+        documentTitle: string;
+        similarityScore?: number;
+        contentPreview: string;
+      }>;
+      queryText: string;
+      totalFragments: number;
+      retrievalTimestamp: number;
+    }
+  ): Promise<void> {
+    try {
+      // Get the existing memory
+      const existingMemory = await this.runtime.getMemoryById(memoryId);
+      if (!existingMemory) {
+        logger.warn(`Cannot enrich memory ${memoryId} - memory not found`);
+        return;
+      }
+
+      // Add RAG metadata to the memory
+      const updatedMetadata = {
+        ...existingMemory.metadata,
+        knowledgeUsed: true, // Simple flag for UI to detect RAG usage
+        ragUsage: {
+          retrievedFragments: ragMetadata.retrievedFragments,
+          queryText: ragMetadata.queryText,
+          totalFragments: ragMetadata.totalFragments,
+          retrievalTimestamp: ragMetadata.retrievalTimestamp,
+          usedInResponse: true,
+        },
+        timestamp: existingMemory.metadata?.timestamp || Date.now(),
+        type: existingMemory.metadata?.type || 'message',
+      };
+
+      // Update the memory
+      await this.runtime.updateMemory({
+        id: memoryId,
+        metadata: updatedMetadata,
+      });
+
+      logger.debug(
+        `Enriched conversation memory ${memoryId} with RAG data: ${ragMetadata.totalFragments} fragments`
+      );
+    } catch (error: any) {
+      logger.warn(
+        `Failed to enrich conversation memory ${memoryId} with RAG data: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Set the current response memory ID for RAG tracking
+   * This is called by the knowledge provider to track which response memory to enrich
+   */
+  private pendingRAGEnrichment: Array<{
+    ragMetadata: any;
+    timestamp: number;
+  }> = [];
+
+  /**
+   * Store RAG metadata for the next conversation memory that gets created
+   * @param ragMetadata The RAG metadata to associate with the next memory
+   */
+  setPendingRAGMetadata(ragMetadata: any): void {
+    // Clean up old pending enrichments (older than 30 seconds)
+    const now = Date.now();
+    this.pendingRAGEnrichment = this.pendingRAGEnrichment.filter(
+      (entry) => now - entry.timestamp < 30000
+    );
+
+    // Add new pending enrichment
+    this.pendingRAGEnrichment.push({
+      ragMetadata,
+      timestamp: now,
+    });
+
+    logger.debug(`Stored pending RAG metadata for next conversation memory`);
+  }
+
+  /**
+   * Try to enrich recent conversation memories with pending RAG metadata
+   * This is called periodically to catch memories that were created after RAG retrieval
+   */
+  async enrichRecentMemoriesWithPendingRAG(): Promise<void> {
+    if (this.pendingRAGEnrichment.length === 0) {
+      return;
+    }
+
+    try {
+      // Get recent conversation memories (last 10 seconds)
+      const recentMemories = await this.runtime.getMemories({
+        tableName: 'messages',
+        count: 10,
+      });
+
+      const now = Date.now();
+      const recentConversationMemories = recentMemories
+        .filter(
+          (memory) =>
+            memory.metadata?.type === 'message' &&
+            now - (memory.createdAt || 0) < 10000 && // Created in last 10 seconds
+            !(memory.metadata as any)?.ragUsage // Doesn't already have RAG data
+        )
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // Most recent first
+
+      // Match pending RAG metadata with recent memories
+      for (const pendingEntry of this.pendingRAGEnrichment) {
+        // Find a memory created after this RAG metadata was generated
+        const matchingMemory = recentConversationMemories.find(
+          (memory) => (memory.createdAt || 0) > pendingEntry.timestamp
+        );
+
+        if (matchingMemory && matchingMemory.id) {
+          await this.enrichConversationMemoryWithRAG(matchingMemory.id, pendingEntry.ragMetadata);
+
+          // Remove this pending enrichment
+          const index = this.pendingRAGEnrichment.indexOf(pendingEntry);
+          if (index > -1) {
+            this.pendingRAGEnrichment.splice(index, 1);
+          }
+        }
+      }
+    } catch (error: any) {
+      logger.warn(`Error enriching recent memories with RAG data: ${error.message}`);
+    }
+  }
+
   async processCharacterKnowledge(items: string[]): Promise<void> {
     // Wait briefly to allow services to initialize fully
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -514,9 +648,11 @@ export class KnowledgeService extends Service {
     const processingPromises = items.map(async (item) => {
       await this.knowledgeProcessingSemaphore.acquire();
       try {
-        // For character knowledge, the item itself (string) is the source.
-        // A unique ID is generated from this string content.
-        const knowledgeId = createUniqueUuid(this.runtime, this.runtime.agentId + item); // Use agentId in seed for uniqueness
+        // Generate content-based ID for character knowledge
+        const knowledgeId = generateContentBasedId(item, this.runtime.agentId, {
+          maxChars: 2000, // Use first 2KB of content
+          includeFilename: 'character-knowledge', // A constant identifier for character knowledge
+        }) as UUID;
 
         if (await this.checkExistingKnowledge(knowledgeId)) {
           logger.debug(
@@ -544,9 +680,9 @@ export class KnowledgeService extends Service {
           metadata = {
             ...metadata,
             path: filePath,
-            filename,
+            filename: filename,
             fileExt: extension,
-            title,
+            title: title,
             fileType: `text/${extension || 'plain'}`, // Assume text if not specified
             fileSize: item.length,
           };
@@ -555,7 +691,7 @@ export class KnowledgeService extends Service {
         // Using _internalAddKnowledge for character knowledge
         await this._internalAddKnowledge(
           {
-            id: knowledgeId, // Use the content-derived ID
+            id: knowledgeId, // Use the content-based ID
             content: {
               text: item,
             },
@@ -631,8 +767,7 @@ export class KnowledgeService extends Service {
       );
       await this.runtime.updateMemory({
         ...documentMemory,
-        id: existingDocument.id!, // Ensure id is defined
-        metadata: { ...existingDocument.metadata, ...item.metadata } as MemoryMetadata,
+        id: item.id, // Ensure ID is passed for update
       });
     } else {
       await this.runtime.createMemory(documentMemory, 'documents');
@@ -694,10 +829,13 @@ export class KnowledgeService extends Service {
     // For now, using passed in values or defaults from _internalAddKnowledge.
     const chunks = await splitChunks(text, targetTokens, overlap);
 
-    return chunks.map((chunk: string, index: number) => {
+    return chunks.map((chunk, index) => {
       // Create a unique ID for the fragment based on document ID, index, and timestamp
       const fragmentIdContent = `${document.id}-fragment-${index}-${Date.now()}`;
-      const fragmentId = createUniqueUuid(this.runtime, this.runtime.agentId + fragmentIdContent);
+      const fragmentId = createUniqueUuid(
+        this.runtime.agentId + fragmentIdContent,
+        fragmentIdContent
+      );
 
       return {
         id: fragmentId,
@@ -755,597 +893,5 @@ export class KnowledgeService extends Service {
       `KnowledgeService: Deleted memory ${memoryId} for agent ${this.runtime.agentId}. Assumed it was a document or related fragment.`
     );
   }
-
-  /**
-   * Advanced search with filtering and sorting capabilities
-   */
-  async advancedSearch(options: KnowledgeSearchOptions): Promise<{
-    results: KnowledgeSearchResult[];
-    totalCount: number;
-    hasMore: boolean;
-  }> {
-    logger.debug('KnowledgeService: Advanced search called with options:', options);
-
-    if (!options.query || options.query.trim().length === 0) {
-      return { results: [], totalCount: 0, hasMore: false };
-    }
-
-    // Generate embedding for the query
-    const embedding = await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
-      text: options.query,
-    });
-
-    // Build filter conditions
-    const filterConditions: any = {
-      tableName: 'knowledge',
-      embedding,
-      query: options.query,
-      count: options.limit || 20,
-      match_threshold: options.filters?.minSimilarity || 0.1,
-    };
-
-    // Apply metadata filters if available
-    if (options.filters) {
-      const metadataFilters: Record<string, any> = {};
-
-      if (options.filters.contentType?.length) {
-        metadataFilters.contentType = { $in: options.filters.contentType };
-      }
-
-      if (options.filters.tags?.length) {
-        metadataFilters.tags = { $overlap: options.filters.tags };
-      }
-
-      if (options.filters.source?.length) {
-        metadataFilters.source = { $in: options.filters.source };
-      }
-
-      if (options.filters.dateRange) {
-        metadataFilters.createdAt = {};
-        if (options.filters.dateRange.start) {
-          metadataFilters.createdAt.$gte = options.filters.dateRange.start.getTime();
-        }
-        if (options.filters.dateRange.end) {
-          metadataFilters.createdAt.$lte = options.filters.dateRange.end.getTime();
-        }
-      }
-
-      if (Object.keys(metadataFilters).length > 0) {
-        filterConditions.metadata = metadataFilters;
-      }
-    }
-
-    // Perform the search
-    const fragments = await this.runtime.searchMemories(filterConditions);
-
-    // Apply sorting if specified
-    const sortedFragments = [...fragments];
-    if (options.sort) {
-      sortedFragments.sort((a, b) => {
-        const field = options.sort!.field;
-        const order = options.sort!.order === 'asc' ? 1 : -1;
-
-        if (field === 'similarity') {
-          return ((a.similarity || 0) - (b.similarity || 0)) * order;
-        } else if (field === 'createdAt') {
-          return ((a.createdAt || 0) - (b.createdAt || 0)) * order;
-        }
-        // Add more sorting fields as needed
-        return 0;
-      });
-    }
-
-    // Apply pagination
-    const offset = options.offset || 0;
-    const limit = options.limit || 20;
-    const paginatedResults = sortedFragments.slice(offset, offset + limit);
-
-    // Convert to KnowledgeItem format
-    const results = paginatedResults
-      .filter((fragment) => fragment.id !== undefined)
-      .map((fragment) => ({
-        id: fragment.id as UUID,
-        content: fragment.content as Content,
-        similarity: fragment.similarity,
-        metadata: options.includeMetadata ? fragment.metadata : undefined,
-        worldId: fragment.worldId,
-      }));
-
-    return {
-      results,
-      totalCount: fragments.length,
-      hasMore: offset + limit < fragments.length,
-    };
-  }
-
-  /**
-   * Batch operations for efficient knowledge management
-   */
-  async batchOperation(operation: BatchKnowledgeOperation): Promise<BatchOperationResult> {
-    logger.info(
-      `KnowledgeService: Starting batch ${operation.operation} operation with ${operation.items.length} items`
-    );
-
-    const results: BatchOperationResult = {
-      successful: 0,
-      failed: 0,
-      results: [],
-    };
-
-    // Process items in parallel with concurrency control
-    const batchSize = 5; // Process 5 items at a time
-    for (let i = 0; i < operation.items.length; i += batchSize) {
-      const batch = operation.items.slice(i, i + batchSize);
-
-      const batchPromises = batch.map(async (item) => {
-        try {
-          let result: any;
-
-          switch (operation.operation) {
-            case 'add':
-              if (!item.data) {
-                throw new Error('Missing data for add operation');
-              }
-              result = await this.addKnowledge(item.data);
-              break;
-
-            case 'update':
-              if (!item.id || !item.metadata) {
-                throw new Error('Missing id or metadata for update');
-              }
-              // Update document metadata
-              const memory = await this.runtime.getMemoryById(item.id as UUID);
-              if (memory) {
-                await this.runtime.updateMemory({
-                  ...memory,
-                  id: memory.id!, // Ensure id is defined
-                  metadata: { ...memory.metadata, ...item.metadata } as MemoryMetadata,
-                });
-                result = { updated: true };
-              } else {
-                throw new Error('Document not found');
-              }
-              break;
-
-            case 'delete':
-              if (!item.id) {
-                throw new Error('Missing id for delete operation');
-              }
-              await this.deleteMemory(item.id as UUID);
-              result = { deleted: true };
-              break;
-          }
-
-          results.successful++;
-          return {
-            id: item.id || result.clientDocumentId || 'unknown',
-            success: true,
-            result,
-          };
-        } catch (error) {
-          results.failed++;
-          return {
-            id: item.id || 'unknown',
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-          };
-        }
-      });
-
-      const batchResults = await Promise.all(batchPromises);
-      results.results.push(...batchResults);
-    }
-
-    logger.info(
-      `KnowledgeService: Batch operation completed. Success: ${results.successful}, Failed: ${results.failed}`
-    );
-    return results;
-  }
-
-  /**
-   * Get analytics and insights about the knowledge base
-   */
-  async getAnalytics(): Promise<KnowledgeAnalytics> {
-    logger.debug('KnowledgeService: Generating analytics');
-
-    try {
-      // Get all documents
-      const documents = await this.getMemories({
-        tableName: 'documents',
-        count: 1000, // Get a large number
-      });
-
-      // Get all fragments
-      const fragments = await this.runtime.getMemories({
-        tableName: 'knowledge',
-        agentId: this.runtime.agentId,
-        count: 10000, // Get a large number
-      });
-
-      // Calculate content type distribution
-      const contentTypes: Record<string, number> = {};
-      let totalStorageSize = 0;
-
-      documents.forEach((doc) => {
-        const contentType = (doc.metadata as any)?.contentType || 'unknown';
-        contentTypes[contentType] = (contentTypes[contentType] || 0) + 1;
-
-        // Estimate storage size (rough calculation)
-        const contentSize = JSON.stringify(doc.content).length;
-        totalStorageSize += contentSize;
-      });
-
-      // Get query statistics (would need to track these in production)
-      // For now, return mock data
-      const queryStats = {
-        totalQueries: 0,
-        averageResponseTime: 0,
-        topQueries: [] as Array<{ query: string; count: number }>,
-      };
-
-      // Usage by date (would need to track in production)
-      const usageByDate = [] as Array<{ date: string; queries: number; documents: number }>;
-
-      return {
-        totalDocuments: documents.length,
-        totalFragments: fragments.length,
-        storageSize: totalStorageSize,
-        contentTypes,
-        queryStats,
-        usageByDate,
-      };
-    } catch (error) {
-      logger.error('Error generating analytics:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Export knowledge base to various formats
-   */
-  async exportKnowledge(options: KnowledgeExportOptions): Promise<string> {
-    logger.info(`KnowledgeService: Exporting knowledge in ${options.format} format`);
-
-    // Get documents based on filters
-    let documents = await this.getMemories({
-      tableName: 'documents',
-      count: 1000,
-    });
-
-    // Apply filters
-    if (options.documentIds?.length) {
-      documents = documents.filter((doc) => options.documentIds!.includes(doc.id!));
-    }
-
-    if (options.dateRange) {
-      documents = documents.filter((doc) => {
-        const createdAt = doc.createdAt || 0;
-        if (options.dateRange!.start && createdAt < options.dateRange!.start.getTime()) {
-          return false;
-        }
-        if (options.dateRange!.end && createdAt > options.dateRange!.end.getTime()) {
-          return false;
-        }
-        return true;
-      });
-    }
-
-    // Format based on export type
-    switch (options.format) {
-      case 'json': {
-        return JSON.stringify(
-          {
-            exportDate: new Date().toISOString(),
-            agentId: this.runtime.agentId,
-            documents: documents.map((doc) => ({
-              id: doc.id,
-              content: doc.content,
-              metadata: options.includeMetadata ? doc.metadata : undefined,
-              createdAt: doc.createdAt,
-            })),
-          },
-          null,
-          2
-        );
-      }
-
-      case 'csv': {
-        // Simple CSV export
-        const headers = ['ID', 'Title', 'Content', 'Type', 'Created'];
-        const rows = documents.map((doc) => [
-          doc.id || '',
-          (doc.metadata as any)?.originalFilename || '',
-          doc.content.text || '',
-          (doc.metadata as any)?.contentType || '',
-          new Date(doc.createdAt || 0).toISOString(),
-        ]);
-
-        return [headers, ...rows].map((row) => row.join(',')).join('\n');
-      }
-
-      case 'markdown': {
-        return documents
-          .map((doc) => {
-            const title = (doc.metadata as any)?.originalFilename || 'Untitled';
-            const content = doc.content.text || '';
-            const metadata = options.includeMetadata
-              ? `\n\n---\n${JSON.stringify(doc.metadata, null, 2)}\n---`
-              : '';
-
-            return `# ${title}\n\n${content}${metadata}`;
-          })
-          .join('\n\n---\n\n');
-      }
-
-      default:
-        throw new Error(`Unsupported export format: ${options.format}`);
-    }
-  }
-
-  /**
-   * Import knowledge from various formats
-   */
-  async importKnowledge(
-    data: string,
-    options: KnowledgeImportOptions
-  ): Promise<BatchOperationResult> {
-    logger.info(`KnowledgeService: Importing knowledge from ${options.format} format`);
-
-    let items: AddKnowledgeOptions[] = [];
-
-    try {
-      switch (options.format) {
-        case 'json': {
-          const jsonData = JSON.parse(data);
-          items = jsonData.documents.map((doc: any) => ({
-            clientDocumentId:
-              doc.id || (stringToUuid(this.runtime.agentId + Date.now() + Math.random()) as UUID),
-            content: doc.content.text || doc.content,
-            contentType: doc.metadata?.contentType || 'text/plain',
-            originalFilename: doc.metadata?.originalFilename || 'imported.txt',
-            worldId: this.runtime.agentId,
-            roomId: this.runtime.agentId,
-            entityId: this.runtime.agentId,
-            metadata: doc.metadata,
-          }));
-          break;
-        }
-
-        case 'csv': {
-          // Simple CSV parsing (production would use a proper CSV parser)
-          const lines = data.split('\n');
-          const _headers = lines[0].split(',');
-
-          for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(',');
-            if (values.length >= 3) {
-              items.push({
-                clientDocumentId:
-                  (values[0] as UUID) ||
-                  (stringToUuid(this.runtime.agentId + Date.now() + i) as UUID),
-                content: values[2] || '',
-                contentType: values[3] || 'text/plain',
-                originalFilename: values[1] || 'imported.txt',
-                worldId: this.runtime.agentId,
-                roomId: this.runtime.agentId,
-                entityId: this.runtime.agentId,
-              });
-            }
-          }
-          break;
-        }
-
-        case 'markdown': {
-          // Split by document separator
-          const docs = data.split('\n\n---\n\n');
-          items = docs.map((doc, index) => {
-            const lines = doc.split('\n');
-            const title = lines[0].replace(/^#\s+/, '') || `Document ${index + 1}`;
-            const content = lines.slice(1).join('\n').trim();
-
-            return {
-              clientDocumentId: stringToUuid(this.runtime.agentId + title + Date.now()) as UUID,
-              content,
-              contentType: 'text/markdown',
-              originalFilename: `${title}.md`,
-              worldId: this.runtime.agentId,
-              roomId: this.runtime.agentId,
-              entityId: this.runtime.agentId,
-            };
-          });
-          break;
-        }
-
-        default:
-          throw new Error(`Unsupported import format: ${options.format}`);
-      }
-
-      // Validate if requested
-      if (options.validateBeforeImport) {
-        items = items.filter((item) => item.content && item.content.length > 0);
-      }
-
-      // Process import as batch operation
-      const batchOp: BatchKnowledgeOperation = {
-        operation: 'add',
-        items: items.map((data) => ({ data })),
-      };
-
-      return await this.batchOperation(batchOp);
-    } catch (error) {
-      logger.error('Error importing knowledge:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Ingest knowledge from a GitHub repository
-   */
-  async ingestGitHubRepository(options: GitHubIngestionOptions): Promise<GitHubIngestionResult> {
-    logger.info(`KnowledgeService: Starting GitHub repository ingestion for ${options.repoUrl}`);
-
-    try {
-      // Use the ingestion utility to fetch repository contents
-      const ingestionResult = await ingestGitHubRepository(options);
-
-      // Process each document that was fetched
-      const processedDocuments: Array<{
-        id: UUID;
-        filename: string;
-        path: string;
-        fragmentCount: number;
-      }> = [];
-
-      for (const doc of ingestionResult.documents) {
-        try {
-          // Use the actual file content from ingestion result
-          if (!doc.content) {
-            logger.warn(`No content available for GitHub file ${doc.path}, skipping`);
-            continue;
-          }
-
-          const knowledgeOptions: AddKnowledgeOptions = {
-            clientDocumentId: stringToUuid(doc.id) as UUID,
-            contentType: this.getContentTypeFromPath(doc.path),
-            originalFilename: doc.filename,
-            worldId: options.metadata?.worldId || this.runtime.agentId,
-            roomId: options.metadata?.roomId || this.runtime.agentId,
-            entityId: options.metadata?.entityId || this.runtime.agentId,
-            content: doc.content, // Use actual file content
-            metadata: {
-              source: 'github_repository',
-              repositoryUrl: options.repoUrl,
-              filePath: doc.path,
-              ingestionTimestamp: Date.now(),
-              ...doc.sourceMetadata,
-              ...options.metadata,
-            },
-          };
-
-          const result = await this.addKnowledge(knowledgeOptions);
-          processedDocuments.push({
-            id: doc.id,
-            filename: doc.filename,
-            path: doc.path,
-            fragmentCount: result.fragmentCount,
-          });
-        } catch (error: any) {
-          logger.warn(`Failed to process GitHub file ${doc.path}: ${error.message}`);
-          ingestionResult.errors.push({
-            file: doc.path,
-            error: error.message,
-          });
-        }
-      }
-
-      // Update the result with actual processed information
-      ingestionResult.documents = processedDocuments;
-      ingestionResult.processedFiles = processedDocuments.length;
-
-      logger.info(
-        `KnowledgeService: GitHub repository ingestion completed. Processed ${processedDocuments.length} files.`
-      );
-
-      return ingestionResult;
-    } catch (error: any) {
-      logger.error(`KnowledgeService: GitHub repository ingestion failed: ${error.message}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Ingest knowledge from a web page
-   */
-  async ingestWebPage(options: WebPageIngestionOptions): Promise<WebPageIngestionResult> {
-    logger.info(`KnowledgeService: Starting web page ingestion for ${options.url}`);
-
-    try {
-      // Use the ingestion utility to extract web page content
-      const ingestionResult = await ingestWebPage(options);
-
-      if (ingestionResult.error) {
-        logger.warn(`Web page ingestion warning: ${ingestionResult.error}`);
-        return ingestionResult;
-      }
-
-      if (ingestionResult.extractedText && ingestionResult.extractedText.length > 0) {
-        // Process the extracted text as knowledge
-        const knowledgeOptions: AddKnowledgeOptions = {
-          clientDocumentId: stringToUuid(this.runtime.agentId + options.url + Date.now()) as UUID,
-          contentType: 'text/html',
-          originalFilename: `${ingestionResult.title || 'web-page'}.html`,
-          worldId: options.metadata?.worldId || this.runtime.agentId,
-          roomId: options.metadata?.roomId || this.runtime.agentId,
-          entityId: options.metadata?.entityId || this.runtime.agentId,
-          content: ingestionResult.extractedText,
-          metadata: {
-            source: 'web_page',
-            originalUrl: options.url,
-            title: ingestionResult.title,
-            textLength: ingestionResult.textLength,
-            ingestionTimestamp: Date.now(),
-            ...options.metadata,
-          },
-        };
-
-        const result = await this.addKnowledge(knowledgeOptions);
-
-        // Update the result with document information
-        ingestionResult.document = {
-          id: knowledgeOptions.clientDocumentId,
-          fragmentCount: result.fragmentCount,
-        };
-
-        logger.info(
-          `KnowledgeService: Web page ingestion completed. Extracted ${ingestionResult.textLength} characters.`
-        );
-      }
-
-      return ingestionResult;
-    } catch (error: any) {
-      logger.error(`KnowledgeService: Web page ingestion failed: ${error.message}`);
-      return {
-        url: options.url,
-        extractedText: '',
-        textLength: 0,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * Helper method to determine content type from file path
-   */
-  private getContentTypeFromPath(filePath: string): string {
-    const extension = filePath.split('.').pop()?.toLowerCase();
-
-    const contentTypeMap: Record<string, string> = {
-      md: 'text/markdown',
-      txt: 'text/plain',
-      js: 'application/javascript',
-      ts: 'application/typescript',
-      json: 'application/json',
-      yaml: 'application/yaml',
-      yml: 'application/yaml',
-      html: 'text/html',
-      css: 'text/css',
-      py: 'text/x-python',
-      java: 'text/x-java-source',
-      c: 'text/x-c',
-      cpp: 'text/x-c++',
-      h: 'text/x-c',
-      hpp: 'text/x-c++',
-      xml: 'application/xml',
-      sql: 'text/x-sql',
-      sh: 'application/x-sh',
-      bash: 'application/x-sh',
-      pdf: 'application/pdf',
-      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      doc: 'application/msword',
-    };
-
-    return contentTypeMap[extension || ''] || 'text/plain';
-  }
-
   // ADDED METHODS END
 }

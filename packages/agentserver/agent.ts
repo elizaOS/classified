@@ -4,6 +4,83 @@
  * Called by server.ts to initialize the agent in the same process.
  */
 
+// CRITICAL: Load @thednp/dommatrix polyfills FIRST - this is the only polyfill we need
+import './polyfills.js';
+
+// Mock window object for browser dependencies (only minimal ones needed)
+if (typeof globalThis.window === 'undefined') {
+  globalThis.window = {
+    location: { 
+      href: '',
+      search: '',
+      origin: '',
+      pathname: '/',
+      hash: '',
+      host: '',
+      hostname: '',
+      protocol: 'http:',
+      port: ''
+    },
+    document: { 
+      createElement: () => ({
+        setAttribute: () => {},
+        getAttribute: () => null,
+        appendChild: () => {},
+        removeChild: () => {},
+        style: {},
+        innerHTML: '',
+        textContent: ''
+      }),
+      getElementsByTagName: () => ([]),
+      querySelector: () => null,
+      querySelectorAll: () => ([]),
+      body: { appendChild: () => {} },
+      head: { appendChild: () => {} }
+    },
+    navigator: { userAgent: 'Node.js' },
+    localStorage: {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {}
+    },
+    sessionStorage: {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {}
+    },
+    XMLHttpRequest: class MockXMLHttpRequest {
+      open() {}
+      send() {}
+      setRequestHeader() {}
+    },
+    fetch: typeof fetch !== 'undefined' ? fetch : () => Promise.reject(new Error('fetch not available'))
+  } as any;
+}
+
+// Mock additional DOM APIs that plugins might need
+if (typeof globalThis.document === 'undefined') {
+  globalThis.document = globalThis.window.document;
+}
+
+// Also set globalThis.location directly for URLSearchParams compatibility
+if (typeof globalThis.location === 'undefined') {
+  globalThis.location = {
+    href: '',
+    search: '',
+    origin: '',
+    pathname: '/',
+    hash: '',
+    host: '',
+    hostname: '',
+    protocol: 'http:',
+    port: ''
+  } as any;
+}
+
+console.log('[POLYFILLS] Using @thednp/dommatrix polyfills in agent.ts');
+
 // Agent character and runtime setup for ELIZA game
 import type { Plugin, UUID } from '@elizaos/core';
 import { AgentRuntime as ElizaAgentRuntime, stringToUuid } from '@elizaos/core';
@@ -11,30 +88,29 @@ import { AgentRuntime as ElizaAgentRuntime, stringToUuid } from '@elizaos/core';
 import { autonomyPlugin } from '@elizaos/plugin-autonomy';
 import { bootstrapPlugin } from '@elizaos/plugin-bootstrap';
 import { experiencePlugin } from '@elizaos/plugin-experience';
-// import { knowledgePlugin } from '@elizaos/plugin-knowledge'; // Temporarily disabled - likely causes DOMMatrix issues
+import { knowledgePlugin } from '@elizaos/plugin-knowledge';
 import PersonalityPlugin from '@elizaos/plugin-personality';
 import { shellPlugin } from '@elizaos/plugin-shell';
 import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
 // Import only workspace plugins that exist
 import { ollamaPlugin } from '@elizaos/plugin-ollama';
-import anthropicPlugin from '@elizaos/plugin-anthropic';
-import openaiPlugin from '@elizaos/plugin-openai';
+// import anthropicPlugin from '@elizaos/plugin-anthropic';
+// import openaiPlugin from '@elizaos/plugin-openai';
 import { GoalsPlugin } from '@elizaos/plugin-goals';
-// Temporarily disable rolodex due to TypeScript compatibility issues
+// Additional plugins - enable if available
 // import { RolodexPlugin } from '@elizaos/plugin-rolodex';
-// import { pluginManagerPlugin } from '@elizaos/plugin-plugin-manager'; // Temporarily disabled due to dynamic require issues
+// import { pluginManagerPlugin } from '@elizaos/plugin-plugin-manager';
 // import { SAMPlugin } from '@elizaos/plugin-sam';
-// Import stagehand with correct structure - temporarily disabled for container compatibility
-// import { stagehandPlugin } from '@elizaos/plugin-stagehand';
-// import { visionPlugin } from '@elizaos/plugin-vision';
+// Import stagehand with correct structure
+import { stagehandPlugin } from '@elizaos/plugin-stagehand';
+import { visionPlugin } from '@elizaos/plugin-vision';
 
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { gameAPIPlugin } from './game-api-plugin.ts';
 import { terminalCharacter } from './terminal-character.ts';
-// import { TodoPlugin } from '@elizaos/plugin-todo';
-// import { pluginManagerPlugin } from '@elizaos/plugin-plugin-manager';
+import { TodoPlugin } from '@elizaos/plugin-todo';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,24 +135,23 @@ export async function startAgent(character: any, server: any) {
   // Skip secure secrets management for now due to Bun crypto compatibility issues
   console.log('[SECURITY] Skipping secure secrets management (using environment variables directly)');
   
-  // Create plugin list with all required plugins - filter out any undefined plugins
+  // Create plugin list with ALL plugins enabled as requested
   const plugins: Plugin[] = [
     sqlPlugin,
     bootstrapPlugin,
-    ollamaPlugin, // Add Ollama plugin for local AI
-    openaiPlugin,
-    anthropicPlugin,
-    autonomyPlugin, // Temporarily disabled due to runtime method compatibility issues
-    GoalsPlugin,
-    // TodoPlugin,
-    PersonalityPlugin,
-    experiencePlugin,
-    // knowledgePlugin, // Temporarily disabled - likely causes DOMMatrix issues
-    shellPlugin,
-    // stagehandPlugin, // Commented out due to browser-specific dependencies that cause errors in Node.js
-    // pluginManagerPlugin, // Temporarily disabled due to dynamic require issues
-    gameAPIPlugin, // Game-specific API endpoints plugin
-    // visionPlugin, // Temporarily disabled for container compatibility
+    ollamaPlugin, // ENABLED - Ollama support for local models
+    // openaiPlugin, // Disabled - will be loaded dynamically via ollama plugin
+    // anthropicPlugin, // Disabled - will be loaded dynamically via ollama plugin
+    autonomyPlugin, // ENABLED - Agent autonomy capabilities
+    GoalsPlugin, // ENABLED - Goal management system
+    TodoPlugin, // ENABLED - Task management system
+    PersonalityPlugin, // ENABLED - Agent personality traits
+    experiencePlugin, // ENABLED - Experience and memory management
+    knowledgePlugin, // TEMPORARILY DISABLED - Knowledge base and RAG
+    shellPlugin, // ENABLED - Shell command execution
+    stagehandPlugin, // TEMPORARILY DISABLED - Browser automation (requires playwright)
+    gameAPIPlugin, // ENABLED - Game-specific API endpoints plugin
+    visionPlugin, // TEMPORARILY DISABLED - Vision and image processing (requires Sharp)
   ].filter(Boolean);
   
   console.log('[AGENT START] Loaded plugins:', plugins.map(p => p.name || 'unnamed').join(', '));
@@ -93,29 +168,50 @@ export async function startAgent(character: any, server: any) {
   await runtime.initialize();
   console.log('[AGENT START] AgentRuntime initialized');
 
-  // Apply dynamic configuration after initialization (temporarily disabled for integration testing)
-  console.log('[AGENT START] Skipping dynamic configuration setup for now');
-  // try {
-  //   const { DynamicConfigurationManager } = await import('./services/DynamicConfigurationManager.ts');
-  //   const configManager = new DynamicConfigurationManager(runtime);
-  //   
-  //   // Initialize with plugin manager service integration
-  //   await configManager.initialize();
-  //   console.log('[AGENT START] Dynamic configuration manager initialized with plugin management');
-  //   
-  //   // Apply configuration to the runtime
-  //   const currentConfig = configManager.getCurrentConfiguration();
-  //   if (currentConfig) {
-  //       console.log(`[AGENT START] Applied dynamic configuration: ${currentConfig.modelProvider} provider`);
-  //       console.log(`[AGENT START] Available providers:`, configManager.getAvailableProviders().map(p => `${p.name}: ${p.available ? 'available' : 'unavailable' + (p.reason ? ` (${p.reason})` : '')}`));
-  //   }
-  //   
-  //   // Attach the configuration manager to the runtime
-  //   (runtime as any).configManager = configManager;
-  //   console.log('[AGENT START] ✅ Dynamic configuration applied to runtime');
-  // } catch (error) {
-  //   console.error('[AGENT START] Failed to set up dynamic configuration:', error);
-  // }
+  // Enable all plugin capabilities by setting environment variables
+  console.log('[AGENT START] Enabling all plugin capabilities...');
+  runtime.setSetting('AUTONOMY_ENABLED', 'true');
+  runtime.setSetting('ENABLE_AUTONOMY', 'true');
+  runtime.setSetting('ENABLE_SHELL', 'true');
+  runtime.setSetting('SHELL_ENABLED', 'true');
+  runtime.setSetting('ENABLE_BROWSER', 'true');
+  runtime.setSetting('BROWSER_ENABLED', 'true');
+  runtime.setSetting('ENABLE_VISION', 'true');
+  runtime.setSetting('VISION_ENABLED', 'true');
+  runtime.setSetting('ENABLE_CAMERA', 'true');
+  runtime.setSetting('VISION_CAMERA_ENABLED', 'true');
+  runtime.setSetting('ENABLE_MICROPHONE', 'true');
+  runtime.setSetting('VISION_MICROPHONE_ENABLED', 'true');
+  runtime.setSetting('ENABLE_SPEAKER', 'true');
+  runtime.setSetting('VISION_SPEAKER_ENABLED', 'true');
+  runtime.setSetting('ENABLE_SCREEN_CAPTURE', 'true');
+  runtime.setSetting('VISION_SCREEN_ENABLED', 'true');
+  console.log('[AGENT START] ✅ All plugin capabilities enabled');
+  
+  // Apply dynamic configuration after initialization (re-enabled for full functionality)
+  console.log('[AGENT START] Setting up dynamic configuration...');
+  try {
+    const { DynamicConfigurationManager } = await import('./services/DynamicConfigurationManager.ts');
+    const configManager = new DynamicConfigurationManager(runtime);
+    
+    // Initialize with plugin manager service integration
+    await configManager.initialize();
+    console.log('[AGENT START] Dynamic configuration manager initialized with plugin management');
+    
+    // Apply configuration to the runtime
+    const currentConfig = configManager.getCurrentConfiguration();
+    if (currentConfig) {
+        console.log(`[AGENT START] Applied dynamic configuration: ${currentConfig.modelProvider} provider`);
+        console.log(`[AGENT START] Available providers:`, configManager.getAvailableProviders().map(p => `${p.name}: ${p.available ? 'available' : 'unavailable' + (p.reason ? ` (${p.reason})` : '')}`));
+    }
+    
+    // Attach the configuration manager to the runtime
+    (runtime as any).configManager = configManager;
+    console.log('[AGENT START] ✅ Dynamic configuration applied to runtime');
+  } catch (error) {
+    console.error('[AGENT START] Failed to set up dynamic configuration:', error);
+    console.log('[AGENT START] Continuing without dynamic configuration...');
+  }
   
   // Set initial room context
   if (character.initialRoom) {

@@ -469,7 +469,7 @@ const localAIManager = LocalAIManager.getInstance();
  * Plugin that provides functionality for local AI using LLaMA models.
  * @type {Plugin}
  */
-export const localAiPlugin: Plugin = {
+export const localEmbeddingPlugin: Plugin = {
   name: 'local-ai',
   description: 'Local AI plugin using LLaMA models',
 
@@ -726,4 +726,4 @@ export const localAiPlugin: Plugin = {
   ],
 };
 
-export default localAiPlugin;
+export default localEmbeddingPlugin;

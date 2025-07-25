@@ -1,200 +1,217 @@
 # Knowledge Plugin for ElizaOS
 
-This plugin gives your agent the ability to learn from documents and answer
-questions based on that knowledge.
+Give your AI agent the ability to learn from documents and answer questions based on that knowledge. Works out of the box with zero configuration!
 
-## 🚀 Quick Start (No Configuration Needed!)
+## 🚀 Getting Started (Beginner-Friendly)
 
-If you already have **plugin-openai** configured in your agent, this plugin
-works automatically! Just add it to your agent and you're done.
+### Step 1: Add the Plugin
+
+The Knowledge plugin works automatically with any ElizaOS agent. Just add it to your agent's plugin list:
 
 ```typescript
-import { knowledgePlugin } from '@elizaos/plugin-knowledge';
-
-// Add to your agent's plugins
-plugins: [
-  '@elizaos/plugin-knowledge',
-  // ... other plugins
-];
+// In your character file (e.g., character.ts)
+export const character = {
+  name: 'MyAgent',
+  plugins: [
+    '@elizaos/plugin-openai', // ← Make sure you have this
+    '@elizaos/plugin-knowledge', // ← Add this line
+    // ... your other plugins
+  ],
+  // ... rest of your character config
+};
 ```
 
-That's it! Your agent can now process and learn from documents.
+**That's it!** Your agent can now learn from documents. No environment variables or API keys needed.
 
-## 📁 Auto-Load Documents on Startup
+### Step 2: Upload Documents (Optional)
 
-Want your agent to automatically learn from documents when it starts? Just:
+Want your agent to automatically learn from documents when it starts?
 
-1. **Add this to your `.env` file:**
+1. **Create a `docs` folder** in your project root:
+
+   ```
+   your-project/
+   ├── .env
+   ├── docs/           ← Create this folder
+   │   ├── guide.pdf
+   │   ├── manual.txt
+   │   └── notes.md
+   └── package.json
+   ```
+
+2. **Add this line to your `.env` file:**
 
    ```env
    LOAD_DOCS_ON_STARTUP=true
    ```
 
-2. **Create a `docs` folder in your project root and add your documents:**
+3. **Start your agent** - it will automatically learn from all documents in the `docs` folder!
 
-   ```
-   your-project/
-   ├── .env
-   ├── docs/           <-- Create this folder
-   │   ├── guide.pdf
-   │   ├── manual.txt
-   │   └── notes.md
-   └── ... other files
-   ```
+### Step 3: Ask Questions
 
-3. **Start your agent** - it will automatically load all documents from the
-   `docs` folder!
-
-### Supported File Types
-
-- 📄 **Documents:** PDF, TXT, MD, DOC, DOCX
-- 💻 **Code:** JS, TS, PY, and many more
-- 📊 **Data:** JSON, CSV, XML, YAML
-
-## 💬 How to Use
-
-Once documents are loaded, just ask your agent questions naturally:
+Once documents are loaded, just talk to your agent naturally:
 
 - "What does the guide say about setup?"
-- "Search your knowledge for information about configuration"
-- "What do you know about [topic]?"
+- "Search your knowledge for configuration info"
+- "What do you know about [any topic]?"
 
-Your agent will search through all loaded documents and provide relevant
-answers!
+Your agent will search through all loaded documents and give you relevant answers!
 
-## 🎯 Actions Available
+## 📁 Supported File Types
 
-The plugin provides these actions that your agent can use:
+The plugin can read almost any document:
 
-1. **PROCESS_KNOWLEDGE** - Add new documents or text to the knowledge base
+- **Text Files:** `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.yaml`
+- **Documents:** `.pdf`, `.doc`, `.docx`
+- **Code Files:** `.js`, `.ts`, `.py`, `.java`, `.cpp`, `.html`, `.css` and many more
 
-   - "Process the document at /path/to/file.pdf"
-   - "Remember this: The sky is blue"
-   - Send files as attachments in your message - they'll be automatically
-     processed!
+## 💬 Using the Web Interface
 
-2. **SEARCH_KNOWLEDGE** - Search the knowledge base
-   - "Search your knowledge for quantum computing"
+The plugin includes a web interface for managing documents!
 
-## 📎 Attachment Processing
+Click the Knowledge tab in the right panel.
 
-The knowledge plugin now intelligently handles attachments:
+You can upload, view, and delete documents directly from your browser.
 
-- **Direct file attachments** - Just attach files to your message
-- **URL attachments** - Share links to documents and they'll be downloaded and
-  processed
-- **Multiple attachments** - Process many files at once
-- **Smart detection** - The agent automatically detects when you want to save
-  attachments
+## 🎯 Agent Actions
 
-Examples:
+Your agent automatically gets these new abilities:
 
-- "Save these documents" + [attach PDFs]
-- "Add this to your knowledge" + [attach text file]
-- "Learn from this website" + [URL attachment]
+- **PROCESS_KNOWLEDGE** - "Remember this document: [file path or text]"
+- **SEARCH_KNOWLEDGE** - "Search your knowledge for [topic]"
 
-## 🌐 Web Interface
+## ❓ FAQ
 
-The plugin includes a web interface for managing documents! Access it at:
+**Q: Do I need any API keys?**  
+A: No! It uses your existing OpenAI/Google/Anthropic setup automatically.
 
-```
-http://localhost:7777/api/agents/[your-agent-id]/plugins/knowledge/display
-```
+**Q: What if I don't have any AI plugins?**  
+A: You need at least one AI provider plugin (like `@elizaos/plugin-openai`) for embeddings.
 
-Features:
+**Q: Can I upload documents while the agent is running?**  
+A: Yes! Use the web interface or just tell your agent to process a file.
 
-- 📋 List all documents with metadata
-- 🔍 Search through your knowledge base
-- 📊 Visual graph of document relationships
-- ⬆️ Upload new documents
-- 🗑️ Delete existing documents
-- 🔄 Update document metadata
+**Q: How much does this cost?**  
+A: Only the cost of generating embeddings (usually pennies per document).
 
 ---
 
-## ⚠️ Advanced Configuration (Developers Only)
+## 🔧 Advanced Configuration (Developers)
 
-**Note: If you're not a developer, don't use the settings below! The plugin
-works great with just the quick start setup above.**
+> **⚠️ Note for Beginners:** The settings below are for advanced users only. The plugin works great without any of this configuration!
 
 <details>
-<summary>Click to show advanced configuration options</summary>
+<summary><strong>🚀 Enhanced Contextual Knowledge (Recommended for Developers)</strong></summary>
 
-### Custom Document Path
-
-Change where documents are loaded from:
+For significantly better understanding of complex documents, enable contextual embeddings with caching:
 
 ```env
-KNOWLEDGE_PATH=/path/to/your/documents
-```
-
-### Enhanced Contextual Knowledge
-
-For better understanding of complex documents:
-
-```env
+# Enable enhanced contextual understanding
 CTX_KNOWLEDGE_ENABLED=true
+
+# Use OpenRouter with Claude for best results + 90% cost savings via caching
 TEXT_PROVIDER=openrouter
 TEXT_MODEL=anthropic/claude-3.5-sonnet
-OPENROUTER_API_KEY=your-api-key
+OPENROUTER_API_KEY=your-openrouter-api-key
 ```
 
-### Custom Embedding Configuration
+**Benefits:**
 
-If not using plugin-openai:
+- 📈 **Better Understanding:** Chunks include surrounding context
+- 💰 **90% Cost Reduction:** Document caching reduces repeated processing costs
+- 🎯 **Improved Accuracy:** More relevant search results
+
+**Best Models for Contextual Mode:**
+
+- `anthropic/claude-3.5-sonnet` (recommended)
+- `google/gemini-2.5-flash` (fast + cheap)
+- `anthropic/claude-3.5-haiku` (budget option)
+
+</details>
+
+<details>
+<summary><strong>🦙 Ollama Setup</strong></summary>
+
+### Environment Configuration
 
 ```env
-EMBEDDING_PROVIDER=openai
-TEXT_EMBEDDING_MODEL=text-embedding-3-small
-OPENAI_API_KEY=your-api-key
+# Ollama Configuration (uses some of the same config as @elizaos/plugin-ollama)
+OLLAMA_API_ENDPOINT=http://localhost:11434/api
+
+# These are the additional configs you need for knowledge plugin:
+EMBEDDING_PROVIDER=ollama
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text  # Default: nomic-embed-text
+TEXT_PROVIDER=ollama
+
+You can also use below as a replacement for the above api endpoint:
+OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-### All Configuration Options
+### Troubleshooting Ollama
+
+- **Connection refused:** Make sure Ollama is running on `http://localhost:11434`
+- **Slow performance:** Use smaller models or increase system resources
+- **Plugin not found:** Make sure `@elizaos/plugin-ollama` is in your agent's plugins list
+
+</details>
+
+<details>
+<summary><strong>⚙️ Custom Configuration Options</strong></summary>
+
+### Document Loading
 
 ```env
-# Document Loading
 LOAD_DOCS_ON_STARTUP=true          # Auto-load from docs folder
-KNOWLEDGE_PATH=/custom/path        # Custom document path
-
-# Contextual Enhancement (improves understanding)
-CTX_KNOWLEDGE_ENABLED=true         # Enable contextual embeddings
-
-# Embedding Provider (if not using plugin-openai)
-EMBEDDING_PROVIDER=openai          # or google
-TEXT_EMBEDDING_MODEL=text-embedding-3-small
-EMBEDDING_DIMENSION=1536
-
-# Text Generation Provider (for contextual mode)
-TEXT_PROVIDER=openai               # or anthropic, openrouter, google
-TEXT_MODEL=gpt-4o                  # Model name for your provider
-
-# API Keys (based on providers used)
-OPENAI_API_KEY=your-key
-ANTHROPIC_API_KEY=your-key
-OPENROUTER_API_KEY=your-key
-GOOGLE_API_KEY=your-key
-
-# Rate Limiting
-MAX_CONCURRENT_REQUESTS=30
-REQUESTS_PER_MINUTE=60
-TOKENS_PER_MINUTE=150000
-
-# Token Limits
-MAX_INPUT_TOKENS=4000
-MAX_OUTPUT_TOKENS=4096
+KNOWLEDGE_PATH=/custom/path        # Custom document path (default: ./docs)
 ```
 
-### API Routes Reference
+### Embedding Configuration
+
+```env
+# Only needed if you're not using a standard AI plugin
+EMBEDDING_PROVIDER=openai          # openai | google | ollama
+TEXT_EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSION=1536           # Vector dimension
+```
+
+### Text Generation (for Contextual Mode)
+
+```env
+TEXT_PROVIDER=openrouter           # openai | anthropic | openrouter | google | ollama
+TEXT_MODEL=anthropic/claude-3.5-sonnet
+```
+
+### API Keys (as needed)
+
+```env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+OPENROUTER_API_KEY=sk-or-...
+GOOGLE_API_KEY=your-key
+OLLAMA_API_KEY=dummy-key  # Often not needed for local Ollama
+```
+
+### Performance Tuning
+
+```env
+MAX_CONCURRENT_REQUESTS=30         # Parallel processing limit
+REQUESTS_PER_MINUTE=60             # Rate limiting
+TOKENS_PER_MINUTE=150000           # Token rate limiting
+MAX_INPUT_TOKENS=4000              # Chunk size limit
+MAX_OUTPUT_TOKENS=4096             # Response size limit
+```
+
+</details>
+
+<details>
+<summary><strong>🔌 API Reference</strong></summary>
+
+### HTTP Endpoints
 
 - `POST /api/agents/{agentId}/plugins/knowledge/documents` - Upload documents
-- `GET /api/agents/{agentId}/plugins/knowledge/documents` - List documents
-- `GET /api/agents/{agentId}/plugins/knowledge/documents/{id}` - Get specific
-  document
-- `DELETE /api/agents/{agentId}/plugins/knowledge/documents/{id}` - Delete
-  document
-- `PUT /api/agents/{agentId}/plugins/knowledge/documents/{id}` - Update document
-  metadata
-- `POST /api/agents/{agentId}/plugins/knowledge/search` - Search knowledge base
+- `GET /api/agents/{agentId}/plugins/knowledge/documents` - List all documents
+- `GET /api/agents/{agentId}/plugins/knowledge/documents/{id}` - Get specific document
+- `DELETE /api/agents/{agentId}/plugins/knowledge/documents/{id}` - Delete document
 - `GET /api/agents/{agentId}/plugins/knowledge/display` - Web interface
 
 ### Programmatic Usage
@@ -204,227 +221,66 @@ import { KnowledgeService } from '@elizaos/plugin-knowledge';
 
 // Add knowledge programmatically
 const result = await knowledgeService.addKnowledge({
-  clientDocumentId: 'unique-id',
-  content: documentContent,
+  clientDocumentId: 'unique-doc-id',
+  content: documentContent, // Base64 for PDFs, plain text for others
   contentType: 'application/pdf',
   originalFilename: 'document.pdf',
-  worldId: 'world-id',
-  roomId: 'room-id',
-  entityId: 'entity-id',
-});
-
-// Update document metadata
-await runtime.updateMemory({
-  id: documentId,
+  worldId: runtime.worldId,
+  roomId: runtime.roomId,
+  entityId: runtime.entityId,
   metadata: {
-    type: MemoryType.DOCUMENT,
-    tags: ['updated', 'important'],
-    source: 'manual-update',
+    // Optional
+    source: 'upload',
+    author: 'John Doe',
   },
 });
 
-// Delete a document
-await knowledgeService.deleteMemory(documentId);
+// Search knowledge
+const searchResults = await knowledgeService.searchKnowledge({
+  query: 'quantum computing',
+  agentId: runtime.agentId,
+  limit: 10,
+});
 ```
+
+</details>
+
+<details>
+<summary><strong>🐛 Troubleshooting</strong></summary>
+
+### Common Issues
+
+**"Knowledge plugin failed to initialize"**
+
+- Make sure you have an AI provider plugin (openai, google-genai, ollama, etc.)
+- Check that your AI provider has valid API keys
+
+**"Documents not loading automatically"**
+
+- Verify `LOAD_DOCS_ON_STARTUP=true` in your `.env` file
+- Check that the `docs` folder exists in your project root
+- Make sure files are readable and in supported formats
+
+**"Search returns no results"**
+
+- Documents need to be processed first (wait for startup to complete)
+- Try simpler search terms
+- Check that documents actually contain the content you're searching for
+
+**"Out of memory errors"**
+
+- Reduce `MAX_CONCURRENT_REQUESTS` to 10-15
+- Process smaller documents or fewer documents at once
+- Increase Node.js memory limit: `node --max-old-space-size=4096`
+
+### Performance Tips
+
+- **Smaller chunks = better search precision** (but more tokens used)
+- **Contextual mode = better understanding** (but slower processing)
+- **Batch document uploads** rather than one-by-one for better performance
 
 </details>
 
 ## 📝 License
 
-See the ElizaOS license for details.
-
-### Advanced Features
-
-The knowledge plugin now includes several advanced features for enterprise-grade
-knowledge management:
-
-#### 🔍 Advanced Search
-
-Search with filters, sorting, and pagination:
-
-```typescript
-const results = await knowledgeService.advancedSearch({
-  query: 'machine learning',
-  filters: {
-    contentType: ['application/pdf', 'text/markdown'],
-    tags: ['ai', 'research'],
-    dateRange: {
-      start: new Date('2024-01-01'),
-      end: new Date('2024-12-31'),
-    },
-    minSimilarity: 0.7,
-  },
-  sort: {
-    field: 'similarity', // or 'createdAt', 'updatedAt', 'title'
-    order: 'desc',
-  },
-  limit: 20,
-  offset: 0,
-  includeMetadata: true,
-});
-```
-
-Natural language search examples:
-
-- "Search for pdf documents about AI from last week"
-- "Find recent markdown files sorted by relevant"
-- "Look for documents with blockchain tags from today"
-
-#### 📦 Batch Operations
-
-Process multiple documents efficiently:
-
-```typescript
-const result = await knowledgeService.batchOperation({
-  operation: 'add', // or 'update', 'delete'
-  items: [
-    { data: { content: 'Doc 1', contentType: 'text/plain', ... } },
-    { data: { content: 'Doc 2', contentType: 'text/plain', ... } },
-    // ... more items
-  ],
-});
-
-console.log(`Processed: ${result.successful} successful, ${result.failed} failed`);
-```
-
-#### 📊 Analytics & Insights
-
-Get comprehensive analytics about your knowledge base:
-
-```typescript
-const analytics = await knowledgeService.getAnalytics();
-
-// Returns:
-// {
-//   totalDocuments: 150,
-//   totalFragments: 450,
-//   storageSize: 5242880, // bytes
-//   contentTypes: {
-//     'application/pdf': 80,
-//     'text/plain': 50,
-//     'text/markdown': 20,
-//   },
-//   queryStats: {
-//     totalQueries: 1000,
-//     averageResponseTime: 250, // ms
-//     topQueries: [
-//       { query: 'AI research', count: 50 },
-//       { query: 'blockchain', count: 30 },
-//     ],
-//   },
-//   usageByDate: [...],
-// }
-```
-
-#### 📤 Export & Import
-
-Export your knowledge base in multiple formats:
-
-```typescript
-// Export to JSON
-const jsonExport = await knowledgeService.exportKnowledge({
-  format: 'json',
-  includeMetadata: true,
-  documentIds: ['id1', 'id2'], // optional filter
-  dateRange: { start: new Date('2024-01-01') }, // optional filter
-});
-
-// Export to CSV
-const csvExport = await knowledgeService.exportKnowledge({
-  format: 'csv',
-});
-
-// Export to Markdown
-const markdownExport = await knowledgeService.exportKnowledge({
-  format: 'markdown',
-  includeMetadata: false,
-});
-```
-
-Import knowledge from various formats:
-
-```typescript
-// Import from JSON
-const importResult = await knowledgeService.importKnowledge(jsonData, {
-  format: 'json',
-  validateBeforeImport: true,
-  overwriteExisting: false,
-});
-
-// Import from CSV
-const csvResult = await knowledgeService.importKnowledge(csvData, {
-  format: 'csv',
-  batchSize: 100,
-});
-```
-
-#### 🎯 Action Chaining
-
-The SEARCH_KNOWLEDGE action now returns structured data that can be used by
-other actions:
-
-```typescript
-// SEARCH_KNOWLEDGE returns:
-{
-  data: {
-    query: 'machine learning',
-    results: [...], // KnowledgeItem[]
-    count: 5,
-  },
-  text: 'Found 5 results...',
-}
-
-// This data can be consumed by other actions like:
-// - ANALYZE_KNOWLEDGE: Analyze search results
-// - SUMMARIZE_KNOWLEDGE: Create summaries
-// - FILTER_KNOWLEDGE: Further filter results
-```
-
-#### ⚙️ Configuration Options
-
-New configuration options for advanced features:
-
-```env
-# Search Configuration
-SEARCH_MATCH_THRESHOLD=0.7      # Minimum similarity score (0-1)
-SEARCH_RESULT_COUNT=20          # Default number of results
-
-# Feature Flags
-ENABLE_VERSIONING=true          # Track document versions
-ENABLE_ANALYTICS=true           # Enable analytics tracking
-
-# Performance
-BATCH_PROCESSING_SIZE=5         # Items processed in parallel
-```
-
-### Available Actions
-
-The plugin provides these enhanced actions:
-
-1. **PROCESS_KNOWLEDGE** - Add documents, text, URLs, or attachments
-2. **SEARCH_KNOWLEDGE** - Basic knowledge search with action chaining support
-3. **ADVANCED_KNOWLEDGE_SEARCH** - Advanced search with filters and sorting
-4. **KNOWLEDGE_ANALYTICS** - Get analytics and insights
-5. **EXPORT_KNOWLEDGE** - Export knowledge base to various formats
-
-</details>
-
-## 🧪 Testing
-
-The plugin includes comprehensive test coverage:
-
-```bash
-# Run all tests
-npm test
-
-# Run unit tests
-npm run test:unit
-
-# Run E2E tests (including advanced features)
-npm test
-
-# Run Cypress UI tests
-npm run test:cypress:open
-```
-
-## 🤝 Contributing
+MIT License - See the main ElizaOS license for details.
