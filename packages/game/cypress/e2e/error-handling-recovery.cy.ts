@@ -7,7 +7,7 @@ describe('Error Handling and Recovery Testing', () => {
       win.localStorage.setItem('skipBoot', 'true');
     });
     cy.visit('/', { timeout: 15000 });
-    
+
     // Wait for main interface to load
     cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
   });
@@ -20,7 +20,7 @@ describe('Error Handling and Recovery Testing', () => {
 
       // Attempt to send a message during network failure
       cy.get('[data-testid="chat-input"]').type('Test message during network failure{enter}');
-      
+
       // Should show connection error
       cy.get('[data-testid="connection-error"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="error-message"]').should('contain', 'connection');
@@ -30,7 +30,7 @@ describe('Error Handling and Recovery Testing', () => {
       // Test retry mechanism
       cy.intercept('POST', '/api/chat', { statusCode: 200, body: { message: 'Connection restored' } });
       cy.get('[data-testid="retry-connection-button"]').click();
-      
+
       // Should show connection restored
       cy.get('[data-testid="connection-restored"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="connection-status"]').should('contain', 'Connected');
@@ -39,7 +39,7 @@ describe('Error Handling and Recovery Testing', () => {
 
     it('should handle intermittent connectivity issues', () => {
       let callCount = 0;
-      
+
       // Simulate intermittent failures
       cy.intercept('POST', '/api/chat', (req) => {
         callCount++;
@@ -54,7 +54,7 @@ describe('Error Handling and Recovery Testing', () => {
       for (let i = 0; i < 5; i++) {
         cy.get('[data-testid="chat-input"]').type(`Message ${i + 1}{enter}`);
         cy.wait(2000);
-        
+
         if ((i + 1) % 3 === 0) {
           // Should show error but then recover
           cy.get('[data-testid="message-failed-indicator"]').should('be.visible');
@@ -75,7 +75,7 @@ describe('Error Handling and Recovery Testing', () => {
       }).as('rateLimitError');
 
       cy.get('[data-testid="chat-input"]').type('Test rate limiting{enter}');
-      
+
       // Should show rate limit message
       cy.get('[data-testid="rate-limit-error"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="rate-limit-message"]').should('contain', 'too many requests');
@@ -84,11 +84,11 @@ describe('Error Handling and Recovery Testing', () => {
 
       // Should show countdown timer
       cy.get('[data-testid="retry-timer"]').should('contain', '30');
-      
+
       // Fast-forward time and verify auto-retry
       cy.clock();
       cy.tick(31000); // Fast forward 31 seconds
-      
+
       // Should automatically retry
       cy.get('[data-testid="auto-retry-message"]').should('be.visible');
     });
@@ -104,7 +104,7 @@ describe('Error Handling and Recovery Testing', () => {
 
       // Trigger status check
       cy.get('[data-testid="agent-status-refresh"]').click();
-      
+
       // Should show runtime error
       cy.get('[data-testid="runtime-error"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="runtime-crash-message"]').should('contain', 'runtime crashed');
@@ -114,10 +114,10 @@ describe('Error Handling and Recovery Testing', () => {
       // Test runtime restart
       cy.intercept('POST', '/api/restart', { statusCode: 200, body: { status: 'restarting' } });
       cy.intercept('GET', '/api/status', { statusCode: 200, body: { status: 'ready' } });
-      
+
       cy.get('[data-testid="restart-runtime-button"]').click();
       cy.get('[data-testid="runtime-restarting"]').should('be.visible');
-      
+
       // Should show recovery
       cy.get('[data-testid="runtime-recovered"]', { timeout: 15000 }).should('be.visible');
       cy.screenshot('error-runtime-recovery');
@@ -132,7 +132,7 @@ describe('Error Handling and Recovery Testing', () => {
 
       // Try to access memories
       cy.get('[data-testid="goals-tab"]').click();
-      
+
       // Should show database error
       cy.get('[data-testid="database-error"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="db-error-message"]').should('contain', 'database');
@@ -153,7 +153,7 @@ describe('Error Handling and Recovery Testing', () => {
       }).as('modelError');
 
       cy.get('[data-testid="chat-input"]').type('Test model error{enter}');
-      
+
       // Should show model provider error
       cy.get('[data-testid="model-error"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="model-error-message"]').should('contain', 'API key');
@@ -173,7 +173,7 @@ describe('Error Handling and Recovery Testing', () => {
 
       // Test oversized file
       const largeFile = new File(['x'.repeat(100 * 1024 * 1024)], 'large.txt', { type: 'text/plain' });
-      
+
       cy.get('[data-testid="file-input"]').then(input => {
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(largeFile);
@@ -188,7 +188,7 @@ describe('Error Handling and Recovery Testing', () => {
 
       // Test invalid file type
       const invalidFile = new File(['test'], 'test.exe', { type: 'application/octet-stream' });
-      
+
       cy.get('[data-testid="file-input"]').then(input => {
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(invalidFile);
@@ -212,15 +212,15 @@ describe('Error Handling and Recovery Testing', () => {
 
       dangerousInputs.forEach((input, index) => {
         cy.get('[data-testid="chat-input"]').clear().type(`${input}{enter}`);
-        
+
         // Should sanitize or block dangerous input
         cy.get('[data-testid="input-sanitized"]').should('be.visible');
         cy.get('[data-testid="security-warning"]').should('contain', 'potentially unsafe');
-        
+
         if (index === 2) {
           cy.screenshot('error-dangerous-input-blocked');
         }
-        
+
         cy.wait(1000);
       });
     });
@@ -228,9 +228,9 @@ describe('Error Handling and Recovery Testing', () => {
     it('should handle extremely long messages', () => {
       // Test very long message
       const longMessage = 'A'.repeat(10000);
-      
+
       cy.get('[data-testid="chat-input"]').type(longMessage);
-      
+
       // Should show length warning
       cy.get('[data-testid="message-length-warning"]').should('be.visible');
       cy.get('[data-testid="character-count"]').should('contain', '10000');
@@ -267,7 +267,7 @@ describe('Error Handling and Recovery Testing', () => {
 
       // Trigger memory-intensive operation
       cy.get('[data-testid="chat-input"]').type('Generate a very long detailed response{enter}');
-      
+
       // Should show memory warning
       cy.get('[data-testid="memory-warning"]', { timeout: 15000 }).should('be.visible');
       cy.get('[data-testid="memory-usage-indicator"]').should('contain', 'High');
@@ -282,14 +282,14 @@ describe('Error Handling and Recovery Testing', () => {
     it('should handle CPU intensive operations', () => {
       // Enable multiple resource-heavy capabilities
       cy.get('[data-testid="config-tab"]').click();
-      
+
       ['browser-toggle', 'camera-toggle', 'coding-toggle', 'shell-toggle'].forEach(toggle => {
         cy.get(`[data-testid="${toggle}"]`).click();
       });
 
       // Request CPU-intensive operation
       cy.get('[data-testid="chat-input"]').type('Simultaneously browse the web, analyze my screen, write some code, and run shell commands{enter}');
-      
+
       // Should show performance warning
       cy.get('[data-testid="performance-warning"]', { timeout: 20000 }).should('be.visible');
       cy.get('[data-testid="cpu-usage-high"]').should('be.visible');
@@ -313,7 +313,7 @@ describe('Error Handling and Recovery Testing', () => {
 
       // Try to create many goals/todos to fill storage
       cy.get('[data-testid="chat-input"]').type('Create 100 different goals for me{enter}');
-      
+
       // Should show storage quota error
       cy.get('[data-testid="storage-quota-error"]', { timeout: 15000 }).should('be.visible');
       cy.get('[data-testid="storage-full-message"]').should('contain', 'storage full');
@@ -333,7 +333,7 @@ describe('Error Handling and Recovery Testing', () => {
       // Create some state
       cy.get('[data-testid="chat-input"]').type('Remember that I am working on a Python project{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       cy.get('[data-testid="goals-tab"]').click();
       cy.get('[data-testid="chat-input"]').type('Create a goal to learn advanced Python{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
@@ -351,7 +351,7 @@ describe('Error Handling and Recovery Testing', () => {
       // Verify state was recovered
       cy.get('[data-testid="goals-tab"]').click();
       cy.get('[data-testid="goal-item"]').should('contain', 'Python');
-      
+
       cy.get('[data-testid="chat-input"]').type('What do you remember about my project?{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('contain', 'Python');
     });
@@ -365,7 +365,7 @@ describe('Error Handling and Recovery Testing', () => {
 
       // Reload page
       cy.reload();
-      
+
       // Should detect corruption and reset gracefully
       cy.get('[data-testid="storage-corruption-detected"]', { timeout: 15000 }).should('be.visible');
       cy.get('[data-testid="reset-storage-button"]').should('be.visible');
@@ -375,7 +375,7 @@ describe('Error Handling and Recovery Testing', () => {
       cy.get('[data-testid="reset-storage-button"]').click();
       cy.get('[data-testid="storage-reset-confirmation"]').should('be.visible');
       cy.get('[data-testid="confirm-storage-reset"]').click();
-      
+
       // Should start fresh
       cy.get('[data-testid="fresh-start-message"]').should('be.visible');
       cy.get('[data-testid="game-interface"]').should('be.visible');
@@ -384,12 +384,12 @@ describe('Error Handling and Recovery Testing', () => {
     it('should recover from partial operation failures', () => {
       // Start a complex multi-step operation
       cy.get('[data-testid="chat-input"]').type('Create a comprehensive learning plan with goals, todos, and schedule{enter}');
-      
+
       // Simulate partial failure during operation
       cy.intercept('POST', '/api/todos', { forceNetworkError: true }).as('todoError');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Should show partial failure
       cy.get('[data-testid="partial-operation-failure"]').should('be.visible');
       cy.get('[data-testid="completed-steps"]').should('contain', 'goals created');
@@ -400,7 +400,7 @@ describe('Error Handling and Recovery Testing', () => {
       // Test retry of failed steps
       cy.intercept('POST', '/api/todos', { statusCode: 200, body: { success: true } });
       cy.get('[data-testid="retry-failed-steps"]').click();
-      
+
       cy.get('[data-testid="operation-completed"]', { timeout: 15000 }).should('be.visible');
     });
   });
@@ -414,7 +414,7 @@ describe('Error Handling and Recovery Testing', () => {
       });
 
       cy.get('[data-testid="chat-input"]').type('Trigger error for diagnostics{enter}');
-      
+
       // Should show error with diagnostics option
       cy.get('[data-testid="error-occurred"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="show-diagnostics-button"]').should('be.visible');
@@ -438,9 +438,9 @@ describe('Error Handling and Recovery Testing', () => {
     it('should provide troubleshooting guidance', () => {
       // Simulate common error pattern
       cy.intercept('GET', '/api/health', { statusCode: 404 }).as('notFound');
-      
+
       cy.get('[data-testid="agent-status-refresh"]').click();
-      
+
       // Should provide contextual troubleshooting
       cy.get('[data-testid="troubleshooting-panel"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="suggested-solutions"]').should('be.visible');
@@ -462,14 +462,14 @@ describe('Error Handling and Recovery Testing', () => {
         win.localStorage.setItem = Storage.prototype.setItem;
       }
     });
-    
+
     // Clear any error indicators
     cy.get('[data-testid="clear-all-errors"]').then(($button) => {
       if ($button.length) {
         cy.wrap($button).click();
       }
     });
-    
+
     cy.screenshot('error-test-complete');
   });
 });

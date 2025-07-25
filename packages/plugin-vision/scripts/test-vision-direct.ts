@@ -1,4 +1,4 @@
-import { VisionService } from '../src/service.js';
+import { VisionService } from '../src/service';
 import { logger } from '@elizaos/core';
 
 // Mock runtime for testing

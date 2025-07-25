@@ -6,7 +6,7 @@ import {
   type UUID,
   logger,
 } from '@elizaos/core';
-import { createGoalDataService } from '../services/goalDataService.js';
+import { createGoalDataService } from '../services/goalDataService';
 
 /**
  * Goals provider that shows active and recently completed goals

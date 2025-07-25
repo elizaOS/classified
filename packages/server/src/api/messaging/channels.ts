@@ -149,7 +149,7 @@ export function createChannelsRouter(
                 ? `DM ${channelIdParam.substring(0, 8)}`
                 : `Chat ${channelIdParam.substring(0, 8)}`,
               type: isDmChannel ? ChannelType.DM : ChannelType.GROUP,
-              sourceType: 'auto_created',
+              source_type: 'auto_created',
               metadata: {
                 created_by: 'gui_auto_creation',
                 created_for_user: author_id,
@@ -211,7 +211,7 @@ export function createChannelsRouter(
             : undefined,
           rawMessage: raw_message,
           metadata,
-          sourceType: source_type || 'eliza_gui',
+          source_type: source_type || 'eliza_gui',
         };
 
         const createdRootMessage = await serverInstance.createMessage(newRootMessageData);
@@ -222,17 +222,17 @@ export function createChannelsRouter(
 
         const messageForBus: MessageService = {
           id: createdRootMessage.id,
-          channel_id: createdRootMessage.channelId,
-          server_id: server_id as UUID,
-          author_id: createdRootMessage.authorId,
+          channelId: createdRootMessage.channelId,
+          serverId: server_id as UUID,
+          authorId: createdRootMessage.authorId,
           content: createdRootMessage.content,
-          created_at: new Date(createdRootMessage.createdAt).getTime(),
-          source_type: createdRootMessage.sourceType,
-          raw_message: createdRootMessage.rawMessage,
+          createdAt: new Date(createdRootMessage.createdAt).getTime(),
+          source_type: createdRootMessage.source_type,
+          rawMessage: createdRootMessage.rawMessage,
           metadata: createdRootMessage.metadata,
-          author_display_name: metadata?.user_display_name, // Get from GUI payload
-          in_reply_to_message_id: createdRootMessage.inReplyToRootMessageId,
-          source_id: createdRootMessage.sourceId, // Will be undefined here, which is fine
+          authorDisplayName: metadata?.user_display_name, // Get from GUI payload
+          inReplyToMessageId: createdRootMessage.inReplyToRootMessageId,
+          sourceId: createdRootMessage.sourceId, // Will be undefined here, which is fine
         };
 
         internalMessageBus.emit('new_message', messageForBus);
@@ -249,7 +249,7 @@ export function createChannelsRouter(
             text: content,
             roomId: channelIdParam, // GUI uses central channelId as roomId for socket
             serverId: server_id, // Client layer uses serverId
-            createdAt: messageForBus.created_at,
+            createdAt: messageForBus.createdAt,
             source: messageForBus.source_type,
             id: messageForBus.id,
           });
@@ -338,7 +338,7 @@ export function createChannelsRouter(
   // POST /channels - Create a new central channel
   (router as any).post('/channels', async (req: express.Request, res: express.Response) => {
     const serverId = req.body.serverId as UUID;
-    const { name, type, sourceType, sourceId, metadata } = req.body;
+    const { name, type, source_type, sourceId, metadata, id } = req.body;
     const topic = req.body.topic ?? req.body.description;
 
     if (!serverId) {
@@ -371,10 +371,11 @@ export function createChannelsRouter(
 
     try {
       const channel = await serverInstance.createChannel({
+        id,
         messageServerId: serverId,
         name,
         type,
-        sourceType,
+        source_type,
         sourceId,
         topic,
         metadata,

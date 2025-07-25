@@ -49,3 +49,6 @@ src-tauri/target/
 
 # Local development
 *.local
+
+target
+videos

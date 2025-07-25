@@ -2,7 +2,7 @@
 
 /**
  * Comprehensive Test Runner for ELIZA Game
- * 
+ *
  * This script orchestrates the execution of all Cypress tests in a methodical way,
  * ensuring proper test isolation, error reporting, and comprehensive coverage.
  */
@@ -42,7 +42,7 @@ const TEST_CONFIG = {
     {
       name: 'Enhanced Agent Interactions',
       file: 'agent-interactions-enhanced.cy.ts',
-      priority: 4, 
+      priority: 4,
       timeout: 180000,
       description: 'Tests goal/todo management, memory persistence, and learning'
     },
@@ -61,7 +61,7 @@ const TEST_CONFIG = {
 };
 
 // Test execution state
-let testResults = {
+const testResults = {
   total: 0,
   passed: 0,
   failed: 0,
@@ -82,7 +82,7 @@ function log(message, type = 'info') {
     warning: '⚠️',
     debug: '🐛'
   }[type] || 'ℹ️';
-  
+
   console.log(`[${timestamp}] ${prefix} ${message}`);
 }
 
@@ -95,7 +95,7 @@ function createProgressBar(current, total, width = 40) {
 
 async function checkPrerequisites() {
   log('Checking prerequisites...');
-  
+
   try {
     // Check if Cypress is installed
     await new Promise((resolve, reject) => {
@@ -108,7 +108,7 @@ async function checkPrerequisites() {
         }
       });
     });
-    
+
     // Check if backend is available
     const { default: fetch } = await import('node-fetch');
     try {
@@ -128,7 +128,7 @@ async function checkPrerequisites() {
         await startBackend();
       }
     }
-    
+
     // Check test files exist
     for (const suite of TEST_CONFIG.testSuites) {
       const testPath = path.join(projectRoot, 'cypress', 'e2e', suite.file);
@@ -140,9 +140,9 @@ async function checkPrerequisites() {
         throw new Error(`Missing test file: ${suite.file}`);
       }
     }
-    
+
     log('All prerequisites met', 'success');
-    
+
   } catch (error) {
     log(`Prerequisites check failed: ${error.message}`, 'error');
     throw error;
@@ -152,7 +152,7 @@ async function checkPrerequisites() {
 async function startBackend() {
   return new Promise((resolve, reject) => {
     log('Starting backend server...');
-    
+
     // Check if backend is already running first
     const checkIfRunning = async () => {
       try {
@@ -168,18 +168,18 @@ async function startBackend() {
       }
       return false;
     };
-    
+
     checkIfRunning().then(isRunning => {
-      if (isRunning) return;
-      
+      if (isRunning) {return;}
+
       const backend = spawn('npm', ['run', 'dev:backend'], {
         cwd: projectRoot,
         stdio: 'pipe'
       });
-      
+
       let healthCheckAttempts = 0;
       const maxHealthChecks = 30;
-      
+
       const checkHealth = async () => {
         try {
           const { default: fetch } = await import('node-fetch');
@@ -207,29 +207,29 @@ async function startBackend() {
           }
         }
       };
-      
+
       backend.stdout.on('data', (data) => {
         const output = data.toString();
         if (output.includes('Server running') || output.includes('ready') || output.includes('listening')) {
           setTimeout(checkHealth, 2000);
         }
       });
-      
+
       backend.stderr.on('data', (data) => {
         const stderr = data.toString();
         log(`Backend stderr: ${stderr}`, 'debug');
-        
+
         // If port is in use, that might mean backend is already running
         if (stderr.includes('EADDRINUSE') || stderr.includes('port 7777')) {
           log('Port 7777 in use - checking if backend is accessible...', 'warning');
           setTimeout(checkHealth, 1000);
         }
       });
-      
+
       backend.on('error', (error) => {
         reject(new Error(`Failed to start backend: ${error.message}`));
       });
-      
+
       // Start health checking after initial delay
       setTimeout(checkHealth, 5000);
     });
@@ -243,7 +243,7 @@ async function runTestSuite(suite, suiteIndex) {
   log(`File: ${suite.file}`);
   log(`Timeout: ${suite.timeout / 1000}s`);
   log(`${'='.repeat(60)}`);
-  
+
   const suiteResult = {
     name: suite.name,
     file: suite.file,
@@ -254,20 +254,20 @@ async function runTestSuite(suite, suiteIndex) {
     screenshots: [],
     attempts: 0
   };
-  
+
   let attempts = 0;
   const maxAttempts = TEST_CONFIG.retries + 1;
-  
+
   while (attempts < maxAttempts) {
     attempts++;
     suiteResult.attempts = attempts;
-    
+
     if (attempts > 1) {
       log(`Retry attempt ${attempts - 1}/${TEST_CONFIG.retries}`, 'warning');
       // Wait between retries
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
-    
+
     try {
       const cypressArgs = [
         'cypress', 'run',
@@ -277,62 +277,62 @@ async function runTestSuite(suite, suiteIndex) {
         '--reporter', 'json',
         '--reporter-options', `output=cypress/results/${suite.file}.json`
       ];
-      
+
       if (TEST_CONFIG.screenshots) {
         cypressArgs.push('--config', 'screenshotOnRunFailure=true');
       }
-      
+
       if (TEST_CONFIG.video) {
         cypressArgs.push('--config', 'video=true');
       }
-      
+
       log(`Executing: npx ${cypressArgs.join(' ')}`);
-      
+
       const result = await new Promise((resolve, reject) => {
         const cypress = spawn('npx', cypressArgs, {
           cwd: projectRoot,
           stdio: 'pipe',
           timeout: suite.timeout
         });
-        
+
         let stdout = '';
         let stderr = '';
-        
+
         cypress.stdout.on('data', (data) => {
           const output = data.toString();
           stdout += output;
-          
+
           // Log important output in real-time
           if (output.includes('Running:') || output.includes('✓') || output.includes('✗')) {
             log(output.trim(), 'debug');
           }
         });
-        
+
         cypress.stderr.on('data', (data) => {
           stderr += data.toString();
         });
-        
+
         cypress.on('close', (code) => {
           resolve({ code, stdout, stderr });
         });
-        
+
         cypress.on('error', (error) => {
           reject(error);
         });
-        
+
         // Handle timeout
         setTimeout(() => {
           cypress.kill('SIGTERM');
           reject(new Error(`Test suite timed out after ${suite.timeout / 1000}s`));
         }, suite.timeout);
       });
-      
+
       suiteResult.endTime = Date.now();
-      
+
       if (result.code === 0) {
         suiteResult.passed = true;
         log(`✅ ${suite.name} PASSED (attempt ${attempts})`, 'success');
-        
+
         // Parse test results if available
         try {
           const resultPath = path.join(projectRoot, 'cypress', 'results', `${suite.file}.json`);
@@ -344,65 +344,65 @@ async function runTestSuite(suite, suiteIndex) {
         } catch (error) {
           log(`Could not parse test results for ${suite.file}`, 'warning');
         }
-        
+
         break; // Success, exit retry loop
-        
+
       } else {
         const error = new Error(`Test failed with exit code ${result.code}`);
         error.stdout = result.stdout;
         error.stderr = result.stderr;
         throw error;
       }
-      
+
     } catch (error) {
       suiteResult.error = error.message;
-      
+
       if (attempts === maxAttempts) {
         log(`❌ ${suite.name} FAILED after ${attempts} attempts`, 'error');
         log(`Error: ${error.message}`, 'error');
-        
+
         if (error.stdout) {
           log('STDOUT:', 'debug');
           log(error.stdout, 'debug');
         }
-        
+
         if (error.stderr) {
           log('STDERR:', 'debug');
           log(error.stderr, 'debug');
         }
-        
+
         testResults.errors.push({
           suite: suite.name,
           error: error.message,
           stdout: error.stdout,
           stderr: error.stderr
         });
-        
+
         break; // Exit retry loop on final failure
       } else {
         log(`⚠️ ${suite.name} failed on attempt ${attempts}, retrying...`, 'warning');
       }
     }
   }
-  
+
   testResults.suites.push(suiteResult);
-  
+
   // Update progress
   const progress = createProgressBar(suiteIndex + 1, TEST_CONFIG.testSuites.length);
   log(`\nProgress: ${progress}\n`);
-  
+
   return suiteResult;
 }
 
 async function generateReport() {
-  log('\n' + '='.repeat(80));
+  log(`\n${'='.repeat(80)}`);
   log('COMPREHENSIVE TEST EXECUTION REPORT');
   log('='.repeat(80));
-  
+
   const totalDuration = (testResults.endTime - testResults.startTime) / 1000;
   const successRate = testResults.total > 0 ? (testResults.passed / testResults.total * 100).toFixed(1) : 0;
-  
-  log(`\n📊 SUMMARY:`);
+
+  log('\n📊 SUMMARY:');
   log(`   Total Execution Time: ${totalDuration.toFixed(1)}s`);
   log(`   Test Suites: ${testResults.suites.length}`);
   log(`   Total Tests: ${testResults.total}`);
@@ -410,38 +410,38 @@ async function generateReport() {
   log(`   Failed: ${testResults.failed}`);
   log(`   Skipped: ${testResults.skipped}`);
   log(`   Errors: ${testResults.errors.length}`);
-  
-  log(`\n📋 SUITE RESULTS:`);
+
+  log('\n📋 SUITE RESULTS:');
   testResults.suites.forEach((suite, index) => {
     const duration = suite.endTime ? ((suite.endTime - suite.startTime) / 1000).toFixed(1) : 'N/A';
     const status = suite.passed ? '✅ PASSED' : '❌ FAILED';
     const attempts = suite.attempts > 1 ? ` (${suite.attempts} attempts)` : '';
-    
+
     log(`   ${index + 1}. ${suite.name}: ${status}${attempts} - ${duration}s`);
-    
+
     if (suite.error) {
       log(`      Error: ${suite.error}`, 'error');
     }
   });
-  
+
   if (testResults.errors.length > 0) {
-    log(`\n🚨 ERROR DETAILS:`);
+    log('\n🚨 ERROR DETAILS:');
     testResults.errors.forEach((error, index) => {
       log(`   ${index + 1}. ${error.suite}:`);
       log(`      ${error.error}`, 'error');
     });
   }
-  
+
   // Generate detailed HTML report
   try {
     await generateHTMLReport();
-    log(`\n📄 Detailed report generated: cypress/reports/comprehensive-test-report.html`);
+    log('\n📄 Detailed report generated: cypress/reports/comprehensive-test-report.html');
   } catch (error) {
     log(`Failed to generate HTML report: ${error.message}`, 'warning');
   }
-  
-  log('\n' + '='.repeat(80));
-  
+
+  log(`\n${'='.repeat(80)}`);
+
   // Exit with appropriate code
   const hasFailures = testResults.failed > 0 || testResults.errors.length > 0;
   if (hasFailures) {
@@ -456,7 +456,7 @@ async function generateReport() {
 async function generateHTMLReport() {
   const reportsDir = path.join(projectRoot, 'cypress', 'reports');
   await fs.mkdir(reportsDir, { recursive: true });
-  
+
   const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
@@ -521,7 +521,7 @@ async function generateHTMLReport() {
                     </div>
                     <div class="suite-details">
                         <strong>File:</strong> ${suite.file}<br>
-                        <strong>Duration:</strong> ${suite.endTime ? ((suite.endTime - suite.startTime) / 1000).toFixed(1) + 's' : 'N/A'}<br>
+                        <strong>Duration:</strong> ${suite.endTime ? `${((suite.endTime - suite.startTime) / 1000).toFixed(1)}s` : 'N/A'}<br>
                         <strong>Attempts:</strong> ${suite.attempts}
                     </div>
                     ${suite.error ? `<div class="error-details"><strong>Error:</strong> ${suite.error}</div>` : ''}
@@ -552,23 +552,23 @@ async function main() {
   try {
     log('🚀 Starting ELIZA Game Comprehensive Testing', 'info');
     log(`Testing ${TEST_CONFIG.testSuites.length} suites with ${TEST_CONFIG.retries} retries each`);
-    
+
     testResults.startTime = Date.now();
-    
+
     // Check prerequisites
     await checkPrerequisites();
-    
+
     // Run test suites in order
     for (let i = 0; i < TEST_CONFIG.testSuites.length; i++) {
       const suite = TEST_CONFIG.testSuites[i];
       await runTestSuite(suite, i);
     }
-    
+
     testResults.endTime = Date.now();
-    
+
     // Generate comprehensive report
     await generateReport();
-    
+
   } catch (error) {
     log(`Fatal error during test execution: ${error.message}`, 'error');
     console.error(error);

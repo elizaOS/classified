@@ -1,487 +1,472 @@
-import {
-  Action,
-  IAgentRuntime,
-  Memory,
+import { 
+  Action, 
+  ActionResult, 
+  HandlerCallback, 
+  type IAgentRuntime, 
+  Memory, 
   State,
-  HandlerCallback,
-  ModelType,
-  elizaLogger,
-  ActionResult,
+  type UUID,
+  elizaLogger
 } from '@elizaos/core';
-import { query } from '@anthropic-ai/claude-code';
+import { v4 as uuidv4 } from 'uuid';
 import { CodeGenerationService } from '../services/CodeGenerationService';
-import { FormsService } from '@elizaos/plugin-forms';
 
 export const generateCodeAction: Action = {
   name: 'GENERATE_CODE',
-  description: 'Generates complete ElizaOS projects using Claude Code in sandboxed environments',
-
   similes: [
-    'create code',
-    'generate project',
-    'build plugin',
-    'make agent',
-    'develop',
-    'code generation',
-    'auto code',
-    'write code for me',
+    'BUILD_CODE',
+    'CREATE_CODE',
+    'WRITE_CODE',
+    'DEVELOP_CODE',
+    'IMPLEMENT_CODE',
+    'CODE_GENERATION',
+    'GENERATE_PROJECT',
+    'BUILD_PROJECT'
   ],
-
-  examples: [
-    [
-      {
-        name: '{{user1}}',
-        content: { text: 'Generate a plugin for weather data' },
-      },
-      {
-        name: '{{agent}}',
-        content: {
-          text: "I'll help you generate a weather data plugin. Let me gather some requirements first.",
-          actions: ['GENERATE_CODE'],
-        },
-      },
-    ],
-    [
-      {
-        name: '{{user1}}',
-        content: { text: 'Create an agent that helps with customer support' },
-      },
-      {
-        name: '{{agent}}',
-        content: {
-          text: "I'll create a customer support agent for you. Let me collect the project details.",
-          actions: ['GENERATE_CODE'],
-        },
-      },
-    ],
-  ],
-
-  validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State) => {
-    const codeGenService = runtime.getService<CodeGenerationService>('code-generation');
-    const formsService = runtime.getService<FormsService>('forms');
-
-    return !!(codeGenService && formsService);
+  description: 'Generate code for ElizaOS projects using AI',
+  
+  validate: async (runtime: IAgentRuntime, message: Memory, state?: State): Promise<boolean> => {
+    const text = message.content.text?.toLowerCase() || '';
+    
+    // Check if this is a form submission
+    const data = message.content.data as any;
+    if (data?.action === 'GENERATE_CODE') {
+      return true;
+    }
+    
+    // Check for code generation keywords
+    const genKeywords = ['generate', 'create', 'build', 'write', 'implement', 'code'];
+    const contextKeywords = ['plugin', 'agent', 'action', 'provider', 'service'];
+    
+    const hasGenKeyword = genKeywords.some(keyword => text.includes(keyword));
+    const hasContextKeyword = contextKeywords.some(keyword => text.includes(keyword));
+    
+    return hasGenKeyword && hasContextKeyword;
   },
 
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
     state?: State,
-    _options?: { [key: string]: unknown },
-    callback?: HandlerCallback
+    _options?: any,
+    callback?: HandlerCallback,
+    _responses?: Memory[]
   ): Promise<ActionResult> => {
-    try {
-      elizaLogger.info('GENERATE_CODE action triggered');
-
-      const codeGenService = runtime.getService('code-generation');
-      const projectService = runtime.getService('project-planning');
-
-      if (!codeGenService || !projectService) {
-        const error = 'Required services not available';
-        if (callback) {
-          callback({
-            text: error,
-            success: false,
-          });
-        }
-        return {
-          text: error,
-          success: false,
-        };
-      }
-
-      // Get current project from state or message
-      const projectId = state?.projectId || (message.content as any).projectId;
-      
-      if (!projectId) {
-        const error = 'No active project found. Please create a project first.';
-        if (callback) {
-          callback({
-            text: error,
-            success: false,
-          });
-        }
-        return {
-          text: error,
-          success: false,
-        };
-      }
-
-      // Get project details
-      const project = await (projectService as any).getProjectPlan(projectId);
-      
-      if (!project) {
-        const error = 'Project not found';
-        if (callback) {
-          callback({
-            text: error,
-            success: false,
-          });
-        }
-        return {
-          text: error,
-          success: false,
-        };
-      }
-
-      // Generate code
-      elizaLogger.info(`Generating code for project ${projectId}`);
-      const result = await (codeGenService as any).generateCode(project);
-
-      if (!result.success) {
-        const error = `Code generation failed: ${result.error || 'Unknown error'}`;
-        if (callback) {
-          callback({
-            text: error,
-            success: false,
-          });
-        }
-        return {
-          text: error,
-          success: false,
-          data: result,
-        };
-      }
-
-      const responseText = `✅ Code generation complete!\n\nGenerated ${result.files?.length || 0} files for your ${project.type} project.\n\nProject location: ${result.projectPath}`;
-
+    elizaLogger.info('GENERATE_CODE action triggered');
+    
+    const codeGenService = runtime.getService('code-generation') as CodeGenerationService;
+    if (!codeGenService) {
+      elizaLogger.error('Code generation service not available');
       if (callback) {
-        callback({
-          text: responseText,
-          success: true,
+        await callback({
+          text: "I can't generate code right now - the code generation service isn't available. Please ensure all required API keys are configured.",
+          error: true
         });
       }
-
       return {
-        text: responseText,
-        success: true,
-        data: result,
-      };
-
-    } catch (error) {
-      elizaLogger.error('Failed to generate code:', error);
-      const errorMessage = `Failed to generate code: ${error instanceof Error ? error.message : String(error)}`;
-
-      if (callback) {
-        callback({
-          text: errorMessage,
-          success: false,
-        });
-      }
-
-      return {
-        text: errorMessage,
         success: false,
-        data: { error },
+        error: 'Code generation service not available'
       };
     }
+
+    const formsService = runtime.getService('forms');
+    
+    // Extract project type and data
+    const projectType = await extractProjectType(runtime, message, state);
+    elizaLogger.info(`Project type: ${projectType}`);
+    
+    // Handle form flow
+    if (formsService) {
+      // Check if we have active forms
+      const activeForms = await (formsService as any).getActiveForms(message.roomId);
+      const projectForm = activeForms.find((f: any) => f.id.startsWith('project-'));
+      
+      if (projectForm && !projectForm.completed) {
+        // We have an incomplete form, prompt for next step
+        const nextStepPrompt = getNextStepPrompt(projectForm, message.content.text || '');
+        
+        if (callback) {
+          await callback({
+            text: nextStepPrompt,
+            form: projectForm
+          });
+        }
+        
+        return {
+          success: true,
+          data: {
+            status: 'collecting_requirements',
+            formId: projectForm.id
+          }
+        };
+      }
+      
+      // Check if this is a form submission
+      const messageData = message.content.data as any;
+      if (messageData?.formId && messageData?.formData) {
+        // Process form submission
+        const formData = messageData.formData;
+        const projectData = extractProjectData(formData);
+        
+        // Start generation
+        if (callback) {
+          await callback({
+            text: `🚀 Starting code generation for your ${projectData.targetType}...\n\nThis may take a few minutes. I'll:\n1. Research best practices\n2. Generate the code structure\n3. Implement all features\n4. Run quality checks`
+          });
+        }
+        
+        const result = await codeGenService.generateCode({
+          projectName: projectData.projectName,
+          description: projectData.description,
+          requirements: projectData.requirements,
+          apis: projectData.apis || [],
+          targetType: projectData.targetType,
+          testScenarios: projectData.testScenarios || []
+        });
+        
+        if (!result.success) {
+          if (callback) {
+            await callback({
+              text: `❌ Code generation failed: ${result.errors?.join('\n') || 'Unknown error'}`,
+              error: true
+            });
+          }
+          return {
+            success: false,
+            error: result.errors?.join('\n') || 'Code generation failed'
+          };
+        }
+        
+        // Prepare success response
+        let successMessage = `✅ **Code generation complete!**\n\n`;
+        successMessage += `📁 **Project:** ${projectData.projectName}\n`;
+        successMessage += `📋 **Type:** ${projectData.targetType}\n`;
+        
+        if (result.files) {
+          successMessage += `📄 **Files generated:** ${result.files.length}\n`;
+        }
+        
+        if (result.projectPath) {
+          successMessage += `\n📍 **Project location:** ${result.projectPath}`;
+        }
+        
+        if (result.executionResults) {
+          successMessage += `\n\n**Quality Checks:**\n`;
+          successMessage += `${result.executionResults.lintPass ? '✅' : '❌'} Linting\n`;
+          successMessage += `${result.executionResults.typesPass ? '✅' : '❌'} Type checking\n`;
+          successMessage += `${result.executionResults.testsPass ? '✅' : '❌'} Tests\n`;
+          successMessage += `${result.executionResults.buildPass ? '✅' : '❌'} Build\n`;
+        }
+        
+        successMessage += `\n\n🎉 Your ${projectData.targetType} is ready! Let me know if you need any modifications.`;
+        
+        if (callback) {
+          await callback({
+            text: successMessage,
+            data: {
+              projectPath: result.projectPath,
+              files: result.files
+            }
+          });
+        }
+        
+        return {
+          success: true,
+          data: {
+            projectPath: result.projectPath,
+            filesGenerated: result.files?.length || 0,
+            executionResults: result.executionResults
+          }
+        };
+      }
+    }
+    
+    // Direct code generation without form
+    const requirements = extractRequirements(message.content.text || '');
+    
+    if (!requirements || requirements.length === 0) {
+      if (callback) {
+        await callback({
+          text: "I need more details about what you want to build. Could you describe:\n- What type of project (plugin, agent, etc.)?\n- What features or functionality it should have?\n- Any specific APIs or services it should use?",
+          error: false
+        });
+      }
+      return {
+        success: false,
+        error: 'Insufficient requirements provided'
+      };
+    }
+    
+    const projectName = extractProjectName(message.content.text || '') || `project-${Date.now()}`;
+    
+    if (callback) {
+      await callback({
+        text: `🚀 Starting code generation based on your requirements...\n\nGenerating: ${projectName}\nType: ${projectType}`
+      });
+    }
+    
+    const result = await codeGenService.generateCode({
+      projectName: projectName,
+      description: message.content.text || '',
+      requirements: requirements,
+      apis: extractAPIs(message.content.text || ''),
+      targetType: projectType as any
+    });
+    
+    if (!result.success) {
+      if (callback) {
+        await callback({
+          text: `❌ Code generation failed: ${result.errors?.join('\n') || 'Unknown error'}`,
+          error: true
+        });
+      }
+      return {
+        success: false,
+        error: result.errors?.join('\n') || 'Code generation failed'
+      };
+    }
+    
+    let responseText = `✅ Code generation complete!\n\n`;
+    responseText += `📁 Project: ${projectName}\n`;
+    
+    if (result.files) {
+      responseText += `📄 Files generated: ${result.files.length}\n`;
+    }
+    
+    if (result.projectPath) {
+      responseText += `📍 Location: ${result.projectPath}\n`;
+    }
+    
+    responseText += `\n🎉 Your code is ready!`;
+    
+    if (callback) {
+      await callback({
+        text: responseText,
+        data: result
+      });
+    }
+    
+    return {
+      success: true,
+      data: result
+    };
   },
+
+  examples: [
+    [
+      {
+        name: '{{user1}}',
+        content: {
+          text: "Generate a plugin that monitors crypto prices and sends alerts"
+        }
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: "I'll generate a crypto price monitoring plugin for you. Let me create the code structure with price tracking and alert functionality.",
+          action: 'GENERATE_CODE'
+        }
+      }
+    ]
+  ]
 };
 
+// Helper functions
 async function extractProjectType(
   runtime: IAgentRuntime,
   message: Memory,
   state?: State
 ): Promise<string> {
-  const content = message.content.text?.toLowerCase() || '';
-
-  if (content.includes('plugin')) {
-    return 'plugin';
+  const text = message.content.text?.toLowerCase() || '';
+  
+  if (text.includes('plugin')) return 'plugin';
+  if (text.includes('agent') || text.includes('bot')) return 'agent';
+  if (text.includes('workflow')) return 'workflow';
+  if (text.includes('mcp')) return 'mcp';
+  if (text.includes('app') || text.includes('application')) return 'full-stack';
+  
+  // Check form data
+  const data = message.content.data as any;
+  if (data?.projectType) {
+    return data.projectType;
   }
-  if (content.includes('agent') || content.includes('bot')) {
-    return 'agent';
+  
+  // Check recent memories for context
+  const recentMemories = await runtime.getMemories({
+    roomId: message.roomId,
+    count: 10,
+    unique: false,
+    tableName: 'messages'
+  });
+  
+  for (const memory of recentMemories) {
+    const memText = memory.content.text?.toLowerCase() || '';
+    if (memText.includes('plugin')) return 'plugin';
+    if (memText.includes('agent')) return 'agent';
+    if (memText.includes('workflow')) return 'workflow';
   }
-  if (content.includes('workflow')) {
-    return 'workflow';
+  
+  return 'plugin'; // default
+}
+
+function extractRequirements(text: string): string[] {
+  const requirements: string[] = [];
+  
+  // Look for bullet points or numbered lists
+  const lines = text.split('\n');
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (trimmed.match(/^[-*•]/) || trimmed.match(/^\d+[.)]/) ) {
+      requirements.push(trimmed.replace(/^[-*•]\s*/, '').replace(/^\d+[.)]\s*/, ''));
+    }
+  });
+  
+  // If no list found, extract from sentences
+  if (requirements.length === 0) {
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+    sentences.forEach(sentence => {
+      if (sentence.includes('should') || sentence.includes('must') || sentence.includes('need')) {
+        requirements.push(sentence.trim());
+      }
+    });
   }
-  if (content.includes('mcp')) {
-    return 'mcp';
+  
+  // If still no requirements, use the whole text
+  if (requirements.length === 0 && text.length > 20) {
+    requirements.push(text);
   }
-  if (content.includes('full-stack') || content.includes('app')) {
-    return 'full-stack';
-  }
+  
+  return requirements;
+}
 
-  // Use Claude Code SDK to determine type if not clear
-  const anthropicKey = runtime.getSetting('ANTHROPIC_API_KEY');
-  if (!anthropicKey) {
-    elizaLogger.warn('ANTHROPIC_API_KEY not found, defaulting to plugin type');
-    return 'plugin';
-  }
-
-  try {
-    process.env.ANTHROPIC_API_KEY = anthropicKey;
-
-    const prompt = `Based on this request: "${message.content.text}"
-    
-What type of ElizaOS project should be created?
-Options: plugin, agent, workflow, mcp, full-stack
-
-Reply with just the project type.`;
-
-    let response = '';
-    for await (const message of query({
-      prompt,
-      options: {
-        maxTurns: 1,
-        customSystemPrompt:
-          'You are a helpful assistant that classifies project types. Respond with only the project type, nothing else.',
-      },
-    })) {
-      if (message.type === 'assistant') {
-        // Extract content from the assistant message
-        const content = message.message?.content;
-        if (Array.isArray(content)) {
-          for (const item of content) {
-            if (item.type === 'text') {
-              response += item.text;
-            }
-          }
-        }
-      } else if (message.type === 'result') {
-        // Also check the result for the final response
-        // Result doesn't have a 'result' property, use the message content instead
-        if (message.subtype === 'success') {
-          response += 'Type classified';
-        }
+function extractAPIs(text: string): string[] {
+  const apis: string[] = [];
+  const apiPatterns = [
+    /(\w+)\s+API/gi,
+    /API[:\s]+(\w+)/gi,
+    /uses?\s+(\w+)/gi,
+    /integrates?\s+with\s+(\w+)/gi
+  ];
+  
+  apiPatterns.forEach(pattern => {
+    const matches = text.matchAll(pattern);
+    for (const match of matches) {
+      if (match[1]) {
+        apis.push(match[1]);
       }
     }
+  });
+  
+  return [...new Set(apis)]; // Remove duplicates
+}
 
-    return response.trim().toLowerCase() || 'plugin';
-  } catch (error) {
-    elizaLogger.warn(
-      'Error determining project type with Claude Code, defaulting to plugin:',
-      error
-    );
-    return 'plugin';
+function extractProjectName(text: string): string | null {
+  // Look for quoted names
+  const quotedMatch = text.match(/["']([^"']+)["']/);
+  if (quotedMatch) {
+    return quotedMatch[1];
   }
+  
+  // Look for "called" or "named" patterns
+  const namedMatch = text.match(/(?:called|named)\s+(\S+)/i);
+  if (namedMatch) {
+    return namedMatch[1];
+  }
+  
+  return null;
 }
 
 function getFormTemplate(projectType: string): any {
-  const baseTemplate = {
-    name: `${projectType}-project-form`,
-    description: `Gather requirements for ${projectType} generation`,
+  // Return appropriate form template based on project type
+  return {
+    plugin: {
+      title: "Plugin Configuration",
+      fields: [
+        { name: "projectName", type: "text", label: "Plugin Name", required: true },
+        { name: "description", type: "textarea", label: "Description", required: true },
+        { name: "requirements", type: "textarea", label: "Requirements", required: true },
+        { name: "apis", type: "textarea", label: "External APIs", required: false }
+      ]
+    },
+    agent: {
+      title: "Agent Configuration",
+      fields: [
+        { name: "agentName", type: "text", label: "Agent Name", required: true },
+        { name: "personality", type: "textarea", label: "Personality", required: true },
+        { name: "capabilities", type: "textarea", label: "Capabilities", required: true },
+        { name: "plugins", type: "textarea", label: "Plugins to Use", required: false }
+      ]
+    }
+  }[projectType] || {
+    title: "Project Configuration",
+    fields: [
+      { name: "projectName", type: "text", label: "Project Name", required: true },
+      { name: "description", type: "textarea", label: "Description", required: true },
+      { name: "requirements", type: "textarea", label: "Requirements", required: true }
+    ]
   };
-
-  switch (projectType) {
-    case 'plugin':
-      return {
-        ...baseTemplate,
-        initialMessage:
-          "I'll help you create a new ElizaOS plugin. First, what would you like to name your plugin?",
-        steps: [
-          {
-            id: 'basic-info',
-            name: 'Basic Information',
-            fields: [
-              {
-                name: 'projectName',
-                type: 'text',
-                label: 'Plugin Name',
-                description: 'Name for your plugin (e.g., weather-plugin)',
-                required: true,
-              },
-              {
-                name: 'description',
-                type: 'text',
-                label: 'Description',
-                description: 'What does this plugin do?',
-                required: true,
-              },
-            ],
-          },
-          {
-            id: 'requirements',
-            name: 'Requirements',
-            fields: [
-              {
-                name: 'requirements',
-                type: 'text',
-                label: 'Features',
-                description: 'What features should the plugin have? (actions, providers, services)',
-                required: true,
-              },
-              {
-                name: 'apis',
-                type: 'text',
-                label: 'APIs',
-                description: 'What external APIs will it use? (if any)',
-                required: false,
-              },
-            ],
-          },
-          {
-            id: 'deployment',
-            name: 'Deployment',
-            fields: [
-              {
-                name: 'githubRepo',
-                type: 'text',
-                label: 'GitHub Repository',
-                description: 'Repository name for GitHub (optional)',
-                required: false,
-              },
-              {
-                name: 'testScenarios',
-                type: 'text',
-                label: 'Test Scenarios',
-                description: 'What scenarios should be tested?',
-                required: false,
-              },
-            ],
-          },
-        ],
-      };
-
-    case 'agent':
-      return {
-        ...baseTemplate,
-        initialMessage: "Let's create a new ElizaOS agent. What should we call your agent?",
-        steps: [
-          {
-            id: 'agent-identity',
-            name: 'Agent Identity',
-            fields: [
-              {
-                name: 'projectName',
-                type: 'text',
-                label: 'Agent Name',
-                description: 'Name for your agent',
-                required: true,
-              },
-              {
-                name: 'description',
-                type: 'text',
-                label: 'Agent Purpose',
-                description: "What is the agent's main purpose?",
-                required: true,
-              },
-              {
-                name: 'personality',
-                type: 'text',
-                label: 'Personality',
-                description: "Describe the agent's personality",
-                required: true,
-              },
-            ],
-          },
-          {
-            id: 'capabilities',
-            name: 'Capabilities',
-            fields: [
-              {
-                name: 'requirements',
-                type: 'text',
-                label: 'Capabilities',
-                description: 'What should the agent be able to do?',
-                required: true,
-              },
-              {
-                name: 'apis',
-                type: 'text',
-                label: 'Integrations',
-                description: 'What services/APIs should it integrate with?',
-                required: false,
-              },
-              {
-                name: 'knowledge',
-                type: 'text',
-                label: 'Knowledge Base',
-                description: 'What should the agent know about?',
-                required: false,
-              },
-            ],
-          },
-        ],
-      };
-
-    default:
-      return {
-        ...baseTemplate,
-        steps: [
-          {
-            id: 'project-details',
-            name: 'Project Details',
-            fields: [
-              {
-                name: 'projectName',
-                type: 'text',
-                label: 'Project Name',
-                description: 'Name for your project',
-                required: true,
-              },
-              {
-                name: 'description',
-                type: 'text',
-                label: 'Description',
-                description: 'What does this project do?',
-                required: true,
-              },
-              {
-                name: 'requirements',
-                type: 'text',
-                label: 'Requirements',
-                description: 'List the main requirements',
-                required: true,
-              },
-            ],
-          },
-        ],
-      };
-  }
 }
 
 function getNextStepPrompt(form: any, completedStepId: string): string {
-  const currentIndex = form.steps.findIndex((s: any) => s.id === completedStepId);
-  const nextStep = form.steps[currentIndex + 1];
-
-  if (!nextStep) {
-    return "That's all the information I need!";
+  // Determine next step in form based on what was just completed
+  const steps = form.steps || [];
+  const currentStepIndex = steps.findIndex((s: any) => s.id === completedStepId);
+  
+  if (currentStepIndex >= 0 && currentStepIndex < steps.length - 1) {
+    const nextStep = steps[currentStepIndex + 1];
+    return `Great! Now let's ${nextStep.title}. ${nextStep.description || ''}`;
   }
-
-  const prompts: Record<string, string> = {
-    requirements: "Now, let's talk about what features and capabilities you need.",
-    deployment: "Finally, let's discuss deployment options.",
-    capabilities: 'What capabilities should your agent have?',
-    'agent-identity': "Tell me about your agent's personality and purpose.",
-  };
-
-  return prompts[nextStep.id] || `Let's move on to ${nextStep.name}.`;
+  
+  return "Perfect! I have all the information I need. Let me start generating your code...";
 }
 
-function extractProjectData(form: any): any {
+function extractProjectData(formData: any): any {
+  // Extract and structure project data from form
   const data: any = {
-    targetType: form.name.replace('-project-form', ''),
+    projectName: formData.projectName || formData.project_name || 'unnamed-project',
+    description: formData.description || '',
     requirements: [],
     apis: [],
+    targetType: formData.projectType || 'plugin'
   };
-
-  // Extract all field values from all steps
-  for (const step of form.steps) {
-    for (const field of step.fields) {
-      if (field.value) {
-        if (field.name === 'requirements') {
-          // Split requirements by common delimiters
-          data.requirements = field.value
-            .split(/[,;\n]/)
-            .map((r: string) => r.trim())
-            .filter((r: string) => r);
-        } else if (field.name === 'apis') {
-          // Split APIs
-          data.apis = field.value
-            .split(/[,;\n]/)
-            .map((a: string) => a.trim())
-            .filter((a: string) => a);
-        } else if (field.name === 'testScenarios') {
-          data.testScenarios = field.value
-            .split(/[,;\n]/)
-            .map((s: string) => s.trim())
-            .filter((s: string) => s);
-        } else {
-          data[field.name] = field.value;
-        }
-      }
-    }
+  
+  // Extract requirements
+  if (formData.requirements) {
+    data.requirements = formData.requirements.split('\n').filter((r: string) => r.trim());
   }
-
+  
+  // Extract APIs
+  if (formData.apis) {
+    data.apis = formData.apis.split(/[,\n]/).map((a: string) => a.trim()).filter(Boolean);
+  }
+  
+  // Extract test scenarios
+  if (formData.test_scenarios) {
+    data.testScenarios = formData.test_scenarios.split('\n').filter((s: string) => s.trim());
+  }
+  
+  // GitHub settings
+  data.createGithubRepo = formData.create_github === true || formData.create_github === 'true';
+  data.privateRepo = formData.private_repo === true || formData.private_repo === 'true';
+  
+  // Agent-specific data
+  if (formData.agent_name) {
+    data.projectName = formData.agent_name;
+    data.targetType = 'agent';
+  }
+  
+  if (formData.personality) {
+    data.requirements.push(`Agent personality: ${formData.personality}`);
+  }
+  
+  if (formData.capabilities) {
+    data.requirements.push(`Agent capabilities: ${formData.capabilities}`);
+  }
+  
+  if (formData.plugins) {
+    const plugins = formData.plugins.split(/[,\n]/).map((p: string) => p.trim()).filter(Boolean);
+    data.requirements.push(`Include plugins: ${plugins.join(', ')}`);
+  }
+  
   return data;
 }

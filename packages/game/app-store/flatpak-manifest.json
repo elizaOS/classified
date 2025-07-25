@@ -1,0 +1,56 @@
+{
+  "app-id": "com.classified.ELIZA",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "23.08",
+  "sdk": "org.freedesktop.Sdk",
+  "command": "eliza",
+  "separate-locales": false,
+  "finish-args": [
+    "--share=network",
+    "--share=ipc",
+    "--socket=x11",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--socket=pulseaudio",
+    "--device=dri",
+    "--filesystem=xdg-documents",
+    "--filesystem=xdg-download",
+    "--filesystem=xdg-desktop",
+    "--filesystem=home:ro",
+    "--device=all",
+    "--talk-name=org.freedesktop.Notifications",
+    "--talk-name=org.kde.StatusNotifierWatcher",
+    "--talk-name=com.canonical.AppMenu.Registrar",
+    "--env=TMPDIR=/var/tmp"
+  ],
+  "modules": [
+    {
+      "name": "eliza",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm755 eliza /app/bin/eliza",
+        "install -Dm644 com.classified.ELIZA.desktop /app/share/applications/com.classified.ELIZA.desktop",
+        "install -Dm644 com.classified.ELIZA.appdata.xml /app/share/appdata/com.classified.ELIZA.appdata.xml",
+        "install -Dm644 eliza.png /app/share/icons/hicolor/128x128/apps/com.classified.ELIZA.png"
+      ],
+      "sources": [
+        {
+          "type": "file",
+          "path": "eliza"
+        },
+        {
+          "type": "file",
+          "path": "com.classified.ELIZA.desktop"
+        },
+        {
+          "type": "file",
+          "path": "com.classified.ELIZA.appdata.xml"
+        },
+        {
+          "type": "file",
+          "path": "eliza.png"
+        }
+      ]
+    }
+  ]
+}

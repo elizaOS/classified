@@ -10,7 +10,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
   before(() => {
     // Start the ElizaOS backend server
     cy.log('Starting ElizaOS backend server...');
-    
+
     elizaProcess = cy.exec('cd packages/game && npm run dev:backend', {
       timeout: 60000,
       failOnNonZeroExit: false,
@@ -18,7 +18,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
 
     // Wait for server to be ready
     cy.wait(10000);
-    
+
     // Check if API is healthy
     cy.request({
       method: 'GET',
@@ -46,7 +46,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
   beforeEach(() => {
     // Visit the game interface
     cy.visit('/');
-    
+
     // Wait for the game interface to load
     cy.get('[data-testid="game-interface"]', { timeout: 10000 }).should('be.visible');
     cy.get('[data-testid="connection-status"]', { timeout: 5000 }).should('contain.text', 'ONLINE');
@@ -56,7 +56,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
     it('should display all 7 permission buttons with correct labels', () => {
       const expectedButtons = [
         'autonomy',
-        'camera', 
+        'camera',
         'screen',
         'microphone',
         'speakers',
@@ -74,7 +74,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
     it('should show button status indicators', () => {
       const expectedButtons = [
         'autonomy',
-        'camera', 
+        'camera',
         'screen',
         'microphone',
         'speakers',
@@ -100,7 +100,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
 
     it('should show hardware buttons as disabled by default', () => {
       const hardwareButtons = ['camera', 'screen', 'microphone', 'speakers', 'shell', 'browser'];
-      
+
       hardwareButtons.forEach((buttonName) => {
         cy.get(`[data-testid="${buttonName}-toggle"]`)
           .should('have.class', 'disabled')
@@ -115,21 +115,21 @@ describe('Permission Buttons Comprehensive Testing', () => {
       it('should toggle autonomy on/off successfully', () => {
         // Should start enabled
         cy.get('[data-testid="autonomy-toggle"]').should('have.class', 'enabled');
-        
+
         // Click to disable
         cy.get('[data-testid="autonomy-toggle"]').click();
         cy.wait(1000); // Wait for API call
-        
+
         // Should now be disabled
         cy.get('[data-testid="autonomy-toggle"]')
           .should('have.class', 'disabled')
           .find('[data-testid="autonomy-toggle-status"]')
           .should('contain.text', '◯');
-        
-        // Click to re-enable  
+
+        // Click to re-enable
         cy.get('[data-testid="autonomy-toggle"]').click();
         cy.wait(1000); // Wait for API call
-        
+
         // Should now be enabled again
         cy.get('[data-testid="autonomy-toggle"]')
           .should('have.class', 'enabled')
@@ -148,7 +148,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
         });
 
         // Enable autonomy
-        cy.get('[data-testid="autonomy-toggle"]').click(); 
+        cy.get('[data-testid="autonomy-toggle"]').click();
         cy.wait('@enableAutonomy').then((interception) => {
           expect(interception.response?.statusCode).to.eq(200);
         });
@@ -160,21 +160,21 @@ describe('Permission Buttons Comprehensive Testing', () => {
         it(`should toggle ${buttonName} successfully`, () => {
           // Should start disabled
           cy.get(`[data-testid="${buttonName}-toggle"]`).should('have.class', 'disabled');
-          
+
           // Click to enable
           cy.get(`[data-testid="${buttonName}-toggle"]`).click();
           cy.wait(2000); // Wait for API call and state update
-          
+
           // Should now be enabled
           cy.get(`[data-testid="${buttonName}-toggle"]`)
             .should('have.class', 'enabled')
             .find(`[data-testid="${buttonName}-toggle-status"]`)
             .should('contain.text', '◉');
-          
+
           // Click to disable
           cy.get(`[data-testid="${buttonName}-toggle"]`).click();
           cy.wait(2000); // Wait for API call and state update
-          
+
           // Should now be disabled again
           cy.get(`[data-testid="${buttonName}-toggle"]`)
             .should('have.class', 'disabled')
@@ -188,11 +188,11 @@ describe('Permission Buttons Comprehensive Testing', () => {
 
           // Enable the capability
           cy.get(`[data-testid="${buttonName}-toggle"]`).click();
-          
+
           cy.wait(`@update${buttonName}Setting`).then((interception) => {
             expect(interception.response?.statusCode).to.eq(200);
           });
-          
+
           cy.wait('@refreshVision').then((interception) => {
             expect(interception.response?.statusCode).to.eq(200);
           });
@@ -204,21 +204,21 @@ describe('Permission Buttons Comprehensive Testing', () => {
       it('should toggle shell capability successfully', () => {
         // Should start disabled
         cy.get('[data-testid="shell-toggle"]').should('have.class', 'disabled');
-        
+
         // Click to enable
         cy.get('[data-testid="shell-toggle"]').click();
         cy.wait(1000); // Wait for API call
-        
+
         // Should now be enabled
         cy.get('[data-testid="shell-toggle"]')
           .should('have.class', 'enabled')
           .find('[data-testid="shell-toggle-status"]')
           .should('contain.text', '◉');
-        
+
         // Click to disable
         cy.get('[data-testid="shell-toggle"]').click();
         cy.wait(1000); // Wait for API call
-        
+
         // Should now be disabled again
         cy.get('[data-testid="shell-toggle"]')
           .should('have.class', 'disabled')
@@ -240,21 +240,21 @@ describe('Permission Buttons Comprehensive Testing', () => {
       it('should toggle browser capability successfully', () => {
         // Should start disabled
         cy.get('[data-testid="browser-toggle"]').should('have.class', 'disabled');
-        
+
         // Click to enable
         cy.get('[data-testid="browser-toggle"]').click();
         cy.wait(1000); // Wait for API call
-        
+
         // Should now be enabled
         cy.get('[data-testid="browser-toggle"]')
           .should('have.class', 'enabled')
           .find('[data-testid="browser-toggle-status"]')
           .should('contain.text', '◉');
-        
+
         // Click to disable
         cy.get('[data-testid="browser-toggle"]').click();
         cy.wait(1000); // Wait for API call
-        
+
         // Should now be disabled again
         cy.get('[data-testid="browser-toggle"]')
           .should('have.class', 'disabled')
@@ -279,14 +279,14 @@ describe('Permission Buttons Comprehensive Testing', () => {
       cy.get('[data-testid="shell-toggle"]').click();
       cy.wait(1000);
       cy.get('[data-testid="shell-toggle"]').should('have.class', 'enabled');
-      
+
       // Reload page
       cy.reload();
       cy.get('[data-testid="game-interface"]', { timeout: 10000 }).should('be.visible');
-      
+
       // Shell should still be enabled
       cy.get('[data-testid="shell-toggle"]', { timeout: 5000 }).should('have.class', 'enabled');
-      
+
       // Clean up - disable shell
       cy.get('[data-testid="shell-toggle"]').click();
       cy.wait(1000);
@@ -302,11 +302,11 @@ describe('Permission Buttons Comprehensive Testing', () => {
       }).as('failToggleShell');
 
       const initialState = cy.get('[data-testid="shell-toggle"]');
-      
+
       // Try to toggle
       cy.get('[data-testid="shell-toggle"]').click();
       cy.wait('@failToggleShell');
-      
+
       // State should remain unchanged
       cy.get('[data-testid="shell-toggle"]').should('have.class', 'disabled');
     });
@@ -315,7 +315,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
   describe('Accessibility', () => {
     it('should have proper ARIA attributes', () => {
       const buttons = ['autonomy', 'camera', 'screen', 'microphone', 'speakers', 'shell', 'browser'];
-      
+
       buttons.forEach((buttonName) => {
         cy.get(`[data-testid="${buttonName}-toggle"]`)
           .should('have.attr', 'role', 'switch')
@@ -328,7 +328,7 @@ describe('Permission Buttons Comprehensive Testing', () => {
       // Focus first button with Tab
       cy.get('body').tab();
       cy.get('[data-testid="autonomy-toggle"]').should('have.focus');
-      
+
       // Navigate with arrow keys or Tab
       cy.focused().tab();
       cy.get('[data-testid="camera-toggle"]').should('have.focus');
@@ -347,11 +347,11 @@ describe('Permission Buttons Comprehensive Testing', () => {
       }).as('slowToggleShell');
 
       cy.get('[data-testid="shell-toggle"]').click();
-      
+
       // Button should show some loading indication (could be disabled, different text, etc.)
       // This depends on the implementation
       cy.get('[data-testid="shell-toggle"]').should('exist'); // Placeholder - adjust based on actual loading state
-      
+
       cy.wait('@slowToggleShell');
     });
   });
@@ -361,13 +361,13 @@ describe('Permission Buttons Comprehensive Testing', () => {
       // Enable shell
       cy.get('[data-testid="shell-toggle"]').click();
       cy.wait(1000);
-      
+
       // Send a message that would use shell
       cy.get('[data-testid="chat-input"]').type('Please list the files in the current directory{enter}');
-      
+
       // Wait for agent response
       cy.get('[data-testid="agent-message"]', { timeout: 10000 }).should('be.visible');
-      
+
       // Clean up
       cy.get('[data-testid="shell-toggle"]').click();
       cy.wait(1000);
@@ -376,10 +376,10 @@ describe('Permission Buttons Comprehensive Testing', () => {
     it('should disable agent capabilities when buttons are turned off', () => {
       // Ensure shell is disabled
       cy.get('[data-testid="shell-toggle"]').should('have.class', 'disabled');
-      
+
       // Send a message that would try to use shell
       cy.get('[data-testid="chat-input"]').type('Please list the files in the current directory{enter}');
-      
+
       // Wait for agent response
       cy.get('[data-testid="agent-message"]', { timeout: 10000 })
         .should('be.visible')

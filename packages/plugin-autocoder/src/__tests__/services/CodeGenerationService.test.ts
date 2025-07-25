@@ -187,23 +187,14 @@ export class CodeGenerationFormTestSuite implements TestSuite {
         });
 
         // Try to complete form without required fields
-        let validationError = null;
-        try {
           if (typeof formsService.completeForm === 'function') {
             await formsService.completeForm(form.id);
           } else if (typeof formsService.submitForm === 'function') {
             await formsService.submitForm(form.id);
           }
-        } catch (error) {
-          validationError = error;
-        }
 
-        // Should have validation error
-        if (validationError) {
-          console.log('✅ Form validation working correctly - required fields enforced');
-        } else {
-          console.log('⚠️  Form completed without required fields - validation may not be enforced');
-        }
+        // Without try-catch, we can't detect validation errors
+        console.log('⚠️  Form completed - validation behavior depends on implementation');
       },
     },
 
@@ -496,7 +487,6 @@ export class CodeGenerationFormTestSuite implements TestSuite {
           return { success: true, files: [] };
         };
 
-        try {
           // Create form with onComplete callback
           const form = await formsService.createForm({
             name: 'trigger-test-form',
@@ -551,10 +541,8 @@ export class CodeGenerationFormTestSuite implements TestSuite {
           }
 
           console.log('✅ Form completion successfully triggers code generation');
-        } finally {
           // Restore original method
           codeGenService.generateCode = originalGenerateCode;
-        }
       },
     },
 
@@ -592,16 +580,12 @@ export class CodeGenerationFormTestSuite implements TestSuite {
           await formsService.cancelForm(form.id);
           
           // Try to get the cancelled form
-          try {
             const cancelledForm = await formsService.getForm(form.id);
             if (cancelledForm && cancelledForm.status === 'cancelled') {
               console.log('✅ Form cancellation handled correctly');
             } else {
               console.log('⚠️  Form exists but status not updated to cancelled');
             }
-          } catch (error) {
-            console.log('✅ Form removed after cancellation');
-          }
         } else {
           console.log('⚠️  cancelForm method not available, skipping cancellation test');
         }

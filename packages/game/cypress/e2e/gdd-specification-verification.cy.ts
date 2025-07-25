@@ -8,7 +8,7 @@ describe('GDD Specification Verification', () => {
       win.localStorage.setItem('skipBoot', 'true');
     });
     cy.visit('/', { timeout: 30000 });
-    
+
     // Wait for the interface to load
     cy.get('[data-testid="game-interface"]', { timeout: 30000 }).should('be.visible');
 
@@ -28,7 +28,7 @@ describe('GDD Specification Verification', () => {
         '@elizaos/plugin-sql',
         'bootstrap',
         'autonomy',
-        'plugin-shell', 
+        'plugin-shell',
         'vision',
         'plugin-stagehand',
         'goals',
@@ -47,14 +47,14 @@ describe('GDD Specification Verification', () => {
       expect(runtimeState.plugins.length).to.be.at.least(10);
       expect(runtimeState.actions.length).to.be.at.least(40);
       expect(runtimeState.providers.length).to.be.at.least(20);
-      
+
       cy.screenshot('gdd-plugins-verified');
     });
 
     it('should have proper service availability', () => {
       const requiredServices = [
         'autonomy',
-        'SHELL', 
+        'SHELL',
         'VISION',
         'goals',
         'todo',
@@ -75,7 +75,7 @@ describe('GDD Specification Verification', () => {
   describe('Vision Plugin GDD Compliance', () => {
     it('should have vision plugin with correct capabilities', () => {
       const visionPlugin = runtimeState.plugins.find((p: any) => p.name === 'vision');
-      
+
       // Verify plugin structure
       expect(visionPlugin).to.exist;
       expect(visionPlugin.hasActions).to.be.true;
@@ -84,7 +84,7 @@ describe('GDD Specification Verification', () => {
       expect(visionPlugin.actionCount).to.be.at.least(5);
 
       // Verify specific vision actions exist
-      const visionActions = runtimeState.actions.filter((a: any) => 
+      const visionActions = runtimeState.actions.filter((a: any) =>
         ['DESCRIBE_SCENE', 'CAPTURE_IMAGE', 'SET_VISION_MODE', 'NAME_ENTITY', 'IDENTIFY_PERSON', 'TRACK_ENTITY']
           .includes(a.name)
       );
@@ -103,11 +103,11 @@ describe('GDD Specification Verification', () => {
       cy.request('GET', 'http://127.0.0.1:7777/api/agents/default/settings/vision').then((response) => {
         expect(response.status).to.eq(200);
         const settings = response.body.data;
-        
+
         // Verify all vision settings are present
         expect(settings).to.have.property('ENABLE_CAMERA');
         expect(settings).to.have.property('ENABLE_SCREEN_CAPTURE');
-        expect(settings).to.have.property('ENABLE_MICROPHONE'); 
+        expect(settings).to.have.property('ENABLE_MICROPHONE');
         expect(settings).to.have.property('ENABLE_SPEAKER');
         expect(settings).to.have.property('VISION_CAMERA_ENABLED');
         expect(settings).to.have.property('VISION_SCREEN_ENABLED');
@@ -122,7 +122,7 @@ describe('GDD Specification Verification', () => {
   describe('Shell Plugin GDD Compliance', () => {
     it('should have shell plugin with sandboxed execution capabilities', () => {
       const shellPlugin = runtimeState.plugins.find((p: any) => p.name === 'plugin-shell');
-      
+
       expect(shellPlugin).to.exist;
       expect(shellPlugin.hasActions).to.be.true;
       expect(shellPlugin.hasProviders).to.be.true;
@@ -130,7 +130,7 @@ describe('GDD Specification Verification', () => {
       expect(shellPlugin.actionCount).to.be.at.least(3);
 
       // Verify specific shell actions
-      const shellActions = runtimeState.actions.filter((a: any) => 
+      const shellActions = runtimeState.actions.filter((a: any) =>
         ['RUN_SHELL_COMMAND', 'CLEAR_SHELL_HISTORY', 'KILL_AUTONOMOUS'].includes(a.name)
       );
       expect(shellActions.length).to.be.at.least(3);
@@ -147,7 +147,7 @@ describe('GDD Specification Verification', () => {
       cy.request('GET', 'http://127.0.0.1:7777/api/agents/default/capabilities/shell').then((response) => {
         expect(response.status).to.eq(200);
         const data = response.body.data;
-        
+
         expect(data).to.have.property('enabled');
         expect(data).to.have.property('service_available');
         expect(data.service_available).to.be.true;
@@ -162,7 +162,7 @@ describe('GDD Specification Verification', () => {
   describe('Browser Plugin GDD Compliance', () => {
     it('should have stagehand browser plugin with automation capabilities', () => {
       const stagehandPlugin = runtimeState.plugins.find((p: any) => p.name === 'plugin-stagehand');
-      
+
       expect(stagehandPlugin).to.exist;
       expect(stagehandPlugin.hasActions).to.be.true;
       expect(stagehandPlugin.hasProviders).to.be.true;
@@ -170,9 +170,9 @@ describe('GDD Specification Verification', () => {
       expect(stagehandPlugin.actionCount).to.be.at.least(8);
 
       // Verify specific browser actions
-      const browserActions = runtimeState.actions.filter((a: any) => 
-        ['BROWSER_NAVIGATE', 'BROWSER_CLICK', 'BROWSER_TYPE', 'BROWSER_EXTRACT', 
-         'BROWSER_SCREENSHOT', 'BROWSER_SOLVE_CAPTCHA'].includes(a.name)
+      const browserActions = runtimeState.actions.filter((a: any) =>
+        ['BROWSER_NAVIGATE', 'BROWSER_CLICK', 'BROWSER_TYPE', 'BROWSER_EXTRACT',
+          'BROWSER_SCREENSHOT', 'BROWSER_SOLVE_CAPTCHA'].includes(a.name)
       );
       expect(browserActions.length).to.be.at.least(6);
 
@@ -188,7 +188,7 @@ describe('GDD Specification Verification', () => {
       cy.request('GET', 'http://127.0.0.1:7777/api/agents/default/capabilities/browser').then((response) => {
         expect(response.status).to.eq(200);
         const data = response.body.data;
-        
+
         expect(data).to.have.property('enabled');
         expect(data).to.have.property('service_available');
         expect(data.service_available).to.be.true;
@@ -203,7 +203,7 @@ describe('GDD Specification Verification', () => {
   describe('Autonomy System GDD Compliance', () => {
     it('should have autonomy plugin with continuous loop functionality', () => {
       const autonomyPlugin = runtimeState.plugins.find((p: any) => p.name === 'autonomy');
-      
+
       expect(autonomyPlugin).to.exist;
       expect(autonomyPlugin.hasActions).to.be.true;
       expect(autonomyPlugin.hasProviders).to.be.true;
@@ -211,7 +211,7 @@ describe('GDD Specification Verification', () => {
       expect(autonomyPlugin.hasRoutes).to.be.true;
 
       // Verify autonomy providers
-      const autonomyProviders = runtimeState.providers.filter((p: any) => 
+      const autonomyProviders = runtimeState.providers.filter((p: any) =>
         ['ADMIN_CHAT_HISTORY', 'AUTONOMY_STATUS'].includes(p.name)
       );
       expect(autonomyProviders.length).to.be.at.least(2);
@@ -225,7 +225,7 @@ describe('GDD Specification Verification', () => {
         expect(response.status).to.eq(200);
         expect(response.body.success).to.eq(true);
         const data = response.body.data;
-        
+
         expect(data).to.have.property('enabled');
         expect(data).to.have.property('running');
         expect(data).to.have.property('interval');
@@ -240,7 +240,7 @@ describe('GDD Specification Verification', () => {
   describe('Memory and Knowledge System GDD Compliance', () => {
     it('should have knowledge plugin with proper storage capabilities', () => {
       const knowledgePlugin = runtimeState.plugins.find((p: any) => p.name === 'knowledge');
-      
+
       expect(knowledgePlugin).to.exist;
       expect(knowledgePlugin.hasActions).to.be.true;
       expect(knowledgePlugin.hasProviders).to.be.true;
@@ -249,9 +249,9 @@ describe('GDD Specification Verification', () => {
       expect(knowledgePlugin.actionCount).to.be.at.least(7);
 
       // Verify knowledge actions
-      const knowledgeActions = runtimeState.actions.filter((a: any) => 
-        ['PROCESS_KNOWLEDGE', 'SEARCH_KNOWLEDGE', 'ADVANCED_KNOWLEDGE_SEARCH', 
-         'KNOWLEDGE_ANALYTICS', 'EXPORT_KNOWLEDGE'].includes(a.name)
+      const knowledgeActions = runtimeState.actions.filter((a: any) =>
+        ['PROCESS_KNOWLEDGE', 'SEARCH_KNOWLEDGE', 'ADVANCED_KNOWLEDGE_SEARCH',
+          'KNOWLEDGE_ANALYTICS', 'EXPORT_KNOWLEDGE'].includes(a.name)
       );
       expect(knowledgeActions.length).to.be.at.least(5);
 
@@ -273,10 +273,10 @@ describe('GDD Specification Verification', () => {
     it('should have goals and todos plugins with full CRUD capabilities', () => {
       const goalsPlugin = runtimeState.plugins.find((p: any) => p.name === 'goals');
       const todoPlugin = runtimeState.plugins.find((p: any) => p.name === 'todo');
-      
+
       expect(goalsPlugin).to.exist;
       expect(todoPlugin).to.exist;
-      
+
       // Verify both plugins have comprehensive capabilities
       expect(goalsPlugin.actionCount).to.be.at.least(5);
       expect(todoPlugin.actionCount).to.be.at.least(5);
@@ -284,12 +284,12 @@ describe('GDD Specification Verification', () => {
       expect(todoPlugin.hasRoutes).to.be.true;
 
       // Verify specific goal/todo actions
-      const goalActions = runtimeState.actions.filter((a: any) => 
+      const goalActions = runtimeState.actions.filter((a: any) =>
         ['CREATE_GOAL', 'COMPLETE_GOAL', 'UPDATE_GOAL', 'CANCEL_GOAL'].includes(a.name)
       );
       expect(goalActions.length).to.be.at.least(4);
 
-      const todoActions = runtimeState.actions.filter((a: any) => 
+      const todoActions = runtimeState.actions.filter((a: any) =>
         ['CREATE_TODO', 'COMPLETE_TODO', 'UPDATE_TODO', 'CANCEL_TODO'].includes(a.name)
       );
       expect(todoActions.length).to.be.at.least(4);
@@ -327,7 +327,7 @@ describe('GDD Specification Verification', () => {
       const capabilities = [
         'autonomy',
         'camera',
-        'screen', 
+        'screen',
         'microphone',
         'speakers',
         'shell',
@@ -342,7 +342,7 @@ describe('GDD Specification Verification', () => {
             cy.get(`[data-testid="${capability}-toggle"]`).should('be.visible');
             cy.get(`[data-testid="${capability}-toggle"]`).should('have.attr', 'aria-checked');
             cy.get(`[data-testid="${capability}-toggle"]`).should('have.attr', 'role', 'switch');
-            
+
             cy.log(`✅ ${capability} toggle is properly implemented`);
           });
         } else {
@@ -359,7 +359,7 @@ describe('GDD Specification Verification', () => {
       // Verify all capability settings are tracked in runtime
       const expectedSettings = [
         'ENABLE_CAMERA',
-        'ENABLE_SCREEN_CAPTURE', 
+        'ENABLE_SCREEN_CAPTURE',
         'ENABLE_MICROPHONE',
         'ENABLE_SPEAKER',
         'ENABLE_SHELL',
@@ -426,7 +426,7 @@ describe('GDD Specification Verification', () => {
       // Verify critical events are handled
       const criticalEvents = [
         'MESSAGE_RECEIVED',
-        'ACTION_STARTED', 
+        'ACTION_STARTED',
         'ACTION_COMPLETED',
         'EVALUATOR_STARTED',
         'EVALUATOR_COMPLETED'

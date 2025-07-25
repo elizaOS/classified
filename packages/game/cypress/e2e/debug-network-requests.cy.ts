@@ -11,13 +11,13 @@ describe('Debug Network Requests', () => {
     // Intercept all API requests to see what's happening
     cy.intercept('GET', 'http://localhost:7777/api/todos').as('getTodos');
     cy.intercept('GET', 'http://localhost:7777/api/goals').as('getGoals');
-    
+
     // Visit the page
-    cy.visit('/', { 
+    cy.visit('/', {
       timeout: 30000,
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');
-        
+
         // Capture console logs
         cy.spy(win.console, 'log').as('consoleLog');
         cy.spy(win.console, 'error').as('consoleError');
@@ -43,14 +43,14 @@ describe('Debug Network Requests', () => {
 
     // Switch to TODOs tab to see if data appears
     cy.get('[data-testid="tab-todos"]', { timeout: 5000 }).click();
-    
+
     // Take a screenshot for debugging
     cy.screenshot('debug-todos-tab');
 
     // Check if todos are visible (should be 8 todos)
     cy.get('[data-testid="todos-content"]').should('be.visible');
     cy.get('[data-testid="todos-content"]').should('contain', 'TASKS [');
-    
+
     // Try to find todo items
     cy.get('[data-testid="todos-content"]').then(($content) => {
       cy.log('TODOs content:', $content.text());
@@ -60,7 +60,7 @@ describe('Debug Network Requests', () => {
     cy.get('[data-testid="tab-goals"]', { timeout: 5000 }).click();
     cy.get('[data-testid="goals-content"]').should('be.visible');
     cy.get('[data-testid="goals-content"]').should('contain', 'GOALS [');
-    
+
     cy.get('[data-testid="goals-content"]').then(($content) => {
       cy.log('Goals content:', $content.text());
     });

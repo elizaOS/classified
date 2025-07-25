@@ -14,7 +14,7 @@
 // ***********************************************************
 
 // Import commands.js using ES2015 syntax:
-import './test-commands.js';
+import './test-commands';
 
 // Global configuration
 Cypress.config('defaultCommandTimeout', 15000);
@@ -28,15 +28,15 @@ Cypress.on('uncaught:exception', (err, runnable) => {
   if (err.message.includes('ResizeObserver loop limit exceeded')) {
     return false; // Ignore ResizeObserver errors
   }
-  
+
   if (err.message.includes('Non-Error promise rejection captured')) {
     return false; // Ignore promise rejection warnings
   }
-  
+
   if (err.message.includes('Script error')) {
     return false; // Ignore script errors from external sources
   }
-  
+
   // Log other errors but don't fail the test
   console.error('Uncaught exception:', err);
   return false;
@@ -46,17 +46,17 @@ Cypress.on('uncaught:exception', (err, runnable) => {
 beforeEach(() => {
   // Set up consistent test environment
   cy.viewport(1280, 720);
-  
+
   // Clear any previous state
   cy.clearLocalStorage();
   cy.clearCookies();
-  
+
   // Set up test environment
   cy.window().then((win) => {
     win.localStorage.setItem('testingMode', 'true');
     win.localStorage.setItem('cypressTest', 'true');
   });
-  
+
   // Intercept and log all network requests
   cy.intercept('**/*', (req) => {
     console.log(`Network request: ${req.method} ${req.url}`);
@@ -71,10 +71,10 @@ afterEach(() => {
     // Just log that the test completed
     console.log('Test completed at:', new Date().toISOString());
   });
-  
+
   // Take final screenshot
   cy.screenshot('test-completed');
-  
+
   // Clean up any remaining test data
   // cy.cleanupTestData(); // Disabled for now - UI elements not present
 });
@@ -84,7 +84,7 @@ chai.use((chai, utils) => {
   utils.addMethod(chai.Assertion.prototype, 'containOneOf', function (list) {
     const obj = utils.flag(this, 'object');
     const found = list.some(item => obj.includes(item));
-    
+
     this.assert(
       found,
       `expected "${obj}" to contain one of [${list.join(', ')}]`,
@@ -112,7 +112,7 @@ declare global {
       cleanupTestData(): Chainable<void>;
       tab(options?: { shift: boolean }): Chainable<Element>;
     }
-    
+
     interface Assertion {
       containOneOf(list: string[]): Chainable<Element>;
     }

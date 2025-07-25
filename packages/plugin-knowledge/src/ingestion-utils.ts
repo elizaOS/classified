@@ -158,7 +158,7 @@ export async function ingestGitHubRepository(
 
         // Create source metadata
         const sourceMetadata: KnowledgeSourceMetadata = {
-          sourceType: 'github_repo' as const,
+          source_type: 'github_repo' as const,
           repositoryUrl: options.repoUrl,
           branch,
           filePath: file.path,
@@ -253,7 +253,7 @@ export async function ingestWebPage(
 
     // Create source metadata
     const _sourceMetadata: KnowledgeSourceMetadata = {
-      sourceType: 'web_page' as const,
+      source_type: 'web_page' as const,
       originalUrl: options.url,
       extractionMethod: 'jsdom_parser',
       ingestionTimestamp: Date.now(),

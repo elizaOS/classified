@@ -17,7 +17,7 @@ export default defineConfig({
     runMode: 2,
     openMode: 0
   },
-  
+
   e2e: {
     // Support dynamic baseUrl from environment variables
     baseUrl: process.env.CYPRESS_FRONTEND_URL || process.env.FRONTEND_URL || `http://localhost:${process.env.FRONTEND_PORT || '5173'}`,
@@ -31,38 +31,27 @@ export default defineConfig({
         fileExists(filename: string) {
           return existsSync(filename);
         },
-        
+
         log(message: string) {
           console.log(message);
           return null;
         },
-        
+
         async killProcessByPort(port: number) {
-          try {
-            // Kill process on macOS/Linux
-            await execAsync(`lsof -ti:${port} | xargs kill -9`).catch(() => {
-              // Ignore errors - process might not exist
-            });
-            return null;
-          } catch (error) {
-            console.log(`Could not kill process on port ${port}:`, error);
-            return null;
-          }
+          // Kill process on macOS/Linux
+          await execAsync(`lsof -ti:${port} | xargs kill -9`);
+          return null;
         },
-        
+
         async startBackendServer() {
-          try {
-            // Start the backend server in background
-            const process = exec('cd packages/game && npm run dev:backend');
-            return { success: true, pid: process.pid };
-          } catch (error) {
-            return { success: false, error: error.message };
-          }
+          // Start the backend server in background
+          const process = exec('cd packages/game && npm run dev:backend');
+          return { success: true, pid: process.pid };
         },
-        
+
         // Add all our custom tasks for API key testing
         ...cypressTasks
       });
     },
   },
-}); 
+});

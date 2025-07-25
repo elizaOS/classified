@@ -17,5 +17,6 @@ export default defineConfig({
     '@elizaos/core',
     'zod',
     'body-parser',
+    '@elizaos/plugin-sql',
   ],
 });

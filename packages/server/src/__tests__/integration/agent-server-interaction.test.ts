@@ -166,13 +166,13 @@ describe('Agent-Server Interaction Integration Tests', () => {
 
       expect(defaultServer).toBeDefined();
       expect(defaultServer?.name).toBe('Default Server');
-      expect(defaultServer?.sourceType).toBe('eliza_default');
+      expect(defaultServer?.source_type).toBe('eliza_default');
     });
 
     it('should create a new server', async () => {
       const newServer = await agentServer.createServer({
         name: 'Test Server',
-        sourceType: 'test',
+        source_type: 'test',
         metadata: {
           test: true,
         },
@@ -180,7 +180,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
 
       expect(newServer).toBeDefined();
       expect(newServer.name).toBe('Test Server');
-      expect(newServer.sourceType).toBe('test');
+      expect(newServer.source_type).toBe('test');
       expect(newServer.metadata).toEqual({ test: true });
 
       // Verify server was created
@@ -192,13 +192,13 @@ describe('Agent-Server Interaction Integration Tests', () => {
     it('should get server by source type', async () => {
       await agentServer.createServer({
         name: 'Discord Server',
-        sourceType: 'discord',
+        source_type: 'discord',
         metadata: {},
       });
 
       const server = await agentServer.getServerBySourceType('discord');
       expect(server).toBeDefined();
-      expect(server?.sourceType).toBe('discord');
+      expect(server?.source_type).toBe('discord');
     });
   });
 
@@ -334,7 +334,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
         content: 'Hello, world!',
         rawMessage: 'Hello, world!',
         sourceId: 'msg-1',
-        sourceType: 'test',
+        source_type: 'test',
         metadata: {},
       });
 
@@ -349,7 +349,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
         content: 'Hi there!',
         rawMessage: 'Hi there!',
         sourceId: 'msg-2',
-        sourceType: 'test',
+        source_type: 'test',
         metadata: {},
       });
 
@@ -367,7 +367,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
         content: 'Original message',
         rawMessage: 'Original message',
         sourceId: 'original',
-        sourceType: 'test',
+        source_type: 'test',
         metadata: {},
       });
 
@@ -377,7 +377,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
         content: 'This is a reply',
         rawMessage: 'This is a reply',
         sourceId: 'reply',
-        sourceType: 'test',
+        source_type: 'test',
         inReplyToRootMessageId: originalMessage.id,
         metadata: {},
       });
@@ -392,7 +392,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
         content: 'To be deleted',
         rawMessage: 'To be deleted',
         sourceId: 'delete-me',
-        sourceType: 'test',
+        source_type: 'test',
         metadata: {},
       });
 
@@ -411,7 +411,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
           content: `Message ${i}`,
           rawMessage: `Message ${i}`,
           sourceId: `msg-${i}`,
-          sourceType: 'test',
+          source_type: 'test',
           metadata: {},
         });
       }
@@ -439,7 +439,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
             content: `Message ${i}`,
             rawMessage: `Message ${i}`,
             sourceId: `msg-${i}`,
-            sourceType: 'test',
+            source_type: 'test',
             metadata: {},
           })
         );
@@ -495,7 +495,7 @@ describe('Agent-Server Interaction Integration Tests', () => {
     it('should get servers for agent', async () => {
       const newServer = await agentServer.createServer({
         name: 'Additional Server',
-        sourceType: 'test-multi',
+        source_type: 'test-multi',
         metadata: {},
       });
 

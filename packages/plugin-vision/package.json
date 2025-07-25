@@ -44,12 +44,13 @@
     "build.config.ts"
   ],
   "dependencies": {
-    "@elizaos/core": "^1.2.12",
+    "@elizaos/core": "workspace:*",
     "@elizaos/plugin-bootstrap": "workspace:*",
     "@tensorflow-models/coco-ssd": "^2.2.3",
     "@tensorflow-models/pose-detection": "^2.1.0",
     "@tensorflow-models/posenet": "^2.2.2",
-    "@tensorflow/tfjs-node": "^4.22.0",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
     "@tensorflow-models/mobilenet": "^2.1.0",
     "axios": "^1.7.2",
     "canvas": "^2.11.2",
@@ -75,10 +76,11 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "clean": "rm -rf dist && rm -rf .turbo",
+    "start": "echo 'Plugin package, use with ElizaOS'",
+    "test": "bun test",
     "lint": "eslint src --fix && prettier --write ./src",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "clean": "rm -rf dist && rm -rf .turbo",
+    "typecheck": "tsc --noEmit"
   },
   "publishConfig": {
     "access": "public"

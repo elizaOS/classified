@@ -16,6 +16,8 @@ import { audioRouter } from './audio';
 import { runtimeRouter } from './runtime';
 import { teeRouter } from './tee';
 import { systemRouter } from './system';
+import { createGoalsRouter } from './goals';
+import { createTodosRouter } from './todos';
 // NOTE: world router has been removed - functionality moved to messaging/spaces
 import { SocketIORouter } from '../socketio';
 import {
@@ -437,6 +439,12 @@ export function createApiRouter(
 
   // Mount system router at /system - handles system configuration, health checks, and environment
   router.use('/system', systemRouter());
+
+  // Mount goals router at /goals - handles global goals management
+  router.use('/goals', createGoalsRouter(agents, serverInstance));
+
+  // Mount todos router at /todos - handles global todos management
+  router.use('/todos', createTodosRouter(agents, serverInstance));
 
   // NOTE: /world routes have been removed - functionality moved to messaging/spaces
 

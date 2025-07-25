@@ -6,32 +6,32 @@ describe('Goals and Todos - Comprehensive Verification', () => {
     cy.window().then((win) => {
       win.localStorage.setItem('skipBoot', 'true');
     });
-    
+
     cy.visit('/', { timeout: 30000 });
-    
+
     // Wait for the main interface to load
     cy.get('[data-testid="game-interface"]', { timeout: 30000 }).should('be.visible');
   });
 
   it('should display Goals tab correctly and show initial goals', () => {
     cy.screenshot('01-initial-interface-state');
-    
+
     // Navigate to Goals tab (should be default)
     cy.get('[data-testid="goals-tab"]', { timeout: 10000 }).should('be.visible').and('have.class', 'active');
-    
+
     // Verify Goals content area is visible
     cy.get('[data-testid="goals-content"]', { timeout: 10000 }).should('be.visible');
-    
+
     // Check for Goals header
     cy.get('[data-testid="goals-content"]').within(() => {
       cy.contains('GOALS').should('be.visible');
-      
+
       // Should show either goals or empty state
       cy.get('body').then($body => {
         if ($body.find('.status-item').length > 0) {
           cy.log('Goals found in UI');
           cy.get('.status-item').should('have.length.greaterThan', 0);
-          
+
           // Verify goal structure
           cy.get('.status-item').first().within(() => {
             cy.get('.status-indicator').should('be.visible');
@@ -44,28 +44,28 @@ describe('Goals and Todos - Comprehensive Verification', () => {
         }
       });
     });
-    
+
     cy.screenshot('02-goals-tab-verified');
   });
 
   it('should display Todos tab correctly and show initial todos', () => {
     // Navigate to Todos tab
     cy.get('[data-testid="todos-tab"]', { timeout: 10000 }).should('be.visible').click();
-    
+
     // Verify Todos content area is visible
     cy.get('[data-testid="todos-content"]', { timeout: 10000 }).should('be.visible');
-    
+
     // Check for Todos header
     cy.get('[data-testid="todos-content"]').within(() => {
       cy.contains('TASKS').should('be.visible');
-      
+
       // Should show either todos or empty state
       cy.get('body').then($body => {
         if ($body.find('.status-item').length > 0) {
           cy.log('Todos found in UI');
           cy.get('.status-item').should('have.length.greaterThan', 0);
-          
-          // Verify todo structure  
+
+          // Verify todo structure
           cy.get('.status-item').first().within(() => {
             cy.get('.status-indicator').should('be.visible');
             cy.get('.status-text').should('be.visible');
@@ -77,7 +77,7 @@ describe('Goals and Todos - Comprehensive Verification', () => {
         }
       });
     });
-    
+
     cy.screenshot('03-todos-tab-verified');
   });
 
@@ -85,26 +85,26 @@ describe('Goals and Todos - Comprehensive Verification', () => {
     // Start on Goals tab
     cy.get('[data-testid="goals-tab"]').click();
     cy.get('[data-testid="goals-content"]', { timeout: 10000 }).should('be.visible');
-    
+
     // Record initial goals count
     cy.get('[data-testid="goals-content"]').within(() => {
       cy.get('body').then($body => {
         const initialGoalsCount = $body.find('.status-item').length;
         cy.log(`Initial goals count: ${initialGoalsCount}`);
-        
+
         // Store count for later comparison
         cy.wrap(initialGoalsCount).as('initialGoalsCount');
       });
     });
-    
+
     // Navigate to a different tab and back
     cy.get('[data-testid="files-tab"]').click();
     cy.wait(2000);
-    
+
     // Go back to Goals tab
     cy.get('[data-testid="goals-tab"]').click();
     cy.get('[data-testid="goals-content"]', { timeout: 10000 }).should('be.visible');
-    
+
     // Verify goals count is the same (persistence check)
     cy.get('@initialGoalsCount').then(initialCount => {
       cy.get('[data-testid="goals-content"]').within(() => {
@@ -115,7 +115,7 @@ describe('Goals and Todos - Comprehensive Verification', () => {
         });
       });
     });
-    
+
     cy.screenshot('04-goals-persistence-verified');
   });
 
@@ -123,28 +123,28 @@ describe('Goals and Todos - Comprehensive Verification', () => {
     // Start on Todos tab
     cy.get('[data-testid="todos-tab"]').click();
     cy.get('[data-testid="todos-content"]', { timeout: 10000 }).should('be.visible');
-    
+
     // Record initial todos count
     cy.get('[data-testid="todos-content"]').within(() => {
       cy.get('body').then($body => {
         const initialTodosCount = $body.find('.status-item').length;
         cy.log(`Initial todos count: ${initialTodosCount}`);
-        
+
         // Store count for later comparison
         cy.wrap(initialTodosCount).as('initialTodosCount');
       });
     });
-    
+
     // Navigate to different tabs
     cy.get('[data-testid="monologue-tab"]').click();
     cy.wait(1000);
     cy.get('[data-testid="config-tab"]').click();
     cy.wait(1000);
-    
+
     // Go back to Todos tab
     cy.get('[data-testid="todos-tab"]').click();
     cy.get('[data-testid="todos-content"]', { timeout: 10000 }).should('be.visible');
-    
+
     // Verify todos count is the same (persistence check)
     cy.get('@initialTodosCount').then(initialCount => {
       cy.get('[data-testid="todos-content"]').within(() => {
@@ -155,7 +155,7 @@ describe('Goals and Todos - Comprehensive Verification', () => {
         });
       });
     });
-    
+
     cy.screenshot('05-todos-persistence-verified');
   });
 
@@ -176,8 +176,8 @@ describe('Goals and Todos - Comprehensive Verification', () => {
         }
       });
     });
-    
-    // Test Todos indicators  
+
+    // Test Todos indicators
     cy.get('[data-testid="todos-tab"]').click();
     cy.get('[data-testid="todos-content"]').within(() => {
       cy.get('body').then($body => {
@@ -193,7 +193,7 @@ describe('Goals and Todos - Comprehensive Verification', () => {
         }
       });
     });
-    
+
     cy.screenshot('06-indicators-verified');
   });
 
@@ -201,23 +201,23 @@ describe('Goals and Todos - Comprehensive Verification', () => {
     // Start monitoring network requests
     cy.intercept('GET', '**/api/goals').as('goalsRefresh');
     cy.intercept('GET', '**/api/todos').as('todosRefresh');
-    
+
     // Navigate to Goals tab
     cy.get('[data-testid="goals-tab"]').click();
     cy.get('[data-testid="goals-content"]', { timeout: 10000 }).should('be.visible');
-    
+
     // Wait for periodic refresh (should happen every 5 seconds according to GameInterface.tsx)
     cy.wait('@goalsRefresh', { timeout: 10000 });
     cy.log('✅ Goals API refresh detected');
-    
+
     // Navigate to Todos tab
     cy.get('[data-testid="todos-tab"]').click();
     cy.get('[data-testid="todos-content"]', { timeout: 10000 }).should('be.visible');
-    
+
     // Wait for todos refresh
     cy.wait('@todosRefresh', { timeout: 10000 });
     cy.log('✅ Todos API refresh detected');
-    
+
     cy.screenshot('07-periodic-refresh-verified');
   });
 

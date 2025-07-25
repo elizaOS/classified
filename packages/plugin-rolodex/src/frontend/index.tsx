@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import React from 'react';
-import { RolodexTab } from './ui/rolodex-tab.js';
+import { RolodexTab } from './ui/rolodex-tab';
 import type { UUID } from '@elizaos/core';
 
 const queryClient = new QueryClient();

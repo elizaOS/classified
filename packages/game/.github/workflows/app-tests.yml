@@ -1,0 +1,219 @@
+name: Application Integration Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'packages/game/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'packages/game/**'
+  workflow_dispatch:
+
+jobs:
+  test-macos-app:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd packages/game
+          npm install
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
+      - name: Install BATS
+        run: npm install -g bats-core
+
+      - name: Install test dependencies
+        run: |
+          # Install jq for JSON parsing in tests
+          brew install jq
+          # Install bc for floating point calculations
+          brew install bc
+
+      - name: Build application
+        run: |
+          cd packages/game
+          npm run build:backend
+          npm run build:frontend
+          npm run tauri:build
+
+      - name: Verify build artifacts
+        run: |
+          cd packages/game
+          ls -la src-tauri/target/release/bundle/macos/
+          test -d "src-tauri/target/release/bundle/macos/ElizaOS Terminal.app"
+
+      - name: Run integration tests
+        run: |
+          cd packages/game
+          chmod +x scripts/run-app-tests.sh
+          ./scripts/run-app-tests.sh
+
+      - name: Run performance tests
+        run: |
+          cd packages/game
+          bats tests/app-performance.bats
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-macos
+          path: |
+            /tmp/eliza-app-tests.log
+            /tmp/eliza-app-perf-test.log
+          retention-days: 7
+
+      - name: Upload application bundle
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eliza-terminal-macos
+          path: packages/game/src-tauri/target/release/bundle/macos/ElizaOS Terminal.app
+          retention-days: 30
+
+  test-windows-app:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd packages/game
+          npm install
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
+      - name: Build application
+        run: |
+          cd packages/game
+          npm run build:backend
+          npm run build:frontend
+          npm run tauri:build
+
+      - name: Verify build artifacts
+        run: |
+          cd packages/game
+          dir src-tauri\target\release\bundle\msi\
+          if (!(Test-Path "src-tauri\target\release\bundle\msi\ElizaOS Terminal_2.0.0_x64_en-US.msi")) { exit 1 }
+
+      - name: Basic application test (Windows)
+        run: |
+          cd packages/game
+          # Basic smoke test - verify the executable exists and can show help
+          if (Test-Path "src-tauri\target\release\app.exe") {
+            Write-Output "Application executable found"
+          } else {
+            Write-Error "Application executable not found"
+            exit 1
+          }
+
+      - name: Upload application bundle
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eliza-terminal-windows
+          path: packages/game/src-tauri/target/release/bundle/msi/ElizaOS Terminal_2.0.0_x64_en-US.msi
+          retention-days: 30
+
+  test-linux-app:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd packages/game
+          npm install
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.0-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
+      - name: Build application
+        run: |
+          cd packages/game
+          npm run build:backend
+          npm run build:frontend
+          npm run tauri:build
+
+      - name: Verify build artifacts
+        run: |
+          cd packages/game
+          ls -la src-tauri/target/release/bundle/
+          test -f "src-tauri/target/release/bundle/deb/eliza-os-terminal_2.0.0_amd64.deb"
+          test -f "src-tauri/target/release/bundle/appimage/eliza-os-terminal_2.0.0_amd64.AppImage"
+
+      - name: Basic application test (Linux)
+        run: |
+          cd packages/game
+          # Basic smoke test - verify the executable exists
+          if [ -f "src-tauri/target/release/app" ]; then
+            echo "Application executable found"
+            file src-tauri/target/release/app
+          else
+            echo "Application executable not found"
+            exit 1
+          fi
+
+      - name: Upload application bundles
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eliza-terminal-linux
+          path: |
+            packages/game/src-tauri/target/release/bundle/deb/eliza-os-terminal_2.0.0_amd64.deb
+            packages/game/src-tauri/target/release/bundle/appimage/eliza-os-terminal_2.0.0_amd64.AppImage
+          retention-days: 30

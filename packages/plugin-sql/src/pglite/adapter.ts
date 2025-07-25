@@ -34,7 +34,7 @@ export class PgliteDatabaseAdapter extends BaseDrizzleAdapter {
   constructor(agentId: UUID, manager: PGliteClientManager) {
     super(agentId);
     this.manager = manager;
-    // Don't initialize db here - wait for init()
+    this.db = drizzle(this.manager.getConnection() as any);
   }
 
   /**
@@ -68,10 +68,6 @@ export class PgliteDatabaseAdapter extends BaseDrizzleAdapter {
    * @returns {Promise<void>} A Promise that resolves when the database initialization is complete.
    */
   async init(): Promise<void> {
-    // Ensure the PGLite client is initialized
-    await this.manager.initialize();
-    const connection = await this.manager.getConnection();
-    this.db = drizzle(connection as any);
     logger.debug('PGliteDatabaseAdapter initialized, skipping automatic migrations.');
   }
 

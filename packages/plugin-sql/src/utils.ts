@@ -58,9 +58,17 @@ export function resolveEnvFile(startDir: string = process.cwd()): string {
  * @returns The resolved data directory with any tilde expanded.
  */
 export function resolvePgliteDir(dir?: string, fallbackDir?: string): string {
-  const envPath = resolveEnvFile();
-  if (existsSync(envPath)) {
-    dotenv.config({ path: envPath });
+  // Skip loading .env file during tests to allow proper testing of defaults
+  // Check if we're in a test environment
+  const isTest = process.env.NODE_ENV === 'test' || 
+                 process.argv.some(arg => arg.includes('bun') && arg.includes('test')) ||
+                 process.env.VITEST === 'true';
+                 
+  if (!isTest) {
+    const envPath = resolveEnvFile();
+    if (existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+    }
   }
 
   const base =

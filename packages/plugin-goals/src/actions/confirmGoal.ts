@@ -12,7 +12,7 @@ import {
   type State,
   formatMessages,
 } from '@elizaos/core';
-import { createGoalDataService } from '../services/goalDataService.js';
+import { createGoalDataService } from '../services/goalDataService';
 
 // Interface for confirmation data stored in state
 interface PendingGoalData {

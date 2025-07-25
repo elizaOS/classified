@@ -142,7 +142,6 @@ export class ProjectPlanningService extends Service {
   }): Promise<ProjectPlan> {
     elizaLogger.info(`Creating project plan for ${request.name}`);
 
-    try {
       // Analyze project requirements
       const analysis = await this.analyzeRequirements(request);
 
@@ -183,10 +182,6 @@ export class ProjectPlanningService extends Service {
       elizaLogger.info(`Created project plan ${plan.id}`);
 
       return plan;
-    } catch (error) {
-      elizaLogger.error('Error creating project plan:', error);
-      throw error;
-    }
   }
 
   /**
@@ -215,19 +210,8 @@ Return analysis as JSON.`;
       max_tokens: 1500,
     });
 
-    try {
       const jsonText = this.extractJSON(response);
       return JSON.parse(jsonText);
-    } catch (error) {
-      elizaLogger.warn('Failed to parse requirements analysis:', error);
-      return {
-        coreFunctionality: request.requirements,
-        technicalChallenges: [],
-        integrationPoints: [],
-        performanceRequirements: [],
-        securityConsiderations: [],
-      };
-    }
   }
 
   /**
@@ -253,27 +237,8 @@ Return as JSON with components, dependencies, and integrations arrays.`;
       max_tokens: 2000,
     });
 
-    try {
       const jsonText = this.extractJSON(response);
       return JSON.parse(jsonText);
-    } catch (error) {
-      elizaLogger.warn('Failed to parse architecture:', error);
-      // Return basic architecture
-      return {
-        components: [
-          {
-            name: `${request.name}Service`,
-            type: 'service',
-            description: `Main service for ${request.name}`,
-            responsibilities: ['Core functionality'],
-            interfaces: [],
-            dependencies: [],
-          },
-        ],
-        dependencies: [],
-        integrations: [],
-      };
-    }
   }
 
   /**
@@ -322,20 +287,15 @@ Return as JSON with components, dependencies, and integrations arrays.`;
 Each criterion should be testable and measurable.
 Return as JSON array of strings.`;
 
-    try {
-      const response = await this.runtime.useModel('text_large', {
-        prompt,
-        temperature: 0.3,
-        max_tokens: 500,
-      });
+    const response = await this.runtime.useModel('text_large', {
+      prompt,
+      temperature: 0.3,
+      max_tokens: 500,
+    });
 
       const jsonText = this.extractJSON(response);
       const criteria = JSON.parse(jsonText);
       return Array.isArray(criteria) ? criteria : [];
-    } catch (error) {
-      elizaLogger.warn('Failed to generate acceptance criteria:', error);
-      return [`${requirement} is implemented and working correctly`];
-    }
   }
 
   /**
@@ -357,12 +317,11 @@ Create 3-5 milestones with:
 
 Return as JSON array.`;
 
-    try {
-      const response = await this.runtime.useModel('text_large', {
-        prompt,
-        temperature: 0.4,
-        max_tokens: 1000,
-      });
+    const response = await this.runtime.useModel('text_large', {
+      prompt,
+      temperature: 0.4,
+      max_tokens: 1000,
+    });
 
       const jsonText = this.extractJSON(response);
       const milestones = JSON.parse(jsonText);
@@ -375,19 +334,6 @@ Return as JSON array.`;
         status: 'pending',
         dependencies: m.dependencies || [],
       }));
-    } catch (error) {
-      elizaLogger.warn('Failed to plan milestones:', error);
-      return [
-        {
-          id: 'M1',
-          name: 'Initial Implementation',
-          description: 'Core functionality',
-          deliverables: ['Basic features'],
-          status: 'pending',
-          dependencies: [],
-        },
-      ];
-    }
   }
 
   /**
@@ -407,12 +353,11 @@ List technical and project risks with:
 
 Return as JSON array.`;
 
-    try {
-      const response = await this.runtime.useModel('text_large', {
-        prompt,
-        temperature: 0.4,
-        max_tokens: 1000,
-      });
+    const response = await this.runtime.useModel('text_large', {
+      prompt,
+      temperature: 0.4,
+      max_tokens: 1000,
+    });
 
       const jsonText = this.extractJSON(response);
       const risks = JSON.parse(jsonText);
@@ -424,10 +369,6 @@ Return as JSON array.`;
         likelihood: r.likelihood || 'medium',
         mitigation: r.mitigation || 'Monitor and address as needed',
       }));
-    } catch (error) {
-      elizaLogger.warn('Failed to identify risks:', error);
-      return [];
-    }
   }
 
   /**

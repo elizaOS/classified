@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 /**
  * Security Warning Component for ELIZA Game
- * 
+ *
  * Displays warnings for dangerous capabilities and requires
  * explicit user confirmation before enabling high-risk features
  */
@@ -62,7 +62,7 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
           <h2 className="security-warning-title">
             Security Warning: {capability}
           </h2>
-          <div 
+          <div
             className="security-warning-risk-level"
             style={{ backgroundColor: riskColors[riskLevel] }}
           >
@@ -92,8 +92,8 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
             <div className="security-warning-critical">
               <h3>🔴 CRITICAL WARNING:</h3>
               <p>
-                This capability can completely compromise your system security. 
-                It provides unrestricted access to your computer and should only 
+                This capability can completely compromise your system security.
+                It provides unrestricted access to your computer and should only
                 be enabled in isolated, non-production environments.
               </p>
             </div>
@@ -166,7 +166,7 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .security-warning-overlay {
           position: fixed;
           top: 0;

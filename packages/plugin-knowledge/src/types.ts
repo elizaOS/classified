@@ -483,7 +483,7 @@ export enum KnowledgeSourceType {
 
 // Enhanced metadata for tracking knowledge sources
 export interface KnowledgeSourceMetadata extends Record<string, any> {
-  sourceType: 'file_upload' | 'github_repo' | 'web_page' | 'direct_text' | 'api_import';
+  source_type: 'file_upload' | 'github_repo' | 'web_page' | 'direct_text' | 'api_import';
   originalUrl?: string;
   repositoryUrl?: string;
   branch?: string;

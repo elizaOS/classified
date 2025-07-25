@@ -162,7 +162,6 @@ export const followRoomAction: Action = {
     const room = state.data.room ?? (await runtime.getRoom(message.roomId));
 
     if (shouldFollow) {
-      try {
         await runtime.setParticipantUserState(message.roomId, runtime.agentId, 'FOLLOWED');
 
         await runtime.createMemory(
@@ -195,23 +194,6 @@ export const followRoomAction: Action = {
           },
           success: true,
         };
-      } catch (error) {
-        logger.error('Error following room:', error);
-        return {
-          text: 'Failed to follow room',
-          values: {
-            success: false,
-            error: 'FOLLOW_FAILED',
-          },
-          data: {
-            actionName: 'FOLLOW_ROOM',
-            error: error instanceof Error ? error.message : String(error),
-            roomId: message.roomId,
-          },
-          success: false,
-          error: error instanceof Error ? error : new Error(String(error)),
-        };
-      }
     } else {
       return {
         text: `Decided not to follow room: ${room.name}`,

@@ -6,14 +6,14 @@ describe('Knowledge Base Workflow Tests', () => {
 
   before(() => {
     knowledgeHelper = new KnowledgeTestHelper(agentId);
-    
+
     // Ensure the application and backend are running
     cy.visit('http://localhost:5173/', { timeout: 30000 });
     cy.get('[data-testid="game-interface"]', { timeout: 30000 }).should('be.visible');
-    
+
     // Wait for backend to be ready
     cy.wait(5000);
-    
+
     // Clean up any existing test documents
     knowledgeHelper.cleanupTestDocuments(['test-', 'cypress-', 'workflow-']);
   });
@@ -24,19 +24,19 @@ describe('Knowledge Base Workflow Tests', () => {
   });
 
   describe('Complete Knowledge Management Workflow', () => {
-    let documentIds: string[] = [];
+    const documentIds: string[] = [];
 
     it('should complete a full document lifecycle workflow', () => {
       // Step 1: Upload multiple documents
       cy.log('=== Step 1: Upload Documents ===');
-      
+
       const documents = [
         {
           name: 'workflow-doc-1.txt',
           content: 'This document discusses artificial intelligence and machine learning concepts. It covers neural networks, deep learning, and natural language processing.'
         },
         {
-          name: 'workflow-doc-2.txt', 
+          name: 'workflow-doc-2.txt',
           content: 'This document focuses on software development practices. It includes information about testing, deployment, and continuous integration.'
         }
       ];
@@ -59,12 +59,12 @@ describe('Knowledge Base Workflow Tests', () => {
       cy.log('=== Step 2: Verify Document List ===');
       knowledgeHelper.getDocuments().then((docs) => {
         expect(docs.length).to.be.greaterThan(0);
-        
-        const uploadedDocs = docs.filter(doc => 
+
+        const uploadedDocs = docs.filter(doc =>
           documentIds.includes(doc.id)
         );
         expect(uploadedDocs.length).to.eq(2);
-        
+
         cy.log(`Found ${uploadedDocs.length} uploaded documents in the knowledge base`);
       });
 
@@ -75,7 +75,7 @@ describe('Knowledge Base Workflow Tests', () => {
         knowledgeHelper.getDocumentChunks(docId).then((chunks) => {
           expect(chunks.length).to.be.greaterThan(0);
           cy.log(`Document ${index + 1} has ${chunks.length} chunks`);
-          
+
           // Verify chunk content
           chunks.forEach(chunk => {
             expect(chunk).to.have.property('content');
@@ -87,14 +87,14 @@ describe('Knowledge Base Workflow Tests', () => {
 
       // Step 4: Test search functionality
       cy.log('=== Step 4: Test Search Functionality ===');
-      
+
       // Search for AI-related content
       knowledgeHelper.search('artificial intelligence', 5).then((results) => {
         expect(results.length).to.be.greaterThan(0);
         cy.log(`Found ${results.length} results for "artificial intelligence"`);
-        
+
         // Verify search results contain relevant content
-        const hasAiContent = results.some(result => 
+        const hasAiContent = results.some(result =>
           result.content.text.toLowerCase().includes('artificial') ||
           result.content.text.toLowerCase().includes('intelligence') ||
           result.content.text.toLowerCase().includes('machine learning')
@@ -106,7 +106,7 @@ describe('Knowledge Base Workflow Tests', () => {
       knowledgeHelper.search('software development', 5).then((results) => {
         expect(results.length).to.be.greaterThan(0);
         cy.log(`Found ${results.length} results for "software development"`);
-        
+
         const hasSoftwareContent = results.some(result =>
           result.content.text.toLowerCase().includes('software') ||
           result.content.text.toLowerCase().includes('development') ||
@@ -118,9 +118,9 @@ describe('Knowledge Base Workflow Tests', () => {
       // Step 5: Test document deletion
       cy.log('=== Step 5: Test Document Deletion ===');
       const firstDocId = documentIds[0];
-      
+
       knowledgeHelper.deleteDocument(firstDocId);
-      
+
       // Verify document is deleted
       knowledgeHelper.verifyDocumentExists(firstDocId).then((exists) => {
         expect(exists).to.be.false;
@@ -148,7 +148,7 @@ describe('Knowledge Base Workflow Tests', () => {
 
     it('should handle URL import workflow', () => {
       cy.log('=== URL Import Workflow Test ===');
-      
+
       const testUrl = 'https://raw.githubusercontent.com/ai16z/eliza/main/README.md';
       let urlDocumentId: string;
 
@@ -169,7 +169,7 @@ describe('Knowledge Base Workflow Tests', () => {
         knowledgeHelper.getDocumentChunks(urlDocumentId).then((chunks) => {
           expect(chunks.length).to.be.greaterThan(0);
           cy.log(`URL document has ${chunks.length} chunks`);
-          
+
           // Should contain typical README content
           const hasReadmeContent = chunks.some(chunk =>
             chunk.content.text.toLowerCase().includes('eliza') ||
@@ -196,7 +196,7 @@ describe('Knowledge Base Workflow Tests', () => {
 
     it('should handle multiple file types correctly', () => {
       cy.log('=== Multiple File Types Test ===');
-      
+
       const testFiles = [
         {
           name: 'workflow-text.txt',
@@ -271,7 +271,7 @@ describe('Knowledge Base Workflow Tests', () => {
   describe('Error Handling and Edge Cases', () => {
     it('should handle concurrent operations gracefully', () => {
       cy.log('=== Concurrent Operations Test ===');
-      
+
       const concurrentUploads = [
         { name: 'concurrent-1.txt', content: 'Concurrent upload test 1' },
         { name: 'concurrent-2.txt', content: 'Concurrent upload test 2' },
@@ -292,7 +292,7 @@ describe('Knowledge Base Workflow Tests', () => {
       cy.then(() => {
         expect(uploadPromises.length).to.eq(3);
         cy.log(`All ${uploadPromises.length} concurrent uploads succeeded`);
-        
+
         // Clean up
         uploadPromises.forEach(docId => {
           knowledgeHelper.deleteDocument(docId);
@@ -302,7 +302,7 @@ describe('Knowledge Base Workflow Tests', () => {
 
     it('should handle invalid operations gracefully', () => {
       cy.log('=== Invalid Operations Test ===');
-      
+
       // Test deletion of non-existent document
       const fakeId = '99999999-9999-9999-9999-999999999999';
       cy.request({
@@ -320,7 +320,7 @@ describe('Knowledge Base Workflow Tests', () => {
         url: 'http://localhost:7777/knowledge/search',
         body: {
           query: '',
-          agentId: agentId,
+          agentId,
           count: 10
         },
         headers: {

@@ -24,3 +24,35 @@ tauri = { version = "2.0.0", features = [] }
 tauri-plugin-opener = "2.0.0"
 tauri-plugin-shell = "2.2.1"
 once_cell = "1.19.0"
+
+# Rust backend dependencies
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dashmap = "5.5"
+thiserror = "1.0"
+
+# HTTP server dependencies
+axum = { version = "0.7", features = ["ws", "macros"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors"] }
+
+# Container runtime dependencies
+bollard = "0.16"
+reqwest = { version = "0.11", features = ["json"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres"] }
+
+# Async utilities
+futures = "0.3"
+futures-util = "0.3"
+
+# WebSocket client (legacy - replaced by Socket.IO)
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+
+# Socket.IO client
+rust_socketio = { version = "0.6", features = ["async"] }
+
+# File system utilities
+walkdir = "2"

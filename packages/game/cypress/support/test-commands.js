@@ -86,7 +86,7 @@ Cypress.Commands.add('checkA11y', () => {
         .or('have.attr', 'title');
     }
   });
-  
+
   // Check for proper heading hierarchy
   cy.get('h1, h2, h3, h4, h5, h6').then(($headings) => {
     // Verify headings are in logical order
@@ -109,9 +109,9 @@ Cypress.Commands.add('measurePerformance', (testName) => {
       loadComplete: navigation.loadEventEnd - navigation.loadEventStart,
       totalTime: navigation.loadEventEnd - navigation.fetchStart
     };
-    
+
     cy.log(`Performance metrics for ${testName}:`, timing);
-    
+
     // Assert reasonable performance thresholds
     expect(timing.domContentLoaded).to.be.lessThan(5000); // 5 seconds
     expect(timing.totalTime).to.be.lessThan(10000); // 10 seconds
@@ -126,7 +126,7 @@ Cypress.Commands.add('testResponsive', () => {
     { width: 1024, height: 768 },  // iPad Landscape
     { width: 1920, height: 1080 }  // Desktop
   ];
-  
+
   viewports.forEach((viewport, index) => {
     cy.viewport(viewport.width, viewport.height);
     cy.get('[data-testid="chat-interface"]').should('be.visible');
@@ -140,11 +140,11 @@ Cypress.Commands.add('testKeyboardNavigation', () => {
   // Test tab navigation through interactive elements
   cy.get('body').tab();
   cy.focused().should('be.visible');
-  
+
   // Test arrow key navigation for tabs
   cy.get('[data-testid="goals-tab"]').focus().type('{rightarrow}');
   cy.get('[data-testid="todos-tab"]').should('have.focus');
-  
+
   // Test Enter key activation
   cy.focused().type('{enter}');
   cy.get('[data-testid="todos-content"]').should('be.visible');
@@ -155,7 +155,7 @@ Cypress.Commands.add('verifyTextOnScreen', (expectedText) => {
   // Take screenshot and verify text appears
   cy.screenshot('text-verification');
   cy.get('body').should('contain', expectedText);
-  
+
   // Additional visual verification
   cy.get('*').contains(expectedText).should('be.visible');
 });
@@ -169,7 +169,7 @@ Cypress.Commands.add('cleanupTestData', () => {
       cy.get('[data-testid="confirm-reset-button"]').click();
     }
   });
-  
+
   // Clear test files
   cy.get('[data-testid="files-tab"]').click();
   cy.get('[data-testid="file-delete-button"]').each(($button) => {

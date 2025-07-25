@@ -78,7 +78,7 @@ export class KnowledgeTestHelper {
       method: 'POST',
       url: `${this.baseUrl}/import`,
       body: {
-        url: url,
+        url,
         agentId: this.agentId
       },
       headers: {
@@ -149,18 +149,18 @@ export class KnowledgeTestHelper {
    */
   waitForDocumentProcessing(documentId: string, maxWaitTime: number = 30000): Cypress.Chainable<void> {
     const startTime = Date.now();
-    
+
     const checkProcessing = (): Cypress.Chainable<void> => {
       return this.getDocumentChunks(documentId).then((chunks) => {
         if (chunks.length > 0) {
           cy.log(`Document ${documentId} processed with ${chunks.length} chunks`);
           return;
         }
-        
+
         if (Date.now() - startTime > maxWaitTime) {
           throw new Error(`Document ${documentId} processing timeout after ${maxWaitTime}ms`);
         }
-        
+
         cy.wait(1000);
         return checkProcessing();
       }).catch((error) => {
@@ -191,13 +191,13 @@ export class KnowledgeTestHelper {
    */
   cleanupTestDocuments(testFileNames: string[] = []): Cypress.Chainable<void> {
     return this.getDocuments().then((documents) => {
-      const testDocs = documents.filter(doc => 
+      const testDocs = documents.filter(doc =>
         testFileNames.some(name => doc.title?.includes(name)) ||
         doc.title?.includes('test-') ||
         doc.title?.includes('cypress-')
       );
 
-      const deletePromises = testDocs.map(doc => 
+      const deletePromises = testDocs.map(doc =>
         this.deleteDocument(doc.id).catch(() => {
           cy.log(`Failed to delete document ${doc.id}, continuing...`);
         })
@@ -233,7 +233,7 @@ export class KnowledgeTestHelper {
    */
   validateApiResponse(response: any, expectedSuccessStatus: boolean = true): void {
     expect(response).to.have.property('success', expectedSuccessStatus);
-    
+
     if (expectedSuccessStatus) {
       expect(response).to.have.property('data');
     } else {
@@ -252,7 +252,7 @@ export class KnowledgeTestHelper {
       { name: 'test.json', content: '{"key": "value", "test": true}', type: 'application/json' }
     ];
 
-    const uploadPromises = testFiles.map(file => 
+    const uploadPromises = testFiles.map(file =>
       this.uploadFile(file.name, file.content, file.type).then(response => response.data.id)
     );
 

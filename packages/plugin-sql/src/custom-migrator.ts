@@ -3,6 +3,8 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { logger } from '@elizaos/core';
 
+console.log('[CUSTOM MIGRATOR] File loaded!');
+
 type DrizzleDB = NodePgDatabase | PgliteDatabase;
 
 /**
@@ -78,6 +80,11 @@ const KNOWN_COMPOSITE_PRIMARY_KEYS: Record<string, { columns: string[] }> = {
   // Add other tables with composite primary keys here if needed
 };
 
+// Helper function to convert camelCase to snake_case
+function camelToSnakeCase(str: string): string {
+  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+}
+
 export class DrizzleSchemaIntrospector {
   parseTableDefinition(table: any, exportKey?: string): TableDefinition {
     const tableName = this.getTableName(table, exportKey);
@@ -86,7 +93,22 @@ export class DrizzleSchemaIntrospector {
     const foreignKeys = this.parseForeignKeys(table);
     const indexes = this.parseIndexes(table);
     const checkConstraints = this.parseCheckConstraints(table);
-    let compositePrimaryKey = this.parseCompositePrimaryKey(table);
+    
+    // Create a mapping of property names to column names for composite primary key resolution
+    const propertyToColumnMap = new Map<string, string>();
+    for (const [propName, propValue] of Object.entries(table)) {
+      if (propName === '_' || propName === 'enableRLS' || typeof propValue !== 'object' || !propValue) continue;
+      
+      const col = propValue as any;
+      // Check if this is a Drizzle column
+      if (col && (col.columnType || col.config || col.dataType)) {
+        const config = col.config || col;
+        const columnName = config.name || camelToSnakeCase(propName);
+        propertyToColumnMap.set(propName, columnName);
+      }
+    }
+    
+    let compositePrimaryKey = this.parseCompositePrimaryKey(table, propertyToColumnMap);
 
     // Fallback to known composite primary keys if not found
     if (!compositePrimaryKey && KNOWN_COMPOSITE_PRIMARY_KEYS[tableName]) {
@@ -179,6 +201,8 @@ export class DrizzleSchemaIntrospector {
   private parseColumns(table: any): ColumnDefinition[] {
     const columns: ColumnDefinition[] = [];
     const tableConfig = table._;
+    
+    logger.debug(`[INTROSPECTOR] parseColumns called. Has table._: ${!!tableConfig}, has columns: ${!!(tableConfig && tableConfig.columns)}`);
 
     if (!tableConfig || !tableConfig.columns) {
       return this.parseColumnsFallback(table);
@@ -208,27 +232,31 @@ export class DrizzleSchemaIntrospector {
       if (key === '_' || key === 'enableRLS' || typeof value !== 'object' || !value) continue;
 
       const col = value as any;
-      // logger.debug(`[INTROSPECTOR] Examining column ${key}:`, {
-      //   hasColumnType: !!col.columnType,
-      //   hasConfig: !!col.config,
-      //   hasDataType: !!col.dataType,
-      //   configKeys: col.config ? Object.keys(col.config) : [],
-      //   colKeys: Object.keys(col),
-      // });
+      logger.debug(`[INTROSPECTOR] Examining column ${key}:`, {
+        hasColumnType: !!col.columnType,
+        hasConfig: !!col.config,
+        hasDataType: !!col.dataType,
+        configKeys: col.config ? Object.keys(col.config) : [],
+        colKeys: Object.keys(col),
+        configName: col.config ? col.config.name : 'No config name'
+      });
 
       // Check if this looks like a Drizzle column
       if (col && (col.columnType || col.config || col.dataType)) {
         const config = col.config || col;
-        const columnName = config.name || key;
+        const columnName = config.name || camelToSnakeCase(key);
 
-        // logger.debug(`[INTROSPECTOR] Processing column ${columnName}:`, {
-        //   type: col.columnType,
-        //   primaryKey: config.primaryKey || config.primary,
-        //   notNull: config.notNull,
-        //   hasDefault: !!config.default || !!config.defaultValue,
-        //   defaultValue: config.default || config.defaultValue,
-        //   hasReferences: !!config.references,
-        // });
+        logger.debug(`[INTROSPECTOR] Processing column ${columnName}:`, {
+          key: key,
+          configName: config.name,
+          finalColumnName: columnName,
+          type: col.columnType,
+          primaryKey: config.primaryKey || config.primary,
+          notNull: config.notNull,
+          hasDefault: !!config.default || !!config.defaultValue,
+          defaultValue: config.default || config.defaultValue,
+          hasReferences: !!config.references,
+        });
 
         columns.push({
           name: columnName,
@@ -328,15 +356,23 @@ export class DrizzleSchemaIntrospector {
 
             // Method 1: Direct column arrays
             if (referenceResult.columns && Array.isArray(referenceResult.columns)) {
-              localColumns = referenceResult.columns.map((col: any) =>
-                typeof col === 'string' ? col : col.name || col.key || 'unknown_column'
-              );
+              localColumns = referenceResult.columns.map((col: any) => {
+                if (typeof col === 'string') return col;
+                // Use the same logic as parseColumns: config.name is the database column name
+                const config = col.config || col;
+                // Prioritize config.name for database column name, NOT the property name
+                return config.name || 'unknown_column';
+              });
             }
 
             if (referenceResult.foreignColumns && Array.isArray(referenceResult.foreignColumns)) {
-              referencedColumns = referenceResult.foreignColumns.map((col: any) =>
-                typeof col === 'string' ? col : col.name || col.key || 'unknown_column'
-              );
+              referencedColumns = referenceResult.foreignColumns.map((col: any) => {
+                if (typeof col === 'string') return col;
+                // Use the same logic as parseColumns: config.name is the database column name
+                const config = col.config || col;
+                // Prioritize config.name for database column name, NOT the property name
+                return config.name || 'unknown_column';
+              });
             }
 
             // Method 2: Extract from foreign key structure patterns
@@ -685,7 +721,7 @@ export class DrizzleSchemaIntrospector {
     return checkConstraints;
   }
 
-  private parseCompositePrimaryKey(table: any): { name: string; columns: string[] } | undefined {
+  private parseCompositePrimaryKey(table: any, propertyToColumnMap?: Map<string, string>): { name: string; columns: string[] } | undefined {
     let tableConfig = table._;
     const tableName = this.getTableName(table, '');
 
@@ -730,6 +766,10 @@ export class DrizzleSchemaIntrospector {
               if (config.name && config.columns) {
                 // Extract column names from the primary key definition
                 const columnNames = config.columns.map((col: any) => {
+                  // First, check if col has a config with a name (database column name)
+                  if (col && typeof col === 'object' && col.config?.name) {
+                    return col.config.name;
+                  }
                   // Handle column objects that have a name property
                   if (col && typeof col === 'object' && col.name) {
                     return col.name;
@@ -737,6 +777,18 @@ export class DrizzleSchemaIntrospector {
                   // Handle string column names
                   if (typeof col === 'string') {
                     return col;
+                  }
+                  // Try to get the property name from Drizzle symbols
+                  const symbols = Object.getOwnPropertySymbols(col);
+                  for (const sym of symbols) {
+                    if (sym.toString().includes('drizzle:Name')) {
+                      const propName = col[sym];
+                      // If we have a property-to-column mapping, use it
+                      if (propertyToColumnMap && propertyToColumnMap.has(propName)) {
+                        return propertyToColumnMap.get(propName);
+                      }
+                      return propName;
+                    }
                   }
                   // Fallback
                   return col?.toString() || 'unknown';
@@ -910,6 +962,9 @@ export class DrizzleSchemaIntrospector {
 
   // Create table SQL without foreign key constraints
   generateCreateTableSQL(tableDef: TableDefinition, schemaName: string): string {
+    logger.debug(`[INTROSPECTOR] Generating CREATE TABLE SQL for ${tableDef.name}:`);
+    logger.debug(`[INTROSPECTOR] Columns:`, tableDef.columns.map(c => ({ name: c.name, type: c.type })));
+    
     const columnDefs = tableDef.columns
       .map((col) => {
         let def = `"${col.name}" ${col.type}`;
@@ -978,16 +1033,21 @@ export class PluginNamespaceManager {
   constructor(private db: DrizzleDB) {}
 
   async getPluginSchema(pluginName: string): Promise<string> {
-    // Always use the public schema for all plugins to avoid table access issues
-    // The original plugin-specific schema approach caused problems where tables
-    // were created in separate schemas (e.g., 'goals', 'todo') but Drizzle 
-    // queries expected them in the default schema ('public')
-    logger.debug(`[NAMESPACE] Using public schema for plugin: ${pluginName}`);
+    // For now, all plugins use the public schema
+    // In the future, this could return plugin-specific schemas
+    logger.debug(`[CUSTOM MIGRATOR] Getting schema for plugin ${pluginName}: returning 'public'`);
     return 'public';
   }
 
   async ensureNamespace(schemaName: string): Promise<void> {
     if (schemaName === 'public') return;
+    
+    // Validate schema name to prevent SQL injection and handle special cases
+    if (!schemaName || schemaName.includes('$') || schemaName.includes('"')) {
+      logger.warn(`Invalid schema name: ${schemaName}, skipping creation`);
+      return;
+    }
+    
     await this.db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`));
   }
 
@@ -1072,9 +1132,17 @@ export class PluginNamespaceManager {
   async createTable(tableDef: TableDefinition, schemaName: string): Promise<void> {
     const introspector = new DrizzleSchemaIntrospector();
     const createTableSQL = introspector.generateCreateTableSQL(tableDef, schemaName);
+    
+    logger.debug(`[CUSTOM MIGRATOR] Creating table with SQL:`);
+    logger.debug(createTableSQL);
 
-    await this.db.execute(sql.raw(createTableSQL));
-    logger.info(`Created table: ${tableDef.name}`);
+    try {
+      await this.db.execute(sql.raw(createTableSQL));
+      logger.debug(`[CUSTOM MIGRATOR] Successfully created table ${tableDef.name}`);
+    } catch (error) {
+      logger.error(`[CUSTOM MIGRATOR] Failed to create table ${tableDef.name}:`, error);
+      throw error;
+    }
   }
 
   async addConstraints(tableDef: TableDefinition, schemaName: string): Promise<void> {
@@ -1217,11 +1285,15 @@ export async function runPluginMigrations(
   pluginName: string,
   schema: any
 ): Promise<void> {
+  console.log(`[CUSTOM MIGRATOR] Starting migration for plugin: ${pluginName}`);
+  console.log(`[CUSTOM MIGRATOR] Schema type:`, typeof schema);
+  console.log(`[CUSTOM MIGRATOR] Schema keys:`, schema ? Object.keys(schema) : 'schema is null/undefined');
   logger.debug(`[CUSTOM MIGRATOR] Starting migration for plugin: ${pluginName}`);
 
   // Test database connection first
   try {
     await db.execute(sql.raw('SELECT 1'));
+    console.log('[CUSTOM MIGRATOR] Database connection verified');
     logger.debug('[CUSTOM MIGRATOR] Database connection verified');
   } catch (error) {
     const errorDetails = extractErrorDetails(error);
@@ -1238,8 +1310,12 @@ export async function runPluginMigrations(
 
   await extensionManager.installRequiredExtensions(['vector', 'fuzzystrmatch']);
   const schemaName = await namespaceManager.getPluginSchema(pluginName);
+  console.log(`[CUSTOM MIGRATOR] Using schema: ${schemaName}`);
   await namespaceManager.ensureNamespace(schemaName);
   const existingTables = await namespaceManager.introspectExistingTables(schemaName);
+
+  console.log(`[CUSTOM MIGRATOR] Schema name: ${schemaName}`);
+  console.log(`[CUSTOM MIGRATOR] Existing tables:`, existingTables);
 
   // logger.debug(`[CUSTOM MIGRATOR] Schema name: ${schemaName}`);
   // logger.debug(`[CUSTOM MIGRATOR] Existing tables:`, existingTables);
@@ -1255,6 +1331,8 @@ export async function runPluginMigrations(
     return isDrizzleTable;
   });
 
+  console.log(`[CUSTOM MIGRATOR] Found ${tableEntries.length} table entries in schema`);
+  console.log(`[CUSTOM MIGRATOR] Table keys:`, tableEntries.map(([key]) => key));
   // logger.debug(
   //   `[CUSTOM MIGRATOR] Found ${tableEntries.length} tables to process:`,
   //   tableEntries.map(([key]) => key)
@@ -1277,6 +1355,7 @@ export async function runPluginMigrations(
 
   try {
     // Phase 1: Create all tables without foreign key constraints
+    console.log(`[CUSTOM MIGRATOR] Phase 1: Creating tables...`);
     logger.debug(`[CUSTOM MIGRATOR] Phase 1: Creating tables...`);
     for (const tableName of sortedTableNames) {
       const tableDef = tableDefinitions.get(tableName);
@@ -1286,11 +1365,27 @@ export async function runPluginMigrations(
       logger.debug(`[CUSTOM MIGRATOR] Table ${tableDef.name} exists: ${tableExists}`);
 
       if (!tableExists) {
+        // Special handling for tables that require extensions
+        if (tableDef.name === 'embeddings') {
+          // Check if pgvector extension is available
+          try {
+            await this.db.execute(sql.raw("SELECT 1 FROM pg_extension WHERE extname = 'vector'"));
+            console.log(`[CUSTOM MIGRATOR] pgvector extension found, creating embeddings table`);
+          } catch (extensionError) {
+            console.warn(`[CUSTOM MIGRATOR] Skipping embeddings table - pgvector extension not available`);
+            logger.warn(`[CUSTOM MIGRATOR] Skipping embeddings table - pgvector extension not available`);
+            continue;
+          }
+        }
+        
+        console.log(`[CUSTOM MIGRATOR] Creating table: ${tableDef.name}`);
         logger.debug(`[CUSTOM MIGRATOR] Creating table: ${tableDef.name}`);
         try {
           await namespaceManager.createTable(tableDef, schemaName);
+          console.log(`[CUSTOM MIGRATOR] Successfully created table: ${tableDef.name}`);
         } catch (error) {
           const errorDetails = extractErrorDetails(error);
+          console.error(`[CUSTOM MIGRATOR] Failed to create table ${tableDef.name}:`, errorDetails.message);
           logger.error(
             `[CUSTOM MIGRATOR] Failed to create table ${tableDef.name}: ${errorDetails.message}`
           );
@@ -1300,6 +1395,7 @@ export async function runPluginMigrations(
           throw new Error(`Failed to create table ${tableDef.name}: ${errorDetails.message}`);
         }
       } else {
+        console.log(`[CUSTOM MIGRATOR] Table ${tableDef.name} already exists, skipping`);
         logger.debug(`[CUSTOM MIGRATOR] Table ${tableDef.name} already exists, skipping creation`);
       }
     }

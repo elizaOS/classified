@@ -2,7 +2,7 @@
 
 /**
  * Knowledge Management API Fixes Validation
- * 
+ *
  * This test validates the specific fixes made to resolve network errors:
  * 1. Corrected upload endpoint from '/knowledge/documents' to '/knowledge/upload'
  * 2. Corrected form field name from 'files' to 'file'
@@ -49,14 +49,14 @@ This document will be uploaded and then deleted as part of the test.
     cy.window().then((win) => {
       win.localStorage.setItem('skipBoot', 'true');
     });
-    
+
     cy.visit('http://127.0.0.1:5174/', { timeout: 30000 });
     cy.get('[data-testid="game-interface"]', { timeout: 30000 }).should('be.visible');
   });
 
   it('validates backend API endpoints are accessible with correct paths', () => {
     cy.log('🔍 Testing Backend API Endpoint Accessibility');
-    
+
     // Test the knowledge documents list endpoint (this should work without auth)
     cy.request({
       method: 'GET',
@@ -73,7 +73,7 @@ This document will be uploaded and then deleted as part of the test.
         cy.log('✅ Documents endpoint exists (requires authentication)');
       }
     });
-    
+
     // Test the upload endpoint exists (even if multipart parsing has issues)
     cy.request({
       method: 'POST',
@@ -100,7 +100,7 @@ This document will be uploaded and then deleted as part of the test.
       failOnStatusCode: false
     }).then((response) => {
       // Delete endpoint might return 404 for non-existent ID, 200 for success, 401 for auth, or other status
-      // The key is that we're testing the route exists, which is proven by NOT getting 
+      // The key is that we're testing the route exists, which is proven by NOT getting
       // connection errors like ECONNREFUSED
       expect([200, 400, 401, 404, 500]).to.include(response.status);
       cy.log(`✅ Delete endpoint pattern is accessible (status: ${response.status})`);
@@ -111,7 +111,7 @@ This document will be uploaded and then deleted as part of the test.
 
   it('validates knowledge file upload with corrected API calls', () => {
     cy.log('📁 Testing Knowledge File Upload with API Fixes');
-    
+
     // Navigate to Files tab
     cy.get('[data-testid="files-tab"]', { timeout: 10000 }).should('be.visible').click();
     cy.get('[data-testid="files-content"]', { timeout: 10000 }).should('be.visible');
@@ -131,8 +131,8 @@ This document will be uploaded and then deleted as part of the test.
     cy.intercept('POST', '**/knowledge/upload', (req) => {
       // Log within the intercept but avoid using cy.log which causes promise issues
       console.log('🔍 Intercepted upload request');
-      console.log('📍 Endpoint: ' + req.url);
-      
+      console.log(`📍 Endpoint: ${req.url}`);
+
       // Check that the request is going to the correct endpoint
       expect(req.url).to.include('/knowledge/upload');
       console.log('✅ Request uses correct endpoint: /knowledge/upload');
@@ -141,7 +141,7 @@ This document will be uploaded and then deleted as part of the test.
       expect(req.headers).to.have.property('content-type');
       expect(req.headers['content-type']).to.include('multipart/form-data');
       console.log('✅ Request uses correct content type: multipart/form-data');
-      
+
       // Allow the request to go through to the real backend to test actual functionality
       req.continue();
 
@@ -164,26 +164,26 @@ This document will be uploaded and then deleted as part of the test.
 
     // Check for API response in chat (should show specific error, not network error)
     cy.get('[data-testid="chat-messages"]', { timeout: 15000 }).should('exist');
-    
+
     // Validate API response handling - should show proper error message, not network error
     cy.get('[data-testid="chat-messages"]').within(() => {
       cy.get('.chat-line').should('have.length.greaterThan', 0);
-      
+
       cy.get('.chat-line').then($messages => {
         const messageTexts = Array.from($messages).map(el => el.textContent).join(' ');
-        
+
         // Should NOT contain generic network errors (proves API is reachable)
         expect(messageTexts).to.not.include('Network error');
         expect(messageTexts).to.not.include('Failed to connect');
         expect(messageTexts).to.not.include('ECONNREFUSED');
-        
+
         // Should contain some form of response (either success or specific API error)
         if (messageTexts.includes('uploaded successfully') || messageTexts.includes('processed')) {
           cy.log('✅ Success message detected - upload worked fully');
         } else if (messageTexts.includes('No file uploaded') || messageTexts.includes('Upload failed')) {
           cy.log('✅ Specific API error detected - proves correct endpoint communication');
         } else {
-          cy.log('ℹ️ API response detected: ' + messageTexts.substring(0, 200));
+          cy.log(`ℹ️ API response detected: ${messageTexts.substring(0, 200)}`);
         }
       });
     });
@@ -193,7 +193,7 @@ This document will be uploaded and then deleted as part of the test.
 
   it('validates file deletion functionality with correct endpoint', () => {
     cy.log('🗑️ Testing File Deletion with Correct API');
-    
+
     // Navigate to Files tab
     cy.get('[data-testid="files-tab"]', { timeout: 10000 }).should('be.visible').click();
     cy.get('[data-testid="files-content"]', { timeout: 10000 }).should('be.visible');
@@ -202,27 +202,27 @@ This document will be uploaded and then deleted as part of the test.
     // Check if there are any files to delete
     cy.get('[data-testid="files-content"]').then($content => {
       const deleteButtons = $content.find('button[data-testid^="delete-file-"]');
-      
+
       if (deleteButtons.length > 0) {
         cy.log(`📊 Found ${deleteButtons.length} file(s) available for deletion`);
-        
+
         // Intercept delete request to validate correct endpoint usage
         cy.intercept('DELETE', '**/knowledge/documents/**', (req) => {
           console.log('🔍 Intercepted delete request');
-          console.log('📍 Endpoint: ' + req.url);
-          
+          console.log(`📍 Endpoint: ${req.url}`);
+
           // Validate delete endpoint format
           expect(req.url).to.include('/knowledge/documents/');
           console.log('✅ Delete request uses correct endpoint pattern');
-          
+
           // Allow the request to continue to test real backend
           req.continue();
-          
+
         }).as('deleteRequest');
 
         // Click the first delete button
         cy.get('button[data-testid^="delete-file-"]').first().click();
-        
+
         cy.log('🗑️ Clicked delete button for file');
 
         // Wait for delete request
@@ -233,10 +233,10 @@ This document will be uploaded and then deleted as part of the test.
         // Validate response in chat messages
         cy.get('[data-testid="chat-messages"]', { timeout: 10000 }).within(() => {
           cy.get('.chat-line').should('have.length.greaterThan', 0);
-          
+
           cy.get('.chat-line').then($messages => {
             const messageTexts = Array.from($messages).map(el => el.textContent).join(' ');
-            
+
             // Should not contain network errors
             expect(messageTexts).to.not.include('Network error');
             cy.log('✅ Delete request completed without network errors');
@@ -282,7 +282,7 @@ This document will be uploaded and then deleted as part of the test.
 
     cy.log('🎉 All API fixes validation completed successfully!');
     cy.log('✅ Upload endpoint corrected: /knowledge/upload');
-    cy.log('✅ Form field corrected: file (not files)'); 
+    cy.log('✅ Form field corrected: file (not files)');
     cy.log('✅ Delete endpoint validated: /knowledge/documents/:id');
     cy.log('✅ Error handling improved: No [object Object] errors');
   });
@@ -292,10 +292,10 @@ This document will be uploaded and then deleted as part of the test.
     // Clean up any test files that might have been created
     cy.request('GET', 'http://127.0.0.1:7777/knowledge/documents').then((response) => {
       if (response.body.success && response.body.data.documents) {
-        const testFiles = response.body.data.documents.filter(doc => 
+        const testFiles = response.body.data.documents.filter(doc =>
           doc.originalFilename && doc.originalFilename.includes('cypress-api-test')
         );
-        
+
         testFiles.forEach(file => {
           cy.request({
             method: 'DELETE',

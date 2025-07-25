@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createGoalDataService } from './services/goalDataService.js';
+import { createGoalDataService } from './services/goalDataService';
 
 // Define the equivalent of __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);

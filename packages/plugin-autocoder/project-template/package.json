@@ -29,7 +29,7 @@
   ],
   "dependencies": {
     "@elizaos/cli": "^1.2.12",
-    "@elizaos/core": "^1.2.12",
+    "@elizaos/core": "workspace:*",
     "@elizaos/plugin-bootstrap": "workspace:*",
     "@elizaos/plugin-sql": "workspace:*",
     "@tanstack/react-query": "^5.29.0",

@@ -8,7 +8,7 @@ import {
   logger,
   asUUID,
 } from '@elizaos/core';
-import { selfModificationPlugin } from '../../index.js';
+import { selfModificationPlugin } from '../../index';
 import { v4 as uuidv4 } from 'uuid';
 
 /**

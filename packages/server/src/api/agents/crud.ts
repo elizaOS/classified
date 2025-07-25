@@ -126,7 +126,10 @@ export function createAgentCrudRouter(
       if (character.settings?.secrets) {
         logger.debug('[AGENT CREATE] Encrypting secrets');
         const salt = getSalt();
-        character.settings.secrets = encryptObjectValues(character.settings.secrets, salt);
+        // Only encrypt if secrets is an object
+        if (typeof character.settings.secrets === 'object' && character.settings.secrets !== null && !Array.isArray(character.settings.secrets)) {
+          character.settings.secrets = encryptObjectValues(character.settings.secrets as Record<string, any>, salt);
+        }
       }
 
       const ensureAgentExists = async (character: Character) => {

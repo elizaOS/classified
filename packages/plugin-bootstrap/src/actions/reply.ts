@@ -97,7 +97,6 @@ export const replyAction = {
       template: replyTemplate,
     });
 
-    try {
       const response = await runtime.useModel(ModelType.OBJECT_LARGE, {
         prompt,
       });
@@ -127,24 +126,6 @@ export const replyAction = {
         },
         success: true,
       };
-    } catch (error) {
-      logger.error(`[REPLY] Error generating response: ${error}`);
-
-      return {
-        text: 'Error generating reply',
-        values: {
-          success: false,
-          responded: false,
-          error: true,
-        },
-        data: {
-          actionName: 'REPLY',
-          error: error instanceof Error ? error.message : String(error),
-        },
-        success: false,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
-    }
   },
   examples: [
     [

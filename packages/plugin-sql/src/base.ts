@@ -36,19 +36,14 @@ import { DIMENSION_MAP, type EmbeddingDimensionColumn } from './schema/embedding
 import {
   agentTable,
   cacheTable,
-  channelParticipantsTable,
-  channelTable,
   componentTable,
   embeddingTable,
   entityTable,
   logTable,
   memoryTable,
-  messageServerTable,
-  messageTable,
   participantTable,
   relationshipTable,
   roomTable,
-  serverAgentsTable,
   taskTable,
   worldTable,
 } from './schema/index';
@@ -258,6 +253,13 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
                 .limit(1)
             : [];
 
+        logger.debug('[createAgent] Duplicate check result:', {
+          agentId: agent.id,
+          agentName: agent.name,
+          existingCount: existing.length,
+          conditions: conditions.length
+        });
+
         if (existing.length > 0) {
           logger.warn('Attempted to create an agent with a duplicate ID or name.', {
             id: agent.id,
@@ -265,6 +267,11 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
           });
           return false;
         }
+
+        logger.debug('[createAgent] Attempting to insert agent:', {
+          agentId: agent.id,
+          agentName: agent.name
+        });
 
         await this.db.transaction(async (tx) => {
           await tx.insert(agentTable).values({
@@ -274,8 +281,9 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
           });
         });
 
-        logger.debug('Agent created successfully:', {
+        logger.info('[createAgent] Agent created successfully:', {
           agentId: agent.id,
+          agentName: agent.name
         });
         return true;
       } catch (error) {
@@ -517,8 +525,22 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
     return this.withDatabase(async () => {
       const result = await this.db
         .select({
-          entity: entityTable,
-          components: componentTable,
+          // Entity fields
+          entity_id: entityTable.id,
+          entity_agentId: entityTable.agentId,
+          entity_names: entityTable.names,
+          entity_metadata: entityTable.metadata,
+          entity_createdAt: entityTable.createdAt,
+          // Component fields (will be null if no component)
+          component_id: componentTable.id,
+          component_entityId: componentTable.entityId,
+          component_agentId: componentTable.agentId,
+          component_roomId: componentTable.roomId,
+          component_worldId: componentTable.worldId,
+          component_sourceEntityId: componentTable.sourceEntityId,
+          component_type: componentTable.type,
+          component_data: componentTable.data,
+          component_createdAt: componentTable.createdAt,
         })
         .from(entityTable)
         .leftJoin(componentTable, eq(componentTable.entityId, entityTable.id))
@@ -528,19 +550,41 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
 
       // Group components by entity
       const entities: Record<UUID, Entity> = {};
-      const entityComponents: Record<UUID, Entity['components']> = {};
-      for (const e of result) {
-        const key = e.entity.id;
-        entities[key] = e.entity;
-        if (entityComponents[key] === undefined) entityComponents[key] = [];
-        if (e.components) {
-          // Handle both single component and array of components
-          const componentsArray = Array.isArray(e.components) ? e.components : [e.components];
-          entityComponents[key] = [...entityComponents[key], ...componentsArray];
+      const entityComponents: Record<UUID, Component[]> = {};
+      
+      for (const row of result) {
+        const entityId = row.entity_id as UUID;
+        
+        if (!entities[entityId]) {
+          entities[entityId] = {
+            id: entityId,
+            agentId: row.entity_agentId as UUID,
+            names: row.entity_names || [],
+            metadata: row.entity_metadata || {},
+          };
+          entityComponents[entityId] = [];
+        }
+        
+        // If component data exists in this row
+        if (row.component_id) {
+          const component: Component = {
+            id: row.component_id as UUID,
+            entityId: row.component_entityId as UUID,
+            agentId: row.component_agentId as UUID,
+            roomId: row.component_roomId as UUID,
+            worldId: row.component_worldId as UUID,
+            sourceEntityId: row.component_sourceEntityId as UUID,
+            type: row.component_type,
+            data: row.component_data || {},
+            createdAt: row.component_createdAt.getTime(),
+          };
+          entityComponents[entityId].push(component);
         }
       }
-      for (const k of Object.keys(entityComponents)) {
-        entities[k].components = entityComponents[k];
+      
+      // Attach components to entities
+      for (const entityId of Object.keys(entities)) {
+        entities[entityId].components = entityComponents[entityId];
       }
 
       return Object.values(entities);
@@ -614,7 +658,33 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
     return this.withDatabase(async () => {
       try {
         return await this.db.transaction(async (tx) => {
-          await tx.insert(entityTable).values(entities);
+          // Map entities to include only the fields that should be inserted
+          // Let the database handle defaults for createdAt and updatedAt
+          const entitiesToInsert = entities.map(entity => ({
+            id: entity.id,
+            agentId: entity.agentId || this.agentId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            names: entity.names,
+            metadata: entity.metadata || {},
+          }));
+          
+          // DEBUG: Log what we're about to insert
+          logger.debug('DEBUG: About to insert entities:', JSON.stringify(entitiesToInsert, null, 2));
+          
+          try {
+            await tx.insert(entityTable).values(entitiesToInsert);
+          } catch (insertError: any) {
+            logger.error('DEBUG: SQL insert error:', {
+              message: insertError.message,
+              code: insertError.code,
+              detail: insertError.detail,
+              hint: insertError.hint,
+              where: insertError.where,
+              entities: entitiesToInsert
+            });
+            throw insertError;
+          }
 
           logger.debug(entities.length, 'Entities created successfully');
 
@@ -1553,8 +1623,13 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
       isUnique = similarMemories.length === 0;
     }
 
+    // Ensure we always pass a JSON string to the SQL placeholder – if we pass an
+    // object directly PG sees `[object Object]` and fails the `::jsonb` cast.
     const contentToInsert =
-      typeof memory.content === 'string' ? JSON.parse(memory.content) : memory.content;
+      typeof memory.content === 'string' ? memory.content : JSON.stringify(memory.content ?? {});
+
+    const metadataToInsert =
+      typeof memory.metadata === 'string' ? memory.metadata : JSON.stringify(memory.metadata ?? {});
 
     await this.db.transaction(async (tx) => {
       await tx.insert(memoryTable).values([
@@ -1562,7 +1637,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
           id: memoryId,
           type: tableName,
           content: sql`${contentToInsert}::jsonb`,
-          metadata: sql`${memory.metadata || {}}::jsonb`,
+          metadata: sql`${metadataToInsert}::jsonb`,
           entityId: memory.entityId,
           roomId: memory.roomId,
           worldId: memory.worldId, // Include worldId
@@ -1611,21 +1686,33 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
           // Update memory content if provided
           if (memory.content) {
             const contentToUpdate =
-              typeof memory.content === 'string' ? JSON.parse(memory.content) : memory.content;
+              typeof memory.content === 'string'
+                ? memory.content
+                : JSON.stringify(memory.content ?? {});
+
+            const metadataToUpdate =
+              typeof memory.metadata === 'string'
+                ? memory.metadata
+                : JSON.stringify(memory.metadata ?? {});
 
             await tx
               .update(memoryTable)
               .set({
                 content: sql`${contentToUpdate}::jsonb`,
-                ...(memory.metadata && { metadata: sql`${memory.metadata}::jsonb` }),
+                ...(memory.metadata && { metadata: sql`${metadataToUpdate}::jsonb` }),
               })
               .where(eq(memoryTable.id, memory.id));
           } else if (memory.metadata) {
             // Update only metadata if content is not provided
+            const metadataToUpdate =
+              typeof memory.metadata === 'string'
+                ? memory.metadata
+                : JSON.stringify(memory.metadata ?? {});
+
             await tx
               .update(memoryTable)
               .set({
-                metadata: sql`${memory.metadata}::jsonb`,
+                metadata: sql`${metadataToUpdate}::jsonb`,
               })
               .where(eq(memoryTable.id, memory.id));
           }
@@ -2038,15 +2125,24 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
       try {
         const values = entityIds.map((id) => ({
           entityId: id,
-          roomId,
+          roomId: roomId,
           agentId: this.agentId,
         }));
-        await this.db.insert(participantTable).values(values).onConflictDoNothing().execute();
+        
+        // Debug: Log the values being inserted
+        logger.debug('addParticipantsRoom - values to insert:', JSON.stringify(values, null, 2));
+        
+        // Log the SQL query that will be executed
+        const query = this.db.insert(participantTable).values(values).onConflictDoNothing();
+        logger.debug('addParticipantsRoom - SQL query:', query.toSQL());
+        
+        await query.execute();
         logger.debug(entityIds.length, 'Entities linked successfully');
         return true;
       } catch (error) {
         logger.error('Error adding participants', {
           error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
           entityIdSample: entityIds[0],
           roomId,
           agentId: this.agentId,
@@ -2334,15 +2430,15 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
       return result.rows.map((relationship: any) => ({
         ...relationship,
         id: relationship.id as UUID,
-        sourceEntityId: relationship.sourceEntityId as UUID,
-        targetEntityId: relationship.targetEntityId as UUID,
-        agentId: relationship.agentId as UUID,
+        sourceEntityId: (relationship.sourceEntityId || relationship.source_entity_id) as UUID,
+        targetEntityId: (relationship.targetEntityId || relationship.target_entity_id) as UUID,
+        agentId: (relationship.agentId || relationship.agent_id) as UUID,
         tags: relationship.tags ?? [],
         metadata: (relationship.metadata as { [key: string]: unknown }) ?? {},
-        createdAt: relationship.createdAt
-          ? relationship.createdAt instanceof Date
-            ? relationship.createdAt.toISOString()
-            : new Date(relationship.createdAt).toISOString()
+        createdAt: (relationship.createdAt || relationship.created_at)
+          ? (relationship.createdAt || relationship.created_at) instanceof Date
+            ? (relationship.createdAt || relationship.created_at).toISOString()
+            : new Date(relationship.createdAt || relationship.created_at).toISOString()
           : new Date().toISOString(),
       }));
     });
@@ -2756,584 +2852,4 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
       }
     });
   }
-
-  // Message Server Database Operations
-
-  /**
-   * Creates a new message server in the central database
-   */
-  async createMessageServer(data: {
-    id?: UUID; // Allow passing a specific ID
-    name: string;
-    sourceType: string;
-    sourceId?: string;
-    metadata?: any;
-  }): Promise<{
-    id: UUID;
-    name: string;
-    sourceType: string;
-    sourceId?: string;
-    metadata?: any;
-    createdAt: Date;
-    updatedAt: Date;
-  }> {
-    return this.withDatabase(async () => {
-      const newId = data.id || (v4() as UUID);
-      const now = new Date();
-      const serverToInsert = {
-        id: newId,
-        name: data.name,
-        sourceType: data.sourceType,
-        sourceId: data.sourceId,
-        metadata: data.metadata,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      await this.db.insert(messageServerTable).values(serverToInsert).onConflictDoNothing(); // In case the ID already exists
-
-      // If server already existed, fetch it
-      if (data.id) {
-        const existing = await this.db
-          .select()
-          .from(messageServerTable)
-          .where(eq(messageServerTable.id, data.id))
-          .limit(1);
-        if (existing.length > 0) {
-          return {
-            id: existing[0].id as UUID,
-            name: existing[0].name,
-            sourceType: existing[0].sourceType,
-            sourceId: existing[0].sourceId || undefined,
-            metadata: existing[0].metadata || undefined,
-            createdAt: existing[0].createdAt,
-            updatedAt: existing[0].updatedAt,
-          };
-        }
-      }
-
-      return serverToInsert;
-    });
-  }
-
-  /**
-   * Gets all message servers
-   */
-  async getMessageServers(): Promise<
-    Array<{
-      id: UUID;
-      name: string;
-      sourceType: string;
-      sourceId?: string;
-      metadata?: any;
-      createdAt: Date;
-      updatedAt: Date;
-    }>
-  > {
-    return this.withDatabase(async () => {
-      const results = await this.db.select().from(messageServerTable);
-      return results.map((r) => ({
-        id: r.id as UUID,
-        name: r.name,
-        sourceType: r.sourceType,
-        sourceId: r.sourceId || undefined,
-        metadata: r.metadata || undefined,
-        createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
-      }));
-    });
-  }
-
-  /**
-   * Gets a message server by ID
-   */
-  async getMessageServerById(serverId: UUID): Promise<{
-    id: UUID;
-    name: string;
-    sourceType: string;
-    sourceId?: string;
-    metadata?: any;
-    createdAt: Date;
-    updatedAt: Date;
-  } | null> {
-    return this.withDatabase(async () => {
-      const results = await this.db
-        .select()
-        .from(messageServerTable)
-        .where(eq(messageServerTable.id, serverId))
-        .limit(1);
-      return results.length > 0
-        ? {
-            id: results[0].id as UUID,
-            name: results[0].name,
-            sourceType: results[0].sourceType,
-            sourceId: results[0].sourceId || undefined,
-            metadata: results[0].metadata || undefined,
-            createdAt: results[0].createdAt,
-            updatedAt: results[0].updatedAt,
-          }
-        : null;
-    });
-  }
-
-  /**
-   * Creates a new channel
-   */
-  async createChannel(
-    data: {
-      id?: UUID; // Allow passing a specific ID
-      messageServerId: UUID;
-      name: string;
-      type: string;
-      sourceType?: string;
-      sourceId?: string;
-      topic?: string;
-      metadata?: any;
-    },
-    participantIds?: UUID[]
-  ): Promise<{
-    id: UUID;
-    messageServerId: UUID;
-    name: string;
-    type: string;
-    sourceType?: string;
-    sourceId?: string;
-    topic?: string;
-    metadata?: any;
-    createdAt: Date;
-    updatedAt: Date;
-  }> {
-    return this.withDatabase(async () => {
-      const newId = data.id || (v4() as UUID);
-      const now = new Date();
-      const channelToInsert = {
-        id: newId,
-        messageServerId: data.messageServerId,
-        name: data.name,
-        type: data.type,
-        sourceType: data.sourceType,
-        sourceId: data.sourceId,
-        topic: data.topic,
-        metadata: data.metadata,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      await this.db.transaction(async (tx) => {
-        await tx.insert(channelTable).values(channelToInsert);
-
-        if (participantIds && participantIds.length > 0) {
-          const participantValues = participantIds.map((userId) => ({
-            channelId: newId,
-            userId: userId,
-          }));
-          await tx.insert(channelParticipantsTable).values(participantValues).onConflictDoNothing();
-        }
-      });
-
-      return channelToInsert;
-    });
-  }
-
-  /**
-   * Gets channels for a server
-   */
-  async getChannelsForServer(serverId: UUID): Promise<
-    Array<{
-      id: UUID;
-      messageServerId: UUID;
-      name: string;
-      type: string;
-      sourceType?: string;
-      sourceId?: string;
-      topic?: string;
-      metadata?: any;
-      createdAt: Date;
-      updatedAt: Date;
-    }>
-  > {
-    return this.withDatabase(async () => {
-      const results = await this.db
-        .select()
-        .from(channelTable)
-        .where(eq(channelTable.messageServerId, serverId));
-      return results.map((r) => ({
-        id: r.id as UUID,
-        messageServerId: r.messageServerId as UUID,
-        name: r.name,
-        type: r.type,
-        sourceType: r.sourceType || undefined,
-        sourceId: r.sourceId || undefined,
-        topic: r.topic || undefined,
-        metadata: r.metadata || undefined,
-        createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
-      }));
-    });
-  }
-
-  /**
-   * Gets channel details
-   */
-  async getChannelDetails(channelId: UUID): Promise<{
-    id: UUID;
-    messageServerId: UUID;
-    name: string;
-    type: string;
-    sourceType?: string;
-    sourceId?: string;
-    topic?: string;
-    metadata?: any;
-    createdAt: Date;
-    updatedAt: Date;
-  } | null> {
-    return this.withDatabase(async () => {
-      const results = await this.db
-        .select()
-        .from(channelTable)
-        .where(eq(channelTable.id, channelId))
-        .limit(1);
-      return results.length > 0
-        ? {
-            id: results[0].id as UUID,
-            messageServerId: results[0].messageServerId as UUID,
-            name: results[0].name,
-            type: results[0].type,
-            sourceType: results[0].sourceType || undefined,
-            sourceId: results[0].sourceId || undefined,
-            topic: results[0].topic || undefined,
-            metadata: results[0].metadata || undefined,
-            createdAt: results[0].createdAt,
-            updatedAt: results[0].updatedAt,
-          }
-        : null;
-    });
-  }
-
-  /**
-   * Creates a message
-   */
-  async createMessage(data: {
-    channelId: UUID;
-    authorId: UUID;
-    content: string;
-    rawMessage?: any;
-    sourceType?: string;
-    sourceId?: string;
-    metadata?: any;
-    inReplyToRootMessageId?: UUID;
-  }): Promise<{
-    id: UUID;
-    channelId: UUID;
-    authorId: UUID;
-    content: string;
-    rawMessage?: any;
-    sourceType?: string;
-    sourceId?: string;
-    metadata?: any;
-    inReplyToRootMessageId?: UUID;
-    createdAt: Date;
-    updatedAt: Date;
-  }> {
-    return this.withDatabase(async () => {
-      const newId = v4() as UUID;
-      const now = new Date();
-      const messageToInsert = {
-        id: newId,
-        channelId: data.channelId,
-        authorId: data.authorId,
-        content: data.content,
-        rawMessage: data.rawMessage,
-        sourceType: data.sourceType,
-        sourceId: data.sourceId,
-        metadata: data.metadata,
-        inReplyToRootMessageId: data.inReplyToRootMessageId,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      await this.db.insert(messageTable).values(messageToInsert);
-      return messageToInsert;
-    });
-  }
-
-  /**
-   * Gets messages for a channel
-   */
-  async getMessagesForChannel(
-    channelId: UUID,
-    limit: number = 50,
-    beforeTimestamp?: Date
-  ): Promise<
-    Array<{
-      id: UUID;
-      channelId: UUID;
-      authorId: UUID;
-      content: string;
-      rawMessage?: any;
-      sourceType?: string;
-      sourceId?: string;
-      metadata?: any;
-      inReplyToRootMessageId?: UUID;
-      createdAt: Date;
-      updatedAt: Date;
-    }>
-  > {
-    return this.withDatabase(async () => {
-      const conditions = [eq(messageTable.channelId, channelId)];
-      if (beforeTimestamp) {
-        conditions.push(lt(messageTable.createdAt, beforeTimestamp));
-      }
-
-      const query = this.db
-        .select()
-        .from(messageTable)
-        .where(and(...conditions))
-        .orderBy(desc(messageTable.createdAt))
-        .limit(limit);
-
-      const results = await query;
-      return results.map((r) => ({
-        id: r.id as UUID,
-        channelId: r.channelId as UUID,
-        authorId: r.authorId as UUID,
-        content: r.content,
-        rawMessage: r.rawMessage || undefined,
-        sourceType: r.sourceType || undefined,
-        sourceId: r.sourceId || undefined,
-        metadata: r.metadata || undefined,
-        inReplyToRootMessageId: r.inReplyToRootMessageId as UUID | undefined,
-        createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
-      }));
-    });
-  }
-
-  /**
-   * Deletes a message
-   */
-  async deleteMessage(messageId: UUID): Promise<void> {
-    return this.withDatabase(async () => {
-      await this.db.delete(messageTable).where(eq(messageTable.id, messageId));
-    });
-  }
-
-  /**
-   * Updates a channel
-   */
-  async updateChannel(
-    channelId: UUID,
-    updates: { name?: string; participantCentralUserIds?: UUID[]; metadata?: any }
-  ): Promise<{
-    id: UUID;
-    messageServerId: UUID;
-    name: string;
-    type: string;
-    sourceType?: string;
-    sourceId?: string;
-    topic?: string;
-    metadata?: any;
-    createdAt: Date;
-    updatedAt: Date;
-  }> {
-    return this.withDatabase(async () => {
-      const now = new Date();
-
-      await this.db.transaction(async (tx) => {
-        // Update channel details
-        const updateData: any = { updatedAt: now };
-        if (updates.name !== undefined) updateData.name = updates.name;
-        if (updates.metadata !== undefined) updateData.metadata = updates.metadata;
-
-        await tx.update(channelTable).set(updateData).where(eq(channelTable.id, channelId));
-
-        // Update participants if provided
-        if (updates.participantCentralUserIds !== undefined) {
-          // Remove existing participants
-          await tx
-            .delete(channelParticipantsTable)
-            .where(eq(channelParticipantsTable.channelId, channelId));
-
-          // Add new participants
-          if (updates.participantCentralUserIds.length > 0) {
-            const participantValues = updates.participantCentralUserIds.map((userId) => ({
-              channelId: channelId,
-              userId: userId,
-            }));
-            await tx
-              .insert(channelParticipantsTable)
-              .values(participantValues)
-              .onConflictDoNothing();
-          }
-        }
-      });
-
-      // Return updated channel details
-      const updatedChannel = await this.getChannelDetails(channelId);
-      if (!updatedChannel) {
-        throw new Error(`Channel ${channelId} not found after update`);
-      }
-      return updatedChannel;
-    });
-  }
-
-  /**
-   * Deletes a channel and all its associated data
-   */
-  async deleteChannel(channelId: UUID): Promise<void> {
-    return this.withDatabase(async () => {
-      await this.db.transaction(async (tx) => {
-        // Delete all messages in the channel (cascade delete will handle this, but explicit is better)
-        await tx.delete(messageTable).where(eq(messageTable.channelId, channelId));
-
-        // Delete all participants (cascade delete will handle this, but explicit is better)
-        await tx
-          .delete(channelParticipantsTable)
-          .where(eq(channelParticipantsTable.channelId, channelId));
-
-        // Delete the channel itself
-        await tx.delete(channelTable).where(eq(channelTable.id, channelId));
-      });
-    });
-  }
-
-  /**
-   * Adds participants to a channel
-   */
-  async addChannelParticipants(channelId: UUID, userIds: UUID[]): Promise<void> {
-    return this.withDatabase(async () => {
-      if (!userIds || userIds.length === 0) return;
-
-      const participantValues = userIds.map((userId) => ({
-        channelId: channelId,
-        userId: userId,
-      }));
-
-      await this.db
-        .insert(channelParticipantsTable)
-        .values(participantValues)
-        .onConflictDoNothing();
-    });
-  }
-
-  /**
-   * Gets participants for a channel
-   */
-  async getChannelParticipants(channelId: UUID): Promise<UUID[]> {
-    return this.withDatabase(async () => {
-      const results = await this.db
-        .select({ userId: channelParticipantsTable.userId })
-        .from(channelParticipantsTable)
-        .where(eq(channelParticipantsTable.channelId, channelId));
-
-      return results.map((r) => r.userId as UUID);
-    });
-  }
-
-  /**
-   * Adds an agent to a server
-   */
-  async addAgentToServer(serverId: UUID, agentId: UUID): Promise<void> {
-    return this.withDatabase(async () => {
-      await this.db
-        .insert(serverAgentsTable)
-        .values({
-          serverId,
-          agentId,
-        })
-        .onConflictDoNothing();
-    });
-  }
-
-  /**
-   * Gets agents for a server
-   */
-  async getAgentsForServer(serverId: UUID): Promise<UUID[]> {
-    return this.withDatabase(async () => {
-      const results = await this.db
-        .select({ agentId: serverAgentsTable.agentId })
-        .from(serverAgentsTable)
-        .where(eq(serverAgentsTable.serverId, serverId));
-
-      return results.map((r) => r.agentId as UUID);
-    });
-  }
-
-  /**
-   * Removes an agent from a server
-   */
-  async removeAgentFromServer(serverId: UUID, agentId: UUID): Promise<void> {
-    return this.withDatabase(async () => {
-      await this.db
-        .delete(serverAgentsTable)
-        .where(
-          and(eq(serverAgentsTable.serverId, serverId), eq(serverAgentsTable.agentId, agentId))
-        );
-    });
-  }
-
-  /**
-   * Finds or creates a DM channel between two users
-   */
-  async findOrCreateDmChannel(
-    user1Id: UUID,
-    user2Id: UUID,
-    messageServerId: UUID
-  ): Promise<{
-    id: UUID;
-    messageServerId: UUID;
-    name: string;
-    type: string;
-    sourceType?: string;
-    sourceId?: string;
-    topic?: string;
-    metadata?: any;
-    createdAt: Date;
-    updatedAt: Date;
-  }> {
-    return this.withDatabase(async () => {
-      const ids = [user1Id, user2Id].sort();
-      const dmChannelName = `DM-${ids[0]}-${ids[1]}`;
-
-      const existingChannels = await this.db
-        .select()
-        .from(channelTable)
-        .where(
-          and(
-            eq(channelTable.type, ChannelType.DM),
-            eq(channelTable.name, dmChannelName),
-            eq(channelTable.messageServerId, messageServerId)
-          )
-        )
-        .limit(1);
-
-      if (existingChannels.length > 0) {
-        return {
-          id: existingChannels[0].id as UUID,
-          messageServerId: existingChannels[0].messageServerId as UUID,
-          name: existingChannels[0].name,
-          type: existingChannels[0].type,
-          sourceType: existingChannels[0].sourceType || undefined,
-          sourceId: existingChannels[0].sourceId || undefined,
-          topic: existingChannels[0].topic || undefined,
-          metadata: existingChannels[0].metadata || undefined,
-          createdAt: existingChannels[0].createdAt,
-          updatedAt: existingChannels[0].updatedAt,
-        };
-      }
-
-      // Create new DM channel
-      return this.createChannel(
-        {
-          messageServerId,
-          name: dmChannelName,
-          type: ChannelType.DM,
-          metadata: { user1: ids[0], user2: ids[1] },
-        },
-        ids
-      );
-    });
-  }
 }
-
-// Import tables at the end to avoid circular dependencies

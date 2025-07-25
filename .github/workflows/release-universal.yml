@@ -1,0 +1,97 @@
+name: 'Release Universal macOS Build'
+
+on:
+  push:
+    tags:
+      - 'v*-universal' # Special tags for universal builds
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (universal)'
+        required: true
+        default: 'v0.1.0-universal'
+
+jobs:
+  build-universal-macos:
+    permissions:
+      contents: write
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '23.3.0'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.15'
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './packages/game/src-tauri -> target'
+
+      - name: Install dependencies
+        run: bun install
+        working-directory: packages/game
+
+      - name: Build frontend and backend
+        run: bun run build
+        working-directory: packages/game
+
+      - name: Build universal binary
+        run: bun run tauri:build:universal
+        working-directory: packages/game
+
+      - name: Get version
+        run: echo "PACKAGE_VERSION=$(node -pe "require('./packages/game/package.json').version")" >> $GITHUB_ENV
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.PACKAGE_VERSION }}-universal
+          release_name: ElizaOS Game v${{ env.PACKAGE_VERSION }} Universal
+          body: |
+            Universal macOS build for both Intel and Apple Silicon Macs.
+
+            This build contains both x86_64 and aarch64 architectures in a single binary.
+          draft: false
+          prerelease: false
+
+      - name: Upload DMG
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: packages/game/src-tauri/target/universal-apple-darwin/release/bundle/dmg/ElizaOS Terminal_${{ env.PACKAGE_VERSION }}_universal.dmg
+          asset_name: ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.dmg
+          asset_content_type: application/octet-stream
+
+      - name: Upload App Bundle
+        run: |
+          cd packages/game/src-tauri/target/universal-apple-darwin/release/bundle/macos/
+          tar -czf "ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.app.tar.gz" "ElizaOS Terminal.app"
+
+      - name: Upload App Bundle Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: packages/game/src-tauri/target/universal-apple-darwin/release/bundle/macos/ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.app.tar.gz
+          asset_name: ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.app.tar.gz
+          asset_content_type: application/gzip

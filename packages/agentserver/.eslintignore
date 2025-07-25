@@ -1,0 +1,7 @@
+dist/
+dist-backend/
+dist-binaries/
+node_modules/
+*.log
+coverage/
+.turbo/ 

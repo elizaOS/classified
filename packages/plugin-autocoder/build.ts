@@ -30,22 +30,18 @@ async function build() {
   // Generate basic TypeScript declaration file
   console.log('📝 Generating TypeScript declarations...');
   
-  try {
-    // Ensure dist directory exists
-    if (!existsSync('dist')) {
-      mkdirSync('dist', { recursive: true });
-    }
+  // Ensure dist directory exists
+  if (!existsSync('dist')) {
+    mkdirSync('dist', { recursive: true });
+  }
 
-    // Create a basic index.d.ts file
-    const declarationContent = `export declare const autocoderPlugin: import("@elizaos/core").Plugin;
+  // Create a basic index.d.ts file
+  const declarationContent = `export declare const autocoderPlugin: import("@elizaos/core").Plugin;
 export default autocoderPlugin;
 `;
 
-    writeFileSync('dist/index.d.ts', declarationContent);
-    console.log('✅ Basic declaration file created');
-  } catch (error) {
-    console.warn('⚠️ Failed to create declaration file:', error);
-  }
+  writeFileSync('dist/index.d.ts', declarationContent);
+  console.log('✅ Basic declaration file created');
 
   console.log('✅ Build complete!');
 }

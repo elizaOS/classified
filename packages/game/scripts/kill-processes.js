@@ -12,7 +12,7 @@ async function killPortProcesses(ports) {
     try {
       console.log(`🔍 Checking port ${port}...`);
       const { stdout } = await execAsync(`lsof -ti:${port}`);
-      
+
       if (stdout.trim()) {
         console.log(`💀 Killing processes on port ${port}...`);
         await execAsync(`lsof -ti:${port} | xargs kill -9`);
@@ -36,12 +36,12 @@ async function killElizaProcesses() {
     'vite.*dev',
     'cypress'
   ];
-  
+
   for (const pattern of patterns) {
     try {
       console.log(`🔍 Looking for processes matching: ${pattern}`);
       const { stdout } = await execAsync(`pgrep -f "${pattern}"`);
-      
+
       if (stdout.trim()) {
         console.log(`💀 Killing ${pattern} processes...`);
         await execAsync(`pkill -f "${pattern}"`);
@@ -60,20 +60,20 @@ async function killElizaProcesses() {
 async function main() {
   console.log('🧹 ELIZA Process Cleaner');
   console.log('========================');
-  
+
   try {
     // Kill by port
     await killPortProcesses([7777, 5173, 5173]);
-    
+
     // Kill by process name
     await killElizaProcesses();
-    
+
     // Wait a moment for cleanup
     console.log('⏳ Waiting for cleanup...');
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     console.log('✅ Cleanup complete!');
-    
+
   } catch (error) {
     console.error('❌ Error during cleanup:', error);
     process.exit(1);

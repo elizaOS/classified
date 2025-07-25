@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import React from 'react';
-import { KnowledgeTab } from './ui/knowledge-tab.js';
+import { KnowledgeTab } from './ui/knowledge-tab';
 import type { UUID } from '@elizaos/core';
 
 const queryClient = new QueryClient();

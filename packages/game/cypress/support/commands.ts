@@ -25,7 +25,7 @@ Cypress.Commands.add('setupTestEnvironment', () => {
  */
 Cypress.Commands.add('waitForBackend', (timeout = 30000) => {
   const backendUrl = Cypress.env('BACKEND_URL') || Cypress.env('CYPRESS_BACKEND_URL') || 'http://localhost:7777';
-  
+
   cy.request({
     method: 'GET',
     url: `${backendUrl}/api/server/health`,
@@ -42,21 +42,21 @@ Cypress.Commands.add('waitForBackend', (timeout = 30000) => {
  */
 Cypress.Commands.add('clearTestData', () => {
   const backendUrl = Cypress.env('BACKEND_URL') || Cypress.env('CYPRESS_BACKEND_URL') || 'http://localhost:7777';
-  
+
   // Clear goals
   cy.request({
     method: 'DELETE',
     url: `${backendUrl}/api/goals/clear-test-data`,
     failOnStatusCode: false
   });
-  
+
   // Clear todos
   cy.request({
-    method: 'DELETE', 
+    method: 'DELETE',
     url: `${backendUrl}/api/todos/clear-test-data`,
     failOnStatusCode: false
   });
-  
+
   // Clear knowledge
   cy.request({
     method: 'DELETE',
@@ -70,7 +70,7 @@ Cypress.Commands.add('clearTestData', () => {
  */
 Cypress.Commands.add('seedTestData', () => {
   const backendUrl = Cypress.env('BACKEND_URL') || Cypress.env('CYPRESS_BACKEND_URL') || 'http://localhost:7777';
-  
+
   // Create test goals
   cy.request({
     method: 'POST',
@@ -82,13 +82,13 @@ Cypress.Commands.add('seedTestData', () => {
     },
     failOnStatusCode: false
   });
-  
+
   // Create test todos
   cy.request({
     method: 'POST',
     url: `${backendUrl}/api/todos`,
     body: {
-      name: 'Test Todo 1', 
+      name: 'Test Todo 1',
       type: 'one-off',
       isCompleted: false
     },

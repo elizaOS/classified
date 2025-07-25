@@ -1,6 +1,5 @@
 import {
   type Character,
-  DatabaseAdapter,
   type IAgentRuntime,
   logger,
   type UUID,
@@ -13,27 +12,30 @@ import * as fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path, { basename, dirname, extname, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
-import { createApiRouter, createPluginRouteHandler, setupSocketIO } from './api/index.js';
-import { apiKeyAuthMiddleware } from './authMiddleware.js';
-import { messageBusConnectorPlugin } from './services/message.js';
-import { loadCharacterTryPath, jsonToCharacter } from './loader.js';
+import { createApiRouter, createPluginRouteHandler, setupSocketIO } from './api/index';
+import { apiKeyAuthMiddleware } from './authMiddleware';
+import { messageBusConnectorPlugin } from './services/message';
+import { loadCharacterTryPath, jsonToCharacter } from './loader';
+import { ServerDatabaseAdapter } from './database/ServerDatabaseAdapter';
+import { ServerMigrationService } from './database/ServerMigrationService';
 
 import {
   createDatabaseAdapter,
   DatabaseMigrationService,
   plugin as sqlPlugin,
 } from '@elizaos/plugin-sql';
-import internalMessageBus from './bus.js';
+import internalMessageBus from './bus';
 import type {
   CentralRootMessage,
   MessageChannel,
   MessageServer,
   MessageServiceStructure,
-} from './types.js';
+} from './types';
 import { existsSync } from 'node:fs';
-import { resolveEnvFile } from './api/system/environment.js';
+import { resolveEnvFile } from './api/system/environment';
 import dotenv from 'dotenv';
 
 /**
@@ -151,7 +153,9 @@ export class AgentServer {
   private isWebUIEnabled: boolean = true; // Default to enabled until initialized
   private clientPath?: string; // Optional path to client dist files
 
-  public database!: DatabaseAdapter;
+  public database!: any; // This will be the agent database adapter (for compatibility)
+  private serverDatabase!: ServerDatabaseAdapter; // Server-specific database adapter
+  private db!: any; // Raw database connection
 
   public startAgent!: (character: Character) => Promise<IAgentRuntime>;
   public stopAgent!: (runtime: IAgentRuntime) => void;
@@ -197,36 +201,58 @@ export class AgentServer {
 
       const agentDataDir = resolvePgliteDir(options?.dataDir);
       logger.info(`[INIT] Database Dir for SQL plugin: ${agentDataDir}`);
-      this.database = createDatabaseAdapter(
+      
+      // Create a temporary database adapter just to get the raw database connection
+      const tempAdapter = createDatabaseAdapter(
         {
           dataDir: agentDataDir,
           postgresUrl: options?.postgresUrl,
         },
         '00000000-0000-0000-0000-000000000002'
-      ) as DatabaseAdapter;
-      await this.database.init();
-      logger.success('Consolidated database initialized successfully');
+      );
+      await tempAdapter.init();
+      
+      // Get the raw database connection
+      this.db = (tempAdapter as any).getDatabase();
+      
+      // Create the server-specific database adapter
+      this.serverDatabase = new ServerDatabaseAdapter(this.db);
+      
+      // Keep the agent database adapter for backward compatibility
+      this.database = tempAdapter;
+      
+      logger.success('Database connections initialized successfully');
 
-      // Run migrations for the SQL plugin schema
-      logger.info('[INIT] Running database migrations for messaging tables...');
+      // Run server-specific migrations first
+      logger.info('[INIT] Running server-specific database migrations...');
+      try {
+        const serverMigrationService = new ServerMigrationService(this.db);
+        await serverMigrationService.runMigrations();
+        logger.success('[INIT] Server migrations completed successfully');
+      } catch (migrationError) {
+        logger.error('[INIT] Failed to run server migrations:', migrationError);
+        throw new Error(
+          `Server migration failed: ${migrationError instanceof Error ? migrationError.message : String(migrationError)}`
+        );
+      }
+
+      // Then run plugin migrations for core ElizaOS tables
+      logger.info('[INIT] Running plugin migrations for core tables...');
       try {
         const migrationService = new DatabaseMigrationService();
+        await migrationService.initializeWithDatabase(this.db);
 
-        // Get the underlying database instance
-        const db = (this.database as any).getDatabase();
-        await migrationService.initializeWithDatabase(db);
-
-        // Register the SQL plugin schema
+        // Register the SQL plugin schema (includes all core tables)
         migrationService.discoverAndRegisterPluginSchemas([sqlPlugin]);
 
         // Run the migrations
         await migrationService.runAllPluginMigrations();
 
-        logger.success('[INIT] Database migrations completed successfully');
+        logger.success('[INIT] Plugin migrations completed successfully');
       } catch (migrationError) {
-        logger.error('[INIT] Failed to run database migrations:', migrationError);
+        logger.error('[INIT] Failed to run plugin migrations:', migrationError);
         throw new Error(
-          `Database migration failed: ${migrationError instanceof Error ? migrationError.message : String(migrationError)}`
+          `Plugin migration failed: ${migrationError instanceof Error ? migrationError.message : String(migrationError)}`
         );
       }
 
@@ -250,9 +276,9 @@ export class AgentServer {
 
   private async ensureDefaultServer(): Promise<void> {
     try {
-      // Check if the default server exists
+      // Check if the default server exists using server database
       logger.info('[AgentServer] Checking for default server...');
-      const servers = await (this.database as any).getMessageServers();
+      const servers = await this.serverDatabase.getMessageServers();
       logger.debug(`[AgentServer] Found ${servers.length} existing servers`);
 
       // Log all existing servers for debugging
@@ -269,39 +295,21 @@ export class AgentServer {
           '[AgentServer] Creating default server with UUID 00000000-0000-0000-0000-000000000000...'
         );
 
-        // Use raw SQL to ensure the server is created with the exact ID
         try {
-          await (this.database as any).db.execute(`
-            INSERT INTO message_servers (id, name, source_type, created_at, updated_at)
-            VALUES ('00000000-0000-0000-0000-000000000000', 'Default Server', 'eliza_default', NOW(), NOW())
-            ON CONFLICT (id) DO NOTHING
-          `);
-          logger.success('[AgentServer] Default server created via raw SQL');
-
-          // Immediately check if it was created
-          const checkResult = await (this.database as any).db.execute(
-            "SELECT id, name FROM message_servers WHERE id = '00000000-0000-0000-0000-000000000000'"
-          );
-          logger.debug('[AgentServer] Raw SQL check result:', checkResult);
-        } catch (sqlError: any) {
-          logger.error('[AgentServer] Raw SQL insert failed:', sqlError);
-
-          // Try creating with ORM as fallback
-          try {
-            const server = await (this.database as any).createMessageServer({
-              id: '00000000-0000-0000-0000-000000000000' as UUID,
-              name: 'Default Server',
-              sourceType: 'eliza_default',
-            });
-            logger.success('[AgentServer] Default server created via ORM with ID:', server.id);
-          } catch (ormError: any) {
-            logger.error('[AgentServer] Both SQL and ORM creation failed:', ormError);
-            throw new Error(`Failed to create default server: ${ormError.message}`);
-          }
+          const server = await this.serverDatabase.createMessageServer({
+            id: '00000000-0000-0000-0000-000000000000' as UUID,
+            name: 'Default Server',
+            sourceType: 'eliza_default',
+          });
+          logger.success('[AgentServer] Default server created with ID:', server.id);
+        } catch (error: any) {
+          logger.error('[AgentServer] Failed to create default server:', error);
+          throw new Error(`Failed to create default server: ${error.message}`);
+        }
         }
 
         // Verify it was created
-        const verifyServers = await (this.database as any).getMessageServers();
+        const verifyServers = await this.serverDatabase.getMessageServers();
         logger.debug(`[AgentServer] After creation attempt, found ${verifyServers.length} servers`);
         verifyServers.forEach((s: any) => {
           logger.debug(`[AgentServer] Server after creation: ID=${s.id}, Name=${s.name}`);
@@ -311,13 +319,10 @@ export class AgentServer {
           (s: any) => s.id === '00000000-0000-0000-0000-000000000000'
         );
         if (!verifyDefault) {
-          throw new Error(`Failed to create or verify default server with ID ${DEFAULT_SERVER_ID}`);
+          throw new Error(`Failed to create or verify default server with ID 00000000-0000-0000-0000-000000000000`);
         } else {
           logger.success('[AgentServer] Default server creation verified successfully');
         }
-      } else {
-        logger.info('[AgentServer] Default server already exists with ID:', defaultServer.id);
-      }
     } catch (error) {
       logger.error('[AgentServer] Error ensuring default server:', error);
       throw error; // Re-throw to prevent startup if default server can't be created
@@ -680,12 +685,12 @@ export class AgentServer {
               }
               // Also try npm root as fallback (some users might use npm)
               try {
-                const proc = Bun.spawnSync(['npm', 'root', '-g'], {
-                  stdout: 'pipe',
-                  stderr: 'pipe',
+                const proc = spawnSync('npm', ['root', '-g'], {
+                  encoding: 'utf8',
+                  stdio: 'pipe',
                 });
-                if (proc.exitCode === 0 && proc.stdout) {
-                  const npmRoot = new TextDecoder().decode(proc.stdout).trim();
+                if (proc.status === 0 && proc.stdout) {
+                  const npmRoot = proc.stdout.trim();
                   const globalServerPath = path.join(npmRoot, '@elizaos/server/dist/client');
                   if (existsSync(path.join(globalServerPath, 'index.html'))) {
                     return globalServerPath;

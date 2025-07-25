@@ -24,19 +24,19 @@ export function createServersRouter(serverInstance: AgentServer): express.Router
 
   // POST /servers - Create a new server
   (router as any).post('/servers', async (req: express.Request, res: express.Response) => {
-    const { name, sourceType, sourceId, metadata } = req.body;
+    const { name, source_type, sourceId, metadata } = req.body;
 
-    if (!name || !sourceType) {
+    if (!name || !source_type) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: name, sourceType',
+        error: 'Missing required fields: name, source_type',
       });
     }
 
     try {
       const server = await serverInstance.createServer({
         name,
-        sourceType,
+        source_type,
         sourceId,
         metadata,
       });

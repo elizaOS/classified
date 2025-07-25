@@ -9,8 +9,8 @@ import {
   ModelType,
   logger,
 } from '@elizaos/core';
-import { CharacterFileManager } from '../services/character-file-manager.js';
-import { extractJsonFromResponse } from '../utils/json-parser.js';
+import { CharacterFileManager } from '../services/character-file-manager';
+import { extractJsonFromResponse } from '../utils/json-parser';
 
 /**
  * Action for direct character modification based on user requests or self-reflection

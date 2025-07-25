@@ -43,6 +43,9 @@
   },
   "scripts": {
     "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "echo 'Config package is a library, no server to start'",
+    "test": "bun test",
     "lint": "prettier --write ./src",
     "format": "prettier --write ./src",
     "format:check": "prettier --check ./src"

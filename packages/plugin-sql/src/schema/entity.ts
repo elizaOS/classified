@@ -18,6 +18,9 @@ export const entityTable = pgTable(
     createdAt: timestamp('created_at')
       .default(sql`now()`)
       .notNull(),
+    updatedAt: timestamp('updated_at')
+      .default(sql`now()`)
+      .notNull(),
     names: text('names')
       .array()
       .default(sql`'{}'::text[]`)

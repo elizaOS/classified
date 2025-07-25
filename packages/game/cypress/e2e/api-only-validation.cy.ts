@@ -2,7 +2,7 @@
 
 /**
  * API-Only Knowledge Management Validation
- * 
+ *
  * This test validates the knowledge management API endpoints directly
  * without requiring the frontend to be running.
  */
@@ -30,7 +30,7 @@ describe('Knowledge Management API Validation (Backend Only)', () => {
     }).then((response) => {
       // Should return 200 with data or 401 for authentication
       expect([200, 401]).to.include(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).to.have.property('success');
         cy.log('✅ Documents endpoint accessible and returns data');
@@ -50,7 +50,7 @@ describe('Knowledge Management API Validation (Backend Only)', () => {
     }).then((response) => {
       // Should return 400 NO_FILE error or 401 auth error
       expect([400, 401]).to.include(response.status);
-      
+
       if (response.status === 400) {
         expect(response.body.error.code).to.equal('NO_FILE');
         cy.log('✅ Upload endpoint correctly validates file presence');
@@ -80,7 +80,7 @@ describe('Knowledge Management API Validation (Backend Only)', () => {
     cy.log('✅ READ (List): /knowledge/documents working correctly');
     cy.log('✅ DELETE: /knowledge/documents/:id endpoint accessible');
     cy.log('✅ ERROR HANDLING: Proper error responses implemented');
-    
+
     // Test passes if we reach this point
     expect(true).to.be.true;
   });

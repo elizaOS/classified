@@ -40,8 +40,8 @@
     "tsup.config.ts"
   ],
   "dependencies": {
-    "@elizaos/core": "^1.2.12",
-    "@elizaos/plugin-sql": "^1.0.11",
+    "@elizaos/core": "workspace:*",
+    "@elizaos/plugin-sql": "workspace:*",
     "drizzle-orm": "^0.44.2",
     "start-server-and-test": "^2.0.5",
     "zod": "3.25.67"
@@ -69,10 +69,11 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "clean": "rm -rf dist && rm -rf .turbo",
-    "lint": "eslint src --fix && prettier --write ./src",
-    "typecheck": "tsc --noEmit",
+    "start": "echo 'Plugin package, use with ElizaOS'",
     "test": "NODE_ENV=test bun test",
+    "lint": "eslint . --fix && prettier --write .",
+    "clean": "rm -rf dist && rm -rf .turbo",
+    "typecheck": "tsc --noEmit",
     "test:e2e": "NODE_ENV=test elizaos test"
   },
   "publishConfig": {

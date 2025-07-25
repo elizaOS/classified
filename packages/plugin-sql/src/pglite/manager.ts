@@ -8,10 +8,8 @@ import type { IDatabaseClientManager } from '../types';
  * @implements { IDatabaseClientManager }
  */
 export class PGliteClientManager implements IDatabaseClientManager<PGlite> {
-  private client: PGlite | null = null;
-  private clientPromise: Promise<PGlite> | null = null;
+  private client: PGlite;
   private shuttingDown = false;
-  private options: PGliteOptions;
 
   /**
    * Constructor for creating a new instance of PGlite with the provided options.
@@ -19,40 +17,17 @@ export class PGliteClientManager implements IDatabaseClientManager<PGlite> {
    * @param {PGliteOptions} options - The options to configure the PGlite client.
    */
   constructor(options: PGliteOptions) {
-    this.options = {
+    this.client = new PGlite({
       ...options,
       extensions: {
         vector,
         fuzzystrmatch,
       },
-    };
+    });
     this.setupShutdownHandlers();
   }
 
-  private async ensureClient(): Promise<PGlite> {
-    if (this.client) {
-      return this.client;
-    }
-    
-    if (!this.clientPromise) {
-      this.clientPromise = this.createClient();
-    }
-    
-    this.client = await this.clientPromise;
-    return this.client;
-  }
-
-  private async createClient(): Promise<PGlite> {
-    const client = new PGlite(this.options);
-    // Wait for PGLite to be ready
-    await client.ready;
-    return client;
-  }
-
   public getConnection(): PGlite {
-    if (!this.client) {
-      throw new Error('PGLiteClientManager not initialized. Call initialize() first.');
-    }
     return this.client;
   }
 
@@ -61,15 +36,11 @@ export class PGliteClientManager implements IDatabaseClientManager<PGlite> {
   }
 
   public async initialize(): Promise<void> {
-    // Ensure client is created and ready
-    await this.ensureClient();
+    // Kept for backward compatibility
   }
 
   public async close(): Promise<void> {
     this.shuttingDown = true;
-    if (this.client) {
-      await this.client.close();
-    }
   }
 
   private setupShutdownHandlers() {

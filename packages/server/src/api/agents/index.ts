@@ -6,6 +6,12 @@ import { createAgentLifecycleRouter } from './lifecycle';
 import { createAgentWorldsRouter } from './worlds';
 import { createAgentPanelsRouter } from './panels';
 import { createAgentLogsRouter } from './logs';
+import { createAgentCapabilitiesRouter } from './capabilities';
+import { createAgentGoalsRouter } from './goals';
+import { createAgentTodosRouter } from './todos';
+import { createAgentSettingsRouter } from './settings';
+import { createAgentKnowledgeRouter } from './knowledge';
+import { createAgentPluginsRouter } from './plugins';
 import { createAgentMemoryRouter } from '../memory/agents';
 import { createRoomManagementRouter } from '../memory/rooms';
 
@@ -32,6 +38,24 @@ export function agentsRouter(
 
   // Mount logs operations
   router.use('/', createAgentLogsRouter(agents));
+
+  // Mount capabilities management
+  router.use('/', createAgentCapabilitiesRouter(agents, serverInstance));
+
+  // Mount goals management
+  router.use('/', createAgentGoalsRouter(agents, serverInstance));
+
+  // Mount todos management
+  router.use('/', createAgentTodosRouter(agents, serverInstance));
+
+  // Mount settings management
+  router.use('/', createAgentSettingsRouter(agents, serverInstance));
+
+  // Mount knowledge management
+  router.use('/', createAgentKnowledgeRouter(agents, serverInstance));
+
+  // Mount plugin management
+  router.use('/', createAgentPluginsRouter(agents, serverInstance));
 
   // Mount memory operations
   router.use('/', createAgentMemoryRouter(agents));

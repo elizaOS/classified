@@ -40,9 +40,18 @@
     "tsup.config.ts"
   ],
   "dependencies": {
-    "@elizaos/core": "^1.2.12",
+    "@elizaos/core": "workspace:*",
+    "@elizaos/plugin-anthropic": "workspace:*",
     "@elizaos/plugin-discord": "1.0.10",
     "@elizaos/plugin-telegram": "1.0.4",
+    "@radix-ui/react-checkbox": "^1.1.2",
+    "@radix-ui/react-collapsible": "^1.1.1",
+    "@radix-ui/react-label": "^2.1.0",
+    "@radix-ui/react-select": "^2.1.2",
+    "@radix-ui/react-separator": "^1.1.0",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-tabs": "^1.1.1",
+    "class-variance-authority": "^0.7.0",
     "drizzle-orm": "^0.44.2",
     "start-server-and-test": "^2.0.5",
     "uuid": "^11.0.3",
@@ -65,10 +74,11 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "clean": "rm -rf dist && rm -rf .turbo",
-    "lint": "echo 'Linting disabled for plugin-goals due to ESLint config conflicts with ES modules' && prettier --write ./src",
-    "typecheck": "tsc --noEmit",
+    "start": "echo 'Plugin package, use with ElizaOS'",
     "test": "NODE_ENV=test bun test && NODE_ENV=test elizaos test",
+    "lint": "echo 'Linting disabled for plugin-goals due to ESLint config conflicts with ES modules' && prettier --write ./src",
+    "clean": "rm -rf dist && rm -rf .turbo",
+    "typecheck": "tsc --noEmit",
     "test:e2e": "NODE_ENV=test elizaos test"
   },
   "publishConfig": {

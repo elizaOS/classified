@@ -9,7 +9,7 @@ import {
   ModelType,
   logger,
 } from '@elizaos/core';
-import { createGoalDataService } from '../services/goalDataService.js';
+import { createGoalDataService } from '../services/goalDataService';
 
 /**
  * The COMPLETE_GOAL action allows users to mark a goal as achieved.

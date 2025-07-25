@@ -40,9 +40,8 @@
   ],
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.0",
-    "@elizaos/core": "^1.2.12",
+    "@elizaos/core": "workspace:*",
     "@elizaos/plugin-bootstrap": "workspace:*",
-    "@elizaos/plugin-e2b": "workspace:*",
     "@elizaos/plugin-sql": "workspace:*",
     "@elizaos/test-utils": "^1.2.12",
     "@octokit/rest": "^22.0.0",
@@ -71,7 +70,6 @@
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.40.1",
     "@elizaos/cli": "^1.2.12",
-    "@elizaos/plugin-e2b": "workspace:*",
     "@elizaos/plugin-forms": "workspace:*",
     "@elizaos/plugin-sql": "workspace:*",
     "@elizaos/plugin-github": "workspace:*",
@@ -85,14 +83,15 @@
   },
   "scripts": {
     "build": "bun run build.ts",
+    "dev": "bun run build.ts --watch",
+    "start": "echo 'Plugin package, use with ElizaOS'",
+    "test": "bun test && elizaos test",
+    "lint": "eslint --max-warnings 0 .",
     "check-types": "tsc --noEmit",
     "typecheck": "bun run check-types",
-    "dev": "bun run build.ts --watch",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
-    "lint": "eslint --max-warnings 0 .",
-    "lint:fix": "eslint --fix .",
-    "test": "bun test && elizaos test"
+    "lint:fix": "eslint --fix ."
   },
   "publishConfig": {
     "access": "public"

@@ -7,7 +7,7 @@ describe('Enhanced Agent Interactions Testing', () => {
       win.localStorage.setItem('skipBoot', 'true');
     });
     cy.visit('/', { timeout: 15000 });
-    
+
     // Wait for main interface and ensure agent is ready
     cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
     cy.get('[data-testid="autonomy-status"]', { timeout: 10000 }).should('exist');
@@ -17,20 +17,20 @@ describe('Enhanced Agent Interactions Testing', () => {
     it('should display goals interface and interact with agent about goals', () => {
       cy.get('[data-testid="goals-tab"]').click();
       cy.screenshot('agent-goals-initial');
-      
+
       // Verify goals tab is active and content is visible
       cy.get('[data-testid="goals-content"]').should('be.visible');
-      
+
       // Test sending a message about goals to the agent
       cy.get('[data-testid="chat-input"]').type('I want to learn about machine learning. Can you help me set some learning goals?{enter}');
-      
+
       // Wait for agent response
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Verify the message was sent and response received
       cy.get('[data-testid="chat-messages"]').should('contain', 'machine learning');
       cy.screenshot('agent-goal-conversation');
-      
+
       // Test navigation back to goals tab
       cy.get('[data-testid="goals-tab"]').click();
       cy.get('[data-testid="goals-content"]').should('be.visible');
@@ -43,7 +43,7 @@ describe('Enhanced Agent Interactions Testing', () => {
       // Test multiple goal-related conversations
       const goalTopics = [
         'Help me organize my daily schedule',
-        'Learn Spanish vocabulary', 
+        'Learn Spanish vocabulary',
         'Plan a healthy meal prep routine'
       ];
 
@@ -62,7 +62,7 @@ describe('Enhanced Agent Interactions Testing', () => {
       // Test tab navigation
       cy.get('[data-testid="todos-tab"]').click();
       cy.get('[data-testid="todos-content"]').should('be.visible');
-      
+
       cy.get('[data-testid="goals-tab"]').click();
       cy.get('[data-testid="goals-content"]').should('be.visible');
       cy.screenshot('agent-goal-navigation-working');
@@ -71,9 +71,9 @@ describe('Enhanced Agent Interactions Testing', () => {
     it('should handle photography conversation and UI testing', () => {
       // Start a conversation about interests
       cy.get('[data-testid="chat-input"]').type('I\'m interested in photography but I\'m a complete beginner{enter}');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Verify the conversation happened
       cy.get('[data-testid="chat-messages"]').should('contain', 'photography');
       cy.screenshot('agent-photography-conversation');
@@ -95,9 +95,9 @@ describe('Enhanced Agent Interactions Testing', () => {
 
       // Mention tasks in conversation
       cy.get('[data-testid="chat-input"]').type('I need to call my dentist, buy groceries, and finish my project report by Friday{enter}');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Verify conversation happened
       cy.get('[data-testid="chat-messages"]').should('contain', 'dentist');
       cy.get('[data-testid="chat-messages"]').should('contain', 'groceries');
@@ -109,15 +109,15 @@ describe('Enhanced Agent Interactions Testing', () => {
       // Test task conversation
       cy.get('[data-testid="chat-input"]').type('I need to clean the garage today{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       cy.get('[data-testid="todos-tab"]').click();
       cy.get('[data-testid="todos-content"]').should('be.visible');
 
       // Test more task conversation
       cy.get('[data-testid="chat-input"]').type('I started cleaning and made good progress{enter}');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Verify messages were sent
       cy.get('[data-testid="chat-messages"]').should('contain', 'garage');
       cy.get('[data-testid="chat-messages"]').should('contain', 'progress');
@@ -149,12 +149,12 @@ describe('Enhanced Agent Interactions Testing', () => {
 
     it('should handle complex task planning conversation', () => {
       cy.get('[data-testid="chat-input"]').type('I need to plan and execute a dinner party for 10 people{enter}');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Verify conversation about complex task happened
       cy.get('[data-testid="chat-messages"]').should('contain', 'dinner party');
-      
+
       // Test todos tab accessibility
       cy.get('[data-testid="todos-tab"]').click();
       cy.get('[data-testid="todos-content"]').should('be.visible');
@@ -176,7 +176,7 @@ describe('Enhanced Agent Interactions Testing', () => {
       cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
 
       cy.get('[data-testid="chat-input"]').type('Can you suggest a meal for dinner?{enter}');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
       // Agent should reference vegetarian preference and nut allergy
       cy.get('[data-testid="agent-message"]').should('contain.oneOf', ['vegetarian', 'no nuts', 'nut-free']);
@@ -184,7 +184,7 @@ describe('Enhanced Agent Interactions Testing', () => {
 
       // Test career context memory
       cy.get('[data-testid="chat-input"]').type('I\'m feeling stressed about work{enter}');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
       cy.get('[data-testid="agent-message"]').should('contain.oneOf', ['software', 'development', 'coding']);
     });
@@ -194,7 +194,7 @@ describe('Enhanced Agent Interactions Testing', () => {
       for (let i = 0; i < 3; i++) {
         cy.get('[data-testid="chat-input"]').type('Give me a quick summary of AI{enter}');
         cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-        
+
         cy.get('[data-testid="chat-input"]').type('That\'s too long, please be more concise{enter}');
         cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
         cy.wait(1000);
@@ -203,7 +203,7 @@ describe('Enhanced Agent Interactions Testing', () => {
       // Test if agent learned to be more concise
       cy.get('[data-testid="chat-input"]').type('Explain quantum computing{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Response should be notably shorter
       cy.get('[data-testid="agent-message"]').last().invoke('text').then((text) => {
         expect(text.length).to.be.lessThan(300); // Concise response
@@ -228,7 +228,7 @@ describe('Enhanced Agent Interactions Testing', () => {
 
       // Test if important events are still remembered
       cy.get('[data-testid="chat-input"]').type('What important things happened to me recently?{enter}');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
       cy.get('[data-testid="agent-message"]').should('contain.oneOf', ['birthday', '30', 'promoted', 'senior developer']);
       cy.screenshot('agent-long-term-memory');
@@ -247,7 +247,7 @@ describe('Enhanced Agent Interactions Testing', () => {
 
       // Test if agent makes connections
       cy.get('[data-testid="chat-input"]').type('Can you help me create a learning schedule?{enter}');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
       // Agent should connect: Python project + pandas/numpy + deadline + learning schedule
       cy.get('[data-testid="agent-message"]').should('contain.oneOf', ['Python', 'pandas', 'numpy']);
@@ -262,7 +262,7 @@ describe('Enhanced Agent Interactions Testing', () => {
       cy.get('[data-testid="monologue-tab"]').click();
       cy.get('[data-testid="monologue-content"]').should('be.visible');
       cy.screenshot('agent-monologue-tab');
-      
+
       // Test autonomy toggle functionality
       cy.get('[data-testid="autonomy-toggle"]').click();
       cy.get('[data-testid="autonomy-status"]').should('contain', 'Active');
@@ -280,14 +280,14 @@ describe('Enhanced Agent Interactions Testing', () => {
     it('should test goals conversation with autonomy enabled', () => {
       cy.get('[data-testid="autonomy-toggle"]').click();
       cy.get('[data-testid="autonomy-status"]').should('contain', 'Active');
-      
+
       // Test conversation about challenges and goals
       cy.get('[data-testid="chat-input"]').type('I\'m feeling overwhelmed. I have work deadlines, personal commitments, and I\'m not sleeping well{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
 
       // Verify conversation happened
       cy.get('[data-testid="chat-messages"]').should('contain', 'overwhelmed');
-      
+
       // Test goals tab navigation
       cy.get('[data-testid="goals-tab"]').click();
       cy.get('[data-testid="goals-content"]').should('be.visible');
@@ -302,9 +302,9 @@ describe('Enhanced Agent Interactions Testing', () => {
     it('should handle emotional conversation appropriately', () => {
       // Test emotional conversation
       cy.get('[data-testid="chat-input"]').type('I just lost my job today. I\'m really scared about the future{enter}');
-      
+
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Verify the conversation happened and agent responded
       cy.get('[data-testid="chat-messages"]').should('contain', 'job');
       cy.get('[data-testid="agent-message"]').should('be.visible');
@@ -313,7 +313,7 @@ describe('Enhanced Agent Interactions Testing', () => {
       // Test follow-up conversation
       cy.get('[data-testid="chat-input"]').type('Thanks, that helps a bit{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Verify follow-up conversation happened
       cy.get('[data-testid="chat-messages"]').should('contain', 'Thanks');
     });
@@ -326,10 +326,10 @@ describe('Enhanced Agent Interactions Testing', () => {
       // Test technical conversation
       cy.get('[data-testid="chat-input"]').type('Explain blockchain{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-      
+
       // Verify conversation happened
       cy.get('[data-testid="chat-messages"]').should('contain', 'blockchain');
-        
+
       // Test feedback
       cy.get('[data-testid="chat-input"]').type('Perfect level of detail, thank you!{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
@@ -337,7 +337,7 @@ describe('Enhanced Agent Interactions Testing', () => {
       // Test follow-up question
       cy.get('[data-testid="chat-input"]').type('Now explain machine learning{enter}');
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
-        
+
       // Verify all conversations happened
       cy.get('[data-testid="chat-messages"]').should('contain', 'machine learning');
       cy.screenshot('agent-multiple-exchanges');
@@ -351,7 +351,7 @@ describe('Enhanced Agent Interactions Testing', () => {
         cy.wrap($toggle).click();
       }
     });
-    
+
     cy.screenshot('agent-interaction-test-complete');
   });
 });

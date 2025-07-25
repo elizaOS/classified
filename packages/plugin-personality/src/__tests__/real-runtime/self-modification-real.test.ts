@@ -4,7 +4,7 @@ import {
   RealRuntimeTestRunner,
   RealRuntimeTestUtils,
   createRealTestRuntime,
-} from './real-runtime-test-infrastructure.js';
+} from './real-runtime-test-infrastructure';
 import { v4 as uuidv4 } from 'uuid';
 
 /**

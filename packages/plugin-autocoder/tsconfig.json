@@ -20,11 +20,7 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": "./src",
     "downlevelIteration": true,
-    "types": ["node", "bun"],
-    "paths": {
-      "@elizaos/plugin-e2b": ["../../plugin-e2b/dist"],
-      "@elizaos/plugin-e2b/*": ["../../plugin-e2b/dist/*"]
-    }
+    "types": ["node", "bun"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "build", "**/*.test.ts", "**/*.spec.ts"]

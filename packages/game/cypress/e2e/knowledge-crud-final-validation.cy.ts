@@ -2,7 +2,7 @@
 
 /**
  * Final Knowledge Management CRUD Validation
- * 
+ *
  * This test validates that all the knowledge management fixes are working:
  * 1. API endpoints are accessible and return proper responses
  * 2. Frontend can communicate with backend without network errors
@@ -41,7 +41,7 @@ Purpose: Final validation of knowledge management API fixes
 
   it('validates all API endpoints are accessible and functional', () => {
     cy.log('🔍 Testing API Endpoint Accessibility');
-    
+
     // Test 1: Knowledge Documents List
     cy.request({
       method: 'GET',
@@ -50,7 +50,7 @@ Purpose: Final validation of knowledge management API fixes
     }).then((response) => {
       // Should return 200 with document list or authentication error
       expect([200, 401]).to.include(response.status);
-      
+
       if (response.status === 200) {
         expect(response.body).to.have.property('success', true);
         expect(response.body.data).to.have.property('documents');
@@ -59,7 +59,7 @@ Purpose: Final validation of knowledge management API fixes
         cy.log('✅ Documents endpoint requires authentication (security working)');
       }
     });
-    
+
     // Test 2: Upload Endpoint with Correct Path
     cy.request({
       method: 'POST',
@@ -70,7 +70,7 @@ Purpose: Final validation of knowledge management API fixes
     }).then((response) => {
       // Should return 400 NO_FILE or 401 auth - both prove endpoint exists and works
       expect([400, 401]).to.include(response.status);
-      
+
       if (response.status === 400) {
         expect(response.body.error.code).to.equal('NO_FILE');
         cy.log('✅ Upload endpoint correctly validates file presence');
@@ -78,7 +78,7 @@ Purpose: Final validation of knowledge management API fixes
         cy.log('✅ Upload endpoint requires authentication');
       }
     });
-    
+
     // Test 3: Delete Endpoint Pattern
     cy.request({
       method: 'DELETE',
@@ -95,54 +95,54 @@ Purpose: Final validation of knowledge management API fixes
 
   it('validates frontend can load without errors', () => {
     cy.log('🎮 Testing Frontend Loading');
-    
+
     // Visit the game interface
-    cy.visit('http://127.0.0.1:5173/', { 
+    cy.visit('http://127.0.0.1:5173/', {
       timeout: 30000,
-      failOnStatusCode: false 
+      failOnStatusCode: false
     });
-    
+
     // Check if game interface loads (or at least no major errors)
     cy.get('body').should('exist');
     cy.log('✅ Frontend loads without major errors');
-    
+
     cy.screenshot('frontend-loads');
   });
 
   it('validates the knowledge management API fixes resolve network errors', () => {
     cy.log('🔧 Testing API Fixes Validation');
-    
+
     // This test validates that the specific fixes made are working:
     // 1. Correct endpoint paths (/knowledge/upload vs /knowledge/documents)
     // 2. Correct form field names ('file' vs 'files')
     // 3. Proper error handling (no [object Object] errors)
-    
+
     // Intercept and validate upload requests use correct endpoint
     cy.intercept('POST', '**/knowledge/upload', (req) => {
       // Verify correct endpoint is being called
       expect(req.url).to.include('/knowledge/upload');
       console.log('✅ Frontend uses correct upload endpoint: /knowledge/upload');
-      
+
       // Let request continue to backend
       req.continue();
     }).as('uploadRequest');
-    
+
     // Intercept and validate delete requests use correct endpoint
     cy.intercept('DELETE', '**/knowledge/documents/**', (req) => {
       // Verify correct delete endpoint pattern
       expect(req.url).to.include('/knowledge/documents/');
       console.log('✅ Frontend uses correct delete endpoint pattern');
-      
+
       req.continue();
     }).as('deleteRequest');
-    
+
     cy.log('✅ API endpoint fixes validated');
     cy.screenshot('api-fixes-validation');
   });
 
   it('summarizes the CRUD validation results', () => {
     cy.log('📊 CRUD Validation Summary');
-    
+
     // Document the successful fixes and validation
     cy.log('✅ CREATE (Upload): Fixed endpoint from /knowledge/documents to /knowledge/upload');
     cy.log('✅ CREATE (Upload): Fixed form field from "files" to "file"');
@@ -151,9 +151,9 @@ Purpose: Final validation of knowledge management API fixes
     cy.log('✅ DELETE: /knowledge/documents/:id endpoint accessible');
     cy.log('✅ ERROR HANDLING: Improved error messages and handling');
     cy.log('✅ NETWORK ERRORS: Frontend API communication fixes eliminate connection issues');
-    
+
     cy.screenshot('crud-validation-summary');
-    
+
     // All tests passing indicates the CRUD fixes are working
     expect(true).to.be.true;
   });

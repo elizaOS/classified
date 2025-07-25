@@ -1,24 +1,24 @@
 import type { Plugin } from '@elizaos/core';
 import { type IAgentRuntime, logger } from '@elizaos/core';
 
-import { routes } from './apis.js';
+import { routes } from './apis';
 
 // Import actions
-import { cancelGoalAction } from './actions/cancelGoal.js';
-import { completeGoalAction } from './actions/completeGoal.js';
-import { confirmGoalAction } from './actions/confirmGoal.js';
-import { createGoalAction } from './actions/createGoal.js';
-import { updateGoalAction } from './actions/updateGoal.js';
+import { cancelGoalAction } from './actions/cancelGoal';
+import { completeGoalAction } from './actions/completeGoal';
+import { confirmGoalAction } from './actions/confirmGoal';
+import { createGoalAction } from './actions/createGoal';
+import { updateGoalAction } from './actions/updateGoal';
 
 // Import providers
-import { goalsProvider } from './providers/goals.js';
+import { goalsProvider } from './providers/goals';
 
 // Import services
-import { GoalDataService, GoalDataManager } from './services/goalDataService.js';
-import { GoalInitializationService } from './services/goalInitializationService.js';
+import { GoalDataService, GoalDataManager } from './services/goalDataService';
+import { GoalInitializationService } from './services/goalInitializationService';
 
 // Import schema
-import { goalSchema } from './schema.js';
+import { goalSchema } from './schema';
 
 // Note: Table schemas are defined in schema.ts and will be automatically migrated
 
@@ -79,8 +79,8 @@ export const GoalsPlugin: Plugin = {
 export default GoalsPlugin;
 
 // Export data service utilities
-export { createGoalDataService, GoalDataService } from './services/goalDataService.js';
-export type { GoalData } from './services/goalDataService.js';
+export { createGoalDataService, GoalDataService } from './services/goalDataService';
+export type { GoalData } from './services/goalDataService';
 
 // Export schema
-export { goalSchema } from './schema.js';
+export { goalSchema } from './schema';

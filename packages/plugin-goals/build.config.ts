@@ -30,6 +30,7 @@ export const buildConfig: BuildConfig = {
     '// Externalize fs to use Node.js built-in module\n    path',
     '// Externalize other built-ins if necessary\n    https',
     '@elizaos/core',
+    'axios',
   ],
   naming: '[dir]/[name].[ext]',
 };

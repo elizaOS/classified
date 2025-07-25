@@ -1,0 +1,25 @@
+FROM ollama/ollama:latest
+
+# Set Ollama environment variables
+ENV OLLAMA_HOST=0.0.0.0
+ENV OLLAMA_PORT=11434
+
+# Pre-download commonly used models for ELIZA
+# Note: This significantly increases image size but enables offline operation
+RUN ollama serve & sleep 10 && \
+    ollama pull llama3.2:3b && \
+    ollama pull phi3:mini && \
+    pkill ollama
+
+# Create directory for persistent model storage
+RUN mkdir -p /root/.ollama
+
+# Expose Ollama API port
+EXPOSE 11434
+
+# Health check to ensure Ollama API is ready
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:11434/api/version || exit 1
+
+# Start Ollama service
+CMD ["ollama", "serve"]

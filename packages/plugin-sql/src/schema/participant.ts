@@ -1,14 +1,15 @@
-import { sql } from 'drizzle-orm';
-import { foreignKey, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { agentTable } from './agent';
+import {
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  index,
+} from 'drizzle-orm/pg-core';
 import { entityTable } from './entity';
 import { roomTable } from './room';
+import { agentTable } from './agent';
+import { sql } from 'drizzle-orm';
 
-/**
- * Defines the schema for the "participants" table in the database.
- *
- * @type {import('knex').TableBuilder}
- */
 export const participantTable = pgTable(
   'participants',
   {
@@ -19,30 +20,40 @@ export const participantTable = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true })
       .default(sql`now()`)
       .notNull(),
-    entityId: uuid('entityId').references(() => entityTable.id, {
+    entityId: uuid('entity_id').references(() => entityTable.id, {
       onDelete: 'cascade',
     }),
-    roomId: uuid('roomId').references(() => roomTable.id, {
+    roomId: uuid('room_id').references(() => roomTable.id, {
       onDelete: 'cascade',
     }),
-    agentId: uuid('agentId').references(() => agentTable.id, {
+    agentId: uuid('agent_id').references(() => agentTable.id, {
       onDelete: 'cascade',
     }),
-    roomState: text('roomState'),
+    roomState: text('room_state'),
   },
-  (table) => [
-    // unique("participants_user_room_agent_unique").on(table.entityId, table.roomId, table.agentId),
-    index('idx_participants_user').on(table.entityId),
-    index('idx_participants_room').on(table.roomId),
-    foreignKey({
-      name: 'fk_room',
-      columns: [table.roomId],
-      foreignColumns: [roomTable.id],
-    }).onDelete('cascade'),
-    foreignKey({
-      name: 'fk_user',
-      columns: [table.entityId],
-      foreignColumns: [entityTable.id],
-    }).onDelete('cascade'),
-  ]
+  (table) => ({
+    // Indexes for faster queries
+    entityIdx: index('participant_entity_idx').on(table.entityId),
+    roomIdx: index('participant_room_idx').on(table.roomId),
+    agentIdx: index('participant_agent_idx').on(table.agentId),
+    // Index for finding participants in a room
+    roomEntityIdx: index('participant_room_entity_idx').on(
+      table.roomId,
+      table.entityId,
+    ),
+    // Index for finding all rooms a participant is in
+    entityRoomIdx: index('participant_entity_room_idx').on(
+      table.entityId,
+      table.roomId,
+    ),
+  }),
 );
+
+export type Participant = typeof participantTable.$inferSelect;
+export type NewParticipant = typeof participantTable.$inferInsert;
+
+export const participantRelations = {
+  room: roomTable,
+  entity: entityTable,
+  agent: agentTable,
+};

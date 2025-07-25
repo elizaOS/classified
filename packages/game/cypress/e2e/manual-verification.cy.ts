@@ -1,6 +1,6 @@
 describe('Manual Verification - Check What Actually Works', () => {
   beforeEach(() => {
-    cy.visit('/', { 
+    cy.visit('/', {
       timeout: 30000,
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');
@@ -28,12 +28,12 @@ describe('Manual Verification - Check What Actually Works', () => {
     cy.get('[data-testid*="tab"]').then(($tabs) => {
       if ($tabs.length > 0) {
         cy.log('Found tabs:', $tabs.length);
-        
+
         // Try to click each tab
         $tabs.each((index, tab) => {
           const tabId = Cypress.$(tab).attr('data-testid');
           cy.log('Found tab:', tabId);
-          
+
           if (tabId) {
             cy.get(`[data-testid="${tabId}"]`).click();
             cy.screenshot(`02-tab-${tabId}`);
@@ -47,7 +47,7 @@ describe('Manual Verification - Check What Actually Works', () => {
 
     // Look for any content related to goals or todos
     cy.get('body').should('contain.text', 'ELIZA'); // Basic check that page loaded
-    
+
     // Take final screenshot
     cy.screenshot('03-final-state');
 

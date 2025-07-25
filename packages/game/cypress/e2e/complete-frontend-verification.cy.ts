@@ -20,13 +20,13 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
       win.localStorage.setItem('skipBoot', 'true');
       win.localStorage.setItem('disableWebSocket', 'true');
     });
-    
+
     // Visit with longer timeout and error handling
-    cy.visit('/', { 
+    cy.visit('/', {
       timeout: 30000,
       failOnStatusCode: false
     });
-    
+
     // Wait for initial loading
     cy.wait(3000);
   });
@@ -34,19 +34,19 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
   describe('1. Basic Frontend Loading', () => {
     it('should load the frontend and show the game interface', () => {
       cy.log('🔍 Testing: Frontend loads and shows game interface');
-      
+
       // Basic page load verification
       cy.get('body').should('be.visible');
       cy.get('body').should('not.be.empty');
-      
+
       // Look for game interface or main content
       cy.get('body').then(($body) => {
         const bodyText = $body.text();
-        const hasGameContent = bodyText.includes('ELIZA') || 
-                              bodyText.includes('Goals') || 
+        const hasGameContent = bodyText.includes('ELIZA') ||
+                              bodyText.includes('Goals') ||
                               bodyText.includes('Config') ||
                               $body.find('[data-testid]').length > 0;
-        
+
         if (hasGameContent) {
           cy.log('✅ Frontend shows game-related content');
         } else {
@@ -54,7 +54,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
           cy.log(`Body text sample: ${bodyText.substring(0, 200)}`);
         }
       });
-      
+
       cy.screenshot('01-frontend-loaded');
     });
   });
@@ -62,10 +62,10 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
   describe('2. Tab Navigation', () => {
     it('should find and test all main tabs', () => {
       cy.log('🔍 Testing: Tab navigation and existence');
-      
+
       // Wait for interface to load completely
       cy.wait(2000);
-      
+
       // Look for tabs by common patterns
       const tabSelectors = [
         '[data-testid*="tab"]',
@@ -77,15 +77,15 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
         'div:contains("Goals")',
         'div:contains("Todos")'
       ];
-      
+
       let foundTabs = false;
-      
+
       tabSelectors.forEach((selector, index) => {
         cy.get('body').then(($body) => {
           if ($body.find(selector).length > 0) {
             cy.log(`✅ Found tabs with selector: ${selector}`);
             foundTabs = true;
-            
+
             // Try clicking on found tabs
             cy.get(selector).first().then(($tab) => {
               if ($tab.is(':visible')) {
@@ -97,7 +97,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
           }
         });
       });
-      
+
       cy.screenshot('02-tab-navigation');
     });
   });
@@ -105,7 +105,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
   describe('3. Chat Interface Testing', () => {
     it('should find and test chat functionality', () => {
       cy.log('🔍 Testing: Chat interface functionality');
-      
+
       // Look for chat elements with multiple selectors
       const chatSelectors = [
         '[data-testid*="chat"]',
@@ -116,21 +116,21 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
         '#chat-input',
         'input[type="text"]'
       ];
-      
+
       let foundChatInput = false;
-      
+
       chatSelectors.forEach((selector) => {
         cy.get('body').then(($body) => {
           if ($body.find(selector).length > 0) {
             cy.log(`✅ Found chat input with selector: ${selector}`);
             foundChatInput = true;
-            
+
             // Test typing in chat input
             cy.get(selector).first().then(($input) => {
               if ($input.is(':visible')) {
                 cy.wrap($input).clear().type('Test message for UI verification', { force: true });
                 cy.log('✅ Successfully typed in chat input');
-                
+
                 // Look for send button
                 cy.get('body').then(($body2) => {
                   const sendSelectors = [
@@ -139,7 +139,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
                     'button[type="submit"]',
                     '.send-button'
                   ];
-                  
+
                   sendSelectors.forEach((sendSelector) => {
                     if ($body2.find(sendSelector).length > 0) {
                       cy.log(`✅ Found send button: ${sendSelector}`);
@@ -154,11 +154,11 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
           }
         });
       });
-      
+
       if (!foundChatInput) {
         cy.log('⚠️ No chat input found - may need different interface state');
       }
-      
+
       cy.screenshot('03-chat-interface');
     });
   });
@@ -166,13 +166,13 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
   describe('4. Goals Tab Data Verification', () => {
     it('should verify Goals tab shows backend data', () => {
       cy.log('🔍 Testing: Goals tab displays backend data');
-      
+
       // First get backend goals data
       cy.request('GET', 'http://localhost:7777/api/goals').then((response) => {
         expect(response.status).to.eq(200);
         const goalsData = Array.isArray(response.body) ? response.body : response.body.data || [];
         cy.log(`Backend has ${goalsData.length} goals`);
-        
+
         // Now find Goals tab
         const goalSelectors = [
           'button:contains("Goals")',
@@ -181,22 +181,22 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
           '.goals-tab',
           '#goals-tab'
         ];
-        
+
         let foundGoalsTab = false;
-        
+
         goalSelectors.forEach((selector) => {
           cy.get('body').then(($body) => {
             if ($body.find(selector).length > 0 && !foundGoalsTab) {
               foundGoalsTab = true;
               cy.log(`✅ Found Goals tab: ${selector}`);
-              
+
               cy.get(selector).first().click({ force: true });
               cy.wait(2000);
-              
+
               // Check if goals content is displayed
               cy.get('body').then(($body2) => {
                 const bodyText = $body2.text();
-                
+
                 if (goalsData.length > 0) {
                   // Check if any goal titles appear in the UI
                   let goalsDisplayed = false;
@@ -206,7 +206,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
                       cy.log(`✅ Found goal in UI: ${goal.name}`);
                     }
                   });
-                  
+
                   if (!goalsDisplayed) {
                     cy.log('⚠️ Goals data from backend not visible in UI');
                     cy.log(`UI text sample: ${bodyText.substring(0, 300)}`);
@@ -218,12 +218,12 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
             }
           });
         });
-        
+
         if (!foundGoalsTab) {
           cy.log('⚠️ No Goals tab found in UI');
         }
       });
-      
+
       cy.screenshot('04-goals-tab');
     });
   });
@@ -231,12 +231,12 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
   describe('5. Todos Tab Data Verification', () => {
     it('should verify Todos tab shows backend data', () => {
       cy.log('🔍 Testing: Todos tab displays backend data');
-      
+
       // First get backend todos data
       cy.request('GET', 'http://localhost:7777/api/todos').then((response) => {
         expect(response.status).to.eq(200);
         cy.log('Backend todos API accessible');
-        
+
         // Now find Todos tab
         const todoSelectors = [
           'button:contains("Todos")',
@@ -246,22 +246,22 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
           'div:contains("Todos")',
           'div:contains("Tasks")'
         ];
-        
+
         let foundTodosTab = false;
-        
+
         todoSelectors.forEach((selector) => {
           cy.get('body').then(($body) => {
             if ($body.find(selector).length > 0 && !foundTodosTab) {
               foundTodosTab = true;
               cy.log(`✅ Found Todos tab: ${selector}`);
-              
+
               cy.get(selector).first().click({ force: true });
               cy.wait(2000);
-              
+
               // Check if todos content is displayed
               cy.get('body').then(($body2) => {
                 const bodyText = $body2.text();
-                
+
                 if (bodyText.includes('todo') || bodyText.includes('task') || bodyText.includes('Task') || bodyText.includes('TODO')) {
                   cy.log('✅ Todos content appears in UI');
                 } else {
@@ -272,12 +272,12 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
             }
           });
         });
-        
+
         if (!foundTodosTab) {
           cy.log('⚠️ No Todos tab found in UI');
         }
       });
-      
+
       cy.screenshot('05-todos-tab');
     });
   });
@@ -285,7 +285,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
   describe('6. Config Tab and Capability Toggles', () => {
     it('should verify Config tab and capability toggles work', () => {
       cy.log('🔍 Testing: Config tab and capability toggles');
-      
+
       // Find Config tab
       const configSelectors = [
         'button:contains("Config")',
@@ -294,18 +294,18 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
         '[data-testid*="settings"]',
         'div:contains("Config")'
       ];
-      
+
       let foundConfigTab = false;
-      
+
       configSelectors.forEach((selector) => {
         cy.get('body').then(($body) => {
           if ($body.find(selector).length > 0 && !foundConfigTab) {
             foundConfigTab = true;
             cy.log(`✅ Found Config tab: ${selector}`);
-            
+
             cy.get(selector).first().click({ force: true });
             cy.wait(2000);
-            
+
             // Look for capability toggles
             const toggleSelectors = [
               'input[type="checkbox"]',
@@ -315,16 +315,16 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
               '.toggle',
               '.switch'
             ];
-            
+
             let foundToggles = 0;
-            
+
             toggleSelectors.forEach((toggleSelector) => {
               cy.get('body').then(($body2) => {
                 const toggleCount = $body2.find(toggleSelector).length;
                 if (toggleCount > 0) {
                   foundToggles += toggleCount;
                   cy.log(`✅ Found ${toggleCount} toggles with: ${toggleSelector}`);
-                  
+
                   // Test clicking the first toggle
                   cy.get(toggleSelector).first().then(($toggle) => {
                     if ($toggle.is(':visible')) {
@@ -332,7 +332,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
                       cy.wrap($toggle).click({ force: true });
                       cy.wait(500);
                       cy.log('✅ Successfully clicked capability toggle');
-                      
+
                       // Verify state changed
                       cy.wrap($toggle).then(($toggle2) => {
                         const newState = $toggle2.prop('checked') || $toggle2.attr('aria-checked');
@@ -345,16 +345,16 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
                 }
               });
             });
-            
+
             cy.log(`Found ${foundToggles} total capability toggles`);
           }
         });
       });
-      
+
       if (!foundConfigTab) {
         cy.log('⚠️ No Config tab found in UI');
       }
-      
+
       cy.screenshot('06-config-toggles');
     });
   });
@@ -362,7 +362,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
   describe('7. Files Tab Testing', () => {
     it('should verify Files tab and upload functionality', () => {
       cy.log('🔍 Testing: Files tab and upload functionality');
-      
+
       // Find Files tab
       const filesSelectors = [
         'button:contains("Files")',
@@ -371,18 +371,18 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
         '[data-testid*="knowledge"]',
         'div:contains("Files")'
       ];
-      
+
       let foundFilesTab = false;
-      
+
       filesSelectors.forEach((selector) => {
         cy.get('body').then(($body) => {
           if ($body.find(selector).length > 0 && !foundFilesTab) {
             foundFilesTab = true;
             cy.log(`✅ Found Files tab: ${selector}`);
-            
+
             cy.get(selector).first().click({ force: true });
             cy.wait(2000);
-            
+
             // Look for file upload elements
             const uploadSelectors = [
               'input[type="file"]',
@@ -391,7 +391,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
               '.file-upload',
               '[data-testid*="upload"]'
             ];
-            
+
             uploadSelectors.forEach((uploadSelector) => {
               cy.get('body').then(($body2) => {
                 if ($body2.find(uploadSelector).length > 0) {
@@ -399,7 +399,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
                 }
               });
             });
-            
+
             // Check for file list
             cy.get('body').then(($body2) => {
               const bodyText = $body2.text();
@@ -412,11 +412,11 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
           }
         });
       });
-      
+
       if (!foundFilesTab) {
         cy.log('⚠️ No Files tab found in UI');
       }
-      
+
       cy.screenshot('07-files-tab');
     });
   });
@@ -424,8 +424,8 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
   describe('8. Final Integration Verification', () => {
     it('should provide complete assessment of UI functionality', () => {
       cy.log('📊 Final Assessment: Complete UI functionality verification');
-      
-      let results = {
+
+      const results = {
         frontendLoads: false,
         tabsFound: false,
         chatWorks: false,
@@ -435,13 +435,13 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
         filesTabWorks: false,
         backendConnected: true
       };
-      
+
       // Test frontend loading
       cy.get('body').should('be.visible').then(() => {
         results.frontendLoads = true;
         cy.log('✅ Frontend loads successfully');
       });
-      
+
       // Test for any tabs
       const allTabSelectors = [
         '[data-testid*="tab"]',
@@ -450,7 +450,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
         'button:contains("Config")',
         'button:contains("Files")'
       ];
-      
+
       allTabSelectors.forEach((selector) => {
         cy.get('body').then(($body) => {
           if ($body.find(selector).length > 0) {
@@ -458,7 +458,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
           }
         });
       });
-      
+
       // Test for chat
       cy.get('body').then(($body) => {
         const chatSelectors = ['input[type="text"]', 'textarea', '[data-testid*="chat"]'];
@@ -468,7 +468,7 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
           }
         });
       });
-      
+
       // Backend connectivity test
       cy.request({
         method: 'GET',
@@ -477,22 +477,22 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
       }).then((response) => {
         results.backendConnected = response.status === 200;
       });
-      
+
       // Final assessment
       cy.then(() => {
         const workingFeatures = Object.values(results).filter(r => r).length;
         const totalFeatures = Object.keys(results).length;
-        
+
         cy.log('');
         cy.log('📊 COMPLETE UI ASSESSMENT RESULTS:');
         cy.log(`${workingFeatures}/${totalFeatures} UI features working`);
         cy.log('');
-        
+
         Object.entries(results).forEach(([feature, works]) => {
           const status = works ? '✅' : '❌';
           cy.log(`${status} ${feature}: ${works ? 'WORKING' : 'NOT WORKING'}`);
         });
-        
+
         if (workingFeatures === totalFeatures) {
           cy.log('');
           cy.log('🎉 ALL UI FEATURES WORKING - 100% SUCCESS!');
@@ -500,11 +500,11 @@ describe('Complete Frontend UI Verification - All Tabs', () => {
           cy.log('');
           cy.log(`⚠️ ${totalFeatures - workingFeatures} UI features need attention`);
         }
-        
+
         // Store results for final verification
         cy.wrap(results).as('finalResults');
       });
-      
+
       cy.screenshot('08-final-assessment');
     });
   });

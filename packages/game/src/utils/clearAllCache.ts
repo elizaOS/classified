@@ -1,78 +1,64 @@
-// Aggressive cache clearing utility
+/**
+ * Clear all browser cache and storage
+ */
 export async function clearAllCache() {
-  console.log('🧹 Starting aggressive cache clear...');
-  
-  // 1. Clear localStorage
-  try {
-    localStorage.clear();
-    console.log('✅ localStorage cleared');
-  } catch (e) {
-    console.error('Failed to clear localStorage:', e);
-  }
+  console.log('🧹 Starting complete cache and storage cleanup...');
 
-  // 2. Clear sessionStorage
-  try {
-    sessionStorage.clear();
-    console.log('✅ sessionStorage cleared');
-  } catch (e) {
-    console.error('Failed to clear sessionStorage:', e);
-  }
+  // Clear localStorage
+  localStorage.clear();
+  console.log('✅ localStorage cleared');
 
-  // 3. Clear IndexedDB
-  try {
-    const databases = await indexedDB.databases();
-    for (const db of databases) {
-      if (db.name) {
-        await indexedDB.deleteDatabase(db.name);
-        console.log(`✅ Deleted IndexedDB: ${db.name}`);
-      }
-    }
-  } catch (e) {
-    console.error('Failed to clear IndexedDB:', e);
-  }
+  // Clear sessionStorage
+  sessionStorage.clear();
+  console.log('✅ sessionStorage cleared');
 
-  // 4. Unregister all service workers
-  try {
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const registration of registrations) {
-        await registration.unregister();
-        console.log(`✅ Unregistered service worker: ${registration.scope}`);
-      }
-    }
-  } catch (e) {
-    console.error('Failed to unregister service workers:', e);
-  }
+  // Clear cookies for current domain
+  document.cookie.split(';').forEach((c) => {
+    document.cookie = c
+      .replace(/^ +/, '')
+      .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
+  });
+  console.log('✅ Cookies cleared');
 
-  // 5. Clear all caches (service worker caches)
-  try {
-    if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      for (const cacheName of cacheNames) {
-        await caches.delete(cacheName);
-        console.log(`✅ Deleted cache: ${cacheName}`);
-      }
-    }
-  } catch (e) {
-    console.error('Failed to clear caches:', e);
-  }
+  // Clear IndexedDB
+  const databases = await indexedDB.databases();
+  await Promise.all(
+    databases.map((db) => db.name && indexedDB.deleteDatabase(db.name))
+  );
+  console.log('✅ IndexedDB cleared');
 
-  // 6. Clear cookies for localhost
-  try {
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c
-        .replace(/^ +/, "")
-        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+  // Clear cache storage
+  const cacheNames = await caches.keys();
+  await Promise.all(cacheNames.map((name) => caches.delete(name)));
+  console.log('✅ Cache storage cleared');
+
+  // Clear WebSQL (deprecated but might still exist)
+  // @ts-ignore - WebSQL is deprecated
+  if (window.openDatabase) {
+    // @ts-ignore
+    const db = window.openDatabase('', '', '', '');
+    db.transaction((tx: any) => {
+      tx.executeSql(
+        "SELECT name FROM sqlite_master WHERE type='table'",
+        [],
+        (_: any, result: any) => {
+          for (let i = 0; i < result.rows.length; i++) {
+            const tableName = result.rows.item(i).name;
+            if (tableName !== '__WebKitDatabaseInfoTable__') {
+              tx.executeSql(`DROP TABLE ${tableName}`);
+            }
+          }
+        }
+      );
     });
-    console.log('✅ Cookies cleared');
-  } catch (e) {
-    console.error('Failed to clear cookies:', e);
+    console.log('✅ WebSQL cleared');
   }
 
-  console.log('🎉 Cache clear complete! Reloading...');
-  
-  // Force reload without cache
+  console.log('🎉 All cache and storage cleared successfully!');
+  console.log('⚠️  Page will reload to apply changes...');
+
+  // Force reload to ensure clean state
   setTimeout(() => {
     window.location.reload();
-  }, 100);
-} 
+  }, 1000);
+}

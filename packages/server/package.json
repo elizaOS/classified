@@ -30,12 +30,14 @@
   },
   "scripts": {
     "build": "tsup",
-    "type-check": "tsc --project tsconfig.build.json --noEmit",
+    "dev": "tsup --watch",
+    "start": "echo 'Server package, build first then run the built output'",
+    "test": "bun test src/**/*.test.ts",
     "lint": "prettier --write ./src",
+    "type-check": "tsc --project tsconfig.build.json --noEmit",
     "format": "prettier --write ./src",
     "format:check": "prettier --check ./src",
     "clean": "rm -rf dist .turbo node_modules .turbo-tsconfig.json tsconfig.tsbuildinfo",
-    "test": "bun test src/**/*.test.ts",
     "test:unit": "bun test src/**/*.test.ts --exclude **/integration/**",
     "test:integration": "bun test src/__tests__/integration/**/*.test.ts",
     "test:coverage": "bun test --coverage",
@@ -53,9 +55,12 @@
     "ws": "^8.18.0"
   },
   "gitHead": "991b811b95d08df421efc4f516d0cfb52c4a83b3",
+  "peerDependencies": {
+    "@elizaos/core": "workspace:*"
+  },
   "dependencies": {
-    "@elizaos/core": "1.2.12",
-    "@elizaos/plugin-sql": "1.2.12",
+    "@elizaos/plugin-sql": "workspace:*",
+    "@elizaos/core": "workspace:*",
     "@types/express": "^5.0.2",
     "@types/helmet": "^4.0.0",
     "@types/multer": "^1.4.13",

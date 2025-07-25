@@ -6,7 +6,7 @@
  */
 
 import { logger } from '@elizaos/core';
-import { GoalDataManager } from './src/services/goalDataService.js';
+import { GoalDataManager } from './src/services/goalDataService';
 
 // Mock runtime with minimal database adapter
 const mockRuntime = {

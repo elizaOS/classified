@@ -16,16 +16,16 @@ import internalMessageBus from '../bus'; // Import the bus
 // This interface defines the structure of messages coming from the server
 export interface MessageServiceMessage {
   id: UUID; // root_message.id
-  channel_id: UUID;
-  server_id: UUID;
-  author_id: UUID; // UUID of a central user identity
-  author_display_name?: string; // Display name from central user identity
+  channelId: UUID;
+  serverId: UUID;
+  authorId: UUID; // UUID of a central user identity
+  authorDisplayName?: string; // Display name from central user identity
   content: string;
-  raw_message?: any;
-  source_id?: string; // original platform message ID
-  source_type?: string;
-  in_reply_to_message_id?: UUID;
-  created_at: number;
+  rawMessage?: any;
+  sourceId?: string; // original platform message ID
+  sourceType?: string;
+  inReplyToMessageId?: UUID;
+  createdAt: number;
   metadata?: any;
 }
 
@@ -289,20 +289,20 @@ export class MessageBusService extends Service {
   }
 
   private async validateServerSubscription(message: MessageServiceMessage): Promise<boolean> {
-    if (!this.subscribedServers.has(message.server_id)) {
+    if (!this.subscribedServers.has(message.serverId)) {
       logger.debug(
-        `[${this.runtime.character.name}] MessageBusService: Agent not subscribed to server ${message.server_id}, ignoring message`
+        `[${this.runtime.character.name}] MessageBusService: Agent not subscribed to server ${message.serverId}, ignoring message`
       );
       return false;
     }
     logger.info(
-      `[${this.runtime.character.name}] MessageBusService: Passed server subscription check for ${message.server_id}`
+      `[${this.runtime.character.name}] MessageBusService: Passed server subscription check for ${message.serverId}`
     );
     return true;
   }
 
   private async validateNotSelfMessage(message: MessageServiceMessage): Promise<boolean> {
-    if (message.author_id === this.runtime.agentId) {
+    if (message.authorId === this.runtime.agentId) {
       logger.debug(
         `[${this.runtime.character.name}] MessageBusService: Agent is the author of the message, ignoring message`
       );
@@ -314,15 +314,15 @@ export class MessageBusService extends Service {
   private async ensureWorldAndRoomExist(
     message: MessageServiceMessage
   ): Promise<{ agentWorldId: UUID; agentRoomId: UUID }> {
-    const agentWorldId = createUniqueUuid(this.runtime, message.server_id);
-    const agentRoomId = createUniqueUuid(this.runtime, message.channel_id);
+    const agentWorldId = createUniqueUuid(this.runtime, message.serverId);
+    const agentRoomId = createUniqueUuid(this.runtime, message.channelId);
 
     try {
       await this.runtime.ensureWorldExists({
         id: agentWorldId,
-        name: message.metadata?.serverName || `Server ${message.server_id.substring(0, 8)}`,
+        name: message.metadata?.serverName || `Server ${message.serverId.substring(0, 8)}`,
         agentId: this.runtime.agentId,
-        serverId: message.server_id,
+        serverId: message.serverId,
         metadata: {
           ...(message.metadata?.serverMetadata || {}),
         },
@@ -340,12 +340,12 @@ export class MessageBusService extends Service {
     try {
       await this.runtime.ensureRoomExists({
         id: agentRoomId,
-        name: message.metadata?.channelName || `Channel ${message.channel_id.substring(0, 8)}`,
+        name: message.metadata?.channelName || `Channel ${message.channelId.substring(0, 8)}`,
         agentId: this.runtime.agentId,
         worldId: agentWorldId,
-        channelId: message.channel_id,
-        serverId: message.server_id,
-        source: message.source_type || 'central-bus',
+        channelId: message.channelId,
+        serverId: message.serverId,
+        source: message.sourceType || 'central-bus',
         type: message.metadata?.channelType || ChannelType.GROUP,
         metadata: {
           ...(message.metadata?.channelMetadata || {}),
@@ -365,17 +365,17 @@ export class MessageBusService extends Service {
   }
 
   private async ensureAuthorEntityExists(message: MessageServiceMessage): Promise<UUID> {
-    const agentAuthorEntityId = createUniqueUuid(this.runtime, message.author_id);
+    const agentAuthorEntityId = createUniqueUuid(this.runtime, message.authorId);
 
     const authorEntity = await this.runtime.getEntityById(agentAuthorEntityId);
     if (!authorEntity) {
       await this.runtime.createEntity({
         id: agentAuthorEntityId,
-        names: [message.author_display_name || `User-${message.author_id.substring(0, 8)}`],
+        names: [message.authorDisplayName || `User-${message.authorId.substring(0, 8)}`],
         agentId: this.runtime.agentId,
         metadata: {
-          author_id: message.author_id,
-          source: message.source_type,
+          authorId: message.authorId,
+          source: message.sourceType,
         },
       });
     }
@@ -393,8 +393,8 @@ export class MessageBusService extends Service {
       text: message.content,
       source: message.source_type || 'central-bus',
       attachments: message.metadata?.attachments,
-      inReplyTo: message.in_reply_to_message_id
-        ? createUniqueUuid(this.runtime, message.in_reply_to_message_id)
+      inReplyTo: message.inReplyToMessageId
+        ? createUniqueUuid(this.runtime, message.inReplyToMessageId)
         : undefined,
     };
 
@@ -405,15 +405,15 @@ export class MessageBusService extends Service {
       roomId: agentRoomId,
       worldId: agentWorldId,
       content: messageContent,
-      createdAt: message.created_at,
+      createdAt: message.createdAt,
       metadata: {
         type: 'message',
         source: message.source_type || 'central-bus',
         sourceId: message.id,
         raw: {
-          ...message.raw_message,
-          senderName: message.author_display_name || `User-${message.author_id.substring(0, 8)}`,
-          senderId: message.author_id,
+          ...message.rawMessage,
+          senderName: message.authorDisplayName || `User-${message.authorId.substring(0, 8)}`,
+          senderId: message.authorId,
         },
       },
     };
@@ -445,7 +445,7 @@ export class MessageBusService extends Service {
     }
 
     // Transform the channel_id to the agent-specific room ID
-    const agentRoomId = createUniqueUuid(this.runtime, message.channel_id);
+    const agentRoomId = createUniqueUuid(this.runtime, message.channelId);
 
     // Check if the agent is a participant in the transformed room ID
     try {
@@ -454,10 +454,10 @@ export class MessageBusService extends Service {
       
       if (!isParticipant) {
         // Also check the original channel participants as a fallback
-        const channelParticipants = await this.getChannelParticipants(message.channel_id);
+        const channelParticipants = await this.getChannelParticipants(message.channelId);
         if (!channelParticipants.includes(this.runtime.agentId)) {
           logger.info(
-            `[${this.runtime.character.name}] MessageBusService: Agent not a participant in channel ${message.channel_id} (room: ${agentRoomId}), continuing anyway`
+            `[${this.runtime.character.name}] MessageBusService: Agent not a participant in channel ${message.channelId} (room: ${agentRoomId}), continuing anyway`
           );
           // return;
         }
@@ -468,7 +468,7 @@ export class MessageBusService extends Service {
     }
 
     logger.info(
-      `[${this.runtime.character.name} - ${this.runtime.agentId}] MessageBusService: Agent is a participant in channel ${message.channel_id}, proceeding with message processing`
+      `[${this.runtime.character.name} - ${this.runtime.agentId}] MessageBusService: Agent is a participant in channel ${message.channelId}, proceeding with message processing`
     );
 
     try {
@@ -665,13 +665,13 @@ export class MessageBusService extends Service {
       }
 
       const payloadToServer = {
-        channel_id: channelId,
-        server_id: serverId,
-        author_id: this.runtime.agentId, // This needs careful consideration: is it the agent's core ID or a specific central identity for the agent?
+        channelId: channelId,
+        serverId: serverId,
+        authorId: this.runtime.agentId, // This needs careful consideration: is it the agent's core ID or a specific central identity for the agent?
         content: content.text,
-        in_reply_to_message_id: centralInReplyToRootMessageId,
+        inReplyToMessageId: centralInReplyToRootMessageId,
         source_type: 'agent_response',
-        raw_message: {
+        rawMessage: {
           text: content.text,
           thought: content.thought,
           actions: content.actions,
@@ -724,7 +724,7 @@ export class MessageBusService extends Service {
       await fetch(completeUrl.toString(), {
         method: 'POST',
         headers: this.getAuthHeaders(),
-        body: JSON.stringify({ channel_id: channelId, server_id: serverId }),
+        body: JSON.stringify({ channelId: channelId, serverId: serverId }),
       });
     } catch (error) {
       logger.warn(

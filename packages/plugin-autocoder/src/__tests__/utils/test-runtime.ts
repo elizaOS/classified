@@ -1,17 +1,17 @@
 import { 
-  AgentRuntime,
-  type IAgentRuntime,
+  AgentRuntime, 
+  type IAgentRuntime, 
+  type UUID,
   type Character,
   type Plugin,
-  type UUID,
-  elizaLogger
+  elizaLogger,
+  type IDatabaseAdapter
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
-import sqlPlugin from '@elizaos/plugin-sql';
-import { formsPlugin } from '@elizaos/plugin-forms';
-import { e2bPlugin } from '@elizaos/plugin-e2b';
-import { openaiPlugin } from '@elizaos/plugin-openai';
-import { autocoderPlugin } from '../../index';
+import path from 'path';
+import { existsSync, mkdirSync, rmSync } from 'fs';
+import formsPlugin from '../../../../plugin-forms/src';
+import sqlPlugin from '../../../../plugin-sql/src';
 
 export interface TestRuntimeOptions {
   character?: Partial<Character>;
@@ -26,53 +26,51 @@ export interface TestRuntimeResult {
 }
 
 /**
- * Creates a real runtime instance for testing with proper database and plugin initialization
+ * Create a real runtime instance for testing
  */
 export async function createRealTestRuntime(
   options: TestRuntimeOptions = {}
 ): Promise<TestRuntimeResult> {
-  elizaLogger.info('Creating real test runtime...');
-
   const {
     character = {},
     plugins = [],
     environment = {},
-    databasePath = `./.eliza/.test-${Date.now()}`
+    databasePath = `.test-db-${Date.now()}`
   } = options;
 
-  // Setup environment
-  process.env.DATABASE_PATH = databasePath;
-  process.env.FORCE_BUNSQLITE = 'true';
-  process.env.ELIZA_TEST_MODE = 'true';
-  process.env.SECRET_SALT = process.env.SECRET_SALT || 'test-salt-for-testing-only-not-secure';
-
-  // Apply custom environment variables
+  // Set up environment
   Object.entries(environment).forEach(([key, value]) => {
     process.env[key] = value;
   });
 
-  // Ensure data directory exists
-  const fs = await import('fs/promises');
-  try {
-    await fs.mkdir(process.env.DATABASE_PATH, { recursive: true });
-  } catch (error) {
-    // Directory might already exist, ignore
+  // Set test mode
+  process.env.ELIZA_TEST_MODE = 'true';
+  process.env.SECRET_SALT = process.env.SECRET_SALT || 'test-salt-for-testing-only';
+  process.env.DATABASE_PATH = databasePath;
+
+  // Create test database directory
+  const dbDir = path.resolve(databasePath);
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true });
   }
 
   // Create character with defaults
   const testCharacter: Character = {
     name: character.name || 'TestAgent',
-    bio: character.bio || ['A test agent for runtime testing'],
-    system: character.system || 'You are a helpful test agent.',
-    secrets: {},
+    bio: character.bio || ['A test agent for automated testing'],
+    system: character.system || 'You are a test agent for automated testing.',
     settings: {
-      ...(process.env.OPENAI_API_KEY && { OPENAI_API_KEY: process.env.OPENAI_API_KEY }),
-      ...(process.env.ANTHROPIC_API_KEY && { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
-      ...(process.env.E2B_API_KEY && { E2B_API_KEY: process.env.E2B_API_KEY }),
-      ...(process.env.GITHUB_TOKEN && { GITHUB_TOKEN: process.env.GITHUB_TOKEN }),
-      ...character.settings
+      model: 'gpt-4o-mini',
+      modelVendor: 'openai',
+      ...(character.settings || {})
     },
+    secrets: character.secrets || {},
     plugins: character.plugins || [],
+    knowledge: character.knowledge || [],
+    messageExamples: character.messageExamples || [],
+    style: character.style || {},
+    topics: character.topics || [],
+    adjectives: character.adjectives || [],
     ...character
   };
 
@@ -80,100 +78,52 @@ export async function createRealTestRuntime(
   const runtime = new AgentRuntime({
     agentId: uuidv4() as UUID,
     character: testCharacter,
+    plugins: [sqlPlugin, formsPlugin, ...plugins]
   });
 
-  // Override getSetting to use environment variables
+  // Override getSetting to use test environment
+  const originalGetSetting = runtime.getSetting;
   runtime.getSetting = (key: string) => {
-    return testCharacter.settings?.[key] || process.env[key];
+    // Check test environment first
+    if (key in environment) {
+      return environment[key];
+    }
+    // Then check process.env
+    if (process.env[key]) {
+      return process.env[key];
+    }
+    // Then check character settings
+    if (testCharacter.settings?.[key]) {
+      return testCharacter.settings[key];
+    }
+    // Finally use original getSetting
+    return originalGetSetting.call(runtime, key);
   };
 
-  // Default plugin set if none provided
-  const defaultPlugins = plugins.length > 0 ? plugins : [
-    sqlPlugin as any,
-    openaiPlugin as any,
-    e2bPlugin as any,
-    formsPlugin as any,
-    autocoderPlugin as any
-  ];
+  // Initialize runtime
+  await runtime.initialize();
 
-  // Register plugins in order
-  for (const plugin of defaultPlugins) {
-    try {
-      await runtime.registerPlugin(plugin);
-      elizaLogger.info(`✅ Registered plugin: ${plugin.name}`);
-    } catch (error) {
-      elizaLogger.error(`❌ Failed to register plugin ${plugin.name}:`, error);
-      throw error;
-    }
-  }
-
-  // Run database migrations
-  const databaseAdapter = (runtime as any).adapter;
-  if (databaseAdapter && databaseAdapter.db) {
-    elizaLogger.info('Running database migrations...');
-    try {
-      const { DatabaseMigrationService } = await import('@elizaos/plugin-sql');
-      const migrationService = new DatabaseMigrationService();
-
-      // Initialize with the database from the adapter
-      await migrationService.initializeWithDatabase(databaseAdapter.db);
-
-      // Register schemas from all loaded plugins
-      migrationService.discoverAndRegisterPluginSchemas(defaultPlugins as any[]);
-
-      // Run all migrations
-      await migrationService.runAllPluginMigrations();
-
-      elizaLogger.info('✅ Database migrations completed');
-    } catch (error) {
-      elizaLogger.error('❌ Failed to run database migrations:', error);
-      throw error;
-    }
-  }
-
-  // Process any queued services
-  const servicesInitQueue = (runtime as any).servicesInitQueue;
-  if (servicesInitQueue && servicesInitQueue.size > 0) {
-    for (const serviceClass of servicesInitQueue) {
-      try {
-        await runtime.registerService(serviceClass);
-        elizaLogger.info(`✅ Registered service: ${serviceClass.serviceName}`);
-      } catch (error) {
-        elizaLogger.warn(`⚠️ Failed to register service: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-    servicesInitQueue.clear();
-  }
-
-  // Set initialized flag
-  (runtime as any).isInitialized = true;
-
-  // Cleanup function
+  // Set up cleanup function
   const cleanup = async () => {
     elizaLogger.info('Cleaning up test runtime...');
     
-    // Stop services
-    const services = ['code-generation', 'forms', 'e2b', 'github', 'secrets-manager'];
-    for (const serviceName of services) {
-      const service = runtime.getService(serviceName);
-      if (service && typeof (service as any).stop === 'function') {
-        try {
-          await (service as any).stop();
-          elizaLogger.info(`✅ Stopped service: ${serviceName}`);
-        } catch (error) {
-          elizaLogger.warn(`⚠️ Error stopping service ${serviceName}:`, error);
-        }
-      }
+    // Stop runtime
+    await runtime.stop();
+    
+    // Clean up test database
+    if (existsSync(dbDir)) {
+      rmSync(dbDir, { recursive: true, force: true });
     }
-
-    // Clean up database directory
-    try {
-      await fs.rm(databasePath, { recursive: true, force: true });
-      elizaLogger.info(`✅ Cleaned up database directory: ${databasePath}`);
-    } catch (error) {
-      elizaLogger.warn(`⚠️ Error cleaning up database directory:`, error);
-    }
+    
+    // Clean up environment
+    Object.keys(environment).forEach(key => {
+      delete process.env[key];
+    });
+    delete process.env.ELIZA_TEST_MODE;
   };
 
-  return { runtime, cleanup };
+  return {
+    runtime,
+    cleanup
+  };
 } 

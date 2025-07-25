@@ -1,25 +1,23 @@
+import { elizaLogger } from '@elizaos/core';
 import {
-  Service,
+  Content,
   IAgentRuntime,
-  elizaLogger,
-  type UUID,
-  type Character,
-  type ServiceType,
-  ModelType
+  Service,
+  ModelType,
+  Plugin,
 } from '@elizaos/core';
-import { E2BService } from '@elizaos/plugin-e2b';
+// Remove E2B and GitHub imports - these services won't be available
 import { FormsService } from '@elizaos/plugin-forms';
-import { GitHubService } from '@elizaos/plugin-github';
-import { SecretsManagerService } from './SecretsManagerService';
 
+// Define types that were imported before
 export interface CodeGenerationRequest {
   projectName: string;
   description: string;
+  targetType: 'plugin' | 'agent';
   requirements: string[];
   apis: string[];
-  targetType: 'plugin' | 'agent' | 'workflow' | 'mcp' | 'full-stack';
-  githubRepo?: string;
   testScenarios?: string[];
+  githubRepo?: string;
 }
 
 export interface GenerationFile {
@@ -27,66 +25,81 @@ export interface GenerationFile {
   content: string;
 }
 
-export interface ExecutionResults {
-  testsPass: boolean;
-  lintPass: boolean;
-  typesPass: boolean;
-  buildPass: boolean;
-  buildSuccess: boolean;
-  securityPass: boolean;
-}
-
 export interface GenerationResult {
   success: boolean;
   projectPath?: string;
   githubUrl?: string;
-  agentId?: string;
   files?: GenerationFile[];
-  executionResults?: ExecutionResults;
   errors?: string[];
   warnings?: string[];
+  executionResults?: ExecutionResults;
 }
 
-interface ResearchResult {
-  apis: {
-    name: string;
-    documentation: string;
-    examples: string[];
-    bestPractices: string[];
-  }[];
-  similarProjects: {
-    name: string;
-    description: string;
-    relevantCode: string[];
-    patterns: string[];
-  }[];
-  elizaContext: {
-    coreTypes: string[];
-    patterns: string[];
-    conventions: string[];
-  };
+export interface ExecutionResults {
+  testsPass?: boolean;
+  lintPass?: boolean;
+  typesPass?: boolean;
+  buildPass?: boolean;
+  buildSuccess?: boolean;
+  securityPass?: boolean;
 }
 
-interface QAResult {
+export interface QualityResults {
   passed: boolean;
   lintErrors: number;
   typeErrors: number;
   testsFailed: number;
   buildSuccess: boolean;
   securityIssues: string[];
-  coverage?: number;
   details: string[];
+  // Add missing properties
+  testsPassed?: boolean;
+  lintPassed?: boolean;
+  typesPassed?: boolean;
+  buildPassed?: boolean;
+}
+
+interface E2BService extends Service {
+  createSandbox(): Promise<string>;
+  executeCode(code: string, language: string): Promise<{ text?: string; error?: string }>;
+  killSandbox(sandboxId: string): Promise<void>;
+}
+
+interface APIResearch {
+  name: string;
+  documentation: string;
+  examples: string[];
+  bestPractices: string[];
+}
+
+interface SimilarProject {
+  name: string;
+  description: string;
+  relevantCode?: string[];
+  patterns: string[];
+}
+
+interface ElizaContext {
+  coreTypes: string[];
+  patterns: string[];
+  conventions: string[];
+}
+
+interface ResearchResult {
+  apis: APIResearch[];
+  similarProjects: SimilarProject[];
+  elizaContext: ElizaContext;
 }
 
 export class CodeGenerationService extends Service {
   static serviceName: string = 'code-generation';
   static serviceType: string = 'code-generation';
   protected runtime: IAgentRuntime;
-  private e2bService?: E2BService;
-  private formsService?: FormsService;
-  private githubService?: GitHubService;
-  private secretsManager?: SecretsManagerService;
-  private sandboxId?: string;
+  private formsService: FormsService | null = null;
+  // Make these optional since we removed the imports
+  private e2bService: E2BService | null = null;
+  private githubService: any = null;
+  private sandboxId: string | null = null;
 
   /**
    * Static method to start the service
@@ -98,9 +111,16 @@ export class CodeGenerationService extends Service {
     return service;
   }
 
-  constructor(runtime: IAgentRuntime) {
+  constructor(runtime: IAgentRuntime, formsService?: FormsService) {
     super();
     this.runtime = runtime;
+    this.formsService = formsService || null;
+
+    // Check for optional services - use null instead of undefined
+    this.e2bService = runtime.getService('e2b') as E2BService | null;
+    this.githubService = runtime.getService<any>('github') || null;
+
+    elizaLogger.info('CodeGenerationService started successfully');
   }
 
   get capabilityDescription(): string {
@@ -111,7 +131,7 @@ export class CodeGenerationService extends Service {
     elizaLogger.info('Starting CodeGenerationService');
 
     // Get required services - be more lenient during testing
-    const e2bService = this.runtime.getService<E2BService>('e2b');
+    const e2bService = this.runtime.getService('e2b') as E2BService | null;
     if (!e2bService) {
       elizaLogger.warn('E2B service not available - some features will be disabled');
       // Don't throw in test environments
@@ -119,9 +139,9 @@ export class CodeGenerationService extends Service {
         throw new Error('E2B service is required for code generation');
       }
     }
-    this.e2bService = e2bService || undefined;
+    this.e2bService = e2bService;
 
-    const formsService = this.runtime.getService<FormsService>('forms');
+    const formsService = this.runtime.getService('forms') as FormsService | null;
     if (!formsService) {
       elizaLogger.warn('Forms service not available - some features will be disabled');
       // Don't throw in test environments
@@ -129,11 +149,11 @@ export class CodeGenerationService extends Service {
         throw new Error('Forms service is required for code generation');
       }
     }
-    this.formsService = formsService || undefined;
+    this.formsService = formsService;
 
-    this.githubService = this.runtime.getService<GitHubService>('github') || undefined;
-    this.secretsManager =
-      this.runtime.getService<SecretsManagerService>('secrets-manager') || undefined;
+    this.githubService = this.runtime.getService<any>('github') || null;
+    // this.secretsManager =
+    //   this.runtime.getService<SecretsManagerService>('secrets-manager') || undefined;
 
     elizaLogger.info('CodeGenerationService started successfully');
   }
@@ -207,7 +227,7 @@ ${request.requirements.map((r) => `- ${r}`).join('\n')}
 API Research:
 ${research.apis
   .map(
-    (api) => `
+    (api: APIResearch) => `
 ${api.name}:
 ${api.documentation}
 Examples: ${api.examples.join(', ')}
@@ -218,7 +238,7 @@ Examples: ${api.examples.join(', ')}
 Similar Projects:
 ${research.similarProjects
   .map(
-    (p) => `
+    (p: SimilarProject) => `
 ${p.name}: ${p.description}
 Patterns: ${p.patterns.join(', ')}
 `
@@ -246,10 +266,10 @@ Generate a detailed PRD following ElizaOS best practices including:
   /**
    * Quality assurance - run linting, type checking, building, and testing
    */
-  private async performQA(projectPath: string): Promise<QAResult> {
+  private async performQA(projectPath: string): Promise<QualityResults> {
     elizaLogger.info('Performing quality assurance on project');
 
-    const results: QAResult = {
+    const results: QualityResults = {
       passed: false,
       lintErrors: 0,
       typeErrors: 0,
@@ -265,7 +285,6 @@ Generate a detailed PRD following ElizaOS best practices including:
       throw new Error('E2B service not available for QA');
     }
 
-    try {
       // Run lint
       const lintResult = await (e2bService as any).executeCode(
         `
@@ -430,10 +449,6 @@ except Exception as e:
         results.testsFailed === 0 &&
         results.buildSuccess &&
         results.securityIssues.length === 0;
-    } catch (error) {
-      elizaLogger.error('QA error:', error);
-      results.details.push(`QA error: ${(error as Error).message}`);
-    }
 
     return results;
   }
@@ -484,7 +499,7 @@ try:
                 "typecheck": "tsc --noEmit"
             },
             "devDependencies": {
-                "@elizaos/core": "^1.2.12",
+                "@elizaos/core": "workspace:*",
                 "@types/bun": "latest",
                 "eslint": "^8.57.0",
                 "tsup": "^8.0.0",
@@ -565,8 +580,8 @@ dist/
                 "dev": "bun run --watch src/index.ts"
             },
             "dependencies": {
-                "@elizaos/core": "^1.2.12",
-                "@elizaos/cli": "^1.2.12"
+                "@elizaos/core": "workspace:*",
+                "@elizaos/cli": "^1.3.0"
             },
             "devDependencies": {
                 "@types/bun": "latest",
@@ -679,7 +694,6 @@ print("✅ claude.md file created")
       // Build prompt for this iteration
       const prompt = this.buildIterativePrompt(request, iteration);
 
-      try {
         // Generate code with Claude Code in sandbox
         const result = await this.runClaudeCodeInSandbox(prompt, projectPath, 1);
 
@@ -691,7 +705,7 @@ print("✅ claude.md file created")
         // Run validation after each iteration
         const validationResult = await this.runValidationSuite(projectPath);
 
-        if (validationResult.allPassed) {
+        if (validationResult.passed) {
           elizaLogger.info('All tests passed! Code generation complete.');
           allTestsPassed = true;
           break;
@@ -699,10 +713,6 @@ print("✅ claude.md file created")
 
         // Prepare feedback for next iteration
         await this.prepareFeedbackForNextIteration(projectPath, validationResult);
-      } catch (error) {
-        elizaLogger.error(`Error in iteration ${iteration}:`, error);
-        if (iteration === maxIterations) throw error;
-      }
     }
 
     if (!allTestsPassed) {
@@ -775,29 +785,24 @@ except Exception as e:
   /**
    * Run comprehensive validation suite
    */
-  private async runValidationSuite(projectPath: string): Promise<{
-    allPassed: boolean;
-    testsPassed: boolean;
-    lintPassed: boolean;
-    typesPassed: boolean;
-    buildPassed: boolean;
-    errors: string[];
-    warnings: string[];
-  }> {
+  private async runValidationSuite(projectPath: string): Promise<QualityResults> {
     elizaLogger.info('Running validation suite...');
 
-    const result = {
-      allPassed: false,
+    const result: QualityResults = {
+      passed: false,
+      lintErrors: 0,
+      typeErrors: 0,
+      testsFailed: 0,
+      buildSuccess: false,
+      securityIssues: [],
+      details: [],
       testsPassed: false,
       lintPassed: false,
       typesPassed: false,
       buildPassed: false,
-      errors: [] as string[],
-      warnings: [] as string[],
     };
 
     // Run tests
-    try {
       const testResult = await this.e2bService!.executeCode(
         `
 import subprocess
@@ -815,16 +820,13 @@ print("TEST_EXIT_CODE:", result.returncode)
       );
 
       const testOutput = testResult.text || '';
+      result.testsFailed = this.countErrors(testOutput, 'failed');
       result.testsPassed = testOutput.includes('TEST_EXIT_CODE: 0');
       if (!result.testsPassed) {
-        result.errors.push('Tests failed');
+        result.details.push('Tests failed');
       }
-    } catch (error) {
-      result.errors.push(`Test error: ${(error as Error).message}`);
-    }
 
     // Run linting
-    try {
       const lintResult = await this.e2bService!.executeCode(
         `
 import subprocess
@@ -842,17 +844,13 @@ print("LINT_EXIT_CODE:", result.returncode)
       );
 
       const lintOutput = lintResult.text || '';
+      result.lintErrors = this.countErrors(lintOutput, 'error');
       result.lintPassed = lintOutput.includes('LINT_EXIT_CODE: 0');
       if (!result.lintPassed) {
-        result.errors.push('Linting failed');
+        result.details.push('Linting failed');
       }
-    } catch (error) {
-      result.warnings.push(`Lint warning: ${(error as Error).message}`);
-      result.lintPassed = true; // Don't fail on lint errors
-    }
 
     // Run type checking
-    try {
       const typeResult = await this.e2bService!.executeCode(
         `
 import subprocess
@@ -870,16 +868,13 @@ print("TYPE_EXIT_CODE:", result.returncode)
       );
 
       const typeOutput = typeResult.text || '';
+      result.typeErrors = this.countErrors(typeOutput, 'error');
       result.typesPassed = typeOutput.includes('TYPE_EXIT_CODE: 0');
       if (!result.typesPassed) {
-        result.errors.push('Type checking failed');
+        result.details.push('Type checking failed');
       }
-    } catch (error) {
-      result.errors.push(`Type check error: ${(error as Error).message}`);
-    }
 
     // Run build
-    try {
       const buildResult = await this.e2bService!.executeCode(
         `
 import subprocess
@@ -897,15 +892,13 @@ print("BUILD_EXIT_CODE:", result.returncode)
       );
 
       const buildOutput = buildResult.text || '';
-      result.buildPassed = buildOutput.includes('BUILD_EXIT_CODE: 0');
+      result.buildSuccess = buildOutput.includes('BUILD_EXIT_CODE: 0');
+      result.buildPassed = result.buildSuccess;
       if (!result.buildPassed) {
-        result.errors.push('Build failed');
+        result.details.push('Build failed');
       }
-    } catch (error) {
-      result.errors.push(`Build error: ${(error as Error).message}`);
-    }
 
-    result.allPassed =
+    result.passed =
       result.testsPassed && result.lintPassed && result.typesPassed && result.buildPassed;
 
     return result;
@@ -916,14 +909,7 @@ print("BUILD_EXIT_CODE:", result.returncode)
    */
   private async prepareFeedbackForNextIteration(
     projectPath: string,
-    validationResult: {
-      testsPassed: boolean;
-      lintPassed: boolean;
-      typesPassed: boolean;
-      buildPassed: boolean;
-      errors: string[];
-      warnings: string[];
-    }
+    validationResult: QualityResults
   ): Promise<void> {
     elizaLogger.info('Preparing feedback for next iteration...');
 
@@ -949,19 +935,32 @@ print("BUILD_EXIT_CODE:", result.returncode)
       feedback += 'Build is failing. Ensure all imports and exports are correct.\n\n';
     }
 
-    if (validationResult.errors.length > 0) {
-      feedback += '## Errors\n';
-      validationResult.errors.forEach((error) => {
-        feedback += `- ${error}\n`;
-      });
-      feedback += '\n';
+    if (validationResult.lintErrors > 0) {
+      feedback += '## Linting Errors\n';
+      feedback += `Lint errors: ${validationResult.lintErrors}\n\n`;
     }
 
-    if (validationResult.warnings.length > 0) {
-      feedback += '## Warnings\n';
-      validationResult.warnings.forEach((warning) => {
-        feedback += `- ${warning}\n`;
+    if (validationResult.typeErrors > 0) {
+      feedback += '## Type Errors\n';
+      feedback += `Type errors: ${validationResult.typeErrors}\n\n`;
+    }
+
+    if (validationResult.testsFailed > 0) {
+      feedback += '## Tests Failed\n';
+      feedback += `Tests failed: ${validationResult.testsFailed}\n\n`;
+    }
+
+    if (validationResult.securityIssues.length > 0) {
+      feedback += '## Security Issues\n';
+      feedback += `Security issues: ${validationResult.securityIssues.length}\n\n`;
+    }
+
+    if (validationResult.details.length > 0) {
+      feedback += '## Details\n';
+      validationResult.details.forEach((detail) => {
+        feedback += `- ${detail}\n`;
       });
+      feedback += '\n';
     }
 
     // Write feedback to a file
@@ -990,7 +989,6 @@ print("✅ Validation feedback prepared")
       return this.generateCodeWithoutSandbox(request);
     }
 
-    try {
       // Use timeout configuration
       const config = this.getTimeoutConfig();
 
@@ -1002,17 +1000,6 @@ print("✅ Validation feedback prepared")
       ]);
 
       return result;
-    } catch (error) {
-      elizaLogger.error('Code generation error:', error);
-
-      if (this.isTimeoutError(error as Error)) {
-        elizaLogger.warn('Generation timed out, attempting recovery...');
-        // Fallback to chunked generation
-        return this.generateCodeInChunks(request);
-      }
-
-      throw error;
-    }
   }
 
   /**
@@ -1021,7 +1008,6 @@ print("✅ Validation feedback prepared")
   private async generateCodeWithoutSandbox(request: CodeGenerationRequest): Promise<GenerationResult> {
     elizaLogger.info('Generating code without sandbox environment');
     
-    try {
       // Generate essential files using AI
       const files = await this.generateEssentialFiles(request);
       
@@ -1048,13 +1034,6 @@ print("✅ Validation feedback prepared")
         files,
         warnings: ['Generated without E2B sandbox environment. Some features may be limited.']
       };
-    } catch (error) {
-      elizaLogger.error('Failed to generate code without sandbox:', error);
-      return {
-        success: false,
-        errors: [(error as Error).message || 'Failed to generate code']
-      };
-    }
   }
 
   private isTimeoutError(error: Error): boolean {
@@ -1098,7 +1077,6 @@ print("✅ Validation feedback prepared")
     const config = this.getTimeoutConfig();
     const timeout = timeoutMs || config.requestTimeout;
 
-    try {
       // Use the runtime's text generation service with timeout
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Code generation timeout')), timeout);
@@ -1112,17 +1090,6 @@ print("✅ Validation feedback prepared")
 
       const result = await Promise.race([generationPromise, timeoutPromise]);
       return result;
-    } catch (error) {
-      elizaLogger.error('Generation error:', error);
-      
-      // Handle missing model handler for testing
-      if ((error as Error).message?.includes('No handler found for delegate type')) {
-        elizaLogger.warn('Model handler not found, using mock response for testing');
-        return `// Mock generated code\nexport default {};\n`;
-      }
-      
-      throw error;
-    }
   }
 
   /**
@@ -1131,7 +1098,6 @@ print("✅ Validation feedback prepared")
   private async generateCodeInChunks(request: CodeGenerationRequest): Promise<GenerationResult> {
     elizaLogger.info('Attempting chunked code generation due to timeout...');
     
-    try {
       // Generate in chunks to avoid context limits
       const files = await this.generateEssentialFiles(request);
       
@@ -1227,13 +1193,6 @@ export type PluginAction = {
         errors: [],
         warnings: [],
       };
-    } catch (error) {
-      elizaLogger.error('Chunked generation failed:', error);
-      return {
-        success: false,
-        errors: [(error as Error).message || 'Failed to generate code in chunks']
-      };
-    }
   }
   
   private async generateEssentialFiles(request: CodeGenerationRequest): Promise<GenerationFile[]> {
@@ -1241,184 +1200,34 @@ export type PluginAction = {
 
     // Package.json
     const packagePrompt = `Generate a minimal package.json for an ElizaOS ${request.targetType} named "${request.projectName}". Include only essential dependencies.`;
-    try {
       const packageContent = await this.generateWithTimeout(packagePrompt, 1500, 30000);
       files.push({ path: 'package.json', content: packageContent });
-    } catch (error) {
-      if ((error as Error).message?.includes('No handler found for delegate type')) {
-        // Return comprehensive mock files for testing
-        files.push({ 
-          path: 'package.json', 
-          content: JSON.stringify({
-            name: request.projectName.toLowerCase().replace(/\s+/g, '-'),
-            version: '1.0.0',
-            main: 'dist/index.js',
-            scripts: {
-              build: 'tsc',
-              test: 'jest',
-              start: 'node dist/index.js'
-            },
-            dependencies: {
-              '@elizaos/core': '^1.0.0',
-              'axios': '^1.5.0',
-              'node-fetch': '^3.0.0',
-              ...(request.apis.includes('weather') && { 
-                'openweather-api-node': '^3.0.0',
-                'node-weather': '^1.0.0'
-              }),
-              ...(request.description.toLowerCase().includes('discord') && { 
-                'discord.js': '^14.0.0' 
-              })
-            }
-          }, null, 2)
-        });
-      } else {
-        throw error;
-      }
-    }
 
     // Main source file - include weather/API keywords if relevant
     const mainPrompt = `Generate the main entry file (index.ts) for an ElizaOS ${request.targetType} that implements: ${request.description}. Keep it minimal but functional.`;
-    try {
       const mainContent = await this.generateWithTimeout(mainPrompt, 7777, 30000);
       files.push({ path: 'src/index.ts', content: mainContent });
-    } catch (error) {
-      if ((error as Error).message?.includes('No handler found for delegate type')) {
-        const isWeather = request.description.toLowerCase().includes('weather');
-        const isAPI = request.apis.length > 0 || request.description.toLowerCase().includes('api');
-        
-        files.push({ 
-          path: 'src/index.ts', 
-          content: `// ${request.projectName}
-import { Plugin } from '@elizaos/core';
-${isAPI ? "import fetch from 'node-fetch';\nimport axios from 'axios';" : ''}
-${isWeather ? "import { WeatherAPI } from './weather-api';" : ''}
-
-export const plugin: Plugin = {
-  name: '${request.projectName}',
-  description: '${request.description}',
-  actions: [],
-  providers: [],
-  services: []
-};
-
-${isWeather ? `
-// Weather API integration
-export async function getWeatherData(location: string) {
-  const apiKey = process.env.OPENWEATHER_API_KEY;
-  const url = \`https://api.openweathermap.org/data/2.5/weather?q=\${location}&appid=\${apiKey}\`;
-  
-  const response = await fetch(url);
-  const data = await response.json();
-  
-  return {
-    temperature: data.main.temp,
-    weather: data.weather[0].description,
-    humidity: data.main.humidity,
-    windSpeed: data.wind.speed
-  };
-}
-
-// Temperature conversion helpers
-export function kelvinToCelsius(kelvin: number): number {
-  return kelvin - 273.15;
-}
-
-export function kelvinToFahrenheit(kelvin: number): number {
-  return (kelvin - 273.15) * 9/5 + 32;
-}
-` : ''}
-
-${isAPI ? `
-// API client for external integrations
-export class APIClient {
-  private baseURL: string;
-  
-  constructor(baseURL: string) {
-    this.baseURL = baseURL;
-  }
-  
-  async fetch(endpoint: string, options?: any) {
-    const response = await fetch(\`\${this.baseURL}\${endpoint}\`, options);
-    return response.json();
-  }
-  
-  async get(endpoint: string) {
-    return this.fetch(endpoint, { method: 'GET' });
-  }
-  
-  async post(endpoint: string, data: any) {
-    return this.fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-  }
-}
-` : ''}
-
-export default plugin;
-`
-        });
-      } else {
-        throw error;
-      }
-    }
 
     // Character file for agents
     if (request.targetType === 'agent') {
       const characterPrompt = `Generate a character.json file for the ElizaOS agent: ${request.projectName}. Description: ${request.description}`;
-      try {
         const characterContent = await this.generateWithTimeout(characterPrompt, 2000, 30000);
         files.push({ path: 'character.json', content: characterContent });
-      } catch (error) {
-        if ((error as Error).message?.includes('No handler found for delegate type')) {
-          files.push({ 
-            path: 'character.json', 
-            content: JSON.stringify({
-              name: request.projectName,
-              description: request.description,
-              modelProvider: 'openai',
-              settings: {
-                voice: { model: 'en-US-Standard-A' }
-              }
-            }, null, 2)
-          });
-        } else {
-          throw error;
-        }
-      }
     }
 
     // README
-    try {
       const readmeContent = await this.generateWithTimeout(
         `Generate a brief README.md for ${request.projectName}: ${request.description}`, 
         1000, 
         30000
       );
       files.push({ path: 'README.md', content: readmeContent });
-    } catch (error) {
-      if ((error as Error).message?.includes('No handler found for delegate type')) {
-        files.push({ 
-          path: 'README.md', 
-          content: `# ${request.projectName}\n\n${request.description}\n\n## Installation\n\n\`\`\`bash\nnpm install\n\`\`\`\n` 
-        });
-      } else {
-        throw error;
-      }
-    }
 
     return files;
   }
   
   private async generateWithTimeout(prompt: string, maxTokens: number, timeoutMs: number): Promise<string> {
-    try {
       return await this.generateCodeWithTimeout(prompt, maxTokens, timeoutMs);
-    } catch (error) {
-      elizaLogger.error('Timeout in chunk generation:', error);
-      throw error;
-    }
   }
 
   /**
@@ -1590,7 +1399,6 @@ except Exception as e:
     traceback.print_exc()
 `;
 
-    try {
       const result = await this.e2bService!.executeCode(claudeCodeScript, 'python');
 
       const output = result.text || '';
@@ -1607,10 +1415,6 @@ except Exception as e:
         output,
         files: [], // We'll get the actual files in a separate step
       };
-    } catch (error) {
-      elizaLogger.error('Claude Code execution error:', error);
-      throw error;
-    }
   }
 
   /**
@@ -1641,7 +1445,6 @@ except Exception as e:
     this.sandboxId = await this.e2bService!.createSandbox();
     const projectPath = `/workspace/${request.projectName}`;
 
-    try {
       // Step 1: Setup project structure
       await this.setupProjectWithStarter(projectPath, request);
 
@@ -1678,25 +1481,15 @@ except Exception as e:
         githubUrl,
         files,
         executionResults: {
-          testsPass: finalValidation.testsPassed,
+          testsPass: finalValidation.passed,
           lintPass: finalValidation.lintPassed,
           typesPass: finalValidation.typesPassed,
           buildPass: finalValidation.buildPassed,
           buildSuccess: finalValidation.buildPassed,
-          securityPass: finalValidation.errors.filter(e => 
-            e.toLowerCase().includes('security') || 
-            e.toLowerCase().includes('vulnerability') ||
-            e.toLowerCase().includes('exposed')
-          ).length === 0,
+          securityPass: finalValidation.securityIssues.length === 0,
         },
-        warnings: finalValidation.warnings,
+        warnings: finalValidation.details,
       };
-    } finally {
-      // Cleanup sandbox
-      if (this.sandboxId) {
-        await this.e2bService!.killSandbox(this.sandboxId);
-      }
-    }
   }
 
   /**
@@ -1708,7 +1501,6 @@ except Exception as e:
       return [];
     }
 
-    try {
       // List all files in the project directory
       const listFilesScript = `
 import os
@@ -1769,7 +1561,6 @@ except Exception as e:
       }
 
       // Parse the JSON output
-      try {
         const output = result.text || '{}';
         const data = JSON.parse(output);
         
@@ -1782,14 +1573,6 @@ except Exception as e:
         }
         
         return [];
-      } catch (parseError) {
-        elizaLogger.error('Failed to parse file list output:', parseError);
-        return [];
-      }
-    } catch (error) {
-      elizaLogger.error('Error retrieving generated files:', error);
-      return [];
-    }
   }
 
   /**
@@ -1824,8 +1607,7 @@ except Exception as e:
     return practices;
   }
 
-  private async searchSimilarProjects(request: CodeGenerationRequest): Promise<any[]> {
-    try {
+  private async searchSimilarProjects(request: CodeGenerationRequest): Promise<SimilarProject[]> {
       // Search for similar projects using runtime's text model
       const searchPrompt = `List any existing ElizaOS ${request.targetType} projects similar to:
 Name: ${request.projectName}
@@ -1849,7 +1631,6 @@ If no similar projects found, return empty array [].`;
         max_tokens: 1000,
       });
 
-      try {
         // Extract JSON from response
         let jsonText = response;
         if (typeof response === 'string') {
@@ -1862,17 +1643,9 @@ If no similar projects found, return empty array [].`;
 
         const similarProjects = JSON.parse(jsonText);
         return Array.isArray(similarProjects) ? similarProjects : [];
-      } catch (parseError) {
-        elizaLogger.warn('Failed to parse similar projects:', parseError);
-        return [];
-      }
-    } catch (error) {
-      elizaLogger.error('Error searching similar projects:', error);
-      return [];
-    }
   }
 
-  private async getElizaContext(targetType: string): Promise<any> {
+  private async getElizaContext(targetType: string): Promise<ElizaContext> {
     // In a real implementation, this would gather ElizaOS-specific context
     return {
       coreTypes: ['Plugin', 'Action', 'Provider', 'Service'],

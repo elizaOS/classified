@@ -17,7 +17,7 @@ describe('🎉 Final Success Verification', () => {
     });
 
     // Test 2: Frontend loads and connects
-    cy.visit('/', { 
+    cy.visit('/', {
       timeout: 30000,
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');

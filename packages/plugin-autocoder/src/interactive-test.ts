@@ -53,13 +53,8 @@ class InteractiveClaudeCodeTester {
     });
 
     // Initialize runtime
-    try {
-      await this.initializeRuntime();
-      console.log('\n✅ Runtime initialized successfully!');
-    } catch (error) {
-      console.error('\n❌ Failed to initialize runtime:', error);
-      process.exit(1);
-    }
+    await this.initializeRuntime();
+    console.log('\n✅ Runtime initialized successfully!');
 
     this.showHelp();
     this.startRepl();
@@ -77,11 +72,7 @@ class InteractiveClaudeCodeTester {
     // Ensure data directory exists
     const fs = await import('fs/promises');
     const path = await import('path');
-    try {
-      await fs.mkdir(process.env.DATABASE_PATH, { recursive: true });
-    } catch (error) {
-      // Directory might already exist, ignore
-    }
+    await fs.mkdir(process.env.DATABASE_PATH, { recursive: true });
 
     // Create runtime without plugins initially
     const runtime = new AgentRuntime({
@@ -92,7 +83,7 @@ class InteractiveClaudeCodeTester {
         system: 'You are a helpful assistant for code generation.',
         secrets: {},
         settings: {},
-        plugins: ['@elizaos/plugin-sql', '@elizaos/plugin-e2b', '@elizaos/plugin-forms', '@elizaos/plugin-autocoder'],
+        plugins: ['@elizaos/plugin-sql', '@elizaos/plugin-forms', '@elizaos/plugin-autocoder'],
       },
     });
 
@@ -181,75 +172,71 @@ class InteractiveClaudeCodeTester {
     const [command, ...args] = input.split(' ');
     const fullArgs = args.join(' ');
 
-    try {
-      switch (command.toLowerCase()) {
-        case 'help':
-          this.showHelp();
-          break;
+    switch (command.toLowerCase()) {
+      case 'help':
+        this.showHelp();
+        break;
 
-        case 'status':
-          await this.showStatus();
-          break;
+      case 'status':
+        await this.showStatus();
+        break;
 
-        case 'claude':
-          if (!fullArgs) {
-            console.log('❌ Please provide a prompt. Usage: claude <prompt>');
-            break;
-          }
-          await this.runClaudeCode(fullArgs);
+      case 'claude':
+        if (!fullArgs) {
+          console.log('❌ Please provide a prompt. Usage: claude <prompt>');
           break;
+        }
+        await this.runClaudeCode(fullArgs);
+        break;
 
-        case 'generate':
-          if (!fullArgs) {
-            console.log('❌ Please provide a description. Usage: generate <description>');
-            break;
-          }
-          await this.generateProject(fullArgs);
+      case 'generate':
+        if (!fullArgs) {
+          console.log('❌ Please provide a description. Usage: generate <description>');
           break;
+        }
+        await this.generateProject(fullArgs);
+        break;
 
-        case 'run':
-          if (!fullArgs) {
-            console.log('❌ Please provide a command. Usage: run <command>');
-            break;
-          }
-          await this.runSandboxCommand(fullArgs);
+      case 'run':
+        if (!fullArgs) {
+          console.log('❌ Please provide a command. Usage: run <command>');
           break;
+        }
+        await this.runSandboxCommand(fullArgs);
+        break;
 
-        case 'write':
-          const [filename, ...contentParts] = args;
-          if (!filename || contentParts.length === 0) {
-            console.log('❌ Please provide filename and content. Usage: write <file> <content>');
-            break;
-          }
-          await this.writeFile(filename, contentParts.join(' '));
+      case 'write':
+        const [filename, ...contentParts] = args;
+        if (!filename || contentParts.length === 0) {
+          console.log('❌ Please provide filename and content. Usage: write <file> <content>');
           break;
+        }
+        await this.writeFile(filename, contentParts.join(' '));
+        break;
 
-        case 'read':
-          if (!fullArgs) {
-            console.log('❌ Please provide a filename. Usage: read <file>');
-            break;
-          }
-          await this.readFile(fullArgs);
+      case 'read':
+        if (!fullArgs) {
+          console.log('❌ Please provide a filename. Usage: read <file>');
           break;
+        }
+        await this.readFile(fullArgs);
+        break;
 
-        case 'ls':
-          await this.listFiles(fullArgs || '.');
-          break;
+      case 'ls':
+        await this.listFiles(fullArgs || '.');
+        break;
 
-        case 'clear':
-          console.clear();
-          break;
+      case 'clear':
+        console.clear();
+        break;
 
-        case 'exit':
-          this.rl.close();
-          break;
+      case 'exit':
+        this.rl.close();
+        break;
 
-        default:
-          console.log(`❌ Unknown command: ${command}`);
-          console.log('Type "help" for available commands.');
-      }
-    } catch (error) {
-      console.error('❌ Error:', (error as Error).message);
+      default:
+        console.log(`❌ Unknown command: ${command}`);
+        console.log('Type "help" for available commands.');
     }
   }
 
@@ -269,38 +256,34 @@ class InteractiveClaudeCodeTester {
 
     const startTime = Date.now();
 
-    try {
-      let fullResponse = '';
+    let fullResponse = '';
 
-      for await (const message of query({
-        prompt: prompt,
-        options: {
-          maxTurns: 1,
-          customSystemPrompt: 'You are Claude Code, an expert code generation assistant.',
-        },
-      })) {
-        if (message.type === 'assistant') {
-          const content = message.message?.content;
-          if (Array.isArray(content)) {
-            for (const item of content) {
-              if (item.type === 'text') {
-                fullResponse += item.text;
-              }
+    for await (const message of query({
+      prompt: prompt,
+      options: {
+        maxTurns: 1,
+        customSystemPrompt: 'You are Claude Code, an expert code generation assistant.',
+      },
+    })) {
+      if (message.type === 'assistant') {
+        const content = message.message?.content;
+        if (Array.isArray(content)) {
+          for (const item of content) {
+            if (item.type === 'text') {
+              fullResponse += item.text;
             }
           }
-        } else if ((message as any).type === 'tool_use') {
-          console.log(`🔧 Tool used: ${(message as any).name}`);
         }
+      } else if ((message as any).type === 'tool_use') {
+        console.log(`🔧 Tool used: ${(message as any).name}`);
       }
-
-      const duration = Date.now() - startTime;
-      console.log(`\n✅ Claude Code Response (${duration}ms):`);
-      console.log('─'.repeat(50));
-      console.log(fullResponse);
-      console.log('─'.repeat(50));
-    } catch (error) {
-      console.error('❌ Claude Code Error:', (error as Error).message);
     }
+
+    const duration = Date.now() - startTime;
+    console.log(`\n✅ Claude Code Response (${duration}ms):`);
+    console.log('─'.repeat(50));
+    console.log(fullResponse);
+    console.log('─'.repeat(50));
   }
 
   private async generateProject(description: string) {
@@ -309,54 +292,50 @@ class InteractiveClaudeCodeTester {
 
     const startTime = Date.now();
 
-    try {
-      const codeGenService = this.session.runtime.getService('code-generation');
-      if (!codeGenService) {
-        throw new Error('Code generation service not available');
-      }
-
-      const request = {
-        projectName: `generated-project-${Date.now()}`,
-        description: description,
-        requirements: [description],
-        apis: [],
-        targetType: 'plugin' as const,
-        testScenarios: ['Basic functionality test'],
-      };
-
-      const result = await (codeGenService as any).generateCode(request);
-      const duration = Date.now() - startTime;
-
-      console.log(`\n✅ Project Generated (${duration}ms):`);
-      console.log('─'.repeat(50));
-      console.log(`📁 Project: ${request.projectName}`);
-      console.log(`✅ Success: ${result.success}`);
-
-      if (result.files) {
-        console.log(`📄 Files generated: ${result.files.length}`);
-        result.files.forEach((file: any) => {
-          console.log(`   - ${file.path}`);
-        });
-      }
-
-      if (result.errors && result.errors.length > 0) {
-        console.log('❌ Errors:');
-        result.errors.forEach((error: string) => console.log(`   - ${error}`));
-      }
-
-      if (result.warnings && result.warnings.length > 0) {
-        console.log('⚠️  Warnings:');
-        result.warnings.forEach((warning: string) => console.log(`   - ${warning}`));
-      }
-
-      console.log('─'.repeat(50));
-
-      // Update session state
-      this.session.currentProject = request;
-      this.session.projectPath = result.projectPath;
-    } catch (error) {
-      console.error('❌ Generation Error:', (error as Error).message);
+    const codeGenService = this.session.runtime.getService('code-generation');
+    if (!codeGenService) {
+      throw new Error('Code generation service not available');
     }
+
+    const request = {
+      projectName: `generated-project-${Date.now()}`,
+      description: description,
+      requirements: [description],
+      apis: [],
+      targetType: 'plugin' as const,
+      testScenarios: ['Basic functionality test'],
+    };
+
+    const result = await (codeGenService as any).generateCode(request);
+    const duration = Date.now() - startTime;
+
+    console.log(`\n✅ Project Generated (${duration}ms):`);
+    console.log('─'.repeat(50));
+    console.log(`📁 Project: ${request.projectName}`);
+    console.log(`✅ Success: ${result.success}`);
+
+    if (result.files) {
+      console.log(`📄 Files generated: ${result.files.length}`);
+      result.files.forEach((file: any) => {
+        console.log(`   - ${file.path}`);
+      });
+    }
+
+    if (result.errors && result.errors.length > 0) {
+      console.log('❌ Errors:');
+      result.errors.forEach((error: string) => console.log(`   - ${error}`));
+    }
+
+    if (result.warnings && result.warnings.length > 0) {
+      console.log('⚠️  Warnings:');
+      result.warnings.forEach((warning: string) => console.log(`   - ${warning}`));
+    }
+
+    console.log('─'.repeat(50));
+
+    // Update session state
+    this.session.currentProject = request;
+    this.session.projectPath = result.projectPath;
   }
 
   private async runSandboxCommand(command: string) {
@@ -368,27 +347,23 @@ class InteractiveClaudeCodeTester {
       return;
     }
 
-    try {
-      // Execute command in sandbox
-      const result = await (e2bService as any).executeCode(
-        `
+    // Execute command in sandbox
+    const result = await (e2bService as any).executeCode(
+      `
 import subprocess
 result = subprocess.run('${command}'.split(), capture_output=True, text=True)
 print("STDOUT:", result.stdout)
 print("STDERR:", result.stderr)
 print("EXIT_CODE:", result.returncode)
-        `,
-        'python'
-      );
+      `,
+      'python'
+    );
 
-      if (result.text) {
-        console.log(result.text);
-      }
-      if (result.error) {
-        console.error('Error:', result.error);
-      }
-    } catch (error) {
-      console.error('❌ Command Error:', (error as Error).message);
+    if (result.text) {
+      console.log(result.text);
+    }
+    if (result.error) {
+      console.error('Error:', result.error);
     }
   }
 
@@ -401,18 +376,14 @@ print("EXIT_CODE:", result.returncode)
       return;
     }
 
-    try {
-      await (e2bService as any).executeCode(
-        `
+    await (e2bService as any).executeCode(
+      `
 with open('${filename}', 'w') as f:
     f.write('''${content}''')
 print(f"✅ File '{filename}' written successfully")
-        `,
-        'python'
-      );
-    } catch (error) {
-      console.error('❌ Write Error:', (error as Error).message);
-    }
+      `,
+      'python'
+    );
   }
 
   private async readFile(filename: string) {
@@ -424,9 +395,8 @@ print(f"✅ File '{filename}' written successfully")
       return;
     }
 
-    try {
-      const result = await (e2bService as any).executeCode(
-        `
+    const result = await (e2bService as any).executeCode(
+      `
 try:
     with open('${filename}', 'r') as f:
         content = f.read()
@@ -435,15 +405,12 @@ try:
     print("─" * 50)
 except FileNotFoundError:
     print(f"❌ File '{filename}' not found")
-        `,
-        'python'
-      );
+      `,
+      'python'
+    );
 
-      if (result.text) {
-        console.log(result.text);
-      }
-    } catch (error) {
-      console.error('❌ Read Error:', (error as Error).message);
+    if (result.text) {
+      console.log(result.text);
     }
   }
 
@@ -456,9 +423,8 @@ except FileNotFoundError:
       return;
     }
 
-    try {
-      const result = await (e2bService as any).executeCode(
-        `
+    const result = await (e2bService as any).executeCode(
+      `
 import os
 import subprocess
 
@@ -468,38 +434,31 @@ if result.returncode == 0:
     print(result.stdout)
 else:
     print(f"❌ Error: {result.stderr}")
-        `,
-        'python'
-      );
+      `,
+      'python'
+    );
 
-      if (result.text) {
-        console.log(result.text);
-      }
-    } catch (error) {
-      console.error('❌ List Error:', (error as Error).message);
+    if (result.text) {
+      console.log(result.text);
     }
   }
 
   private async cleanup() {
     console.log('\n🧹 Cleaning up...');
 
-    try {
-      // Stop all services through runtime
-      if (this.session.runtime) {
-        const e2bService = this.session.runtime.getService('e2b');
-        if (e2bService) {
-          await (e2bService as any).stop();
-          console.log('✅ E2B service stopped');
-        }
-
-        const codeGenService = this.session.runtime.getService('code-generation');
-        if (codeGenService) {
-          await (codeGenService as any).stop();
-          console.log('✅ Code generation service stopped');
-        }
+    // Stop all services through runtime
+    if (this.session.runtime) {
+      const e2bService = this.session.runtime.getService('e2b');
+      if (e2bService) {
+        await (e2bService as any).stop();
+        console.log('✅ E2B service stopped');
       }
-    } catch (error) {
-      console.warn('⚠️  Cleanup warning:', (error as Error).message);
+
+      const codeGenService = this.session.runtime.getService('code-generation');
+      if (codeGenService) {
+        await (codeGenService as any).stop();
+        console.log('✅ Code generation service stopped');
+      }
     }
   }
 }

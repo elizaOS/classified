@@ -6,8 +6,8 @@
  */
 
 import { logger, AgentRuntime, DatabaseAdapter } from '@elizaos/core';
-import { GoalsPluginE2ETestSuite } from './src/__tests__/e2e/goals-plugin.js';
-import goalsPlugin from './src/index.js';
+import { GoalsPluginE2ETestSuite } from './src/__tests__/e2e/goals-plugin';
+import goalsPlugin from './src/index';
 
 async function runPluginE2ETests() {
   try {

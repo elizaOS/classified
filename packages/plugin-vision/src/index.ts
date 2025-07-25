@@ -1,7 +1,7 @@
 // Vision plugin -- gives an agent visual perception through camera integration
 import { Plugin } from '@elizaos/core';
-import { VisionService } from './service';
-import { visionProvider } from './provider';
+import { VisionService } from './service.js';
+import { visionProvider } from './provider.js';
 import {
   describeSceneAction,
   captureImageAction,
@@ -10,8 +10,8 @@ import {
   nameEntityAction,
   identifyPersonAction,
   trackEntityAction,
-} from './action';
-import { testSuites } from './tests/e2e/index';
+} from './action.js';
+import { testSuites } from './tests/e2e/index.js';
 
 export const visionPlugin: Plugin = {
   name: 'vision',

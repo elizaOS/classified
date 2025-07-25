@@ -23,7 +23,6 @@ export const projectsProvider: Provider = {
       };
     }
 
-    try {
       // Get all projects
       const projects = await projectsService.listProjectPlans();
 
@@ -99,13 +98,5 @@ export const projectsProvider: Provider = {
           failedProjects,
         },
       };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        text: `Error retrieving projects context: ${errorMessage}`,
-        values: {},
-        data: {},
-      };
-    }
   },
 };

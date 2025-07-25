@@ -50,7 +50,7 @@ export class PortManager {
   async getAvailablePort(min = 3000, max = 9999, maxAttempts = 50) {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const port = this.generateRandomPort(min, max);
-      
+
       // Skip if we've already used this port in this session
       if (this.usedPorts.has(port)) {
         continue;
@@ -73,7 +73,7 @@ export class PortManager {
    */
   async getPortPair() {
     const backendPort = await this.getAvailablePort(7000, 7999);
-    
+
     // Get frontend port in different range to avoid conflicts
     let frontendPort;
     let attempts = 0;
@@ -86,7 +86,7 @@ export class PortManager {
     } while (frontendPort === backendPort);
 
     console.log(`[PORT-MANAGER] Allocated ports: Backend=${backendPort}, Frontend=${frontendPort}`);
-    
+
     return { backendPort, frontendPort };
   }
 
@@ -96,7 +96,7 @@ export class PortManager {
    */
   async clearPorts(ports) {
     console.log(`[PORT-MANAGER] Clearing ports: ${ports.join(', ')}`);
-    
+
     for (const port of ports) {
       try {
         await execAsync(`lsof -ti:${port} | xargs kill -9`);
@@ -136,12 +136,12 @@ export class PortManager {
 export async function generateTestConfig() {
   const portManager = new PortManager();
   const { backendPort, frontendPort } = await portManager.getPortPair();
-  
+
   // Create environment variables for the test run
   const env = {
     ...process.env,
     PORT: backendPort.toString(),
-    SERVER_PORT: backendPort.toString(), 
+    SERVER_PORT: backendPort.toString(),
     FRONTEND_PORT: frontendPort.toString(),
     NODE_ENV: 'test',
     CYPRESS_BACKEND_URL: `http://localhost:${backendPort}`,
@@ -162,7 +162,7 @@ export async function generateTestConfig() {
 // CLI interface for manual testing
 if (import.meta.url === `file://${process.argv[1]}`) {
   const command = process.argv[2];
-  
+
   if (command === 'generate') {
     const config = await generateTestConfig();
     console.log('Generated test configuration:');
@@ -177,7 +177,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.error('Please provide a port number to check');
       process.exit(1);
     }
-    
+
     const portManager = new PortManager();
     const available = await portManager.isPortAvailable(port);
     console.log(`Port ${port} is ${available ? 'available' : 'in use'}`);
@@ -187,7 +187,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.error('Please provide port numbers to clear');
       process.exit(1);
     }
-    
+
     const portManager = new PortManager();
     await portManager.clearPorts(ports);
     console.log(`Cleared ports: ${ports.join(', ')}`);

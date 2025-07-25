@@ -288,7 +288,7 @@ export class SocketIORouter {
               ? `DM ${channelId.substring(0, 8)}`
               : `Chat ${channelId.substring(0, 8)}`,
             type: isDmChannel ? ChannelType.DM : ChannelType.GROUP,
-            sourceType: 'auto_created',
+            source_type: 'auto_created',
             metadata: {
               created_by: 'socketio_auto_creation',
               created_for_user: senderId,
@@ -351,7 +351,7 @@ export class SocketIORouter {
           serverId: serverId as UUID,
           attachments,
         },
-        sourceType: source || 'socketio_client',
+        source_type: source || 'socketio_client',
       };
 
       const createdRootMessage = await this.serverInstance.createMessage(newRootMessageData);

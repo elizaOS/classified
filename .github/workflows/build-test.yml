@@ -1,0 +1,84 @@
+name: 'Build Test ElizaOS Game'
+
+on:
+  pull_request:
+    paths:
+      - 'packages/game/**'
+      - '.github/workflows/build-test.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/game/**'
+      - '.github/workflows/build-test.yml'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  test-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+          - platform: 'ubuntu-20.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-20.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '23.3.0'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.15'
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './packages/game/src-tauri -> target'
+
+      - name: Install dependencies
+        run: bun install
+        working-directory: packages/game
+
+      - name: Build frontend and backend
+        run: bun run build
+        working-directory: packages/game
+
+      - name: Build Tauri app (test only)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: packages/game
+          args: ${{ matrix.args }}
+          # Don't upload to release for test builds
+          releaseId: ''
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.platform }}-${{ github.sha }}
+          path: |
+            packages/game/src-tauri/target/release/bundle/
+          retention-days: 7

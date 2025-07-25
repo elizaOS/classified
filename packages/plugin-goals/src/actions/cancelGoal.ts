@@ -12,7 +12,7 @@ import {
   type State,
   formatMessages,
 } from '@elizaos/core';
-import { createGoalDataService, type GoalData } from '../services/goalDataService.js';
+import { createGoalDataService, type GoalData } from '../services/goalDataService';
 
 // Interface for task cancellation properties
 interface TaskCancellation {

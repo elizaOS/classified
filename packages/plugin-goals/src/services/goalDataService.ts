@@ -1,6 +1,6 @@
 import { type IAgentRuntime, type UUID, logger, Service, asUUID } from '@elizaos/core';
 import { and, eq, asc, inArray, type SQL } from 'drizzle-orm';
-import { goalsTable, goalTagsTable } from '../schema.js';
+import { goalsTable, goalTagsTable } from '../schema';
 import { v4 as uuidv4 } from 'uuid';
 
 /**

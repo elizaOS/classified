@@ -3,7 +3,7 @@ describe('Knowledge Base CRUD Operations', () => {
   const testFileName = 'test-knowledge-document.txt';
   const testFileContent = 'This is a test document for knowledge base CRUD operations. It contains important information that should be searchable.';
   const testUrl = 'https://raw.githubusercontent.com/ai16z/eliza/main/README.md';
-  
+
   let uploadedDocumentId: string;
   let uploadedUrlDocumentId: string;
 
@@ -11,10 +11,10 @@ describe('Knowledge Base CRUD Operations', () => {
     // Start the game/server and ensure it's running
     cy.visit('http://localhost:5173/', { timeout: 30000 });
     cy.get('[data-testid="game-interface"]', { timeout: 30000 }).should('be.visible');
-    
+
     // Wait for backend to be ready
     cy.wait(5000);
-    
+
     // Verify backend is accessible
     cy.request({
       method: 'GET',
@@ -29,7 +29,7 @@ describe('Knowledge Base CRUD Operations', () => {
     it('should upload a text file to knowledge base', () => {
       // Create a test file
       const testFile = new File([testFileContent], testFileName, { type: 'text/plain' });
-      
+
       // Create FormData for upload
       const formData = new FormData();
       formData.append('file', testFile);
@@ -48,7 +48,7 @@ describe('Knowledge Base CRUD Operations', () => {
         expect(response.body).to.have.property('success', true);
         expect(response.body).to.have.property('data');
         expect(response.body.data).to.have.property('id');
-        
+
         uploadedDocumentId = response.body.data.id;
         cy.log(`Uploaded document ID: ${uploadedDocumentId}`);
       });
@@ -60,7 +60,7 @@ describe('Knowledge Base CRUD Operations', () => {
         url: 'http://localhost:7777/knowledge/import',
         body: {
           url: testUrl,
-          agentId: agentId
+          agentId
         },
         headers: {
           'Content-Type': 'application/json'
@@ -70,7 +70,7 @@ describe('Knowledge Base CRUD Operations', () => {
         expect(response.body).to.have.property('success', true);
         expect(response.body).to.have.property('data');
         expect(response.body.data).to.have.property('id');
-        
+
         uploadedUrlDocumentId = response.body.data.id;
         cy.log(`Uploaded URL document ID: ${uploadedUrlDocumentId}`);
       });
@@ -95,7 +95,7 @@ describe('Knowledge Base CRUD Operations', () => {
         url: 'http://localhost:7777/knowledge/upload-url',
         body: {
           url: 'not-a-valid-url',
-          agentId: agentId
+          agentId
         },
         headers: {
           'Content-Type': 'application/json'
@@ -117,7 +117,7 @@ describe('Knowledge Base CRUD Operations', () => {
         expect(response.body).to.have.property('success', true);
         expect(response.body).to.have.property('data');
         expect(response.body.data).to.be.an('array');
-        
+
         // Should include our uploaded documents
         const documentIds = response.body.data.map((doc: any) => doc.id);
         expect(documentIds).to.include(uploadedDocumentId);
@@ -134,10 +134,10 @@ describe('Knowledge Base CRUD Operations', () => {
         expect(response.body).to.have.property('success', true);
         expect(response.body).to.have.property('data');
         expect(response.body.data).to.be.an('array');
-        
+
         // Should have at least one chunk
         expect(response.body.data.length).to.be.greaterThan(0);
-        
+
         // Each chunk should have expected properties
         response.body.data.forEach((chunk: any) => {
           expect(chunk).to.have.property('id');
@@ -149,7 +149,7 @@ describe('Knowledge Base CRUD Operations', () => {
 
     it('should handle non-existent document gracefully', () => {
       const nonExistentId = '99999999-9999-9999-9999-999999999999';
-      
+
       cy.request({
         method: 'GET',
         url: `http://localhost:7777/knowledge/chunks/${nonExistentId}?agentId=${agentId}`,
@@ -170,7 +170,7 @@ describe('Knowledge Base CRUD Operations', () => {
         expect(response.body).to.have.property('success', true);
         expect(response.body).to.have.property('data');
         expect(response.body.data).to.be.an('array');
-        
+
         // Should find relevant results
         if (response.body.data.length > 0) {
           response.body.data.forEach((result: any) => {
@@ -213,7 +213,7 @@ describe('Knowledge Base CRUD Operations', () => {
         url: `http://localhost:7777/knowledge/documents/${uploadedDocumentId}?agentId=${agentId}`
       }).then((response) => {
         expect(response.status).to.eq(204);
-        
+
         // Verify document is deleted by trying to retrieve chunks
         cy.request({
           method: 'GET',
@@ -232,7 +232,7 @@ describe('Knowledge Base CRUD Operations', () => {
         url: `http://localhost:7777/knowledge/documents/${uploadedUrlDocumentId}?agentId=${agentId}`
       }).then((response) => {
         expect(response.status).to.eq(204);
-        
+
         // Verify document is deleted
         cy.request({
           method: 'GET',
@@ -246,7 +246,7 @@ describe('Knowledge Base CRUD Operations', () => {
 
     it('should handle deletion of non-existent document', () => {
       const nonExistentId = '99999999-9999-9999-9999-999999999999';
-      
+
       cy.request({
         method: 'DELETE',
         url: `http://localhost:7777/knowledge/documents/${nonExistentId}?agentId=${agentId}`,
@@ -272,11 +272,11 @@ describe('Knowledge Base CRUD Operations', () => {
     it('should access knowledge interface through the game UI', () => {
       cy.visit('http://localhost:5173/', { timeout: 30000 });
       cy.get('[data-testid="game-interface"]', { timeout: 30000 }).should('be.visible');
-      
+
       // Look for knowledge-related UI elements
       cy.get('body').then(($body) => {
         // Check for knowledge tab, upload button, or any knowledge-related text
-        if ($body.find('[data-testid*="knowledge"]').length > 0 || 
+        if ($body.find('[data-testid*="knowledge"]').length > 0 ||
             $body.find('*').text().includes('Knowledge') ||
             $body.find('*').text().includes('Documents')) {
           cy.log('Knowledge interface elements found in the UI');
@@ -288,16 +288,16 @@ describe('Knowledge Base CRUD Operations', () => {
 
     it('should not have knowledge API errors in console', () => {
       cy.visit('http://localhost:5173/');
-      
+
       // Monitor console for knowledge-related errors
       cy.window().then((win) => {
         cy.stub(win.console, 'error').as('consoleError');
       });
-      
+
       cy.wait(3000);
-      
+
       // Check for knowledge API errors
-      cy.get('@consoleError').should('not.have.been.calledWith', 
+      cy.get('@consoleError').should('not.have.been.calledWith',
         Cypress.sinon.match(/knowledge.*failed/i)
       );
     });
@@ -307,11 +307,11 @@ describe('Knowledge Base CRUD Operations', () => {
     it('should handle concurrent operations gracefully', () => {
       const testFile1 = new File(['Test content 1'], 'test1.txt', { type: 'text/plain' });
       const testFile2 = new File(['Test content 2'], 'test2.txt', { type: 'text/plain' });
-      
+
       const formData1 = new FormData();
       formData1.append('file', testFile1);
       formData1.append('agentId', agentId);
-      
+
       const formData2 = new FormData();
       formData2.append('file', testFile2);
       formData2.append('agentId', agentId);
@@ -323,14 +323,14 @@ describe('Knowledge Base CRUD Operations', () => {
         body: formData1
       }).then((response1) => {
         expect(response1.status).to.eq(200);
-        
+
         cy.request({
           method: 'POST',
           url: 'http://localhost:7777/knowledge/upload',
           body: formData2
         }).then((response2) => {
           expect(response2.status).to.eq(200);
-          
+
           // Clean up - delete both documents
           if (response1.body.data?.id) {
             cy.request({
@@ -339,7 +339,7 @@ describe('Knowledge Base CRUD Operations', () => {
               failOnStatusCode: false
             });
           }
-          
+
           if (response2.body.data?.id) {
             cy.request({
               method: 'DELETE',
@@ -355,7 +355,7 @@ describe('Knowledge Base CRUD Operations', () => {
       // Create a large text content (but not too large for testing)
       const largeContent = 'Large content. '.repeat(1000); // ~15KB
       const largeFile = new File([largeContent], 'large-test.txt', { type: 'text/plain' });
-      
+
       const formData = new FormData();
       formData.append('file', largeFile);
       formData.append('agentId', agentId);
@@ -367,7 +367,7 @@ describe('Knowledge Base CRUD Operations', () => {
         timeout: 30000 // Extended timeout for large files
       }).then((response) => {
         expect(response.status).to.eq(200);
-        
+
         // Clean up
         if (response.body.data?.id) {
           cy.request({

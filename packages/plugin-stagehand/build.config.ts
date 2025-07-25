@@ -30,8 +30,10 @@ export const buildConfig: BuildConfig = {
     'playwright',
     'playwright-core',
     '@stagehand/web',
+    '@browserbasehq/stagehand',
     'electron',
     'chromium-bidi',
+    'axios',
   ],
   naming: '[dir]/[name].[ext]',
 };

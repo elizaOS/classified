@@ -33,8 +33,8 @@ describe('Frontend-Backend API Mapping Verification', () => {
       cy.request(`${BACKEND_URL}/api/goals`).then((response) => {
         expect(response.status).to.eq(200);
         // Goals plugin returns either array directly or wrapped response
-        const data = Array.isArray(response.body) ? response.body : 
-                     response.body.success ? response.body.data : [];
+        const data = Array.isArray(response.body) ? response.body :
+          response.body.success ? response.body.data : [];
         expect(Array.isArray(data)).to.be.true;
         cy.log('✅ Goals API endpoint working correctly');
       });
@@ -91,7 +91,7 @@ describe('Frontend-Backend API Mapping Verification', () => {
       });
 
       cy.request({
-        method: 'POST', 
+        method: 'POST',
         url: `${BACKEND_URL}/autonomy/enable`
       }).then((response) => {
         expect(response.status).to.eq(200);
@@ -305,7 +305,7 @@ describe('Frontend-Backend API Mapping Verification', () => {
   describe('ElizaOS API Client Integration', () => {
     it('should verify messaging endpoints match ElizaService expectations', () => {
       // These are the ElizaOS API client endpoints used by ElizaService.ts
-      
+
       // Server ping - used by ElizaService.ping()
       cy.request(`${BACKEND_URL}/api/server/ping`).then((response) => {
         expect(response.status).to.eq(200);
@@ -342,20 +342,20 @@ describe('Frontend-Backend API Mapping Verification', () => {
       // Verify that frontend capability toggles correspond to actual plugin services
       cy.request(`${BACKEND_URL}/api/plugin-config`).then((response) => {
         const availablePlugins = response.body.data.availablePlugins;
-        
+
         // Shell plugin should be available
         expect(availablePlugins).to.include('SHELL');
-        
-        // Stagehand (browser automation) plugin should be available  
+
+        // Stagehand (browser automation) plugin should be available
         expect(availablePlugins).to.include('stagehand');
-        
+
         // Goals and todos plugins should be available
         expect(availablePlugins).to.include('goals');
         expect(availablePlugins).to.include('todo');
-        
+
         // Autonomy plugin should be available
         expect(availablePlugins).to.include('AUTONOMY');
-        
+
         cy.log('✅ All expected plugins are loaded and accessible');
         cy.log(`Available plugins: ${availablePlugins.join(', ')}`);
       });
@@ -382,7 +382,7 @@ describe('Frontend-Backend API Mapping Verification', () => {
         cy.log('✅ Goals API endpoint corresponds to goals plugin');
       });
 
-      // Todos endpoint should work with todo plugin  
+      // Todos endpoint should work with todo plugin
       cy.request(`${BACKEND_URL}/api/todos`).then((response) => {
         expect(response.status).to.eq(200);
         cy.log('✅ Todos API endpoint corresponds to todo plugin');
@@ -401,7 +401,7 @@ describe('Frontend-Backend API Mapping Verification', () => {
 describe('Frontend-Backend API Mapping Summary', () => {
   it('should validate all critical API mappings are working', () => {
     const BACKEND_URL = 'http://localhost:7777';
-    
+
     // Test all critical endpoints that the frontend relies on
     const criticalEndpoints = [
       { method: 'GET', path: '/api/server/health', description: 'Health check' },
@@ -426,14 +426,14 @@ describe('Frontend-Backend API Mapping Summary', () => {
         url: `${BACKEND_URL}${endpoint.path}`,
         failOnStatusCode: false
       }).then((response) => {
-        const success = response.status === 200 && 
+        const success = response.status === 200 &&
                        (response.body.success === true || Array.isArray(response.body));
-        if (success) successCount++;
-        
+        if (success) {successCount++;}
+
         const status = success ? '✅' : '❌';
         const result = `${status} ${endpoint.description}: ${endpoint.method} ${endpoint.path} (${response.status})`;
         results.push(result);
-        
+
         cy.log(result);
       });
     });
@@ -442,7 +442,7 @@ describe('Frontend-Backend API Mapping Summary', () => {
     cy.then(() => {
       const totalEndpoints = criticalEndpoints.length;
       cy.log(`📊 API Mapping Summary: ${successCount}/${totalEndpoints} endpoints working`);
-      
+
       results.forEach(result => {
         cy.log(result);
       });

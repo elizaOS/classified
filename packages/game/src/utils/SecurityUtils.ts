@@ -1,294 +1,318 @@
 /**
- * Security Utilities for ELIZA Game Frontend
- * 
- * Provides input validation, XSS protection, and secure data handling
- * to prevent common frontend security vulnerabilities
+ * Security utilities for the ELIZA game application
  */
 
-/**
- * XSS Protection
- */
-export class XSSProtection {
+export class SecurityUtils {
   /**
-   * Sanitize HTML content to prevent XSS attacks
+   * Get or create an instance ID
    */
-  static sanitizeHTML(input: string): string {
-    if (!input || typeof input !== 'string') {
-      return '';
+  static getInstanceId(): string {
+    const existingId = localStorage.getItem('eliza-instance-id');
+    if (existingId) {
+      return existingId;
     }
 
-    // Create a temporary div to parse HTML
-    const tempDiv = document.createElement('div');
-    tempDiv.textContent = input;
-    return tempDiv.innerHTML;
+    const newId = this.generateSecureId();
+    localStorage.setItem('eliza-instance-id', newId);
+    return newId;
   }
 
   /**
-   * Escape HTML entities
+   * Get or create a session ID
    */
-  static escapeHTML(input: string): string {
-    if (!input || typeof input !== 'string') {
-      return '';
+  static getSessionId(): string {
+    const existingId = sessionStorage.getItem('eliza-session-id');
+    if (existingId) {
+      return existingId;
     }
 
-    const entityMap: { [key: string]: string } = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-      '/': '&#x2F;',
-      '`': '&#x60;',
-      '=': '&#x3D;'
-    };
-
-    return input.replace(/[&<>"'`=\/]/g, (s) => entityMap[s]);
+    const newId = this.generateSecureId();
+    sessionStorage.setItem('eliza-session-id', newId);
+    return newId;
   }
 
   /**
-   * Sanitize URLs to prevent javascript: and data: schemes
+   * Generate a cryptographically secure random ID
    */
-  static sanitizeURL(url: string): string {
-    if (!url || typeof url !== 'string') {
-      return '';
-    }
+  static generateSecureId(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
 
-    const trimmedUrl = url.trim().toLowerCase();
-    
-    // Block dangerous protocols
-    const dangerousProtocols = [
-      'javascript:',
-      'data:',
-      'vbscript:',
-      'file:',
-      'about:'
-    ];
+  /**
+   * Encrypt sensitive data (placeholder - implement with actual encryption)
+   */
+  static async encryptData(data: string, key: string): Promise<string> {
+    // TODO: Implement actual encryption using Web Crypto API
+    return btoa(data);
+  }
 
-    for (const protocol of dangerousProtocols) {
-      if (trimmedUrl.startsWith(protocol)) {
-        console.warn(`[SECURITY] Blocked dangerous URL protocol: ${protocol}`);
-        return '';
+  /**
+   * Decrypt sensitive data (placeholder - implement with actual decryption)
+   */
+  static async decryptData(encryptedData: string, key: string): Promise<string> {
+    // TODO: Implement actual decryption using Web Crypto API
+    return atob(encryptedData);
+  }
+
+  /**
+   * Sanitize HTML to prevent XSS
+   */
+  static sanitizeHtml(html: string): string {
+    const div = document.createElement('div');
+    div.textContent = html;
+    return div.innerHTML;
+  }
+
+  /**
+   * Validate API response structure
+   */
+  static validateApiResponse(response: any): boolean {
+    return response && typeof response === 'object' && !Array.isArray(response);
+  }
+
+  /**
+   * Hash a string using SHA-256
+   */
+  static async hashString(str: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  /**
+   * Check if running in a secure context
+   */
+  static isSecureContext(): boolean {
+    return window.isSecureContext;
+  }
+
+  /**
+   * Store API key securely (uses session storage for temporary storage)
+   */
+  static storeApiKey(provider: string, key: string): void {
+    // In production, this should use more secure storage
+    sessionStorage.setItem(`api-key-${provider}`, key);
+  }
+
+  /**
+   * Retrieve API key
+   */
+  static getApiKey(provider: string): string | null {
+    return sessionStorage.getItem(`api-key-${provider}`);
+  }
+
+  /**
+   * Clear all stored API keys
+   */
+  static clearApiKeys(): void {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith('api-key-')) {
+        keysToRemove.push(key);
       }
     }
-
-    // Allow only http, https, and relative URLs
-    if (trimmedUrl.startsWith('http://') || 
-        trimmedUrl.startsWith('https://') || 
-        trimmedUrl.startsWith('//') ||
-        trimmedUrl.startsWith('/') ||
-        trimmedUrl.startsWith('./') ||
-        trimmedUrl.startsWith('../')) {
-      return url.trim();
-    }
-
-    // If no protocol specified, assume relative
-    return url.trim();
+    keysToRemove.forEach(key => sessionStorage.removeItem(key));
   }
 
   /**
-   * Sanitize and validate file names
+   * Verify if we're running in Tauri
    */
-  static sanitizeFileName(fileName: string): string {
-    if (!fileName || typeof fileName !== 'string') {
-      return '';
-    }
+  static isRunningInTauri(): boolean {
+    return !!(window as any).__TAURI_INTERNALS__;
+  }
 
-    // Remove path traversal attempts
-    let sanitized = fileName.replace(/[\/\\\.\.]/g, '');
-    
-    // Remove potentially dangerous characters
-    sanitized = sanitized.replace(/[<>:"|?*\x00-\x1F]/g, '');
-    
-    // Limit length
-    if (sanitized.length > 255) {
-      sanitized = sanitized.substring(0, 255);
-    }
-
-    return sanitized.trim();
+  /**
+   * Get safe environment information
+   */
+  static getEnvironmentInfo(): {
+    isTauri: boolean;
+    isSecure: boolean;
+    instanceId: string;
+    sessionId: string;
+    } {
+    return {
+      isTauri: this.isRunningInTauri(),
+      isSecure: this.isSecureContext(),
+      instanceId: this.getInstanceId(),
+      sessionId: this.getSessionId()
+    };
   }
 }
 
 /**
- * Input Validation
+ * Input validation utilities
  */
 export class InputValidator {
   /**
+   * Validate that input is safe text (no script tags, etc.)
+   */
+  static validateSafeText(input: string): boolean {
+    if (!input || typeof input !== 'string') {
+      return false;
+    }
+
+    // Check for dangerous patterns
+    const dangerousPatterns = [
+      /<script/i,
+      /javascript:/i,
+      /on\w+\s*=/i,
+      /<iframe/i,
+      /<object/i,
+      /<embed/i
+    ];
+
+    return !dangerousPatterns.some(pattern => pattern.test(input));
+  }
+
+  /**
    * Validate API key format
    */
-  static validateAPIKey(apiKey: string, provider: 'openai' | 'anthropic' | 'other' = 'other'): {
-    valid: boolean;
-    error?: string;
-  } {
-    if (!apiKey || typeof apiKey !== 'string') {
-      return { valid: false, error: 'API key is required' };
+  static validateApiKey(key: string): boolean {
+    if (!key || typeof key !== 'string') {
+      return false;
     }
 
-    const trimmedKey = apiKey.trim();
+    // Basic API key validation - should be alphanumeric with some special chars
+    const apiKeyPattern = /^[a-zA-Z0-9\-_\.]+$/;
+    return apiKeyPattern.test(key) && key.length >= 10 && key.length <= 200;
+  }
 
-    if (trimmedKey.length < 10) {
-      return { valid: false, error: 'API key too short' };
+  /**
+   * Validate UUID format
+   */
+  static validateUuid(uuid: string): boolean {
+    if (!uuid || typeof uuid !== 'string') {
+      return false;
     }
 
-    if (trimmedKey.length > 500) {
-      return { valid: false, error: 'API key too long' };
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidPattern.test(uuid);
+  }
+
+  /**
+   * Sanitize user input for display
+   */
+  static sanitizeInput(input: string): string {
+    if (!input || typeof input !== 'string') {
+      return '';
     }
 
-    // Provider-specific validation
-    switch (provider) {
-      case 'openai':
-        if (!trimmedKey.startsWith('sk-')) {
-          return { valid: false, error: 'OpenAI API key must start with "sk-"' };
-        }
-        if (trimmedKey.length < 48) {
-          return { valid: false, error: 'OpenAI API key appears to be invalid length' };
-        }
-        break;
-        
-      case 'anthropic':
-        if (!trimmedKey.startsWith('sk-ant-')) {
-          return { valid: false, error: 'Anthropic API key must start with "sk-ant-"' };
-        }
-        break;
+    return input
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .replace(/\//g, '&#x2F;');
+  }
+
+  /**
+   * Validate user input for chat messages
+   */
+  static validateUserInput(input: string): { valid: boolean; error?: string; sanitizedInput?: string } {
+    if (!input || typeof input !== 'string') {
+      return { valid: false, error: 'Input must be a non-empty string' };
     }
 
-    // Check for suspicious patterns
-    if (/[<>"/\\]/.test(trimmedKey)) {
-      return { valid: false, error: 'API key contains invalid characters' };
+    if (input.length > 2000) {
+      return { valid: false, error: 'Input too long (max 2000 characters)' };
     }
 
-    return { valid: true };
+    // Check for dangerous patterns
+    if (!this.validateSafeText(input)) {
+      return { valid: false, error: 'Input contains potentially dangerous content' };
+    }
+
+    return {
+      valid: true,
+      sanitizedInput: this.sanitizeInput(input)
+    };
   }
 
   /**
    * Validate configuration values
    */
-  static validateConfigValue(key: string, value: any): {
-    valid: boolean;
-    sanitizedValue?: any;
-    error?: string;
-  } {
-    if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
-      return { valid: false, error: 'Invalid value type' };
+  static validateConfigValue(key: string, value: any): { valid: boolean; error?: string; sanitizedValue?: any } {
+    if (!key || typeof key !== 'string') {
+      return { valid: false, error: 'Configuration key must be a string' };
     }
 
-    let sanitizedValue = value;
+    // Handle different types of configuration values
+    if (key.includes('API_KEY') || key.includes('_KEY')) {
+      if (!value || typeof value !== 'string') {
+        return { valid: true, sanitizedValue: '' }; // Allow empty API keys
+      }
+      if (!this.validateApiKey(value)) {
+        return { valid: false, error: 'Invalid API key format' };
+      }
+      return { valid: true, sanitizedValue: value };
+    }
 
-    // String validation and sanitization
+    if (key.includes('URL') || key.includes('_URL')) {
+      if (!value || typeof value !== 'string') {
+        return { valid: false, error: 'URL must be a string' };
+      }
+      try {
+        new URL(value);
+        return { valid: true, sanitizedValue: value };
+      } catch {
+        return { valid: false, error: 'Invalid URL format' };
+      }
+    }
+
+    // Default validation for other config values
     if (typeof value === 'string') {
-      if (value.length > 10000) {
-        return { valid: false, error: 'Value too long (max 10KB)' };
+      if (value.length > 500) {
+        return { valid: false, error: 'Configuration value too long (max 500 characters)' };
       }
-
-      // Sanitize based on key type
-      if (key.toLowerCase().includes('url')) {
-        sanitizedValue = XSSProtection.sanitizeURL(value);
-        if (!sanitizedValue) {
-          return { valid: false, error: 'Invalid URL format' };
-        }
-      } else if (key.toLowerCase().includes('api_key') || key.toLowerCase().includes('key')) {
-        // API keys don't need HTML sanitization but should be validated
-        const validation = this.validateAPIKey(value);
-        if (!validation.valid) {
-          return { valid: false, error: validation.error };
-        }
-        sanitizedValue = value.trim();
-      } else {
-        // General string sanitization
-        sanitizedValue = XSSProtection.escapeHTML(value.trim());
-      }
+      return { valid: true, sanitizedValue: this.sanitizeInput(value) };
     }
 
-    // Number validation
-    if (typeof value === 'number') {
-      if (!Number.isFinite(value)) {
-        return { valid: false, error: 'Invalid number' };
-      }
-      
-      // Reasonable bounds for configuration values
-      if (value < -1000000 || value > 1000000) {
-        return { valid: false, error: 'Number out of allowed range' };
-      }
-    }
-
-    return { valid: true, sanitizedValue };
+    return { valid: true, sanitizedValue: value };
   }
 
   /**
-   * Validate user input for chat/commands
+   * Validate file uploads
    */
-  static validateUserInput(input: string): {
-    valid: boolean;
-    sanitizedInput?: string;
-    error?: string;
-  } {
-    if (!input || typeof input !== 'string') {
-      return { valid: false, error: 'Input is required' };
-    }
-
-    if (input.length > 50000) {
-      return { valid: false, error: 'Input too long (max 50KB)' };
-    }
-
-    // Sanitize for XSS protection
-    const sanitizedInput = XSSProtection.escapeHTML(input.trim());
-
-    // Check for potential command injection patterns
-    const dangerousPatterns = [
-      /(\$\(.*\))/,           // Command substitution
-      /(`.*`)/,               // Backtick command execution
-      /(;.*)/,                // Command chaining
-      /(\|.*)/,               // Pipe operations
-      /(&&.*)/,               // Command chaining
-      /(\|\|.*)/,             // Command chaining
-      /(>.*)/,                // Redirection
-      /(<.*)/,                // Redirection
-    ];
-
-    for (const pattern of dangerousPatterns) {
-      if (pattern.test(input)) {
-        console.warn(`[SECURITY] Potential command injection detected in input`);
-        // Don't block but log the attempt
-        break;
-      }
-    }
-
-    return { valid: true, sanitizedInput };
-  }
-
-  /**
-   * Validate file upload
-   */
-  static validateFileUpload(file: File): {
-    valid: boolean;
-    error?: string;
-  } {
+  static validateFileUpload(file: File): { valid: boolean; error?: string } {
     if (!file) {
       return { valid: false, error: 'No file provided' };
     }
 
-    // File size limit (10MB)
+    // Check file size (max 10MB)
     const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       return { valid: false, error: 'File too large (max 10MB)' };
     }
 
-    // Validate file name
-    const sanitizedName = XSSProtection.sanitizeFileName(file.name);
-    if (!sanitizedName) {
-      return { valid: false, error: 'Invalid file name' };
-    }
-
-    // Allowed file types for knowledge documents
+    // Check file type
     const allowedTypes = [
       'text/plain',
       'text/markdown',
       'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/html',
       'application/json',
       'text/csv'
     ];
 
-    if (!allowedTypes.includes(file.type)) {
-      return { valid: false, error: 'File type not allowed' };
+    const allowedExtensions = ['.txt', '.md', '.pdf', '.doc', '.docx', '.html', '.json', '.csv'];
+
+    const hasValidType = allowedTypes.includes(file.type);
+    const hasValidExtension = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+
+    if (!hasValidType && !hasValidExtension) {
+      return { valid: false, error: 'File type not allowed. Supported: txt, md, pdf, doc, docx, html, json, csv' };
+    }
+
+    // Check filename for dangerous patterns
+    if (file.name.includes('..') || file.name.includes('/') || file.name.includes('\\')) {
+      return { valid: false, error: 'Invalid filename' };
     }
 
     return { valid: true };
@@ -296,118 +320,95 @@ export class InputValidator {
 }
 
 /**
- * Secure Storage Utilities
- */
-export class SecureStorage {
-  /**
-   * Securely store sensitive data in localStorage with basic obfuscation
-   */
-  static setSecureItem(key: string, value: string): void {
-    try {
-      // Basic obfuscation (not encryption, but better than plaintext)
-      const obfuscated = btoa(encodeURIComponent(value));
-      localStorage.setItem(`sec_${key}`, obfuscated);
-    } catch (error) {
-      console.error('[SECURITY] Failed to store secure item:', error);
-    }
-  }
-
-  /**
-   * Retrieve securely stored data
-   */
-  static getSecureItem(key: string): string | null {
-    try {
-      const obfuscated = localStorage.getItem(`sec_${key}`);
-      if (!obfuscated) {
-        return null;
-      }
-      
-      return decodeURIComponent(atob(obfuscated));
-    } catch (error) {
-      console.error('[SECURITY] Failed to retrieve secure item:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Remove securely stored data
-   */
-  static removeSecureItem(key: string): void {
-    localStorage.removeItem(`sec_${key}`);
-  }
-
-  /**
-   * Clear all secure storage
-   */
-  static clearSecureStorage(): void {
-    const keys = Object.keys(localStorage);
-    for (const key of keys) {
-      if (key.startsWith('sec_')) {
-        localStorage.removeItem(key);
-      }
-    }
-  }
-}
-
-/**
- * Security Event Logger
+ * Security logging utilities
  */
 export class SecurityLogger {
+  private static logs: Array<{
+    timestamp: number;
+    level: 'info' | 'warn' | 'error';
+    message: string;
+    details?: any;
+  }> = [];
+
   /**
-   * Log security events for monitoring
+   * Log security-related information
+   */
+  static info(message: string, details?: any) {
+    this.addLog('info', message, details);
+    console.info(`[SECURITY] ${message}`, details);
+  }
+
+  /**
+   * Log security warnings
+   */
+  static warn(message: string, details?: any) {
+    this.addLog('warn', message, details);
+    console.warn(`[SECURITY] ${message}`, details);
+  }
+
+  /**
+   * Log security errors
+   */
+  static error(message: string, details?: any) {
+    this.addLog('error', message, details);
+    console.error(`[SECURITY] ${message}`, details);
+  }
+
+  /**
+   * Get recent security logs
+   */
+  static getLogs(limit: number = 100): Array<{
+    timestamp: number;
+    level: string;
+    message: string;
+    details?: any;
+  }> {
+    return this.logs.slice(-limit);
+  }
+
+  /**
+   * Clear security logs
+   */
+  static clearLogs() {
+    this.logs = [];
+  }
+
+  /**
+   * Log security events with different types
    */
   static logSecurityEvent(
-    event: 'xss_attempt' | 'injection_attempt' | 'invalid_input' | 'auth_failure' | 'access_denied',
-    details: string,
-    severity: 'low' | 'medium' | 'high' | 'critical' = 'medium'
-  ): void {
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      event,
-      details,
-      severity,
-      userAgent: navigator.userAgent,
-      url: window.location.href
-    };
+    eventType: 'access_granted' | 'access_revoked' | 'invalid_input' | 'security_warning' | 'capability_change',
+    message: string,
+    severity: 'low' | 'medium' | 'high' = 'medium'
+  ) {
+    const logLevel = severity === 'high' ? 'error' : severity === 'medium' ? 'warn' : 'info';
+    this.addLog(logLevel, `[${eventType.toUpperCase()}] ${message}`);
 
-    console.warn(`[SECURITY-${severity.toUpperCase()}] ${event}: ${details}`);
-
-    // In production, send to security monitoring service
-    // SecurityMonitoringService.sendEvent(logEntry);
-  }
-}
-
-/**
- * Content Security Policy Helper
- */
-export class CSPHelper {
-  /**
-   * Check if Content Security Policy is properly configured
-   */
-  static checkCSP(): boolean {
-    const metaTags = document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]');
-    const hasCSP = metaTags.length > 0;
-    
-    if (!hasCSP) {
-      console.warn('[SECURITY] Content Security Policy not detected');
+    // Also log to console with appropriate level
+    switch (logLevel) {
+      case 'error':
+        console.error(`[SECURITY EVENT] ${message}`);
+        break;
+      case 'warn':
+        console.warn(`[SECURITY EVENT] ${message}`);
+        break;
+      default:
+        console.info(`[SECURITY EVENT] ${message}`);
+        break;
     }
-    
-    return hasCSP;
   }
 
-  /**
-   * Report CSP violations
-   */
-  static setupCSPReporting(): void {
-    document.addEventListener('securitypolicyviolation', (event) => {
-      SecurityLogger.logSecurityEvent(
-        'xss_attempt',
-        `CSP violation: ${event.violatedDirective} - ${event.blockedURI}`,
-        'high'
-      );
+  private static addLog(level: 'info' | 'warn' | 'error', message: string, details?: any) {
+    this.logs.push({
+      timestamp: Date.now(),
+      level,
+      message,
+      details
     });
+
+    // Keep only last 500 logs to prevent memory issues
+    if (this.logs.length > 500) {
+      this.logs = this.logs.slice(-500);
+    }
   }
 }
-
-// Initialize security features
-CSPHelper.setupCSPReporting();

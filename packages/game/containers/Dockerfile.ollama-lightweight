@@ -1,0 +1,18 @@
+FROM ollama/ollama:latest
+
+# Set Ollama environment variables
+ENV OLLAMA_HOST=0.0.0.0
+ENV OLLAMA_PORT=11434
+
+# Create directory for persistent model storage
+RUN mkdir -p /root/.ollama
+
+# Expose Ollama API port
+EXPOSE 11434
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:11434/api/version || exit 1
+
+# Start Ollama service
+CMD ["ollama", "serve"]

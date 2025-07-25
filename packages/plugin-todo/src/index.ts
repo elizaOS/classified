@@ -56,20 +56,20 @@ export const TodoPlugin: Plugin = {
 export default TodoPlugin;
 
 // Export discoverable services for external use
-export { TodoReminderService } from './services/reminderService.js';
-export { TodoIntegrationBridge } from './services/integrationBridge.js';
+export { TodoReminderService } from './services/reminderService';
+export { TodoIntegrationBridge } from './services/integrationBridge';
 
 // Export internal managers for advanced usage
-export { NotificationManager } from './services/notificationManager.js';
-export { CacheManager } from './services/cacheManager.js';
+export { NotificationManager } from './services/notificationManager';
+export { CacheManager } from './services/cacheManager';
 
 // Export data service utilities
-export { createTodoDataService } from './services/todoDataService.js';
-export type { TodoData } from './services/todoDataService.js';
+export { createTodoDataService } from './services/todoDataService';
+export type { TodoData } from './services/todoDataService';
 
 // Export types
-export type { CacheEntry, CacheStats } from './services/cacheManager.js';
-export type { NotificationData, NotificationPreferences } from './services/notificationManager.js';
+export type { CacheEntry, CacheStats } from './services/cacheManager';
+export type { NotificationData, NotificationPreferences } from './services/notificationManager';
 
 // Export schema
-export { todoSchemaExport as todoSchema } from './schema.js';
+export { todoSchemaExport as todoSchema } from './schema';

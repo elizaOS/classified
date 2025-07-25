@@ -39,7 +39,7 @@
     "tsup.config.ts"
   ],
   "dependencies": {
-    "@elizaos/core": "^1.2.12",
+    "@elizaos/core": "workspace:*",
     "@octokit/rest": "^20.1.1",
     "@octokit/types": "^13.5.0",
     "deprecation": "^2.3.1",
@@ -63,10 +63,11 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "clean": "rm -rf dist && rm -rf .turbo",
+    "start": "echo 'Plugin package, use with ElizaOS'",
+    "test": "bun test && elizaos test",
     "lint": "eslint src --fix && prettier --write ./src",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test && elizaos test"
+    "clean": "rm -rf dist && rm -rf .turbo",
+    "typecheck": "tsc --noEmit"
   },
   "publishConfig": {
     "access": "public"

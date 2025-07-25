@@ -1,7 +1,8 @@
 // Vision models for object detection and pose estimation
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import * as poseDetection from '@tensorflow-models/pose-detection';
-import * as tf from '@tensorflow/tfjs-node';
+import * as tf from '@tensorflow/tfjs';
+import '@tensorflow/tfjs-backend-wasm';
 
 import { logger, IAgentRuntime } from '@elizaos/core';
 import { DetectedObject, PersonInfo } from './types';
@@ -65,9 +66,10 @@ export class VisionModels {
     logger.info('[VisionModels] Initializing vision models...');
 
     try {
-      // Initialize TensorFlow.js backend
+      // Initialize TensorFlow.js WASM backend
+      await tf.setBackend('wasm');
       await tf.ready();
-      logger.info('[VisionModels] TensorFlow.js backend ready');
+      logger.info('[VisionModels] TensorFlow.js WASM backend ready');
 
       // Load object detection model
       if (config.enableObjectDetection) {
@@ -131,8 +133,20 @@ export class VisionModels {
     }
 
     try {
-      // Convert image data to tensor
-      const imageTensor = tf.node.decodeImage(imageData, 3);
+      // Convert image data to tensor (compatible with WASM backend)
+      // Since tf.browser.decodeImage is not available in Node.js, we need to use sharp 
+      // to convert the image to the right format first
+      const sharp = require('sharp');
+      const { width, height } = await sharp(imageData).metadata();
+      const rawImageData = await sharp(imageData)
+        .raw()
+        .toBuffer();
+      
+      const imageTensor = tf.tensor3d(
+        new Uint8Array(rawImageData), 
+        [height, width, 3], 
+        'int32'
+      ).cast('float32').div(255);
 
       // Ensure the tensor has the right shape [1, height, width, 3]
       const batched = imageTensor.expandDims(0);
@@ -252,8 +266,20 @@ export class VisionModels {
     }
 
     try {
-      // Convert image data to tensor
-      const imageTensor = tf.node.decodeImage(imageData, 3);
+      // Convert image data to tensor (compatible with WASM backend)
+      // Since tf.browser.decodeImage is not available in Node.js, we need to use sharp 
+      // to convert the image to the right format first
+      const sharp = require('sharp');
+      const { width, height } = await sharp(imageData).metadata();
+      const rawImageData = await sharp(imageData)
+        .raw()
+        .toBuffer();
+      
+      const imageTensor = tf.tensor3d(
+        new Uint8Array(rawImageData), 
+        [height, width, 3], 
+        'int32'
+      ).cast('float32').div(255);
 
       // Run pose detection
       const poses = await this.poseDetector.estimatePoses({

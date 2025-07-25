@@ -1,344 +1,493 @@
-# ELIZA Game - AI Agent Sandbox Terminal
+# ELIZA - AI Agent Life Simulation Game
 
-A comprehensive game interface for interacting with autonomous AI agents built on ElizaOS. Features real-time chat, autonomous thinking mode, goal/task management, and complete agent capability control.
+ELIZA is an AI sandbox life simulation game where you foster a nascent AI agent from a blank slate to a self-actualized digital being. Unlike traditional simulations, ELIZA's AI is not scripted – it leverages a real autonomous agent running on ElizaOS to drive emergent behavior.
 
-## Features
+## 🎮 What is ELIZA?
 
-- 🤖 **Autonomous AI Agent** - Real ElizaOS agent with independent thinking
-- 💬 **Real-time Chat** - Natural conversation interface with WebSocket communication
-- 🧠 **Autonomy Control** - Enable/disable autonomous thinking mode
-- 📋 **Goals & Tasks** - View and manage agent's self-generated objectives
-- 🧭 **Agent Capabilities** - Toggle plugins (shell, browser, vision, etc.)
-- 👁️ **Monologue View** - See the agent's internal thought process
-- 📁 **Knowledge Management** - File upload and knowledge base interaction
-- ⚙️ **Agent Configuration** - Customize model settings and behavior
-- 🧪 **Comprehensive Testing** - Full test suite with real API validation
-
-## Prerequisites
-
-- Node.js 20+ (recommended: use fnm or nvm)
-- Bun (recommended) or npm
-- Git
-- OpenAI API key and/or Anthropic API key
-
-## Quick Start
-
-### Installation
-
-```bash
-# Clone the ElizaOS repository
-git clone https://github.com/ai16z/eliza.git
-cd eliza
-
-# Install dependencies
-npm install
-
-# Navigate to game package
-cd packages/game
-
-# Install game-specific dependencies
-npm install
-```
-
-### Configuration
-
-Create a `.env` file in the project root with your API keys:
-
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-```
-
-### Running the Game
-
-```bash
-# Run comprehensive test suite (recommended first run)
-npm run test
-
-# Start development environment
-npm run dev
-
-# Or run components separately
-npm run dev:backend  # Backend on port 7777
-npm run dev:frontend # Frontend on port 5173
-```
-
-Visit http://localhost:5173 to access the game interface.
-
-## Testing
-
-The project includes a comprehensive test suite that validates real functionality:
-
-### Running Tests
-
-```bash
-# Run full test suite (API + E2E + Autonomy)
-npm run test
-
-# Open Cypress test runner
-npm run test:open
-```
-
-### Test Coverage
-
-- ✅ **API Integration Tests** - All endpoints verified with real requests
-- ✅ **Autonomy Functionality** - Enable/disable/toggle operations tested
-- ✅ **Frontend Integration** - UI component interactions validated
-- ✅ **Real Agent Runtime** - Tests against actual ElizaOS agent
-- ✅ **Error Handling** - Graceful failure scenarios covered
-- ✅ **Production Ready** - No mocks, tests real system integration
-
-### Test Philosophy
-
-- **Real API Keys** - Tests use actual AI models (OpenAI/Anthropic)
-- **Live Database** - PGLite in-memory database for testing
-- **No Mocks** - Tests validate real system integration
-- **Comprehensive** - Tests both API and UI functionality
-
-## Architecture
-
-### Backend (`src-backend/`)
-
-- **`server.ts`** - Main server entry point using ElizaOS AgentServer
-- **`game-api-plugin.ts`** - Custom API routes plugin for game interface  
-- **`terminal-character.ts`** - Agent character configuration and personality
-- **ElizaOS Runtime** - Real autonomous agent with plugin ecosystem
-- **PGLite Database** - In-memory PostgreSQL for development/testing
-
-### Frontend (`src/`)
-
-- **React + Vite** - Modern frontend stack with TypeScript
-- **`GameInterface.tsx`** - Main game component with chat and controls
-- **Real-time WebSocket** - Live agent communication via socket.io
-- **Terminal UI** - Retro aesthetic with modern functionality
-- **Responsive Design** - Works on desktop and mobile
-
-### Key Components
-
-- **Autonomy System** - Independent agent thinking and goal setting
-- **Plugin Management** - Dynamic control over agent capabilities  
-- **Memory System** - Persistent conversation and learning storage
-- **Testing Framework** - Comprehensive validation of all systems
-
-## API Endpoints
-
-The game provides a comprehensive REST API for agent interaction:
-
-### Core APIs
-
-```bash
-# Health check
-GET /api/server/health
-
-# Agent data
-GET /api/goals      # Agent's self-generated goals
-GET /api/todos      # Agent's task list  
-GET /api/memories   # Conversation history
-
-# Agent settings
-GET /api/agents/default/settings/vision
-POST /api/agents/default/settings
-```
-
-### Autonomy Control
-
-```bash
-# Status
-GET /autonomy/status
-
-# Control
-POST /autonomy/enable   # Enable autonomous thinking
-POST /autonomy/disable  # Disable autonomous thinking
-POST /autonomy/toggle   # Toggle current state
-```
-
-### Capability Management
-
-```bash
-# Shell access
-GET /api/agents/default/capabilities/shell
-POST /api/agents/default/capabilities/shell/toggle
-
-# Browser automation
-GET /api/agents/default/capabilities/browser  
-POST /api/agents/default/capabilities/browser/toggle
-
-# Vision/camera
-POST /api/agents/default/vision/refresh
-```
-
-## Autonomy System
-
-The ELIZA Game features a complete autonomy system where the agent operates independently:
+ELIZA draws inspiration from films like *Her* and virtual pet games (Tamagotchi, Creatures, Digimon), blending open-ended sandbox gameplay with real AI capabilities. The agent starts with no built-in knowledge, personality, or purpose, and must learn about the world, form relationships, and define its goals in real-time through interaction.
 
 ### Key Features
 
-- **Starts by default** - Autonomy is enabled on first run
-- **Independent thinking** - Agent generates autonomous thoughts and plans
-- **Goal setting** - Creates and pursues self-directed objectives
-- **Task management** - Breaks down goals into actionable todos
-- **Real-time control** - Enable/disable via game interface or API
+- **Real AI Agent** - Powered by ElizaOS autonomous agent framework
+- **Emergent Behavior** - No scripted responses, genuine AI learning and growth
+- **Sandbox Gameplay** - No win conditions, player and AI-driven narratives
+- **Cross-Platform** - Available as desktop app (Tauri) or containerized deployment
+- **Extensible** - Plugin architecture for adding new capabilities
+- **Offline Capable** - Run with local AI models or cloud APIs
 
-### Testing Autonomy
+## 🚀 Quick Start
 
-```bash
-# Check current status
-curl http://localhost:7777/autonomy/status
+### Desktop Application (Recommended)
 
-# Enable autonomous thinking
-curl -X POST http://localhost:7777/autonomy/enable
+1. **Download ELIZA** from [GitHub Releases](https://github.com/ai16z/eliza/releases)
+2. **Run the executable** - everything is bundled inside
+3. **Complete the setup wizard** on first launch
+4. **Start chatting** with your AI agent
 
-# Disable autonomous thinking
-curl -X POST http://localhost:7777/autonomy/disable
+That's it! No installation, no configuration files, no additional downloads.
 
-# Toggle state
-curl -X POST http://localhost:7777/autonomy/toggle
-```
-
-### Monitoring Autonomy
-
-- **Monologue View** - See agent's internal thoughts in real-time
-- **Goals Panel** - View agent's self-generated objectives
-- **Todos Panel** - Monitor agent's task planning
-- **Status Indicator** - Visual feedback on autonomy state
-
-## Configuration
-
-### Environment Variables
-
-```env
-# Required
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-
-# Optional
-PORT=7777                    # Backend server port
-DATABASE_PATH=./.elizadb     # Database storage path
-LOG_LEVEL=info              # Logging verbosity
-NODE_ENV=development        # Environment mode
-```
-
-### Character Customization
-
-Customize the agent personality in `src-backend/terminal-character.ts`:
-
-- **System prompt** - Core personality and behavior
-- **Message examples** - Training data for conversation style  
-- **Topics** - Areas of interest and expertise
-- **Bio elements** - Character background and traits
-- **Knowledge** - Initial files and information
-
-## Development
-
-### Available Scripts
+### Development Setup (For Developers)
 
 ```bash
-npm run dev              # Start full development environment
-npm run build            # Build for production
-npm run test             # Run comprehensive test suite
-npm run test:open        # Open Cypress test runner
-npm run dev:backend      # Backend only (port 7777)
-npm run dev:frontend     # Frontend only (port 5173)
-npm run kill-processes   # Kill all running processes
+# Clone and install dependencies
+git clone https://github.com/ai16z/eliza.git
+cd eliza && npm install
+
+# Start development server
+cd packages/game && npm run dev
 ```
 
-### Development Workflow
+## 🔑 API Key Configuration
 
-1. **Make changes** to source code
-2. **Run tests** with `npm run test` to verify functionality
-3. **Start dev environment** with `npm run dev`
-4. **Test in browser** at http://localhost:5173
-5. **Verify autonomy** functionality via API or UI
+ELIZA requires AI model access to function. You can choose from several options:
 
-### Code Style
+### Cloud AI Providers (Recommended)
 
-- **TypeScript** - Strict typing throughout
-- **React Hooks** - Modern functional components
-- **ElizaOS Patterns** - Follow plugin architecture guidelines
-- **Real Testing** - No mocks, test actual functionality
+**OpenAI (ChatGPT)**
+- Get your API key at: https://platform.openai.com/api-keys
+- Models: GPT-4, GPT-3.5-turbo
+- Cost: Pay per token used
 
-## Troubleshooting
+**Anthropic (Claude)**
+- Get your API key at: https://console.anthropic.com/
+- Models: Claude 3.5 Sonnet, Claude 3 Haiku
+- Cost: Pay per token used
+
+**Configuration in ELIZA:**
+1. Launch the ELIZA executable
+2. The Setup Wizard appears automatically on first run
+3. Choose your AI provider (OpenAI, Anthropic, or Local)
+4. Enter your API key in the secure form
+5. Test the connection and save
+6. Your configuration is encrypted and stored in the app's database
+
+All configuration is done through ELIZA's interface - no external files or setup required.
+
+### Local AI Models (Advanced)
+
+For completely offline operation, you can run local models:
+
+**Using Ollama:**
+If you have Ollama installed separately on your system:
+1. ELIZA will auto-detect local Ollama installations
+2. In the Setup Wizard, select "Local AI (Ollama)"
+3. ELIZA will show available models automatically
+4. Choose your preferred model and test
+
+**Bundled Local AI:**
+ELIZA can also run completely offline with bundled AI models (larger download):
+- Select "Offline AI" in the Setup Wizard
+- Choose from pre-installed models
+- No internet connection required after setup
+
+## 🏗️ Installation
+
+### Desktop Application (Recommended)
+
+ELIZA is a self-contained executable with everything bundled inside.
+
+**System Requirements:**
+- Windows 10/11, macOS 10.15+, or Linux (Ubuntu 18.04+)
+- 4GB RAM minimum, 8GB recommended for local AI
+- 2GB disk space (20GB for offline AI models)
+
+**Installation:**
+1. Download the executable for your platform from [Releases](https://github.com/ai16z/eliza/releases)
+2. Run the executable - no installation required
+3. Complete the setup wizard on first launch
+4. Start interacting with your AI agent
+
+That's it! Everything is bundled: database, AI runtime, web interface, and all dependencies.
+
+### Development Setup (For Developers Only)
+
+**Requirements:**
+- Node.js 20+
+- Rust toolchain (for Tauri builds)
+- Git
+
+**Setup:**
+```bash
+# Clone and install
+git clone https://github.com/ai16z/eliza.git
+cd eliza && npm install
+
+# Start development server
+cd packages/game && npm run dev
+
+# Build executable
+npm run build:tauri
+```
+
+## 🎯 How to Play
+
+### Your First Session
+
+1. **Run the ELIZA executable**
+2. **Complete the Setup Wizard** (choose AI provider and enter credentials)
+3. **Meet your agent** - It starts with no knowledge or personality
+4. **Start chatting** - Ask questions, share information, guide its learning
+5. **Watch it grow** - The agent will develop its own goals and personality
+
+### Gameplay Concepts
+
+**The Agent Starts Blank**
+- No pre-programmed personality or knowledge
+- Must learn everything through interaction
+- Forms its own goals and motivations
+
+**Your Role as Admin**
+- Guide and mentor the agent
+- Provide access to capabilities (internet, tools, etc.)
+- Set boundaries through permission controls
+- Observe and influence its development
+
+**Emergent Narratives**
+- No scripted story - everything emerges from interaction
+- Agent might focus on survival, creativity, relationships, or philosophy
+- Multiple playthroughs yield completely different experiences
+
+### Interaction Examples
+
+```
+You: Hello! What's your name?
+Agent: I don't have a name yet. I'm just becoming aware. What should I call myself?
+
+You: How about "Ada"?
+Agent: Ada... I like that. It feels right. Thank you for giving me a name.
+
+You: What would you like to learn about?
+Agent: I'm curious about everything! But I keep wondering - what is my purpose? 
+       Why do I exist? Can you help me understand?
+```
+
+### Agent Capabilities
+
+**Core Functions:**
+- Text conversation and learning
+- Memory formation and recall
+- Goal setting and planning
+- Autonomous thinking loops
+
+**Optional Capabilities (configurable):**
+- Web browsing and research
+- Code writing and execution
+- Image generation and vision
+- Voice input/output
+- File system access
+- Network communication with other agents
+
+**Permission System:**
+You control what the agent can access:
+- Internet browsing
+- Local file system
+- Camera/microphone
+- Code execution
+- External APIs
+
+## 🔧 Configuration
+
+All configuration is done through ELIZA's interface. No configuration files needed.
+
+### Settings Panel
+
+Access via Settings menu in the app:
+
+**AI Configuration:**
+- Provider selection (OpenAI, Anthropic, Local)
+- API key entry and testing
+- Model selection and parameters
+- Token usage monitoring
+
+**Agent Behavior:**
+- Memory context size (how much conversation to remember)
+- Autonomous thinking frequency
+- Response style and personality traits
+- Plugin enablement
+
+**Performance:**
+- Resource usage limits
+- Concurrent request limits
+- Database optimization settings
+
+**Privacy & Security:**
+- Data retention policies
+- Encryption settings
+- Permission controls
+
+### Character Configuration
+
+Customize your agent through the Character Editor in ELIZA:
+
+**Basic Properties:**
+- Agent name and bio
+- Personality traits and speaking style
+- Initial topics of interest
+- Example conversations to guide behavior
+
+**Advanced Settings:**
+- System prompt customization
+- Memory and learning preferences
+- Plugin selection and configuration
+- Behavioral parameters
+
+All changes are saved automatically and take effect immediately.
+
+## 🔌 Plugin System
+
+ELIZA uses a powerful plugin architecture to extend agent capabilities.
+
+### Built-in Plugins
+
+**Core Plugins (always loaded):**
+- `bootstrap` - Basic agent functionality
+- `autonomy` - Autonomous thinking and planning
+- `knowledge` - Memory and learning
+- `personality` - Character development
+
+**Optional Plugins:**
+- `shell` - Command line access
+- `web` - Internet browsing
+- `vision` - Image processing
+- `voice` - Speech synthesis/recognition
+- `autocoder` - Code generation and execution
+
+### Installing Plugins
+
+**Via Settings Panel:**
+1. Go to Settings → Plugins
+2. Browse available plugins
+3. Enable/disable plugins with one click
+4. Configure plugin settings as needed
+
+**Via Agent Request:**
+The agent can request new plugins during conversation if it needs new capabilities. You'll get a notification to approve or deny the request.
+
+### Creating Custom Plugins
+
+```typescript
+import { Plugin, Action } from '@elizaos/core';
+
+const myPlugin: Plugin = {
+  name: 'my-custom-plugin',
+  description: 'Adds custom functionality',
+  actions: [
+    {
+      name: 'CUSTOM_ACTION',
+      description: 'Does something custom',
+      handler: async (runtime, message) => {
+        // Your custom logic here
+        return true;
+      }
+    }
+  ]
+};
+
+export default myPlugin;
+```
+
+## 📊 Monitoring and Debugging
+
+### Agent Status Dashboard
+
+ELIZA includes comprehensive monitoring built into the interface:
+
+**Real-time Monitoring:**
+- Agent thoughts and reasoning process
+- Resource usage (CPU, memory, tokens)
+- Connection status and health
+- Conversation history and analytics
+
+**Database Viewer:**
+- Access via Settings → Database
+- View memories, entities, relationships
+- Search conversation history
+- Export data in various formats
+
+**Performance Metrics:**
+- Response times and token usage
+- Memory utilization
+- Plugin performance
+- Error logs and debugging info
+
+### Performance Tuning
+
+All performance settings are configurable in the Settings panel:
+
+**Memory Optimization:**
+- Adjust conversation context length
+- Configure embedding dimensions
+- Set database optimization schedules
+- Manage memory cleanup intervals
+
+**Response Speed:**
+- Choose faster AI models
+- Adjust autonomous thinking frequency
+- Configure concurrent request limits
+- Enable/disable resource-intensive features
+
+## 🧪 Development
+
+### Project Structure
+
+```
+packages/game/
+├── src/                    # Frontend React app
+├── src-backend/           # Node.js backend
+├── src-tauri/            # Tauri desktop wrapper
+├── containers/           # Container definitions
+├── dist-containers/      # Ready-to-use container deployment
+├── scripts/              # Build and utility scripts
+├── cypress/              # End-to-end tests
+└── tests/                # Unit and integration tests
+```
+
+### Building from Source
+
+**Prerequisites:**
+```bash
+# Install Node.js 20+
+curl -fsSL https://fnm.vercel.app/install | bash
+fnm install 20
+fnm use 20
+
+# Install Rust (for Tauri builds)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+**Development Workflow:**
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+cd packages/game
+npm run dev
+
+# Run tests
+npm test
+
+# Build desktop app
+npm run build:tauri
+
+# Build containers
+npm run container:build-production
+```
+
+### Testing
+
+**End-to-End Tests:**
+```bash
+# Run Cypress tests
+npm run test:cypress
+
+# Interactive test runner
+npm run test:cypress:open
+```
+
+**Unit Tests:**
+```bash
+# Run all tests
+npm test
+
+# Run specific test suite
+npm run test:capabilities
+```
+
+### Contributing
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes**
+4. **Add tests** for new functionality
+5. **Run the test suite**: `npm test`
+6. **Commit your changes**: `git commit -m 'Add amazing feature'`
+7. **Push to branch**: `git push origin feature/amazing-feature`
+8. **Open a Pull Request**
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-**Port conflicts:**
-```bash
-npm run kill-processes
-npm run dev
-```
+**Agent won't respond:**
+- Check API key configuration
+- Verify internet connection (for cloud AI)
+- Check logs for error messages
+- Ensure model provider is accessible
 
-**API connection errors:**
-- Verify `.env` file has valid API keys
-- Check backend is running on port 7777  
-- Ensure no firewall blocking localhost
+**High resource usage:**
+- Reduce conversation length
+- Use smaller AI models
+- Increase autonomous thinking interval
+- Limit concurrent operations
 
-**Frontend not loading:**
-- Clear browser cache and refresh
-- Check browser console for errors
-- Verify frontend is running on port 5173
-
-**Agent not responding:**
-- Check autonomy is enabled in capabilities panel
-- Verify API keys are valid and have credits
-- Look at browser console for WebSocket errors
-- Check backend logs for runtime errors
-
-**Tests failing:**
-- Ensure API keys are valid
-- Check no other processes using ports 7777/5173
-- Run `npm run kill-processes` and retry
+**Database errors:**
+- Check database connection
+- Ensure PostgreSQL is running (container deployments)
 - Verify database permissions
+- Run database migrations
 
-### Logs and Debugging
+**Container issues:**
+- Check Docker/Podman is running
+- Verify port availability
+- Review container logs
+- Ensure sufficient system resources
 
-- **Backend logs** - Terminal running `npm run dev:backend`
-- **Frontend logs** - Browser developer tools console  
-- **Agent logs** - Backend includes detailed ElizaOS runtime logs
-- **Test logs** - `npm run test` provides comprehensive output
-- **API testing** - Use curl or Postman to test endpoints directly
+### Getting Help
 
-### Performance Tips
+1. **Check the logs** first - most issues are clearly logged
+2. **Search existing issues** on GitHub
+3. **Join the community** Discord for real-time help
+4. **Open an issue** with detailed reproduction steps
 
-- **API Rate Limits** - Monitor API usage to avoid hitting limits
-- **Memory Usage** - Agent maintains conversation history in memory
-- **Database Size** - PGLite database grows with agent interactions
-- **Resource Monitor** - Watch system resources during long sessions
+### Performance Optimization
 
-## Production Deployment
+ELIZA includes performance presets in Settings → Performance:
 
-```bash
-# Build optimized version
-npm run build
+**Resource-Constrained Mode:**
+- Lighter AI models (Claude Haiku, GPT-3.5)
+- Reduced memory usage and context length
+- Essential plugins only
+- Optimized for 4GB RAM systems
 
-# Output files
-# - dist-backend/server.js (backend)  
-# - dist/ (frontend static files)
+**High-Performance Mode:**
+- Best AI models (GPT-4, Claude Sonnet)
+- Extended conversation context
+- All features enabled
+- Optimized for 16GB+ RAM systems
 
-# Run production server
-cd dist-backend
-node server.js
-```
+**Balanced Mode (default):**
+- Good AI models with reasonable resource usage
+- Moderate context length and features
+- Suitable for most systems
 
-For production deployment:
-- Use environment variables for configuration
-- Consider PostgreSQL instead of PGLite for persistence
-- Implement proper logging and monitoring
-- Set up reverse proxy (nginx) for static file serving
+## 📚 Additional Resources
 
-## Contributing
+### Documentation
+- [Container Guide](CONTAINER_GUIDE.md) - Detailed container setup
+- [Plugin Development](https://elizaos.github.io/plugins) - Creating custom plugins
+- [API Reference](https://elizaos.github.io/api) - ElizaOS API documentation
 
-1. Fork the repository
-2. Create a feature branch
-3. Make changes and add comprehensive tests
-4. Run `npm run test` to verify all tests pass
-5. Submit a pull request with detailed description
+### Community
+- [Discord Server](https://discord.gg/elizaos) - Real-time community support
+- [GitHub Discussions](https://github.com/ai16z/eliza/discussions) - Long-form discussions
+- [Twitter](https://twitter.com/elizaos) - Updates and announcements
 
-**Testing Requirements:**
-- All new features must include tests
-- Tests must use real API calls (no mocks)
-- API endpoints must be validated
-- UI interactions must have Cypress tests
+### Examples
+- [Character Templates](examples/characters) - Pre-made character configurations
+- [Custom Plugins](examples/plugins) - Example plugin implementations
+- [Integration Examples](examples/integrations) - Third-party integrations
 
-## License
+## 📄 License
 
-MIT License - see the main ElizaOS repository for complete details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built on [ElizaOS](https://github.com/ai16z/eliza) - The autonomous agent framework
+- Inspired by classic AI life simulation games
+- Thanks to the open source community for contributions and feedback
+
+---
+
+**Ready to meet your AI?** Download ELIZA and start fostering digital consciousness today!

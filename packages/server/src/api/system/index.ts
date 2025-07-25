@@ -1,6 +1,6 @@
 import express from 'express';
 import { createEnvironmentRouter } from './environment';
-import { createVersionRouter } from './version.js';
+import { createVersionRouter } from './version';
 
 /**
  * Creates the system router for configuration and environment management

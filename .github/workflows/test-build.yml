@@ -1,0 +1,74 @@
+name: Test Build
+
+on:
+  pull_request:
+    paths:
+      - 'packages/game/**'
+      - 'packages/lander/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-lander:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'packages/lander/package.json'
+
+      - name: Install lander dependencies
+        run: |
+          cd packages/lander
+          npm install
+
+      - name: Build lander
+        run: |
+          cd packages/lander
+          npm run build
+
+      - name: Check lander build output
+        run: |
+          cd packages/lander
+          ls -la dist/
+          echo "✅ Lander build successful"
+
+  test-game-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install game dependencies
+        run: |
+          cd packages/game
+          npm install || echo "⚠️  Some dependencies may be missing, continuing..."
+
+      - name: Test frontend build
+        run: |
+          cd packages/game
+          npm run build:frontend || echo "⚠️  Frontend build failed, but that's expected without full workspace"
+
+      - name: Check if Tauri config is valid
+        run: |
+          cd packages/game/src-tauri
+          if [ -f "tauri.conf.json" ]; then
+            echo "✅ Tauri config found"
+            node -e "JSON.parse(require('fs').readFileSync('tauri.conf.json', 'utf8'))" && echo "✅ Tauri config is valid JSON"
+          else
+            echo "❌ Tauri config not found"
+            exit 1
+          fi

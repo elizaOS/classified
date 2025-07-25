@@ -361,7 +361,7 @@ describe('AgentServer Integration Tests', () => {
     });
 
     it('should create server', async () => {
-      const serverData = { name: 'Test Server', sourceType: 'test' };
+      const serverData = { name: 'Test Server', source_type: 'test' };
 
       const result = await server.createServer(serverData);
 
@@ -369,7 +369,7 @@ describe('AgentServer Integration Tests', () => {
       expect(result).toEqual({
         id: 'server-id' as UUID,
         name: 'Test Server',
-        sourceType: 'test',
+        source_type: 'test',
         createdAt: expect.any(Date),
         updatedAt: expect.any(Date),
       });

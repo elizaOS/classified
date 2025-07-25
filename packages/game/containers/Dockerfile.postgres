@@ -1,0 +1,22 @@
+FROM pgvector/pgvector:pg16
+
+# Set environment variables for ELIZA
+ENV POSTGRES_DB=eliza_game
+ENV POSTGRES_USER=eliza
+ENV POSTGRES_PASSWORD=eliza_secure_pass
+
+# Copy initialization scripts
+COPY init-scripts/ /docker-entrypoint-initdb.d/
+
+# Expose PostgreSQL port
+EXPOSE 5432
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD pg_isready -U eliza -d eliza_game || exit 1
+
+# Optimal configuration for ELIZA workloads
+RUN echo "shared_preload_libraries = 'pg_stat_statements'" >> /usr/share/postgresql/postgresql.conf.sample && \
+    echo "max_connections = 200" >> /usr/share/postgresql/postgresql.conf.sample && \
+    echo "shared_buffers = 256MB" >> /usr/share/postgresql/postgresql.conf.sample && \
+    echo "effective_cache_size = 1GB" >> /usr/share/postgresql/postgresql.conf.sample

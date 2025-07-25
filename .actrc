@@ -1,0 +1,7 @@
+# act configuration for ELIZA workflows
+--platform ubuntu-22.04=ghcr.io/catthehacker/ubuntu:act-22.04
+--platform macos-latest=ghcr.io/catthehacker/ubuntu:act-22.04
+--platform windows-latest=ghcr.io/catthehacker/ubuntu:act-22.04
+--bind
+--use-new-action-cache
+--artifact-server-path /tmp/artifacts

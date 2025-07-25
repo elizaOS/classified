@@ -29,33 +29,33 @@ class RandomPortTestRunner {
     this.log('🎲 Generating random port configuration...');
     this.config = await generateTestConfig();
     this.portManager = this.config.portManager;
-    
+
     this.log(`Backend will use port: ${this.config.backendPort}`);
     this.log(`Frontend will use port: ${this.config.frontendPort}`);
-    
+
     // Clear any existing processes on these ports
     await this.portManager.clearPorts([this.config.backendPort, this.config.frontendPort]);
-    
+
     return this.config;
   }
 
   async killAllProcesses() {
     this.log('🧹 Killing all existing processes...');
-    
+
     try {
       // Kill specific processes
       await execAsync('pkill -f "src-backend" || true');
       await execAsync('pkill -f "vite dev" || true');
       await execAsync('pkill -f "cypress" || true');
-      
+
       // Clear our specific ports if they exist
       if (this.config) {
         await this.portManager.clearPorts([this.config.backendPort, this.config.frontendPort]);
       }
-      
+
       // Wait for processes to die
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       this.success('All processes killed');
     } catch (error) {
       this.log('No processes to kill or already dead');
@@ -64,7 +64,7 @@ class RandomPortTestRunner {
 
   async startBackend() {
     this.log(`🚀 Starting backend on port ${this.config.backendPort}...`);
-    
+
     return new Promise((resolve, reject) => {
       this.backendProcess = spawn('bun', ['run', 'src-backend/server.ts'], {
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -82,7 +82,7 @@ class RandomPortTestRunner {
       this.backendProcess.stdout.on('data', (data) => {
         const output = data.toString();
         console.log(`[BACKEND-${this.config.backendPort}] ${output.trim()}`);
-        
+
         if (output.includes(`AgentServer is listening on port ${this.config.backendPort}`) && !hasStarted) {
           hasStarted = true;
           clearTimeout(timeout);
@@ -106,7 +106,7 @@ class RandomPortTestRunner {
 
   async startFrontend() {
     this.log(`🌐 Starting frontend on port ${this.config.frontendPort}...`);
-    
+
     return new Promise((resolve, reject) => {
       this.frontendProcess = spawn('npm', ['run', 'dev:frontend'], {
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -124,7 +124,7 @@ class RandomPortTestRunner {
       this.frontendProcess.stdout.on('data', (data) => {
         const output = data.toString();
         console.log(`[FRONTEND-${this.config.frontendPort}] ${output.trim()}`);
-        
+
         if ((output.includes('Local:') || output.includes(`localhost:${this.config.frontendPort}`)) && !hasStarted) {
           hasStarted = true;
           clearTimeout(timeout);
@@ -151,7 +151,7 @@ class RandomPortTestRunner {
 
   async waitForBackendHealth() {
     this.log('🔍 Waiting for backend health check...');
-    
+
     for (let i = 0; i < 20; i++) {
       try {
         const response = await fetch(`http://localhost:${this.config.backendPort}/api/server/health`);
@@ -162,16 +162,16 @@ class RandomPortTestRunner {
       } catch (e) {
         // Backend not ready yet
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    
+
     throw new Error('Backend health check failed after 20 seconds');
   }
 
   async waitForFrontend() {
     this.log('🔍 Waiting for frontend to be accessible...');
-    
+
     for (let i = 0; i < 20; i++) {
       try {
         const response = await fetch(`http://localhost:${this.config.frontendPort}/`);
@@ -182,16 +182,16 @@ class RandomPortTestRunner {
       } catch (e) {
         // Frontend not ready yet
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    
+
     throw new Error('Frontend not accessible after 20 seconds');
   }
 
   async verifyAPIs() {
     this.log('🔧 Verifying critical APIs...');
-    
+
     const tests = [
       { name: 'Health Check', url: '/api/server/health' },
       { name: 'Goals API', url: '/api/goals' },
@@ -220,7 +220,7 @@ class RandomPortTestRunner {
     }
 
     this.log(`API Verification: ${passed} passed, ${failed} failed`);
-    
+
     if (failed > 0) {
       this.error('Some APIs are not working - tests may fail');
     } else {
@@ -231,18 +231,18 @@ class RandomPortTestRunner {
   async runCypressTests(specificTest = null) {
     const testFile = specificTest || 'cypress/e2e/**/*.cy.ts';
     this.log(`🧪 Running Cypress tests: ${testFile}`);
-    
+
     return new Promise((resolve, reject) => {
       const args = ['cypress', 'run'];
-      
+
       if (specificTest) {
         args.push('--spec', specificTest);
       }
-      
+
       // Add config overrides for our random ports
       args.push('--config');
       args.push(`baseUrl=http://localhost:${this.config.frontendPort}`);
-      
+
       const cypress = spawn('npx', args, {
         stdio: 'inherit',
         cwd: process.cwd(),
@@ -268,50 +268,50 @@ class RandomPortTestRunner {
 
   async cleanup() {
     this.log('🧹 Cleaning up...');
-    
+
     if (this.backendProcess) {
       this.backendProcess.kill('SIGTERM');
     }
-    
+
     if (this.frontendProcess) {
       this.frontendProcess.kill('SIGTERM');
     }
-    
+
     // Clear the ports we used
     if (this.config && this.portManager) {
       await this.portManager.clearPorts([this.config.backendPort, this.config.frontendPort]);
       this.portManager.releasePort(this.config.backendPort);
       this.portManager.releasePort(this.config.frontendPort);
     }
-    
+
     await this.killAllProcesses();
   }
 
   async run(specificTest = null) {
     console.log('🎲 ELIZA Game E2E Test Runner (Random Ports)');
     console.log('=============================================');
-    
+
     try {
       // Step 1: Initialize random ports
       await this.initializePorts();
-      
+
       // Step 2: Clean slate
       await this.killAllProcesses();
-      
+
       // Step 3: Start backend and wait for it to be ready
       await this.startBackend();
       await this.waitForBackendHealth();
-      
+
       // Step 4: Start frontend and wait for it to be ready
       await this.startFrontend();
       await this.waitForFrontend();
-      
+
       // Step 5: Verify APIs are working
       await this.verifyAPIs();
-      
+
       // Step 6: Run Cypress tests
       const testsPassed = await this.runCypressTests(specificTest);
-      
+
       if (testsPassed) {
         this.success('🏆 ALL TESTS PASSED!');
         this.success(`🎯 Backend ran on port: ${this.config.backendPort}`);
@@ -325,7 +325,7 @@ class RandomPortTestRunner {
         await this.cleanup();
         process.exit(1);
       }
-      
+
     } catch (error) {
       this.error(`Test run failed: ${error.message}`);
       if (this.config) {

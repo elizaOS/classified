@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'bun:test';
 import path from 'node:path';
-import { isWebUIEnabled } from '../index.js';
+import { isWebUIEnabled } from '../index';
 
 describe('Basic Server Functionality', () => {
   describe('Path utilities', () => {

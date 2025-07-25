@@ -116,4 +116,4 @@ const project: Project = {
 };
 
 // Export the project as the default export
-export default project; 
+export default project;

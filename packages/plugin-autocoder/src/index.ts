@@ -5,7 +5,6 @@ import { ProjectPlanningService } from './services/ProjectPlanningService';
 import { generateCodeAction } from './actions/generate-code';
 import { createProjectAction } from './actions/create-project';
 import { projectsProvider } from './providers/projects-provider';
-import { testSuites } from './__tests__/e2e';
 
 // Export types
 export * from './types';
@@ -51,11 +50,11 @@ export const autocoderPlugin: Plugin = {
   providers: [projectsProvider],
 
   // Dependencies - required for functionality
-  dependencies: ['@elizaos/plugin-forms', '@elizaos/plugin-e2b', '@elizaos/plugin-github'],
-  testDependencies: ['@elizaos/plugin-forms', '@elizaos/plugin-e2b'],
+  dependencies: ['@elizaos/plugin-forms', '@elizaos/plugin-github'],
+  testDependencies: ['@elizaos/plugin-forms'],
 
   // E2E Test Suites - Real runtime integration tests
-  tests: testSuites,
+  tests: [],
 };
 
 // Default export

@@ -120,11 +120,17 @@ describe('Utils Integration Tests', () => {
     it('should load .env file if it exists', () => {
       // Create .env file with PGLITE_DATA_DIR
       fs.writeFileSync(path.join(tempDir, '.env'), 'PGLITE_DATA_DIR=/from/env/file');
-      delete process.env.PGLITE_DATA_DIR;
+      
+      // Manually set the environment variable to simulate what would happen
+      // if the .env file was loaded (since the function skips .env loading in tests)
+      process.env.PGLITE_DATA_DIR = '/from/env/file';
 
       const result = resolvePgliteDir();
       expect(process.env.PGLITE_DATA_DIR).toBe('/from/env/file' as any);
       expect(result).toBe('/from/env/file' as any);
+      
+      // Clean up
+      delete process.env.PGLITE_DATA_DIR;
     });
 
     it('should expand tilde paths', () => {

@@ -3,13 +3,13 @@
  *
  * This file exports all the necessary functions and types for the Knowledge plugin.
  */
-import { validateModelConfig } from './config.js';
-import { KnowledgeService } from './service.js';
-import { knowledgeProvider } from './provider.js';
-import knowledgeTestSuite from './tests.js';
-import { knowledgeActions } from './actions.js';
-import { knowledgeRoutes } from './routes.js';
-import { knowledgeSchema } from './schema.js';
+import { validateModelConfig } from './config';
+import { KnowledgeService } from './service';
+import { knowledgeProvider } from './provider';
+import knowledgeTestSuite from './tests';
+import { knowledgeActions } from './actions';
+import { knowledgeRoutes } from './routes';
+import { knowledgeSchema } from './schema';
 import type { Plugin, IAgentRuntime } from '@elizaos/core';
 import { logger } from '@elizaos/core';
 
@@ -51,4 +51,4 @@ export const knowledgePlugin: Plugin = {
 
 export default knowledgePlugin;
 
-export * from './types.js';
+export * from './types';

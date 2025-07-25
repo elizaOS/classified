@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
-import BootSequence from './components/BootSequence';
+import StartupFlow from './components/StartupFlow';
 import { GameInterface } from './components/GameInterface';
+import { TauriInitializer } from './components/TauriInitializer';
 import { debugWebSockets } from './utils/debugWebSockets';
 import { blockOldMessages } from './utils/blockOldMessages';
 
@@ -10,71 +11,41 @@ debugWebSockets();
 blockOldMessages();
 
 function App() {
-    // Check if we should skip boot (for testing)
-    const skipBoot = localStorage.getItem('skipBoot') === 'true';
-    const [bootComplete, setBootComplete] = useState(skipBoot);
+  // Check if we should skip startup (for testing)
+  const skipStartup = localStorage.getItem('skipStartup') === 'true';
+  const [startupComplete, setStartupComplete] = useState(skipStartup);
 
-    // Clear skipBoot flag after reading it
-    useEffect(() => {
-        if (skipBoot) {
-            localStorage.removeItem('skipBoot');
-        }
-    }, [skipBoot]);
-
-    const handleBootComplete = () => {
-        console.log('[App] Boot sequence completed, transitioning to main app');
-        setBootComplete(true);
-    };
-
-    // Connection test for boot sequence
-    const testAgentConnection = useCallback(async (): Promise<boolean> => {
-        try {
-            // Test basic ElizaOS server connectivity
-            const healthResponse = await fetch('http://localhost:7777/api/server/health', {
-                method: 'GET',
-                timeout: 5000,
-            } as any);
-            
-            if (!healthResponse.ok) {
-                console.warn('[App] Health check failed');
-                return false;
-            }
-
-            // Test specific plugin endpoints
-            const autonomyResponse = await fetch('http://localhost:7777/autonomy/status', {
-                method: 'GET',
-                timeout: 7777,
-            } as any);
-
-            // Connection is considered successful if either health or autonomy responds
-            const isConnected = healthResponse.ok || autonomyResponse.ok;
-            console.log('[App] Connection test result:', isConnected);
-            
-            return isConnected;
-        } catch (error) {
-            console.warn('[App] Connection test failed:', error);
-            return false;
-        }
-    }, []);
-
-    if (!bootComplete) {
-        console.log('[App] Rendering boot sequence');
-        return (
-            <div className="app">
-                <BootSequence 
-                    onComplete={handleBootComplete}
-                    onConnectionTest={testAgentConnection}
-                />
-            </div>
-        );
+  // Clear skipStartup flag after reading it
+  useEffect(() => {
+    if (skipStartup) {
+      localStorage.removeItem('skipStartup');
     }
+  }, [skipStartup]);
 
-    console.log('[App] Rendering main game interface');
+  const handleStartupComplete = () => {
+    console.log('[App] Startup flow completed, transitioning to main interface');
+    setStartupComplete(true);
+  };
+
+  if (!startupComplete) {
+    console.log('[App] Rendering startup flow');
     return (
+      <TauriInitializer>
         <div className="app">
-            <GameInterface />
+          <StartupFlow onComplete={handleStartupComplete} />
         </div>
+      </TauriInitializer>
     );
+  }
+
+  console.log('[App] Rendering main game interface');
+  return (
+    <TauriInitializer>
+      <div className="app">
+        <GameInterface />
+      </div>
+    </TauriInitializer>
+  );
 }
 
-export default App; 
+export default App;

@@ -88,7 +88,7 @@ describe('Database Operations Integration Tests', () => {
             content: `Concurrent message ${i}`,
             rawMessage: `Concurrent message ${i}`,
             sourceId: `concurrent-${i}`,
-            sourceType: 'test',
+            source_type: 'test',
             metadata: {},
           })
         );
@@ -127,7 +127,7 @@ describe('Database Operations Integration Tests', () => {
         content: 'First message',
         rawMessage: 'First message',
         sourceId: 'integrity-1',
-        sourceType: 'test',
+        source_type: 'test',
         metadata: {},
       });
 
@@ -137,7 +137,7 @@ describe('Database Operations Integration Tests', () => {
         content: 'Reply message',
         rawMessage: 'Reply message',
         sourceId: 'integrity-2',
-        sourceType: 'test',
+        source_type: 'test',
         inReplyToRootMessageId: message1.id,
         metadata: {},
       });
@@ -214,7 +214,7 @@ describe('Database Operations Integration Tests', () => {
           content: `Message ${i} from user ${i % 3}`,
           rawMessage: `Message ${i}`,
           sourceId: `query-${i}`,
-          sourceType: 'test',
+          source_type: 'test',
           metadata: {
             timestamp: new Date(baseTime.getTime() + i * 1000).toISOString(),
           },
@@ -251,7 +251,7 @@ describe('Database Operations Integration Tests', () => {
       // Create new server
       const newServer = await agentServer.createServer({
         name: 'Consistency Test Server',
-        sourceType: 'consistency-test',
+        source_type: 'consistency-test',
         metadata: {},
       });
 
@@ -327,7 +327,7 @@ describe('Database Operations Integration Tests', () => {
             content: `Bulk message ${i}`,
             rawMessage: `Bulk message ${i}`,
             sourceId: `bulk-${i}`,
-            sourceType: 'test',
+            source_type: 'test',
             metadata: { index: i },
           }) as never
         );

@@ -78,7 +78,7 @@ class SimpleTestRunner {
 
   async runCypressTests() {
     this.log('🧪 Running Cypress tests in headed mode...');
-    
+
     return new Promise((resolve, reject) => {
       const cypress = spawn('npx', ['cypress', 'run', '--browser', 'chrome', '--headed'], {
         stdio: 'inherit',
@@ -104,31 +104,31 @@ class SimpleTestRunner {
 
   async cleanup() {
     this.log('🧹 Cleaning up processes...');
-    
+
     if (this.backendProcess) {
       this.backendProcess.kill('SIGTERM');
     }
-    
+
     if (this.frontendProcess) {
       this.frontendProcess.kill('SIGTERM');
     }
-    
+
     await this.killExistingProcesses();
   }
 
   async run() {
     console.log('🧪 ELIZA Game Plugin Testing Suite');
     console.log('==================================');
-    
+
     try {
       await this.killExistingProcesses();
       await this.startServers();
-      
+
       // Give servers a moment to stabilize
       await new Promise(resolve => setTimeout(resolve, 7777));
-      
+
       const testsPassed = await this.runCypressTests();
-      
+
       if (testsPassed) {
         this.log('🏆 ALL TESTS PASSED!');
         process.exit(0);
@@ -136,7 +136,7 @@ class SimpleTestRunner {
         this.log('💥 SOME TESTS FAILED!');
         process.exit(1);
       }
-      
+
     } catch (error) {
       this.log(`Test run failed: ${error.message}`);
       await this.cleanup();

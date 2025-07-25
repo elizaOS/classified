@@ -17,10 +17,10 @@ describe('Knowledge API Fix Validation', () => {
     }).then((response) => {
       // Check if we get a 200 response or at least can connect
       expect(response.status).to.be.oneOf([200, 404, 500]);
-      
+
       // Log the response for debugging
-      cy.log('Knowledge API Response Status: ' + response.status);
-      cy.log('Knowledge API Response Body: ' + JSON.stringify(response.body));
+      cy.log(`Knowledge API Response Status: ${response.status}`);
+      cy.log(`Knowledge API Response Body: ${JSON.stringify(response.body)}`);
     });
 
     // Test upload functionality by checking if the upload button exists
@@ -44,7 +44,7 @@ describe('Knowledge API Fix Validation', () => {
   it('tests the corrected API base URL configuration', () => {
     // This test validates that our API client fix works
     // We'll check if the knowledge tab can be rendered without errors
-    
+
     cy.visit('http://localhost:5173/', { timeout: 30000 });
     cy.get('[data-testid="game-interface"]', { timeout: 30000 }).should('be.visible');
 
@@ -55,9 +55,9 @@ describe('Knowledge API Fix Validation', () => {
 
     // Wait a bit and check for console errors
     cy.wait(5000);
-    
+
     // Verify no knowledge API errors occurred
-    cy.get('@consoleError').should('not.have.been.calledWith', 
+    cy.get('@consoleError').should('not.have.been.calledWith',
       Cypress.sinon.match(/Failed to.*knowledge/i)
     );
   });

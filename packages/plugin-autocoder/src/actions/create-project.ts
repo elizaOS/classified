@@ -1,17 +1,16 @@
-import {
-  Action,
-  Handler,
-  IAgentRuntime,
-  Memory,
+import { 
+  Action, 
+  ActionResult, 
+  Content, 
+  HandlerCallback, 
+  type IAgentRuntime, 
+  Memory, 
   State,
-  HandlerCallback,
-  ModelType,
-  elizaLogger,
-  ActionResult,
+  type UUID,
+  elizaLogger
 } from '@elizaos/core';
-import { query } from '@anthropic-ai/claude-code';
+import { v4 as uuidv4 } from 'uuid';
 
-// Local type definitions
 interface ProjectMetadata {
   id: string;
   name: string;
@@ -21,252 +20,378 @@ interface ProjectMetadata {
   status: string;
 }
 
-// Helper function to extract project name from message
+/**
+ * Extract project name from user message
+ */
 function extractProjectName(text: string): string | null {
-  // Look for patterns like "create a plugin called X" or "build X plugin"
+  // Look for quoted names
+  const quotedMatch = text.match(/["']([^"']+)["']/);
+  if (quotedMatch) {
+    return quotedMatch[1];
+  }
+  
+  // Look for patterns like "called X", "named X"
+  const namedMatch = text.match(/(?:called|named)\s+(\S+)/i);
+  if (namedMatch) {
+    return namedMatch[1];
+  }
+  
+  // Extract from specific patterns
   const patterns = [
-    /(?:create|build|make|develop)\s+(?:a\s+)?(?:plugin|agent|workflow|mcp|app)\s+(?:called|named)\s+["']?([^"']+)["']?/i,
-    /(?:create|build|make|develop)\s+["']?([^"']+)["']?\s+(?:plugin|agent|workflow|mcp|app)/i,
-    /["']([^"']+)["']/,
+    /create\s+(?:a\s+)?(?:new\s+)?(\S+)/i,
+    /(?:build|make)\s+(?:a\s+)?(\S+)/i
   ];
-
+  
   for (const pattern of patterns) {
     const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
+    if (match) {
+      return match[1];
     }
   }
-
-  // If no specific name found, generate one
-  return `project-${Date.now()}`;
+  
+  return null;
 }
 
-// Extract project type from message text (simplified version)
+/**
+ * Extract project type from user message
+ */
 function extractProjectType(text: string): 'plugin' | 'agent' | 'workflow' | 'mcp' | 'app' {
-  const lowerText = text.toLowerCase();
+  const lower = text.toLowerCase();
   
-  if (lowerText.includes('plugin')) return 'plugin';
-  if (lowerText.includes('agent')) return 'agent';
-  if (lowerText.includes('workflow')) return 'workflow';
-  if (lowerText.includes('mcp') || lowerText.includes('model context protocol')) return 'mcp';
-  if (lowerText.includes('app') || lowerText.includes('application')) return 'app';
+  if (lower.includes('plugin')) return 'plugin';
+  if (lower.includes('agent') || lower.includes('bot')) return 'agent';
+  if (lower.includes('workflow') || lower.includes('flow')) return 'workflow';
+  if (lower.includes('mcp') || lower.includes('model context')) return 'mcp';
+  if (lower.includes('app') || lower.includes('application')) return 'app';
   
-  return 'plugin'; // default
+  // Default to plugin for ElizaOS
+  return 'plugin';
 }
 
-// Get form template based on project type
 function getFormTemplate(projectType: string) {
-  const baseTemplate = {
-    name: `${projectType}-configuration`,
-    description: `Configure your ${projectType} project`,
-    steps: [
-      {
-        name: 'basic-info',
+  switch (projectType) {
+    case 'plugin':
+      return {
+        title: "ElizaOS Plugin Project",
+        description: "Let's gather information to create your plugin",
         fields: [
           {
-            name: 'projectName',
-            type: 'text',
-            label: 'Project Name',
+            id: "project_name",
+            label: "Project Name",
+            type: "text",
+            placeholder: "my-awesome-plugin",
             required: true,
+            helpText: "What would you like to name your plugin?"
           },
           {
-            name: 'description',
-            type: 'textarea',
-            label: 'Project Description',
+            id: "description",
+            label: "Description",
+            type: "textarea",
+            placeholder: "A plugin that does amazing things...",
             required: true,
+            helpText: "Describe what your plugin will do"
           },
-        ],
-      },
-      {
-        name: 'requirements',
+          {
+            id: "requirements",
+            label: "Requirements",
+            type: "textarea",
+            placeholder: "List the key features and functionality...",
+            required: true,
+            helpText: "What specific features or capabilities should this plugin have?"
+          },
+          {
+            id: "apis",
+            label: "External APIs (optional)",
+            type: "textarea",
+            placeholder: "OpenAI API, Discord API, etc.",
+            required: false,
+            helpText: "List any external APIs or services this plugin will use"
+          },
+          {
+            id: "test_scenarios",
+            label: "Test Scenarios (optional)",
+            type: "textarea",
+            placeholder: "User asks for weather, plugin responds with...",
+            required: false,
+            helpText: "Describe some test scenarios to validate the plugin works correctly"
+          }
+        ]
+      };
+      
+    case 'agent':
+      return {
+        title: "ElizaOS Agent Project",
+        description: "Let's design your agent's personality and capabilities",
         fields: [
           {
-            name: 'requirements',
-            type: 'textarea',
-            label: 'Project Requirements',
-            description: 'What should this project do?',
+            id: "agent_name",
+            label: "Agent Name",
+            type: "text",
+            placeholder: "My Assistant",
             required: true,
+            helpText: "What's your agent's name?"
           },
-        ],
-      },
-    ],
-  };
-
-  // Add type-specific fields
-  if (projectType === 'plugin') {
-    baseTemplate.steps.push({
-      name: 'plugin-config',
-      fields: [
-        {
-          name: 'actions',
-          type: 'textarea',
-          label: 'Actions',
-          description: 'What actions should this plugin provide?',
-          required: false,
-        },
-        {
-          name: 'providers',
-          type: 'textarea',
-          label: 'Providers',
-          description: 'What data providers should this plugin include?',
-          required: false,
-        },
-      ],
-    });
+          {
+            id: "personality",
+            label: "Personality & Bio",
+            type: "textarea",
+            placeholder: "A helpful, friendly assistant who...",
+            required: true,
+            helpText: "Describe your agent's personality and background"
+          },
+          {
+            id: "capabilities",
+            label: "Capabilities",
+            type: "textarea",
+            placeholder: "Can help with coding, answer questions...",
+            required: true,
+            helpText: "What should your agent be able to do?"
+          },
+          {
+            id: "plugins",
+            label: "Plugins to Include",
+            type: "textarea",
+            placeholder: "twitter, discord, knowledge...",
+            required: false,
+            helpText: "Which ElizaOS plugins should this agent use?"
+          }
+        ]
+      };
+      
+    case 'workflow':
+      return {
+        title: "Workflow Project",
+        description: "Define your workflow automation",
+        fields: [
+          {
+            id: "workflow_name",
+            label: "Workflow Name",
+            type: "text",
+            placeholder: "data-processing-workflow",
+            required: true
+          },
+          {
+            id: "description",
+            label: "Description",
+            type: "textarea",
+            placeholder: "This workflow processes data and...",
+            required: true
+          },
+          {
+            id: "steps",
+            label: "Workflow Steps",
+            type: "textarea",
+            placeholder: "1. Fetch data\n2. Process\n3. Store results",
+            required: true,
+            helpText: "List the steps in your workflow"
+          },
+          {
+            id: "triggers",
+            label: "Triggers",
+            type: "textarea",
+            placeholder: "On schedule, webhook, manual...",
+            required: false
+          }
+        ]
+      };
+      
+    default:
+      return {
+        title: "New Project",
+        description: "Tell me about your project",
+        fields: [
+          {
+            id: "project_name",
+            label: "Project Name",
+            type: "text",
+            required: true
+          },
+          {
+            id: "description",
+            label: "Description",
+            type: "textarea",
+            required: true
+          },
+          {
+            id: "requirements",
+            label: "Requirements",
+            type: "textarea",
+            required: true
+          }
+        ]
+      };
   }
-
-  return baseTemplate;
 }
 
 export const createProjectAction: Action = {
   name: 'CREATE_PROJECT',
-  description: 'Create a new ElizaOS project (plugin, agent, workflow, MCP server, or full-stack app)',
-  examples: [
-    [
-      {
-        name: 'user',
-        content: {
-          text: 'I want to create a new plugin for weather data',
-        },
-      },
-      {
-        name: 'assistant',
-        content: {
-          text: "I'll help you create a weather data plugin. Let me set that up for you.",
-          action: 'CREATE_PROJECT',
-        },
-      },
-    ],
-    [
-      {
-        name: 'user',
-        content: {
-          text: 'Build a new agent for customer support',
-        },
-      },
-      {
-        name: 'assistant',
-        content: {
-          text: "I'll help you create a customer support agent. Let me guide you through the configuration.",
-          action: 'CREATE_PROJECT',
-        },
-      },
-    ],
+  similes: [
+    'GENERATE_CODE',
+    'BUILD_PROJECT',
+    'CREATE_PLUGIN',
+    'CREATE_AGENT',
+    'BUILD_PLUGIN',
+    'BUILD_AGENT',
+    'MAKE_PROJECT',
+    'NEW_PROJECT',
+    'DEVELOP_PLUGIN',
+    'CODE_PROJECT'
   ],
-
-  validate: async (runtime: IAgentRuntime, message: Memory) => {
+  description: 'Create a new ElizaOS project (plugin, agent, workflow, etc.) with AI-generated code',
+  
+  validate: async (runtime: IAgentRuntime, message: Memory, state?: State): Promise<boolean> => {
     const text = message.content.text?.toLowerCase() || '';
-    const projectKeywords = ['create', 'build', 'make', 'develop', 'generate', 'scaffold'];
-    const typeKeywords = ['plugin', 'agent', 'workflow', 'mcp', 'app', 'application', 'project'];
-
-    // Check if message contains project creation intent
-    const hasProjectIntent = projectKeywords.some((keyword) => text.includes(keyword));
-    const hasTypeKeyword = typeKeywords.some((keyword) => text.includes(keyword));
-
-    return hasProjectIntent && hasTypeKeyword;
+    
+    // Check for project creation keywords
+    const createKeywords = ['create', 'build', 'make', 'generate', 'develop', 'code'];
+    const projectKeywords = ['project', 'plugin', 'agent', 'bot', 'workflow', 'app', 'application'];
+    
+    const hasCreateKeyword = createKeywords.some(keyword => text.includes(keyword));
+    const hasProjectKeyword = projectKeywords.some(keyword => text.includes(keyword));
+    
+    // Also check for "I want to..." patterns
+    const wantPatterns = [
+      /i want to (?:create|build|make)/i,
+      /i need (?:a|an) (?:new )?(?:plugin|agent|bot)/i,
+      /can you (?:create|build|make|help me)/i,
+      /help me (?:create|build|make)/i
+    ];
+    
+    const hasWantPattern = wantPatterns.some(pattern => pattern.test(text));
+    
+    return (hasCreateKeyword && hasProjectKeyword) || hasWantPattern;
   },
 
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
     state?: State,
-    _options?: { [key: string]: unknown },
-    callback?: HandlerCallback
+    _options?: any,
+    callback?: HandlerCallback,
+    _responses?: Memory[]
   ): Promise<ActionResult> => {
-    try {
-      elizaLogger.info('CREATE_PROJECT action triggered');
-
-      const planningService = runtime.getService('project-planning');
-      const formsService = runtime.getService('forms');
-
-      if (!planningService || !formsService) {
-        const error = 'Required services not available';
-        if (callback) {
-          callback({
-            text: error,
-            success: false,
-          });
-        }
-        return {
-          text: error,
-          success: false,
-          data: { error },
-        };
-      }
-
-      // Extract project info from message
-      const projectName = extractProjectName(message.content.text || '');
-      const projectType = extractProjectType(message.content.text || '');
-
-      if (!projectName) {
-        const error = 'Could not determine project name from message';
-        if (callback) {
-          callback({
-            text: error,
-            success: false,
-          });
-        }
-        return {
-          text: error,
-          success: false,
-          data: { error },
-        };
-      }
-
-      // Create project metadata
-      const project: ProjectMetadata = {
-        id: `proj_${Date.now()}`,
-        name: projectName,
-        type: projectType,
-        description: message.content.text || '',
-        createdAt: new Date(),
-        status: 'planning',
-      };
-
-      // Store project in planning service
-      await (planningService as any).createProject(project);
-
-      // Create configuration form
-      const formTemplate = getFormTemplate(projectType);
-      const form = await (formsService as any).createForm({
-        ...formTemplate,
-        data: {
-          projectId: project.id,
-          projectName: project.name,
-          projectType: project.type,
-        },
-      });
-
-      const responseText = `I've created a new ${projectType} project "${projectName}". Let's configure it together.\n\nForm ID: ${form.id}`;
-
+    elizaLogger.info('CREATE_PROJECT action triggered');
+    
+    const formsService = runtime.getService('forms');
+    if (!formsService) {
+      elizaLogger.error('Forms service not available');
       if (callback) {
-        callback({
-          text: responseText,
-          success: true,
+        await callback({
+          text: "I can't create projects right now - the forms service isn't available. Please try again later.",
+          error: true
         });
       }
-
       return {
-        text: responseText,
-        success: true,
-        data: { project },
-      };
-    } catch (error) {
-      elizaLogger.error('Failed to create project:', error);
-      const errorMessage = `Failed to create project: ${error instanceof Error ? error.message : String(error)}`;
-
-      if (callback) {
-        callback({
-          text: errorMessage,
-          success: false,
-        });
-      }
-
-      return {
-        text: errorMessage,
         success: false,
-        data: { error },
+        error: 'Forms service not available'
       };
     }
+
+    const projectType = extractProjectType(message.content.text || '');
+    const suggestedName = extractProjectName(message.content.text || '');
+    
+    elizaLogger.info(`Detected project type: ${projectType}, suggested name: ${suggestedName}`);
+    
+    // Create form for project details
+    const formTemplate = getFormTemplate(projectType);
+    
+    const projectId = uuidv4();
+    const formData = {
+      id: `project-${projectId}`,
+      ...formTemplate,
+      onCancel: {
+        action: 'CANCEL_FORM',
+        data: { formId: `project-${projectId}` }
+      },
+      onSubmit: {
+        action: 'GENERATE_CODE',
+        data: { 
+          projectId,
+          projectType
+        }
+      }
+    };
+
+    // Create the form
+    await (formsService as any).createForm(formData);
+
+    // Store project metadata
+    const projectMetadata: ProjectMetadata = {
+      id: projectId,
+      name: suggestedName || 'Unnamed Project',
+      type: projectType,
+      description: message.content.text || '',
+      createdAt: new Date(),
+      status: 'gathering_requirements'
+    };
+    
+    await runtime.createMemory({
+      id: uuidv4() as UUID,
+      entityId: runtime.agentId,
+      roomId: message.roomId,
+      agentId: runtime.agentId,
+      content: {
+        text: `Project metadata: ${JSON.stringify(projectMetadata)}`,
+        type: 'project_metadata',
+        metadata: projectMetadata
+      },
+      createdAt: Date.now()
+    }, 'project_metadata');
+
+    // Send response with form
+    const responseText = projectType === 'agent' 
+      ? "Great! Let's create your ElizaOS agent. I'll help you design their personality and capabilities."
+      : projectType === 'plugin'
+      ? "Excellent! Let's build your ElizaOS plugin. I'll help you define its features and functionality."
+      : "Perfect! Let's create your project. Please fill out the details below.";
+
+    if (callback) {
+      await callback({
+        text: responseText,
+        form: formData
+      });
+    }
+
+    return {
+      success: true,
+      data: {
+        projectId,
+        projectType,
+        formId: formData.id
+      }
+    };
   },
+
+  examples: [
+    [
+      {
+        name: '{{user1}}',
+        content: {
+          text: "I want to create a new ElizaOS plugin called 'weather-bot' that fetches weather data"
+        }
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: "Excellent! Let's build your ElizaOS plugin. I'll help you define its features and functionality.",
+          action: 'CREATE_PROJECT'
+        }
+      }
+    ],
+    [
+      {
+        name: '{{user1}}',
+        content: {
+          text: "Can you help me build an agent for customer support?"
+        }
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: "Great! Let's create your ElizaOS agent. I'll help you design their personality and capabilities.",
+          action: 'CREATE_PROJECT'
+        }
+      }
+    ]
+  ]
 };

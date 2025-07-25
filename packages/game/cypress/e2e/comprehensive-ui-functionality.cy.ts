@@ -22,10 +22,10 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         win.localStorage.setItem('disableWebSocket', 'true');
       }
     });
-    
+
     // Wait for React app to render fully
     cy.wait(3000);
-    
+
     // Verify we're past the boot sequence
     cy.get('body').should('be.visible');
     cy.log('✅ Frontend loaded, verifying game interface...');
@@ -33,18 +33,18 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
 
   it('should verify game interface loads and show main elements', () => {
     cy.log('🔍 Testing: Main game interface elements');
-    
+
     // Look for the main game interface components
     cy.get('body').within(() => {
       // Should have interactive elements indicating the app loaded
       cy.get('div, button, input, textarea').should('have.length.at.least', 5);
     });
-    
+
     // Look for game-specific content or structure
     cy.get('body').then(($body) => {
       const bodyText = $body.text().toLowerCase();
-      const hasGameElements = 
-        bodyText.includes('eliza') || 
+      const hasGameElements =
+        bodyText.includes('eliza') ||
         bodyText.includes('agent') ||
         bodyText.includes('goals') ||
         bodyText.includes('todos') ||
@@ -52,20 +52,20 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         bodyText.includes('terminal') ||
         $body.find('[class*="interface"]').length > 0 ||
         $body.find('[class*="game"]').length > 0;
-      
+
       expect(hasGameElements).to.be.true;
       cy.log('✅ Game interface elements detected');
     });
-    
+
     cy.screenshot('game-interface-main');
   });
 
   it('should test chat/terminal functionality', () => {
     cy.log('🔍 Testing: Chat/Terminal input and interaction');
-    
+
     // Wait for interface to stabilize
     cy.wait(2000);
-    
+
     // Look for input fields
     const inputSelectors = [
       'input[type="text"]:visible',
@@ -76,25 +76,25 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       '.terminal-input:visible',
       '.chat-input:visible'
     ];
-    
+
     let inputFound = false;
-    
+
     for (const selector of inputSelectors) {
       cy.get('body').then(($body) => {
         const inputs = $body.find(selector);
         if (inputs.length > 0 && !inputFound) {
           inputFound = true;
           cy.log(`✅ Found chat input: ${selector}`);
-          
+
           // Test typing and interaction
           cy.get(selector).first().then(($input) => {
             if ($input.is(':visible') && !$input.is(':disabled')) {
               cy.wrap($input)
                 .clear({ force: true })
                 .type('Hello agent! This is a test message from the UI.', { force: true });
-              
+
               cy.log('✅ Successfully typed test message');
-              
+
               // Look for send button or try Enter
               cy.get('body').then(($body2) => {
                 const sendButton = $body2.find('button:contains("Send"), [type="submit"], .send-button').first();
@@ -105,7 +105,7 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
                   cy.wrap($input).type('{enter}', { force: true });
                   cy.log('✅ Pressed Enter to send');
                 }
-                
+
                 // Wait for potential response
                 cy.wait(2000);
               });
@@ -114,17 +114,17 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         }
       });
     }
-    
+
     if (!inputFound) {
       cy.log('⚠️ No chat input field found - may not be implemented yet');
     }
-    
+
     cy.screenshot('chat-functionality');
   });
 
   it('should test Goals tab functionality', () => {
     cy.log('🔍 Testing: Goals tab and backend integration');
-    
+
     // First ensure we have goals data from backend
     cy.request({
       method: 'GET',
@@ -136,7 +136,7 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         cy.log(`Goals data available: ${JSON.stringify(response.body).substring(0, 200)}`);
       }
     });
-    
+
     // Look for Goals tab/button
     const goalSelectors = [
       'button:contains("Goals")',
@@ -145,31 +145,31 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       '.goals-tab',
       'a[href*="goals"]'
     ];
-    
+
     let goalsTabFound = false;
-    
+
     goalSelectors.forEach((selector) => {
       cy.get('body').then(($body) => {
         const elements = $body.find(selector);
         if (elements.length > 0 && !goalsTabFound) {
           goalsTabFound = true;
           cy.log(`✅ Found Goals tab: ${selector}`);
-          
+
           cy.get(selector).first().then(($tab) => {
             if ($tab.is(':visible')) {
               cy.wrap($tab).click({ force: true });
               cy.wait(2000); // Wait for tab content to load
               cy.log('✅ Clicked Goals tab');
-              
+
               // Look for goals content
               cy.get('body').then(($body2) => {
                 const goalContent = $body2.text().toLowerCase();
-                const hasGoalContent = 
+                const hasGoalContent =
                   goalContent.includes('goal') ||
                   goalContent.includes('objective') ||
                   goalContent.includes('target') ||
                   $body2.find('[class*="goal"]').length > 0;
-                  
+
                 if (hasGoalContent) {
                   cy.log('✅ Goals content found in UI');
                 } else {
@@ -181,17 +181,17 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         }
       });
     });
-    
+
     if (!goalsTabFound) {
       cy.log('⚠️ Goals tab not found in current UI');
     }
-    
+
     cy.screenshot('goals-tab');
   });
 
   it('should test Todos tab functionality', () => {
     cy.log('🔍 Testing: Todos tab and backend integration');
-    
+
     // Check backend todos API
     cy.request({
       method: 'GET',
@@ -203,7 +203,7 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         cy.log(`Todos data available: ${JSON.stringify(response.body).substring(0, 200)}`);
       }
     });
-    
+
     // Look for Todos tab
     const todoSelectors = [
       'button:contains("Todos")',
@@ -213,31 +213,31 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       '.todos-tab',
       'a[href*="todo"]'
     ];
-    
+
     let todosTabFound = false;
-    
+
     todoSelectors.forEach((selector) => {
       cy.get('body').then(($body) => {
         const elements = $body.find(selector);
         if (elements.length > 0 && !todosTabFound) {
           todosTabFound = true;
           cy.log(`✅ Found Todos tab: ${selector}`);
-          
+
           cy.get(selector).first().then(($tab) => {
             if ($tab.is(':visible')) {
               cy.wrap($tab).click({ force: true });
               cy.wait(2000);
               cy.log('✅ Clicked Todos tab');
-              
+
               // Look for todo content
               cy.get('body').then(($body2) => {
                 const todoContent = $body2.text().toLowerCase();
-                const hasTodoContent = 
+                const hasTodoContent =
                   todoContent.includes('todo') ||
                   todoContent.includes('task') ||
                   todoContent.includes('reminder') ||
                   $body2.find('[class*="todo"]').length > 0;
-                  
+
                 if (hasTodoContent) {
                   cy.log('✅ Todos content found in UI');
                 } else {
@@ -249,17 +249,17 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         }
       });
     });
-    
+
     if (!todosTabFound) {
       cy.log('⚠️ Todos tab not found in current UI');
     }
-    
+
     cy.screenshot('todos-tab');
   });
 
   it('should test Config tab and capability toggles', () => {
     cy.log('🔍 Testing: Config tab and capability toggles');
-    
+
     // Look for Config tab
     const configSelectors = [
       'button:contains("Config")',
@@ -269,35 +269,35 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       '.config-tab',
       'a[href*="config"]'
     ];
-    
+
     let configTabFound = false;
-    
+
     configSelectors.forEach((selector) => {
       cy.get('body').then(($body) => {
         const elements = $body.find(selector);
         if (elements.length > 0 && !configTabFound) {
           configTabFound = true;
           cy.log(`✅ Found Config tab: ${selector}`);
-          
+
           cy.get(selector).first().then(($tab) => {
             if ($tab.is(':visible')) {
               cy.wrap($tab).click({ force: true });
               cy.wait(2000);
               cy.log('✅ Clicked Config tab');
-              
+
               // Look for capability toggles
               cy.get('body').then(($body2) => {
                 const toggles = $body2.find('input[type="checkbox"], [role="switch"], .toggle, button[aria-checked]');
                 if (toggles.length > 0) {
                   cy.log(`✅ Found ${toggles.length} capability toggles`);
-                  
+
                   // Test clicking the first toggle
                   const firstToggle = toggles.first();
                   if (firstToggle.is(':visible')) {
                     const initialState = firstToggle.prop('checked') || firstToggle.attr('aria-checked');
                     cy.wrap(firstToggle).click({ force: true });
                     cy.wait(1000);
-                    
+
                     // Verify state change
                     cy.wrap(firstToggle).then(($toggleAfter) => {
                       const newState = $toggleAfter.prop('checked') || $toggleAfter.attr('aria-checked');
@@ -317,17 +317,17 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         }
       });
     });
-    
+
     if (!configTabFound) {
       cy.log('⚠️ Config tab not found in current UI');
     }
-    
+
     cy.screenshot('config-tab');
   });
 
   it('should test Files/Knowledge tab functionality', () => {
     cy.log('🔍 Testing: Files/Knowledge tab functionality');
-    
+
     // Check knowledge API
     cy.request({
       method: 'GET',
@@ -336,7 +336,7 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
     }).then((response) => {
       cy.log(`Knowledge API response status: ${response.status}`);
     });
-    
+
     // Look for Files/Knowledge tab
     const fileSelectors = [
       'button:contains("Files")',
@@ -347,22 +347,22 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       '[data-tab="knowledge"]',
       '.files-tab'
     ];
-    
+
     let filesTabFound = false;
-    
+
     fileSelectors.forEach((selector) => {
       cy.get('body').then(($body) => {
         const elements = $body.find(selector);
         if (elements.length > 0 && !filesTabFound) {
           filesTabFound = true;
           cy.log(`✅ Found Files tab: ${selector}`);
-          
+
           cy.get(selector).first().then(($tab) => {
             if ($tab.is(':visible')) {
               cy.wrap($tab).click({ force: true });
               cy.wait(2000);
               cy.log('✅ Clicked Files tab');
-              
+
               // Look for file upload elements
               cy.get('body').then(($body2) => {
                 const uploadElements = $body2.find('input[type="file"], .upload, button:contains("Upload"), [class*="upload"]');
@@ -371,7 +371,7 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
                 } else {
                   cy.log('⚠️ No file upload elements found');
                 }
-                
+
                 // Look for file list
                 const fileListElements = $body2.find('.file-list, [class*="file"], li, .document');
                 if (fileListElements.length > 0) {
@@ -385,17 +385,17 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         }
       });
     });
-    
+
     if (!filesTabFound) {
       cy.log('⚠️ Files tab not found in current UI');
     }
-    
+
     cy.screenshot('files-tab');
   });
 
   it('should test Monologue tab functionality', () => {
     cy.log('🔍 Testing: Monologue tab (agent thoughts)');
-    
+
     // Look for Monologue tab
     const monologueSelectors = [
       'button:contains("Monologue")',
@@ -405,32 +405,32 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       '[data-tab="monologue"]',
       '.monologue-tab'
     ];
-    
+
     let monologueTabFound = false;
-    
+
     monologueSelectors.forEach((selector) => {
       cy.get('body').then(($body) => {
         const elements = $body.find(selector);
         if (elements.length > 0 && !monologueTabFound) {
           monologueTabFound = true;
           cy.log(`✅ Found Monologue tab: ${selector}`);
-          
+
           cy.get(selector).first().then(($tab) => {
             if ($tab.is(':visible')) {
               cy.wrap($tab).click({ force: true });
               cy.wait(2000);
               cy.log('✅ Clicked Monologue tab');
-              
+
               // Look for agent thoughts/monologue content
               cy.get('body').then(($body2) => {
                 const thoughtContent = $body2.text().toLowerCase();
-                const hasThoughtContent = 
+                const hasThoughtContent =
                   thoughtContent.includes('thinking') ||
                   thoughtContent.includes('thought') ||
                   thoughtContent.includes('planning') ||
                   thoughtContent.includes('considering') ||
                   $body2.find('[class*="thought"], [class*="monologue"]').length > 0;
-                  
+
                 if (hasThoughtContent) {
                   cy.log('✅ Agent thoughts/monologue content found');
                 } else {
@@ -442,17 +442,17 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         }
       });
     });
-    
+
     if (!monologueTabFound) {
       cy.log('⚠️ Monologue tab not found in current UI');
     }
-    
+
     cy.screenshot('monologue-tab');
   });
 
   it('should verify complete frontend-backend integration', () => {
     cy.log('🔍 Testing: Complete frontend-backend integration');
-    
+
     // Test multiple backend endpoints
     const endpointsToTest = [
       { name: 'Health', url: 'http://localhost:7777/api/server/health' },
@@ -461,9 +461,9 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       { name: 'Todos List', url: 'http://localhost:7777/todos/list' },
       { name: 'Knowledge List', url: 'http://localhost:7777/knowledge/list' }
     ];
-    
+
     let successfulConnections = 0;
-    
+
     endpointsToTest.forEach((endpoint) => {
       cy.request({
         method: 'GET',
@@ -479,7 +479,7 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         }
       });
     });
-    
+
     // Test from frontend context as well
     cy.window().then((win) => {
       return cy.wrap(
@@ -494,11 +494,11 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         cy.log(`❌ Frontend fetch failed: ${result.error || result.status}`);
       }
     });
-    
+
     cy.then(() => {
       const percentage = Math.round((successfulConnections / endpointsToTest.length) * 100);
       cy.log(`📊 Backend Integration: ${successfulConnections}/${endpointsToTest.length} endpoints working (${percentage}%)`);
-      
+
       if (percentage >= 80) {
         cy.log('🎉 Backend integration is strong!');
       } else if (percentage >= 50) {
@@ -507,13 +507,13 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         cy.log('🚨 Backend integration has significant problems');
       }
     });
-    
+
     cy.screenshot('backend-integration');
   });
 
   it('should provide final comprehensive assessment', () => {
     cy.log('📊 FINAL ASSESSMENT: Complete UI and Backend Functionality');
-    
+
     const assessment = {
       'Game Interface Loads': false,
       'Chat/Terminal Input': false,
@@ -524,19 +524,19 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       'Monologue Tab Works': false,
       'Backend Connectivity': false
     };
-    
+
     // Check interface loading
     cy.get('body').then(($body) => {
       const hasInterface = $body.find('div, button, input').length > 5;
       assessment['Game Interface Loads'] = hasInterface;
     });
-    
+
     // Check for input elements (chat)
     cy.get('body').then(($body) => {
       const hasInput = $body.find('input[type="text"], textarea').length > 0;
       assessment['Chat/Terminal Input'] = hasInput;
     });
-    
+
     // Check for tabs
     cy.get('body').then(($body) => {
       assessment['Goals Tab Works'] = $body.find('button:contains("Goals"), div:contains("Goals")').length > 0;
@@ -545,7 +545,7 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       assessment['Files Tab Works'] = $body.find('button:contains("Files"), div:contains("Files")').length > 0;
       assessment['Monologue Tab Works'] = $body.find('button:contains("Monologue"), div:contains("Monologue")').length > 0;
     });
-    
+
     // Test backend one more time
     cy.request({
       method: 'GET',
@@ -554,23 +554,23 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
     }).then((response) => {
       assessment['Backend Connectivity'] = response.status === 200;
     });
-    
+
     // Generate final report
     cy.then(() => {
       const workingFeatures = Object.values(assessment).filter(v => v).length;
       const totalFeatures = Object.keys(assessment).length;
       const percentage = Math.round((workingFeatures / totalFeatures) * 100);
-      
+
       cy.log('');
       cy.log('🎯 FINAL COMPREHENSIVE ASSESSMENT:');
       cy.log(`${workingFeatures}/${totalFeatures} features working (${percentage}%)`);
       cy.log('');
-      
+
       Object.entries(assessment).forEach(([feature, works]) => {
         const status = works ? '✅' : '❌';
         cy.log(`${status} ${feature}: ${works ? 'WORKING' : 'NOT WORKING'}`);
       });
-      
+
       cy.log('');
       if (percentage >= 90) {
         cy.log('🎉 EXCELLENT: UI is fully functional with comprehensive tab support!');
@@ -581,7 +581,7 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
       } else {
         cy.log('🚨 INCOMPLETE: Major UI functionality missing or not working');
       }
-      
+
       cy.log('');
       cy.log('📋 RECOMMENDED NEXT STEPS:');
       if (!assessment['Chat/Terminal Input']) {
@@ -606,7 +606,7 @@ describe('Comprehensive UI Functionality - All Tabs and Features', () => {
         cy.log('  • Fix backend connectivity and API integration');
       }
     });
-    
+
     cy.screenshot('final-comprehensive-assessment');
   });
 

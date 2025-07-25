@@ -1,6 +1,6 @@
 describe('Final Verification - CORS Fixed', () => {
   beforeEach(() => {
-    cy.visit('/', { 
+    cy.visit('/', {
       timeout: 30000,
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');

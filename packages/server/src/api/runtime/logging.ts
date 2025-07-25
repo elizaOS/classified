@@ -12,6 +12,7 @@ const LOG_LEVELS = {
   success: 27,
   debug: 20,
   trace: 10,
+  verbose: 0,
 } as const;
 
 /**
@@ -23,9 +24,12 @@ type LogLevel = keyof typeof LOG_LEVELS | 'all';
  * Represents a log entry with specific properties.
  */
 interface LogEntry {
-  level: number;
+  level: number | string;
   time: number;
-  msg: string;
+  msg?: string;
+  message?: string;
+  agentName?: string;
+  agentId?: string;
   [key: string]: string | number | boolean | null | undefined;
 }
 
@@ -43,7 +47,7 @@ export function createLoggingRouter(): express.Router {
     const requestedAgentId = req.query.agentId?.toString() || 'all'; // Add support for agentId parameter
     const limit = Math.min(Number(req.query.limit) || 100, 1000); // Max 1000 entries
 
-    // Access the underlying logger instance
+    // Access the underlying logger instance - this works with both pino and adze implementations
     const destination = (logger as any)[Symbol.for('pino-destination')];
 
     if (!destination?.recentLogs) {
@@ -80,7 +84,10 @@ export function createLoggingRouter(): express.Router {
           // Filter by level - return all logs if requestedLevel is 'all'
           let levelMatch = true;
           if (requestedLevel && requestedLevel !== 'all') {
-            levelMatch = log.level === requestedLevelValue;
+            // Handle both numeric and string levels for compatibility
+            const logLevel = typeof log.level === 'number' ? log.level : 
+                           LOG_LEVELS[log.level as keyof typeof LOG_LEVELS] || 30;
+            levelMatch = logLevel === requestedLevelValue;
           }
 
           // Filter by agentName if provided - return all if 'all'

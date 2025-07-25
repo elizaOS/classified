@@ -10,16 +10,16 @@ export { default as tsConfigFrontend } from './typescript/tsconfig.frontend.json
 export { default as tsConfigTest } from './typescript/tsconfig.test.json';
 
 // ESLint configurations
-export { default as eslintConfigPlugin } from './eslint/eslint.config.plugin.js';
-export { default as eslintConfigFrontend } from './eslint/eslint.config.frontend.js';
+export { default as eslintConfigPlugin } from './eslint/eslint.config.plugin';
+export { default as eslintConfigFrontend } from './eslint/eslint.config.frontend';
 export {
   baseConfig as eslintBaseConfig,
   testOverrides,
   standardIgnores,
-} from './eslint/eslint.config.base.js';
+} from './eslint/eslint.config.base';
 
 // Prettier configuration
-export { default as prettierConfig } from './prettier/prettier.config.js';
+export { default as prettierConfig } from './prettier/prettier.config';
 
 // Configuration paths for package.json references
 export const configPaths = {

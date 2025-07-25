@@ -41,7 +41,7 @@
   ],
   "dependencies": {
     "@browserbasehq/stagehand": "^1.7.0",
-    "@elizaos/core": "^1.2.12",
+    "@elizaos/core": "workspace:*",
     "@elizaos/plugin-anthropic": "^1.0.0",
     "@elizaos/plugin-discord": "github:elizaos-plugins/plugin-discord#v1.0.10",
     "@elizaos/plugin-knowledge": "1.0.4",
@@ -62,10 +62,11 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "clean": "rm -rf dist && rm -rf .turbo",
+    "start": "echo 'Plugin package, use with ElizaOS'",
+    "test": "bun test",
     "lint": "eslint src --fix && prettier --write ./src",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "clean": "rm -rf dist && rm -rf .turbo",
+    "typecheck": "tsc --noEmit"
   },
   "publishConfig": {
     "access": "public"

@@ -27,16 +27,16 @@ class TestRunner {
 
   async killAllProcesses() {
     this.log('🧹 Killing all existing processes...');
-    
+
     try {
       // Kill specific processes
       await execAsync('pkill -f "src-backend" || true');
       await execAsync('pkill -f "vite dev" || true');
       await execAsync('pkill -f "cypress" || true');
-      
+
       // Wait for processes to die
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       this.success('All processes killed');
     } catch (error) {
       // Don't fail if no processes to kill
@@ -46,13 +46,13 @@ class TestRunner {
 
   async startBackend() {
     this.log('🚀 Starting backend...');
-    
+
     return new Promise((resolve, reject) => {
       this.backendProcess = spawn('bun', ['run', 'src-backend/server.ts'], {
         stdio: ['ignore', 'pipe', 'pipe'],
         cwd: process.cwd(),
-        env: { 
-          ...process.env, 
+        env: {
+          ...process.env,
           NODE_ENV: 'test',
           PORT: this.BACKEND_PORT.toString(),
           SERVER_PORT: this.BACKEND_PORT.toString()
@@ -94,7 +94,7 @@ class TestRunner {
 
   async startFrontend() {
     this.log('🌐 Starting frontend...');
-    
+
     return new Promise((resolve, reject) => {
       this.frontendProcess = spawn('npm', ['run', 'dev:frontend'], {
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -136,7 +136,7 @@ class TestRunner {
 
   async waitForBackendHealth() {
     this.log('🔍 Waiting for backend health check...');
-    
+
     for (let i = 0; i < 15; i++) {
       try {
         const response = await fetch(`http://localhost:${this.BACKEND_PORT}/api/server/health`);
@@ -147,16 +147,16 @@ class TestRunner {
       } catch (e) {
         // Backend not ready yet
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    
+
     throw new Error('Backend health check failed after 15 seconds');
   }
 
   async waitForFrontend() {
     this.log('🔍 Waiting for frontend to be accessible...');
-    
+
     for (let i = 0; i < 15; i++) {
       try {
         const response = await fetch(`http://localhost:${this.FRONTEND_PORT}/`);
@@ -167,16 +167,16 @@ class TestRunner {
       } catch (e) {
         // Frontend not ready yet
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    
+
     throw new Error('Frontend not accessible after 15 seconds');
   }
 
   async verifyAPIs() {
     this.log('🔧 Verifying critical APIs...');
-    
+
     const tests = [
       { name: 'Health Check', url: '/api/server/health' },
       { name: 'Goals API', url: '/api/goals' },
@@ -205,7 +205,7 @@ class TestRunner {
     }
 
     this.log(`API Verification: ${passed} passed, ${failed} failed`);
-    
+
     if (failed > 0) {
       this.error('Some APIs are not working - tests may fail');
     } else {
@@ -215,7 +215,7 @@ class TestRunner {
 
   async testAutonomyFunctionality() {
     this.log('🤖 Testing autonomy functionality...');
-    
+
     try {
       // Test autonomy status
       const statusResponse = await fetch(`http://localhost:${this.BACKEND_PORT}/autonomy/status`);
@@ -226,8 +226,8 @@ class TestRunner {
       console.log(`  ✅ Autonomy status: ${statusData.data.enabled ? 'enabled' : 'disabled'}`);
 
       // Test enable autonomy
-      const enableResponse = await fetch(`http://localhost:${this.BACKEND_PORT}/autonomy/enable`, { 
-        method: 'POST' 
+      const enableResponse = await fetch(`http://localhost:${this.BACKEND_PORT}/autonomy/enable`, {
+        method: 'POST'
       });
       if (!enableResponse.ok) {
         throw new Error('Autonomy enable failed');
@@ -239,8 +239,8 @@ class TestRunner {
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Test disable autonomy
-      const disableResponse = await fetch(`http://localhost:${this.BACKEND_PORT}/autonomy/disable`, { 
-        method: 'POST' 
+      const disableResponse = await fetch(`http://localhost:${this.BACKEND_PORT}/autonomy/disable`, {
+        method: 'POST'
       });
       if (!disableResponse.ok) {
         throw new Error('Autonomy disable failed');
@@ -249,8 +249,8 @@ class TestRunner {
       console.log(`  ✅ Autonomy disable: ${disableData.success ? 'success' : 'failed'}`);
 
       // Test toggle autonomy
-      const toggleResponse = await fetch(`http://localhost:${this.BACKEND_PORT}/autonomy/toggle`, { 
-        method: 'POST' 
+      const toggleResponse = await fetch(`http://localhost:${this.BACKEND_PORT}/autonomy/toggle`, {
+        method: 'POST'
       });
       if (!toggleResponse.ok) {
         throw new Error('Autonomy toggle failed');
@@ -267,7 +267,7 @@ class TestRunner {
 
   async runCypressTests() {
     this.log('🧪 Running Cypress E2E tests...');
-    
+
     return new Promise((resolve, reject) => {
       const cypress = spawn('npx', ['cypress', 'run', '--browser', 'chrome', '--headed'], {
         stdio: 'inherit',
@@ -298,43 +298,43 @@ class TestRunner {
 
   async cleanup() {
     this.log('🧹 Cleaning up...');
-    
+
     if (this.backendProcess) {
       this.backendProcess.kill('SIGTERM');
     }
-    
+
     if (this.frontendProcess) {
       this.frontendProcess.kill('SIGTERM');
     }
-    
+
     await this.killAllProcesses();
   }
 
   async run() {
     console.log('🧪 ELIZA Game E2E Test Runner');
     console.log('================================');
-    
+
     try {
       // Step 1: Clean slate
       await this.killAllProcesses();
-      
+
       // Step 2: Start backend and wait for it to be ready
       await this.startBackend();
       await this.waitForBackendHealth();
-      
+
       // Step 3: Start frontend and wait for it to be ready
       await this.startFrontend();
       await this.waitForFrontend();
-      
+
       // Step 4: Verify APIs are working
       await this.verifyAPIs();
-      
+
       // Step 5: Test autonomy functionality
       await this.testAutonomyFunctionality();
-      
+
       // Step 6: Run Cypress tests
       const testsPassed = await this.runCypressTests();
-      
+
       if (testsPassed) {
         this.success('🏆 ALL TESTS PASSED!');
         process.exit(0);
@@ -342,7 +342,7 @@ class TestRunner {
         this.error('💥 SOME TESTS FAILED!');
         process.exit(1);
       }
-      
+
     } catch (error) {
       this.error(`Test run failed: ${error.message}`);
       await this.cleanup();

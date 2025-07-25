@@ -442,7 +442,7 @@ const AddTaskForm = ({ worlds }: { worlds: WorldWithRooms[] }) => {
                   id="task-urgent"
                   data-testid="task-urgent"
                   checked={isUrgent}
-                  onCheckedChange={(checked) => setIsUrgent(checked === true)}
+                  onCheckedChange={(checked: boolean | 'indeterminate') => setIsUrgent(checked === true)}
                   disabled={!selectedRoomId}
                   aria-labelledby="task-urgent-label"
                 />

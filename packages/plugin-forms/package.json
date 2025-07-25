@@ -40,7 +40,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@elizaos/core": "^1.2.12",
+    "@elizaos/core": "workspace:*",
     "uuid": "^11.0.2",
     "zod": "^4.0.5"
   },
@@ -56,10 +56,11 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "clean": "rm -rf dist && rm -rf .turbo",
+    "start": "echo 'Plugin package, use with ElizaOS'",
+    "test": "bun test && elizaos test",
     "lint": "eslint src --fix && prettier --write ./src",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test && elizaos test"
+    "clean": "rm -rf dist && rm -rf .turbo",
+    "typecheck": "tsc --noEmit"
   },
   "publishConfig": {
     "access": "public"

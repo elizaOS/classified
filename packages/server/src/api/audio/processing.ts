@@ -4,11 +4,11 @@ import express from 'express';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { cleanupUploadedFile } from '../shared/file-utils.js';
-import { sendError, sendSuccess } from '../shared/response-utils.js';
-import { agentAudioUpload, validateAudioFile } from '../shared/uploads/index.js';
-import { createFileSystemRateLimit, createUploadRateLimit } from '../shared/middleware.js';
-import { MAX_FILE_SIZE, MAX_FILE_SIZE_DISPLAY } from '../shared/constants.js';
+import { cleanupUploadedFile } from '../shared/file-utils';
+import { sendError, sendSuccess } from '../shared/response-utils';
+import { agentAudioUpload, validateAudioFile } from '../shared/uploads/index';
+import { createFileSystemRateLimit, createUploadRateLimit } from '../shared/middleware';
+import { MAX_FILE_SIZE, MAX_FILE_SIZE_DISPLAY } from '../shared/constants';
 
 interface AudioRequest extends express.Request {
   file?: Express.Multer.File;

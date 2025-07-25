@@ -40,11 +40,11 @@ describe('Complete Boot Sequence Testing', () => {
     // Step 4: API Key configuration (if cloud selected)
     cy.get('[data-testid="api-key-setup"]', { timeout: 10000 }).should('be.visible');
     cy.contains('API Key Configuration').should('be.visible');
-    
+
     // Test API key input
     cy.get('[data-testid="openai-api-key-input"]').should('be.visible')
       .type(Cypress.env('OPENAI_API_KEY') || 'test-key-placeholder');
-    
+
     cy.get('[data-testid="validate-api-key-button"]').click();
     cy.contains('Validating API key', { timeout: 5000 }).should('be.visible');
     cy.screenshot('boot-04-api-key-configuration');
@@ -68,11 +68,11 @@ describe('Complete Boot Sequence Testing', () => {
     capabilities.forEach((capability, index) => {
       cy.get(`[data-testid="${capability.testId}"]`).should('be.visible');
       cy.contains(capability.label).should('be.visible');
-      
+
       // Toggle each capability on and off
       cy.get(`[data-testid="${capability.testId}"]`).click();
       cy.get(`[data-testid="${capability.testId}"]`).should('have.attr', 'aria-checked', 'true');
-      
+
       if (index === 2) { // Take screenshot after a few toggles
         cy.screenshot('boot-06-capabilities-configured');
       }
@@ -105,7 +105,7 @@ describe('Complete Boot Sequence Testing', () => {
 
     // Wait for model provider selection
     cy.get('[data-testid="model-provider-selection"]', { timeout: 15000 }).should('be.visible');
-    
+
     // Select cloud option
     cy.get('[data-testid="cloud-api-option"]').click();
     cy.get('[data-testid="proceed-button"]').click();
@@ -127,31 +127,31 @@ describe('Complete Boot Sequence Testing', () => {
   it('should persist boot configuration across sessions', () => {
     // Complete initial boot
     cy.visit('/');
-    
+
     // Skip through boot sequence with valid configuration
     cy.get('[data-testid="model-provider-selection"]', { timeout: 15000 }).should('be.visible');
     cy.get('[data-testid="cloud-api-option"]').click();
     cy.get('[data-testid="proceed-button"]').click();
-    
+
     cy.get('[data-testid="api-key-setup"]', { timeout: 10000 }).should('be.visible');
     cy.get('[data-testid="openai-api-key-input"]').type(Cypress.env('OPENAI_API_KEY') || 'test-key');
     cy.get('[data-testid="validate-api-key-button"]').click();
-    
+
     // Enable some capabilities
     cy.get('[data-testid="capability-permissions"]', { timeout: 15000 }).should('be.visible');
     cy.get('[data-testid="microphone-toggle"]').click();
     cy.get('[data-testid="browser-toggle"]').click();
-    
+
     cy.get('[data-testid="complete-setup-button"]').click();
     cy.get('[data-testid="game-interface"]', { timeout: 20000 }).should('be.visible');
 
     // Reload page - should skip boot sequence
     cy.reload();
-    
+
     // Should go directly to main interface without boot sequence
     cy.get('[data-testid="game-interface"]', { timeout: 10000 }).should('be.visible');
     cy.get('[data-testid="model-provider-selection"]').should('not.exist');
-    
+
     // Verify capabilities were persisted
     cy.get('[data-testid="config-tab"]').click();
     cy.get('[data-testid="microphone-setting"]').should('have.attr', 'aria-checked', 'true');
@@ -173,7 +173,7 @@ describe('Complete Boot Sequence Testing', () => {
 
     // Should show detected capabilities
     cy.get('[data-testid="capability-permissions"]', { timeout: 15000 }).should('be.visible');
-    
+
     // Verify each capability shows detection status
     cy.get('[data-testid="microphone-status"]').should('contain.oneOf', ['Detected', 'Not Available']);
     cy.get('[data-testid="camera-status"]').should('contain.oneOf', ['Detected', 'Not Available']);
