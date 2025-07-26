@@ -292,17 +292,22 @@ export const GameInterface: React.FC = () => {
         return; // Skip adding this duplicate user message
       }
 
+      // Ensure timestamp is a Date object
+      const messageTimestamp = message.timestamp instanceof Date 
+        ? message.timestamp 
+        : new Date(message.timestamp);
+
       // Check if we already have this message (for non-user messages or user messages not in our immediate set)
       const existingOutput = output.find(line =>
-        line.timestamp.getTime() === message.timestamp.getTime() &&
-        line.content === message.content
+        line.timestamp.getTime() === messageTimestamp.getTime() &&
+        line.content === message?.content
       );
 
       if (!existingOutput) {
         setOutput((prev) => [...prev, {
           type: message.type,
           content: message.content,
-          timestamp: message.timestamp,
+          timestamp: messageTimestamp,
         }]);
 
         // Add to agent monologue if it contains thinking patterns
@@ -314,7 +319,7 @@ export const GameInterface: React.FC = () => {
         )) {
           setAgentMonologue(prev => [
             ...prev.slice(-9),
-            { text: message.content, timestamp: message.timestamp.getTime(), isFromAgent: true }
+            { text: message.content, timestamp: messageTimestamp.getTime(), isFromAgent: true }
           ].slice(-10));
         }
       }
@@ -376,7 +381,7 @@ export const GameInterface: React.FC = () => {
           case 'shell':
           case 'browser':
             newState = !plugins[capability as keyof PluginToggleState];
-            await TauriService.toggleCapability(capability, newState);
+            await TauriService.toggleCapability(capability);
             success = true;
             break;
         }
@@ -624,7 +629,7 @@ export const GameInterface: React.FC = () => {
       console.log('[SHELL] Fetched shell settings:', result);
       setPlugins(prev => ({
         ...prev,
-        shell: result
+        shell: result.enabled
       }));
     } catch (error) {
       console.error('[SHELL] Failed to fetch shell settings:', error);
@@ -637,7 +642,7 @@ export const GameInterface: React.FC = () => {
       console.log('[BROWSER] Fetched browser settings:', result);
       setPlugins(prev => ({
         ...prev,
-        browser: result
+        browser: result.enabled
       }));
     } catch (error) {
       console.error('[BROWSER] Failed to fetch browser settings:', error);
@@ -839,7 +844,7 @@ export const GameInterface: React.FC = () => {
         // Show test message
         setOutput(prev => [...prev, {
           type: result.success ? 'system' : 'error',
-          content: result.message,
+          content: result.results || 'Test completed',
           timestamp: new Date(),
         }]);
       } else {
@@ -902,23 +907,15 @@ export const GameInterface: React.FC = () => {
     }
 
     try {
-      const result = await TauriService.uploadKnowledgeFile(file, userId);
+      await TauriService.uploadKnowledgeFile(file);
 
-      if (result) {
-        // Refresh the file list
-        await fetchKnowledgeFiles();
-        setOutput(prev => [...prev, {
-          type: 'system',
-          content: `◉ File "${file.name}" uploaded successfully`,
-          timestamp: new Date(),
-        }]);
-      } else {
-        setOutput(prev => [...prev, {
-          type: 'error',
-          content: 'Failed to upload file: Unknown error',
-          timestamp: new Date(),
-        }]);
-      }
+      // Refresh the file list
+      await fetchKnowledgeFiles();
+      setOutput(prev => [...prev, {
+        type: 'system',
+        content: `◉ File "${file.name}" uploaded successfully`,
+        timestamp: new Date(),
+      }]);
     } catch (error) {
       console.error('Failed to upload file:', error);
       setOutput(prev => [...prev, {
@@ -1011,20 +1008,12 @@ export const GameInterface: React.FC = () => {
 
     setInput('');
 
-    // Immediately post user message to chat
-    const userMessage: OutputLine = {
-      type: 'user',
-      content: sanitizedInput,
-      timestamp: new Date(),
-    };
-    setOutput((prev) => [...prev, userMessage]);
-
-    // Track this message to filter out server echo
+    // Track this message to filter out duplicates - TauriService will handle immediate UI feedback
     setImmediateUserMessages(prev => new Set(prev).add(sanitizedInput));
 
     try {
       await sendMessage(sanitizedInput);
-      // Server response will be handled by useTauriChat hook and added via useEffect
+      // User message handled by TauriService immediately, server response via useEffect
     } catch (err) {
       console.error('Failed to send message:', err);
       setOutput((prev) => [

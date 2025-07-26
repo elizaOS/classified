@@ -83,7 +83,7 @@ impl HealthCheckConfig {
             start_period_seconds: 30,
         }
     }
-    
+
     pub fn ollama_default() -> Self {
         Self {
             command: vec![
@@ -97,7 +97,7 @@ impl HealthCheckConfig {
             start_period_seconds: 30,
         }
     }
-    
+
     pub fn agent_default() -> Self {
         Self {
             command: vec![
@@ -186,22 +186,22 @@ pub enum AgentState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum AgentMessage {
-    UserMessage { 
-        id: Uuid, 
-        text: String, 
-        room_id: Uuid 
+    UserMessage {
+        id: Uuid,
+        text: String,
+        room_id: Uuid,
     },
-    AgentResponse { 
-        id: Uuid, 
-        text: String, 
-        room_id: Uuid 
+    AgentResponse {
+        id: Uuid,
+        text: String,
+        room_id: Uuid,
     },
-    AgentReady { 
-        agent_id: Uuid, 
-        room_id: Uuid 
+    AgentReady {
+        agent_id: Uuid,
+        room_id: Uuid,
     },
-    Error { 
-        message: String 
+    Error {
+        message: String,
     },
 }
 
@@ -234,4 +234,24 @@ pub struct SetupProgress {
     pub message: String,
     pub details: String,
     pub can_retry: bool,
+    pub model_progress: Option<ModelDownloadProgress>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelDownloadProgress {
+    pub model_name: String,
+    pub current_mb: f64,
+    pub total_mb: f64,
+    pub percentage: u8,
+    pub speed_mbps: f64,
+    pub eta_seconds: u32,
+    pub status: ModelDownloadStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ModelDownloadStatus {
+    Downloading,
+    Completed,
+    Failed,
+    AlreadyExists,
 }

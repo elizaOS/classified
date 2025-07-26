@@ -108,7 +108,7 @@ su - postgres -c 'createuser -s developer'" > /usr/local/bin/init-db.sh && \
     chmod +x /usr/local/bin/init-db.sh
 
 # Set up workspace permissions
-RUN chmod -R 777 /workspace
+RUN chmod -R 7777 /workspace
 
 # Set up Git configuration
 RUN git config --global init.defaultBranch main && \

@@ -72,7 +72,6 @@
     "@elizaos/cli": "^1.2.12",
     "@elizaos/plugin-forms": "workspace:*",
     "@elizaos/plugin-sql": "workspace:*",
-    "@elizaos/plugin-github": "workspace:*",
     "@types/dockerode": "^3.3.31",
     "@types/express": "^4.17.21",
     "@types/qrcode": "^1.5.5",

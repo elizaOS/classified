@@ -244,7 +244,7 @@ export class AutonomyService extends Service {
       // Create an autonomous message that will be processed through the full agent pipeline
       const autonomousMessage: Memory = {
         id: asUUID(uuidv4()), // Generate unique ID for this autonomous message
-        entityId: agentEntity.id, // Use the agent's entity ID
+        entityId: agentEntity.id ? asUUID(agentEntity.id) : this.runtime.agentId, // Use the agent's entity ID or fallback to agentId
         content: {
           text: monologuePrompt,
           source: 'autonomous-trigger',
@@ -281,7 +281,7 @@ export class AutonomyService extends Service {
           if (content.text) {
             const responseMemory: Memory = {
               id: asUUID(uuidv4()),
-              entityId: agentEntity.id, // Use the agent's entity ID from above
+              entityId: agentEntity.id ? asUUID(agentEntity.id) : this.runtime.agentId, // Use the agent's entity ID from above or fallback to agentId
               agentId: this.runtime.agentId,
               content: {
                 text: content.text,

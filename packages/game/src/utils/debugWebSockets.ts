@@ -35,21 +35,5 @@ export function debugWebSockets() {
     return ws;
   };
 
-  // Also intercept Socket.IO if it exists
-  if ((window as any).io) {
-    const originalEmit = (window as any).io.prototype.emit;
-    (window as any).io.prototype.emit = function (event: string, ...args: any[]) {
-      console.log('📤 Socket.IO emit:', event, args);
-
-      // Check if this is the problematic message
-      const dataStr = JSON.stringify(args);
-      if (dataStr.includes('admin has opened')) {
-        console.error('🚨 FOUND THE SOCKET.IO CULPRIT! Blocking event:', event, args);
-        console.trace();
-        return;
-      }
-
-      return originalEmit.apply(this, [event, ...args]);
-    };
-  }
-}
+  console.log('✅ WebSocket debugging enabled');
+};

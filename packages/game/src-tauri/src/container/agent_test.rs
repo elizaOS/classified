@@ -17,7 +17,7 @@ mod agent_container_tests {
 
         // This tests the ElizaOS Agent container configuration
         let result = manager.start_agent().await;
-        
+
         match result {
             Ok(status) => {
                 assert_eq!(status.name, "eliza-agent");
@@ -25,24 +25,27 @@ mod agent_container_tests {
                 assert_eq!(status.ports[0].host_port, 7777);
                 assert_eq!(status.ports[0].container_port, 7777);
                 println!("✅ ElizaOS Agent container configuration test passed");
-                
+
                 // Clean up - stop the container
                 let _ = manager.stop_container("eliza-agent").await;
             }
             Err(e) => {
                 // This is expected if no container runtime is available or image isn't present
-                println!("⚠️ ElizaOS Agent container test couldn't start container: {}", e);
-                
+                println!(
+                    "⚠️ ElizaOS Agent container test couldn't start container: {}",
+                    e
+                );
+
                 // Verify the error is about missing image or runtime, not configuration
                 let error_str = e.to_string();
                 assert!(
-                    error_str.contains("not found") ||
-                    error_str.contains("No such image") ||
-                    error_str.contains("runtime not available") ||
-                    error_str.contains("Command not found") ||
-                    error_str.contains("already in use") ||
-                    error_str.contains("name is already in use") ||
-                    error_str.contains("Agent container image not found"),
+                    error_str.contains("not found")
+                        || error_str.contains("No such image")
+                        || error_str.contains("runtime not available")
+                        || error_str.contains("Command not found")
+                        || error_str.contains("already in use")
+                        || error_str.contains("name is already in use")
+                        || error_str.contains("Agent container image not found"),
                     "Error should be about missing runtime/images/naming, not configuration: {}",
                     error_str
                 );
@@ -66,13 +69,13 @@ mod agent_container_tests {
         match manager.start_agent().await {
             Ok(status) => {
                 println!("✅ ElizaOS Agent container started with environment variables");
-                
+
                 // Verify basic container properties
                 assert_eq!(status.name, "eliza-agent");
                 assert_eq!(status.ports[0].host_port, 7777);
-                
+
                 println!("✅ Agent environment configuration verified");
-                
+
                 // Clean up
                 let _ = manager.stop_container("eliza-agent").await;
             }
@@ -80,10 +83,12 @@ mod agent_container_tests {
                 println!("⚠️ Agent environment test couldn't start container: {}", e);
                 // Expected when agent image is not available or container name conflicts
                 let error_str = e.to_string();
-                assert!(error_str.contains("Agent container image not found") || 
-                        error_str.contains("No such image") ||
-                        error_str.contains("not found") ||
-                        error_str.contains("already in use"));
+                assert!(
+                    error_str.contains("Agent container image not found")
+                        || error_str.contains("No such image")
+                        || error_str.contains("not found")
+                        || error_str.contains("already in use")
+                );
             }
         }
     }
@@ -104,7 +109,7 @@ mod agent_container_tests {
         match manager.start_agent().await {
             Ok(status) => {
                 println!("✅ ElizaOS Agent container started: {}", status.id);
-                
+
                 // Test getting status
                 match manager.get_container_status("eliza-agent").await {
                     Ok(status) => {
@@ -136,7 +141,10 @@ mod agent_container_tests {
                 }
             }
             Err(e) => {
-                println!("⚠️ ElizaOS Agent lifecycle test couldn't start container: {}", e);
+                println!(
+                    "⚠️ ElizaOS Agent lifecycle test couldn't start container: {}",
+                    e
+                );
                 // This is acceptable - agent image may not be built
             }
         }
@@ -158,13 +166,13 @@ mod agent_container_tests {
         match manager.start_agent().await {
             Ok(status) => {
                 println!("✅ ElizaOS Agent container started with volumes");
-                
+
                 // Verify the container name and ports
                 assert_eq!(status.name, "eliza-agent");
                 assert_eq!(status.ports[0].container_port, 7777);
-                
+
                 println!("✅ Agent volume configuration verified");
-                
+
                 // Clean up
                 let _ = manager.stop_container("eliza-agent").await;
             }
@@ -192,12 +200,12 @@ mod agent_container_tests {
         match manager.start_agent().await {
             Ok(status) => {
                 println!("✅ ElizaOS Agent container started with dependency configuration");
-                
+
                 // Verify basic properties
                 assert_eq!(status.name, "eliza-agent");
-                
+
                 println!("✅ Agent dependency configuration verified");
-                
+
                 // Clean up
                 let _ = manager.stop_container("eliza-agent").await;
             }
@@ -206,11 +214,11 @@ mod agent_container_tests {
                 // Expected when agent image is not available or container already exists
                 let error_str = e.to_string();
                 assert!(
-                    error_str.contains("Agent container image not found") ||
-                    error_str.contains("No such image") ||
-                    error_str.contains("not found") ||
-                    error_str.contains("already in use") ||
-                    error_str.contains("name is already in use"),
+                    error_str.contains("Agent container image not found")
+                        || error_str.contains("No such image")
+                        || error_str.contains("not found")
+                        || error_str.contains("already in use")
+                        || error_str.contains("name is already in use"),
                     "Unexpected error: {}",
                     error_str
                 );
@@ -256,18 +264,21 @@ mod agent_container_tests {
         match manager.start_agent().await {
             Ok(status) => {
                 println!("✅ ElizaOS Agent container started with health monitoring");
-                
+
                 // Health monitoring should be configured for the agent
                 assert_eq!(status.name, "eliza-agent");
-                
+
                 // Verify port configuration for health checks
                 assert_eq!(status.ports[0].host_port, 7777);
-                
+
                 // Clean up
                 let _ = manager.stop_container("eliza-agent").await;
             }
             Err(e) => {
-                println!("⚠️ Agent health monitoring test couldn't start container: {}", e);
+                println!(
+                    "⚠️ Agent health monitoring test couldn't start container: {}",
+                    e
+                );
                 // Expected when agent image is not available
             }
         }
@@ -288,13 +299,16 @@ mod agent_container_tests {
         // Test the complete environment setup process
         // This should start PostgreSQL, Ollama, and Agent in sequence
         let progress = manager.get_setup_progress().await;
-        println!("✅ Setup progress available: {} ({}%)", progress.message, progress.progress);
-        
+        println!(
+            "✅ Setup progress available: {} ({}%)",
+            progress.message, progress.progress
+        );
+
         // Verify the progress structure
         assert!(!progress.stage.is_empty());
         assert!(!progress.message.is_empty());
         assert!(progress.progress <= 100);
-        
+
         println!("✅ Complete environment setup test passed");
     }
 }

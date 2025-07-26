@@ -1,10 +1,10 @@
-pub mod manager;
 pub mod docker;
-pub mod podman;
 pub mod health;
+pub mod manager;
+pub mod model_manager;
+pub mod podman;
 pub mod runtime_manager;
 pub mod runtime_status;
-pub mod model_manager;
 
 #[cfg(test)]
 pub mod postgres_test;

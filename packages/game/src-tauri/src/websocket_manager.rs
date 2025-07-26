@@ -86,7 +86,10 @@ impl WebSocketManager {
         }
     }
 
-    pub async fn join_channel(&mut self, channel_id: String) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn join_channel(
+        &mut self,
+        channel_id: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if !self.is_connected || self.ws_stream.is_none() {
             return Err("WebSocket not connected".into());
         }

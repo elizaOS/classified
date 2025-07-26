@@ -140,7 +140,7 @@ export const anthropicPlugin: Plugin = {
 
       const largeModel = runtime.getSetting('ANTHROPIC_LARGE_MODEL') ?? 'claude-3-5-sonnet-latest';
       const experimentalTelemetry = getExperimentalTelemetry(runtime);
-      
+
       logger.log(`[Anthropic] Using TEXT_LARGE model: ${largeModel}`);
 
       const { text } = await generateText({

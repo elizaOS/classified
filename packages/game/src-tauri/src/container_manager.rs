@@ -329,7 +329,7 @@ impl ContainerManager {
                 "run", "-d",
                 "--name", container_name,
                 "-p", "7777:7777",
-                "-p", "7778:7778",
+                "-p", "7777:7777",
                 "-e", "DATABASE_URL=postgresql://eliza:eliza@host.containers.internal:7771/eliza",
                 "-e", "NODE_ENV=production",
                 "-e", "OLLAMA_URL=http://host.containers.internal:11434",

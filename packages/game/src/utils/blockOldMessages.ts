@@ -1,37 +1,34 @@
 // Block old WebSocket messages
 export function blockOldMessages() {
-  console.log('🛡️ Installing message blocker...');
+  console.log('🛡️ Installing WebSocket message blocker...');
 
-  // Check if Socket.IO is loaded
-  const checkAndBlock = () => {
-    if ((window as any).io && (window as any).io.Socket) {
-      const OriginalSocket = (window as any).io.Socket;
-      const originalEmit = OriginalSocket.prototype.emit;
-
-      OriginalSocket.prototype.emit = function (event: string, ...args: any[]) {
-        // Block any SEND_MESSAGE events
-        if (event === 'SEND_MESSAGE') {
-          console.error('🚫 BLOCKED SEND_MESSAGE event!', args);
+  // Intercept WebSocket send method
+  const originalSend = WebSocket.prototype.send;
+  
+  WebSocket.prototype.send = function(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+    // Try to parse and check the message
+    try {
+      let message: any;
+      if (typeof data === 'string') {
+        message = JSON.parse(data);
+      }
+      
+      // Block specific message types or content
+      if (message && message.type === 'send_message') {
+        const messageText = message.message?.text || '';
+        if (messageText.includes('admin has opened the terminal')) {
+          console.error('🚫 BLOCKED problematic message!', message);
           console.trace();
-
-          // Check if this is the problematic message
-          const dataStr = JSON.stringify(args);
-          if (dataStr.includes('admin has opened the terminal')) {
-            console.error('🚨 BLOCKED THE PROBLEMATIC MESSAGE!');
-            return; // Don't send it
-          }
+          return; // Don't send it
         }
-
-        // Allow other events
-        return originalEmit.apply(this, [event, ...args]);
-      };
-
-      console.log('✅ Message blocker installed');
-    } else {
-      // Try again in 100ms
-      setTimeout(checkAndBlock, 100);
+      }
+    } catch (e) {
+      // Not JSON or couldn't parse, let it through
     }
+    
+    // Allow other messages
+    return originalSend.apply(this, [data]);
   };
-
-  checkAndBlock();
+  
+  console.log('✅ WebSocket message blocker installed');
 }

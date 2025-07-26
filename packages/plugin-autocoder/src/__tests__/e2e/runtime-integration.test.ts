@@ -1,20 +1,17 @@
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import {
+  type Character,
   type IAgentRuntime,
-  type UUID,
   type Memory,
   type State,
-  type Character,
+  type UUID,
   AgentRuntime,
   elizaLogger,
 } from '@elizaos/core';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { v4 as uuidv4 } from 'uuid';
-import { e2bPlugin } from '../../../../plugin-e2b/src';
 import { formsPlugin } from '../../../../plugin-forms/src';
-import { githubPlugin } from '../../../../plugin-github/src';
-import { autocoderPlugin } from '../../index';
 import { generateCodeAction } from '../../actions/generate-code';
-import { createProjectAction } from '../../actions/create-project';
+import { autocoderPlugin } from '../../index';
 import { projectsProvider } from '../../providers/projects-provider';
 import { CodeGenerationService } from '../../services/CodeGenerationService';
 
@@ -126,9 +123,7 @@ describe('AutoCoder Runtime Integration', () => {
     };
 
     // Register plugins
-    await runtime.registerPlugin(e2bPlugin);
     await runtime.registerPlugin(formsPlugin);
-    await runtime.registerPlugin(githubPlugin);
     await runtime.registerPlugin(autocoderPlugin);
 
     // Initialize runtime

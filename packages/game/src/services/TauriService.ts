@@ -169,6 +169,29 @@ class TauriServiceClass {
       }
     });
     this.unlistenFns.push(unlistenRealtimeUpdate);
+
+    // Listen for WebSocket errors
+    const unlistenWsError = await this.tauriListen('websocket-error', (event: any) => {
+      console.log('[TauriService] WebSocket error:', event.payload);
+      
+      // Create an error message to display in the chat
+      const errorMessage: TauriMessage = {
+        id: uuidv4(),
+        content: event.payload.message || event.payload.error || 'WebSocket error occurred',
+        type: 'error',
+        authorId: 'system',
+        authorName: 'System',
+        timestamp: event.payload.timestamp ? new Date(event.payload.timestamp) : new Date(),
+        metadata: event.payload
+      };
+      
+      // Only emit error messages that aren't related to user messages
+      // (to avoid duplicating user messages as errors)
+      if (!errorMessage.content.includes('Failed to process message')) {
+        this.messageListeners.forEach(listener => listener(errorMessage));
+      }
+    });
+    this.unlistenFns.push(unlistenWsError);
   }
 
   public isRunningInTauri(): boolean {
@@ -261,6 +284,16 @@ class TauriServiceClass {
     await this.tauriInvoke('update_settings', { settings });
   }
 
+  // Health check
+  public async checkAgentHealth(): Promise<any> {
+    try {
+      return await this.tauriInvoke('health_check');
+    } catch (error) {
+      console.warn('[TauriService] Health check failed:', error);
+      return null;
+    }
+  }
+
   // Container management
   public async getContainerStatus(): Promise<ContainerStatus[]> {
     return await this.tauriInvoke('get_container_status');
@@ -335,7 +368,7 @@ class TauriServiceClass {
   }
 
   public async fetchMemories(limit: number = 50): Promise<TauriMessage[]> {
-    const memories = await this.tauriInvoke('fetch_memories', { count: limit });
+    const memories = await this.tauriInvoke('fetch_memories', { params: { count: limit } });
 
     // Convert memories to TauriMessage format
     return memories.map((memory: any) => ({
@@ -350,7 +383,7 @@ class TauriServiceClass {
   }
 
   public async fetchMemoriesFromRoom(roomId: string, limit: number = 50): Promise<TauriMessage[]> {
-    const memories = await this.tauriInvoke('fetch_memories', { roomId, count: limit });
+    const memories = await this.tauriInvoke('fetch_memories', { params: { roomId, count: limit } });
 
     // Convert memories to TauriMessage format
     return memories.map((memory: any) => ({

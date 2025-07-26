@@ -17,7 +17,7 @@ mod postgres_container_tests {
 
         // This tests the PostgreSQL container configuration without actually starting it
         let result = manager.start_postgres().await;
-        
+
         match result {
             Ok(status) => {
                 assert_eq!(status.name, "eliza-postgres");
@@ -25,23 +25,26 @@ mod postgres_container_tests {
                 assert_eq!(status.ports[0].host_port, 7771);
                 assert_eq!(status.ports[0].container_port, 5432);
                 println!("✅ PostgreSQL container configuration test passed");
-                
+
                 // Clean up - stop the container
                 let _ = manager.stop_container("eliza-postgres").await;
             }
             Err(e) => {
                 // This is expected if no container runtime is available or images aren't present
-                println!("⚠️ PostgreSQL container test couldn't start container (expected in CI): {}", e);
-                
+                println!(
+                    "⚠️ PostgreSQL container test couldn't start container (expected in CI): {}",
+                    e
+                );
+
                 // Verify the error is about missing runtime/images/name conflicts, not configuration
                 let error_str = e.to_string();
                 assert!(
-                    error_str.contains("No such image") || 
-                    error_str.contains("not found") ||
-                    error_str.contains("runtime not available") ||
-                    error_str.contains("Command not found") ||
-                    error_str.contains("already in use") ||
-                    error_str.contains("name is already in use"),
+                    error_str.contains("No such image")
+                        || error_str.contains("not found")
+                        || error_str.contains("runtime not available")
+                        || error_str.contains("Command not found")
+                        || error_str.contains("already in use")
+                        || error_str.contains("name is already in use"),
                     "Error should be about missing runtime/images/naming, not configuration: {}",
                     error_str
                 );
@@ -66,7 +69,7 @@ mod postgres_container_tests {
         match manager.start_postgres().await {
             Ok(status) => {
                 println!("✅ PostgreSQL container started: {}", status.id);
-                
+
                 // Test getting status
                 match manager.get_container_status("eliza-postgres").await {
                     Ok(status) => {
@@ -98,7 +101,10 @@ mod postgres_container_tests {
                 }
             }
             Err(e) => {
-                println!("⚠️ PostgreSQL container lifecycle test couldn't start container: {}", e);
+                println!(
+                    "⚠️ PostgreSQL container lifecycle test couldn't start container: {}",
+                    e
+                );
                 // This is acceptable in CI environments without container runtime
             }
         }
@@ -118,7 +124,7 @@ mod postgres_container_tests {
         match manager.get_all_statuses().await {
             Ok(statuses) => {
                 println!("✅ Retrieved {} container statuses", statuses.len());
-                
+
                 // Should be empty initially or contain any running containers
                 for status in statuses {
                     println!("Found container: {} ({:?})", status.name, status.state);
@@ -147,10 +153,10 @@ mod postgres_container_tests {
         match manager.start_postgres().await {
             Ok(status) => {
                 println!("✅ Container started with health monitoring");
-                
+
                 // Health monitoring should be configured for PostgreSQL
                 assert_eq!(status.name, "eliza-postgres");
-                
+
                 // Clean up
                 let _ = manager.stop_container("eliza-postgres").await;
             }
@@ -172,7 +178,7 @@ mod postgres_container_tests {
             Err(e) => println!("⚠️ Podman not available: {}", e),
         }
 
-        // Test Docker  
+        // Test Docker
         match ContainerManager::new(ContainerRuntimeType::Docker) {
             Ok(_) => println!("✅ Docker container manager created"),
             Err(e) => println!("⚠️ Docker not available: {}", e),

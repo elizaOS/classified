@@ -93,7 +93,6 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "# Run with docker-compose" >> $GITHUB_STEP_SUMMARY
         echo "curl -o docker-compose.yml https://raw.githubusercontent.com/${{ github.repository }}/main/packages/game/docker-compose.yml" >> $GITHUB_STEP_SUMMARY
-        echo "curl -o .env https://raw.githubusercontent.com/${{ github.repository }}/main/packages/game/.env.container" >> $GITHUB_STEP_SUMMARY
         echo "# Edit .env with your API keys" >> $GITHUB_STEP_SUMMARY
         echo "docker-compose up -d" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

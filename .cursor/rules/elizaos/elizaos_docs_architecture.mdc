@@ -192,7 +192,7 @@ export const exampleAction: Action = {
       const response = await processMessage(message, state);
       
       // Create response memory
-      await runtime.messageManager.createMemory({
+      await runtime.createMemory({
         userId: runtime.agentId,
         content: {
           text: response,
@@ -200,7 +200,8 @@ export const exampleAction: Action = {
         },
         roomId: message.roomId,
         embedding: await generateEmbedding(response)
-      });
+      },
+      'messages');
 
       return true;
     } catch (error) {
@@ -248,12 +249,13 @@ handler: async (runtime: IAgentRuntime, message: Memory, state?: State): Promise
     const response = await generateResponse(message.content.text, context);
 
     // Store result
-    await runtime.messageManager.createMemory({
+    await runtime.createMemory({
       userId: runtime.agentId,
       content: { text: response, action: this.name },
       roomId: message.roomId,
       embedding: await runtime.embed(response)
-    });
+    },
+    'messages');
 
     return true;
   } catch (error) {
@@ -289,7 +291,7 @@ describe('ExampleAction', () => {
   it('should handle execution successfully', async () => {
     const result = await exampleAction.handler(mockRuntime, mockMessage);
     expect(result).toBe(true);
-    expect(mockRuntime.messageManager.createMemory).toHaveBeenCalled();
+    expect(mockRuntime.createMemory).toHaveBeenCalled();
   });
 });
 ```
@@ -418,29 +420,6 @@ try {
 }
 ```
 
-#### `processMessage(message: Memory): Promise<void>`
-
-Processes an incoming message through the action pipeline.
-
-**Parameters:**
-- `message`: Memory object containing the message to process
-
-**Returns:** Promise that resolves when message processing is complete
-
-**Example:**
-```typescript
-const message = {
-  id: 'msg-123',
-  userId: 'user-456',
-  content: { text: 'Hello, can you help me?' },
-  roomId: 'room-789',
-  embedding: embeddings,
-  createdAt: Date.now()
-};
-
-await runtime.processMessage(message);
-```
-
 #### `registerAction(action: Action): void`
 
 Registers a new action with the runtime.
@@ -491,7 +470,7 @@ interface CreateMemoryInput {
 
 **Example:**
 ```typescript
-const memory = await runtime.messageManager.createMemory({
+const memory = await runtime.createMemory({
   userId: 'user-123',
   content: {
     text: 'User asked about weather',
@@ -499,7 +478,8 @@ const memory = await runtime.messageManager.createMemory({
   },
   roomId: 'room-456',
   embedding: await runtime.embed('User asked about weather')
-});
+},
+'messages');
 ```
 
 #### `getMemories(params: GetMemoriesParams): Promise<Memory[]>`
@@ -523,16 +503,18 @@ interface GetMemoriesParams {
 **Example:**
 ```typescript
 // Get recent memories from a room
-const recentMemories = await runtime.messageManager.getMemories({
+const recentMemories = await runtime.getMemories({
   roomId: 'room-123',
   count: 5
-});
+},
+'messages');
 
 // Get memories from a specific user
-const userMemories = await runtime.messageManager.getMemories({
+const userMemories = await runtime.getMemories({
   userId: 'user-456',
   count: 20
-});
+},
+'messages');
 ```
 
 #### `searchMemoriesByEmbedding(embedding: number[], options: SearchOptions): Promise<Memory[]>`
@@ -558,13 +540,14 @@ interface SearchOptions {
 ```typescript
 const queryEmbedding = await runtime.embed('What did we discuss about weather?');
 
-const similarMemories = await runtime.messageManager.searchMemoriesByEmbedding(
+const similarMemories = await runtime.searchMemoriesByEmbedding(
   queryEmbedding,
   {
     match_threshold: 0.8,
     count: 10,
     roomId: 'room-123'
-  }
+  },
+  'messages'
 );
 ```
 

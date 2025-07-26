@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { ElizaService, ElizaMessage, ElizaChannel } from '../services/ElizaService';
 import { v4 as uuidv4 } from 'uuid';
-import io, { Socket } from 'socket.io-client';
+import { WebSocketManager } from '@elizaos/client';
 
 interface UseElizaClientOptions {
   baseUrl?: string;
@@ -34,9 +34,10 @@ export function useElizaClient({
   const [isLoading, setIsLoading] = useState(false);
   
   const serviceRef = useRef<ElizaService | null>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const socketManagerRef = useRef<WebSocketManager | null>(null);
   const userIdRef = useRef<string>(userId || uuidv4());
   const connectionStateRef = useRef<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const hasInitializedSocket = useRef(false);
 
   // Initialize service
   useEffect(() => {
@@ -53,95 +54,70 @@ export function useElizaClient({
       return;
     }
 
-    // Add a debounce delay to prevent rapid connect/disconnect cycles
-    let connectTimeout: NodeJS.Timeout;
-    let isCleanedUp = false;
-
     // Prevent multiple connections
-    if (socketRef.current) {
-      console.log('[ElizaClient] Socket already exists, cleaning up first');
-      socketRef.current.disconnect();
-      socketRef.current = null;
-      connectionStateRef.current = 'disconnected';
-    }
-
-    // Check if we're already in the process of connecting
-    if (connectionStateRef.current === 'connecting') {
-      console.log('[ElizaClient] Connection already in progress, skipping');
+    if (hasInitializedSocket.current) {
+      console.log('[ElizaClient] WebSocket already initialized');
       return;
     }
 
-    connectionStateRef.current = 'connecting';
+    hasInitializedSocket.current = true;
 
-    // Debounce connection attempts to avoid rapid cycling
-    connectTimeout = setTimeout(() => {
-      if (isCleanedUp || connectionStateRef.current !== 'connecting') return;
+    // Get the singleton instance
+    socketManagerRef.current = WebSocketManager.getInstance();
+    const socket = socketManagerRef.current;
 
-      console.log('[ElizaClient] Creating new socket connection');
-      
-      // Connect to WebSocket with rate limit-friendly settings
-      const socket = io(baseUrl, {
-        reconnection: true,
-        reconnectionDelay: 5000, // Increased from 2000 to avoid rate limiting
-        reconnectionDelayMax: 30000, // Max delay between reconnection attempts
-        reconnectionAttempts: 5, // Increased from 3
-        timeout: 20000, // Increased from 10000
-        forceNew: true, // Force new connection to avoid reusing stale connections
-        transports: ['websocket'], // Use only websocket transport
-      });
+    console.log('[ElizaClient] Initializing WebSocket connection');
+    
+    // Initialize the WebSocket connection
+    socket.initialize(userIdRef.current);
 
-      socketRef.current = socket;
+    // Define event listeners with stored references
+    const handleConnect = () => {
+      console.log('[ElizaClient] Connected to WebSocket');
+      connectionStateRef.current = 'connected';
+      setIsConnected(true);
+      onConnectionChange?.(true);
+    };
 
-      // Add debugging for all socket events
-      socket.onAny((eventName, ...args) => {
-        console.log(`[ElizaClient] Socket event: ${eventName}`, args);
-        
-        // Check if this is a SEND_MESSAGE event
-        if (eventName === 'SEND_MESSAGE') {
-          console.error('[ElizaClient] SEND_MESSAGE event detected!');
-          console.trace();
-        }
-      });
+    const handleDisconnect = () => {
+      console.log('[ElizaClient] WebSocket disconnected');
+      connectionStateRef.current = 'disconnected';
+      setIsConnected(false);
+      onConnectionChange?.(false);
+    };
 
-      socket.on('connect', () => {
-        console.log('[ElizaClient] Connected to WebSocket');
-        connectionStateRef.current = 'connected';
-        setIsConnected(true);
-        onConnectionChange?.(true);
-      });
+    const handleError = (error: any) => {
+      console.error('[ElizaClient] WebSocket error:', error);
+      connectionStateRef.current = 'disconnected';
+      setError(error.toString());
+    };
 
-      socket.on('disconnect', () => {
-        console.log('[ElizaClient] WebSocket disconnected');
-        connectionStateRef.current = 'disconnected';
-        setIsConnected(false);
-        onConnectionChange?.(false);
-      });
+    const handleConnectError = (error: any) => {
+      console.error('[ElizaClient] WebSocket connection error:', error.message);
+      connectionStateRef.current = 'disconnected';
+      setError(`Connection error: ${error.message}`);
+    };
 
-      socket.on('error', (error) => {
-        console.error('[ElizaClient] WebSocket error:', error);
-        connectionStateRef.current = 'disconnected';
-        setError(error.toString());
-      });
-
-      // Add connection error handler
-      socket.on('connect_error', (error) => {
-        console.error('[ElizaClient] WebSocket connection error:', error.message);
-        connectionStateRef.current = 'disconnected';
-        setError(`Connection error: ${error.message}`);
-      });
-    }, 2000); // Increased debounce delay to 2 seconds
+    // Set up event listeners
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('error', handleError);
+    socket.on('connect_error', handleConnectError);
 
     return () => {
       console.log('[ElizaClient] Cleaning up socket connection');
-      isCleanedUp = true;
-      clearTimeout(connectTimeout);
       connectionStateRef.current = 'disconnected';
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
+      hasInitializedSocket.current = false;
+      
+      // Remove event listeners
+      if (socketManagerRef.current) {
+        socketManagerRef.current.off('connect', handleConnect);
+        socketManagerRef.current.off('disconnect', handleDisconnect);
+        socketManagerRef.current.off('error', handleError);
+        socketManagerRef.current.off('connect_error', handleConnectError);
       }
     };
-  }, [baseUrl]); // Remove onConnectionChange from dependencies
+  }, []); // Empty dependency array - only run once
 
   // Get or create DM channel
   useEffect(() => {
@@ -164,18 +140,11 @@ export function useElizaClient({
         setDmChannel(channel);
 
         // Join the WebSocket room for real-time updates
-        if (socketRef.current) {
-          console.log('[ElizaClient] Joining WebSocket room for channel:', channel.id);
+        if (socketManagerRef.current) {
+          console.log('[ElizaClient] Joining WebSocket channel:', channel.id);
           
-          // Emit the room joining event using the correct format
-          socketRef.current.emit('message', {
-            type: 1, // SOCKET_MESSAGE_TYPE.ROOM_JOINING
-            payload: {
-              channelId: channel.id,
-              roomId: channel.id, // Keep for backward compatibility
-              entityId: service.getUserId(),
-            },
-          });
+          // Use the WebSocketManager's joinChannel method
+          await socketManagerRef.current.joinChannel(channel.id);
 
           // Load message history
           console.log('[ElizaClient] Loading message history for channel:', channel.id);
@@ -206,7 +175,7 @@ export function useElizaClient({
 
   // Set up message broadcast listener
   useEffect(() => {
-    if (!socketRef.current || !dmChannel) return;
+    if (!socketManagerRef.current || !dmChannel) return;
 
     const handleMessageBroadcast = (data: any) => {
       console.log('[ElizaClient] Received messageBroadcast:', data);
@@ -219,7 +188,7 @@ export function useElizaClient({
         const messageAuthorId = data.senderId || data.authorId || data.author_id;
         
         // Skip our own messages - we already add them when sending
-        if (messageAuthorId === serviceRef.current?.getUserId()) {
+        if (messageAuthorId === userIdRef.current) {
           console.log('[ElizaClient] Skipping our own message that came back via broadcast');
           return;
         }
@@ -259,22 +228,11 @@ export function useElizaClient({
     };
 
     console.log('[ElizaClient] Setting up messageBroadcast listener for channel:', dmChannel.id);
-    socketRef.current.on('messageBroadcast', handleMessageBroadcast);
-
-    // Also listen for debug events
-    socketRef.current.on('messageAck', (data: any) => {
-      console.log('[ElizaClient] Received messageAck:', data);
-    });
-
-    socketRef.current.on('messageError', (data: any) => {
-      console.error('[ElizaClient] Received messageError:', data);
-    });
+    socketManagerRef.current.on('messageBroadcast', handleMessageBroadcast);
 
     return () => {
       console.log('[ElizaClient] Cleaning up messageBroadcast listener');
-      socketRef.current?.off('messageBroadcast', handleMessageBroadcast);
-      socketRef.current?.off('messageAck');
-      socketRef.current?.off('messageError');
+      socketManagerRef.current?.off('messageBroadcast', handleMessageBroadcast);
     };
   }, [dmChannel, onMessage]);
 
@@ -301,9 +259,12 @@ export function useElizaClient({
       });
       
       console.log('[ElizaClient] Message sent:', message);
+
+      // The WebSocket broadcast will handle adding the agent's response
     } catch (err) {
-      console.error('[ElizaClient] Failed to send message:', err);
-      setError(err instanceof Error ? err.message : 'Failed to send message');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
+      console.error('[ElizaClient] Failed to send message:', errorMessage);
+      setError(errorMessage);
       throw err;
     }
   }, [dmChannel]);

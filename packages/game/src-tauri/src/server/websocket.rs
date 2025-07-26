@@ -1,12 +1,10 @@
 use crate::backend::BackendResult;
-use axum::{
-    extract::ws::WebSocket,
-};
-use futures::{SinkExt, StreamExt};
+use axum::extract::ws::WebSocket;
 use dashmap::DashMap;
+use futures::{SinkExt, StreamExt};
 use std::{collections::HashSet, sync::Arc};
 use tokio::sync::mpsc;
-use tracing::{info, warn, error, debug};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 pub struct WebSocketHub {
@@ -52,7 +50,11 @@ impl WebSocketHub {
         }
     }
 
-    pub fn add_client(&self, client_id: Uuid, sender: mpsc::UnboundedSender<axum::extract::ws::Message>) {
+    pub fn add_client(
+        &self,
+        client_id: Uuid,
+        sender: mpsc::UnboundedSender<axum::extract::ws::Message>,
+    ) {
         let client = Client {
             id: client_id,
             sender,
@@ -63,20 +65,21 @@ impl WebSocketHub {
 
     pub fn remove_client(&self, client_id: Uuid) {
         self.clients.remove(&client_id);
-        
+
         // Remove from all rooms
         for mut room in self.rooms.iter_mut() {
             room.remove(&client_id);
         }
-        
+
         info!("Client {} disconnected", client_id);
     }
 
     pub fn join_room(&self, client_id: Uuid, room: &str) {
-        self.rooms.entry(room.to_string())
+        self.rooms
+            .entry(room.to_string())
             .or_default()
             .insert(client_id);
-        
+
         debug!("Client {} joined room {}", client_id, room);
     }
 
@@ -84,7 +87,7 @@ impl WebSocketHub {
         if let Some(mut room_clients) = self.rooms.get_mut(room) {
             room_clients.remove(&client_id);
         }
-        
+
         debug!("Client {} left room {}", client_id, room);
     }
 
@@ -104,7 +107,6 @@ impl Default for WebSocketHub {
         Self::new()
     }
 }
-
 
 pub async fn handle_client(socket: WebSocket, hub: Arc<WebSocketHub>) {
     let client_id = Uuid::new_v4();
@@ -155,7 +157,7 @@ async fn handle_websocket_message(
     match msg {
         Message::Text(text) => {
             debug!("Received text message from {}: {}", client_id, text);
-            
+
             // Parse message as JSON
             if let Ok(json_msg) = serde_json::from_str::<serde_json::Value>(&text) {
                 handle_json_message(client_id, json_msg, hub).await?;
@@ -164,7 +166,11 @@ async fn handle_websocket_message(
             }
         }
         Message::Binary(data) => {
-            debug!("Received binary message from {}: {} bytes", client_id, data.len());
+            debug!(
+                "Received binary message from {}: {} bytes",
+                client_id,
+                data.len()
+            );
             // Handle binary messages if needed
         }
         Message::Ping(_data) => {
@@ -192,42 +198,37 @@ async fn handle_json_message(
             "join_room" => {
                 if let Some(room) = msg.get("room").and_then(|r| r.as_str()) {
                     hub.join_room(client_id, room);
-                    
+
                     // Send confirmation
                     let response = serde_json::json!({
                         "type": "room_joined",
                         "room": room,
                         "client_id": client_id
                     });
-                    
-                    hub.send_to_client(
-                        client_id,
-                        Message::Text(response.to_string())
-                    ).await;
+
+                    hub.send_to_client(client_id, Message::Text(response.to_string()))
+                        .await;
                 }
             }
             "leave_room" => {
                 if let Some(room) = msg.get("room").and_then(|r| r.as_str()) {
                     hub.leave_room(client_id, room);
-                    
+
                     // Send confirmation
                     let response = serde_json::json!({
                         "type": "room_left",
                         "room": room,
                         "client_id": client_id
                     });
-                    
-                    hub.send_to_client(
-                        client_id,
-                        Message::Text(response.to_string())
-                    ).await;
+
+                    hub.send_to_client(client_id, Message::Text(response.to_string()))
+                        .await;
                 }
             }
             "message" => {
-                if let (Some(room), Some(content)) = (
-                    msg.get("room").and_then(|r| r.as_str()),
-                    msg.get("content")
-                ) {
+                if let (Some(room), Some(content)) =
+                    (msg.get("room").and_then(|r| r.as_str()), msg.get("content"))
+                {
                     // Broadcast message to room
                     let broadcast_msg = serde_json::json!({
                         "type": "message",
@@ -236,15 +237,16 @@ async fn handle_json_message(
                         "content": content,
                         "timestamp": chrono::Utc::now().timestamp()
                     });
-                    
-                    hub.broadcast_to_room(
-                        room,
-                        Message::Text(broadcast_msg.to_string())
-                    ).await;
+
+                    hub.broadcast_to_room(room, Message::Text(broadcast_msg.to_string()))
+                        .await;
                 }
             }
             _ => {
-                warn!("Unknown message type from client {}: {}", client_id, msg_type);
+                warn!(
+                    "Unknown message type from client {}: {}",
+                    client_id, msg_type
+                );
             }
         }
     }

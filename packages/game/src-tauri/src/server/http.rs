@@ -1,10 +1,10 @@
-use crate::backend::{BackendError, BackendResult, BackendConfig};
+use crate::backend::{BackendConfig, BackendError, BackendResult};
 use crate::container::ContainerManager;
 use crate::server::websocket::WebSocketHub;
 use axum::{
     extract::{State, WebSocketUpgrade},
     http::StatusCode,
-    response::{Json, IntoResponse},
+    response::{IntoResponse, Json},
     routing::{get, post},
     Router,
 };
@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
-use tracing::{info, error};
+use tracing::{error, info};
 
 pub struct HttpServer {
     config: BackendConfig,
@@ -22,15 +22,18 @@ pub struct HttpServer {
 
 impl HttpServer {
     /// Creates a new HTTP server instance.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if the container manager fails to initialize.
     #[must_use]
     pub fn new() -> Self {
         Self {
             config: BackendConfig::default(),
-            container_manager: Arc::new(ContainerManager::new(crate::backend::ContainerRuntimeType::Podman).expect("Failed to create container manager")),
+            container_manager: Arc::new(
+                ContainerManager::new(crate::backend::ContainerRuntimeType::Podman)
+                    .expect("Failed to create container manager"),
+            ),
             websocket_hub: Arc::new(WebSocketHub::new()),
         }
     }
@@ -41,49 +44,43 @@ impl HttpServer {
             .route("/api/server/health", get(health_check))
             .route("/api/agent/id", get(agent_id))
             .route("/autonomy/status", get(autonomy_status))
-            
             // Container management
             .route("/api/containers/status", get(container_status))
             .route("/api/containers/:name/restart", post(restart_container))
-            
             // Note: Agent management handled via Tauri IPC, not HTTP routes
-            
             // WebSocket upgrade
             .route("/ws", get(app_websocket_handler))
             .route("/api/websocket/info", get(websocket_info))
-            
             // Add state
             .with_state(AppState {
                 container_manager: self.container_manager.clone(),
                 websocket_hub: self.websocket_hub.clone(),
             })
-            
             // Middleware
-            .layer(
-                ServiceBuilder::new()
-                    .layer(CorsLayer::permissive())
-            )
+            .layer(ServiceBuilder::new().layer(CorsLayer::permissive()))
     }
 
     /// Starts the HTTP server and begins listening for requests.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns an error if:
     /// - Failed to bind to the specified address
     /// - Server encounters a runtime error while serving requests
     pub async fn start(&self) -> BackendResult<()> {
         let app = self.create_router();
         let addr = format!("127.0.0.1:{}", self.config.http_port);
-        
+
         info!("Starting HTTP server on {}", addr);
-        
-        let listener = tokio::net::TcpListener::bind(&addr).await
+
+        let listener = tokio::net::TcpListener::bind(&addr)
+            .await
             .map_err(|e| BackendError::HttpServer(format!("Failed to bind to {addr}: {e}")))?;
 
         info!("HTTP server bound to {}, starting to serve requests", addr);
-        
-        axum::serve(listener, app).await
+
+        axum::serve(listener, app)
+            .await
             .map_err(|e| BackendError::HttpServer(format!("Server error: {e}")))?;
 
         Ok(())
@@ -128,9 +125,7 @@ async fn autonomy_status() -> Json<Value> {
     }))
 }
 
-async fn container_status(
-    State(state): State<AppState>,
-) -> Result<Json<Value>, StatusCode> {
+async fn container_status(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
     match state.container_manager.get_all_statuses().await {
         Ok(statuses) => Ok(Json(json!({ "containers": statuses }))),
         Err(e) => {
@@ -145,7 +140,7 @@ async fn restart_container(
     State(state): State<AppState>,
 ) -> Result<Json<Value>, StatusCode> {
     match state.container_manager.restart_container(&name).await {
-        Ok(status) => Ok(Json(json!({ 
+        Ok(status) => Ok(Json(json!({
             "message": format!("Container {} restarted successfully", name),
             "status": status
         }))),
@@ -158,9 +153,7 @@ async fn restart_container(
 
 // All agent management handlers removed - functionality handled via Tauri IPC
 
-async fn websocket_info(
-    State(state): State<AppState>,
-) -> Json<Value> {
+async fn websocket_info(State(state): State<AppState>) -> Json<Value> {
     Json(json!({
         "websocket_endpoint": "/ws",
         "connected_clients": state.websocket_hub.get_client_count(),

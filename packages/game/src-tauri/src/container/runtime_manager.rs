@@ -1,9 +1,9 @@
 use crate::backend::{BackendError, BackendResult};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use tracing::{info, warn, error, debug};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct RuntimeManager {
@@ -35,7 +35,10 @@ impl RuntimeManager {
         // Step 1: Check for cached/bundled runtime first (highest priority)
         if let Some(bundled_path) = self.detect_bundled_runtime() {
             if self.verify_runtime(&bundled_path).await.is_ok() {
-                info!("✅ Using cached/bundled container runtime: {:?}", bundled_path);
+                info!(
+                    "✅ Using cached/bundled container runtime: {:?}",
+                    bundled_path
+                );
                 self.bundled_runtime_path = Some(bundled_path.clone());
                 return Ok(RuntimeType::Bundled(bundled_path));
             }
@@ -46,7 +49,7 @@ impl RuntimeManager {
 
         // Step 2: Check for system runtime (Podman first, then Docker)
         info!("🔍 Checking for system container runtimes...");
-        
+
         // Try Podman first (preferred)
         if let Some(podman_path) = self.find_system_executable("podman").await {
             if self.verify_runtime(&podman_path).await.is_ok() {
@@ -56,7 +59,7 @@ impl RuntimeManager {
             }
             warn!("⚠️  System Podman found but failed verification");
         }
-        
+
         // Try Docker as fallback
         if let Some(docker_path) = self.find_system_executable("docker").await {
             if self.verify_runtime(&docker_path).await.is_ok() {
@@ -70,14 +73,19 @@ impl RuntimeManager {
         info!("ℹ️  No system container runtime available");
 
         // Step 3: Only download if no cached/bundled runtime exists
-        let bundled_executable = self.resource_dir.join("bin").join(
-            if cfg!(target_os = "windows") { "podman.exe" } else { "podman" }
-        );
-        
+        let bundled_executable =
+            self.resource_dir
+                .join("bin")
+                .join(if cfg!(target_os = "windows") {
+                    "podman.exe"
+                } else {
+                    "podman"
+                });
+
         if bundled_executable.exists() {
             warn!("⚠️  Bundled runtime exists but verification failed, not re-downloading");
             return Err(BackendError::Container(
-                "Bundled runtime exists but is not functional".to_string()
+                "Bundled runtime exists but is not functional".to_string(),
             ));
         }
 
@@ -85,7 +93,10 @@ impl RuntimeManager {
         info!("📥 No container runtime available, downloading and caching...");
         match self.download_and_install_runtime().await {
             Ok(downloaded_path) => {
-                info!("✅ Successfully downloaded and cached container runtime: {:?}", downloaded_path);
+                info!(
+                    "✅ Successfully downloaded and cached container runtime: {:?}",
+                    downloaded_path
+                );
                 self.bundled_runtime_path = Some(downloaded_path.clone());
                 Ok(RuntimeType::Downloaded(downloaded_path))
             }
@@ -106,9 +117,9 @@ impl RuntimeManager {
         } else {
             "podman"
         };
-        
+
         let bundled_path = bin_dir.join(executable_name);
-        
+
         if bundled_path.exists() && bundled_path.is_file() {
             // Verify it's executable
             #[cfg(unix)]
@@ -118,19 +129,21 @@ impl RuntimeManager {
                     if permissions.mode() & 0o111 != 0 {
                         return Some(bundled_path);
                     }
-                    warn!("Bundled runtime exists but is not executable: {:?}", bundled_path);
+                    warn!(
+                        "Bundled runtime exists but is not executable: {:?}",
+                        bundled_path
+                    );
                 }
             }
-            
+
             #[cfg(target_os = "windows")]
             {
                 return Some(bundled_path);
             }
         }
-        
+
         None
     }
-
 
     /// Find system executable in PATH
     async fn find_system_executable(&self, name: &str) -> Option<PathBuf> {
@@ -165,7 +178,7 @@ impl RuntimeManager {
     /// Verify that a runtime path is functional
     async fn verify_runtime(&self, runtime_path: &Path) -> BackendResult<()> {
         debug!("Verifying container runtime: {:?}", runtime_path);
-        
+
         match Command::new(runtime_path).arg("--version").output() {
             Ok(output) if output.status.success() => {
                 let version = String::from_utf8_lossy(&output.stdout);
@@ -178,22 +191,23 @@ impl RuntimeManager {
                     "Runtime verification failed: {error}"
                 )))
             }
-            Err(e) => {
-                Err(BackendError::Container(format!(
-                    "Failed to execute runtime: {e}"
-                )))
-            }
+            Err(e) => Err(BackendError::Container(format!(
+                "Failed to execute runtime: {e}"
+            ))),
         }
     }
 
     /// Download and install container runtime
     async fn download_and_install_runtime(&self) -> BackendResult<PathBuf> {
-        info!("Downloading container runtime for platform: {}-{}", 
-              std::env::consts::OS, std::env::consts::ARCH);
+        info!(
+            "Downloading container runtime for platform: {}-{}",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        );
 
         let platform_key = Self::get_platform_key();
         let download_info = Self::get_download_info(&platform_key)?;
-        
+
         // Create download directory
         let download_dir = self.resource_dir.join("download");
         fs::create_dir_all(&download_dir)
@@ -201,17 +215,19 @@ impl RuntimeManager {
 
         // Download the archive
         let archive_path = download_dir.join(&download_info.filename);
-        self.download_file(&download_info.url, &archive_path).await?;
+        self.download_file(&download_info.url, &archive_path)
+            .await?;
 
         // Extract the archive
         let extract_dir = download_dir.join("extract");
         fs::create_dir_all(&extract_dir)
             .map_err(|e| BackendError::Container(format!("Failed to create extract dir: {e}")))?;
-        
+
         self.extract_archive(&archive_path, &extract_dir).await?;
 
         // Find and install the executable
-        let executable_path = Self::find_executable_in_extract(&extract_dir, &download_info.executable_pattern)?;
+        let executable_path =
+            Self::find_executable_in_extract(&extract_dir, &download_info.executable_pattern)?;
         let install_path = self.install_executable(&executable_path).await?;
 
         // Cleanup
@@ -255,7 +271,7 @@ impl RuntimeManager {
             "aarch64" => "arm64",
             other => other,
         };
-        
+
         match os {
             "macos" => format!("darwin-{arch}"),
             "windows" => format!("windows-{arch}"),
@@ -269,16 +285,22 @@ impl RuntimeManager {
         info!("Downloading: {} -> {:?}", url, output_path);
 
         let client = reqwest::Client::new();
-        let response = client.get(url).send().await
+        let response = client
+            .get(url)
+            .send()
+            .await
             .map_err(|e| BackendError::Container(format!("Download request failed: {e}")))?;
 
         if !response.status().is_success() {
             return Err(BackendError::Container(format!(
-                "Download failed with status: {}", response.status()
+                "Download failed with status: {}",
+                response.status()
             )));
         }
 
-        let bytes = response.bytes().await
+        let bytes = response
+            .bytes()
+            .await
             .map_err(|e| BackendError::Container(format!("Failed to read response: {e}")))?;
 
         fs::write(output_path, bytes)
@@ -292,7 +314,8 @@ impl RuntimeManager {
     async fn extract_archive(&self, archive_path: &Path, extract_dir: &Path) -> BackendResult<()> {
         info!("Extracting: {:?} -> {:?}", archive_path, extract_dir);
 
-        let extension = archive_path.extension()
+        let extension = archive_path
+            .extension()
             .and_then(|ext| ext.to_str())
             .unwrap_or("");
 
@@ -328,14 +351,20 @@ impl RuntimeManager {
             // Use PowerShell on Windows
             let output = Command::new("powershell")
                 .arg("-Command")
-                .arg(format!("Expand-Archive -Path '{}' -DestinationPath '{}'", 
-                           archive_path.display(), extract_dir.display()))
+                .arg(format!(
+                    "Expand-Archive -Path '{}' -DestinationPath '{}'",
+                    archive_path.display(),
+                    extract_dir.display()
+                ))
                 .output()
                 .map_err(|e| BackendError::Container(format!("Failed to run PowerShell: {}", e)))?;
 
             if !output.status.success() {
                 let error = String::from_utf8_lossy(&output.stderr);
-                return Err(BackendError::Container(format!("PowerShell extract failed: {}", error)));
+                return Err(BackendError::Container(format!(
+                    "PowerShell extract failed: {}",
+                    error
+                )));
             }
         }
 
@@ -354,7 +383,9 @@ impl RuntimeManager {
 
         if !output.status.success() {
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(BackendError::Container(format!("Tar extract failed: {error}")));
+            return Err(BackendError::Container(format!(
+                "Tar extract failed: {error}"
+            )));
         }
 
         Ok(())
@@ -363,7 +394,7 @@ impl RuntimeManager {
     /// Find executable in extracted directory
     fn find_executable_in_extract(extract_dir: &Path, pattern: &str) -> BackendResult<PathBuf> {
         let executable_path = extract_dir.join(pattern);
-        
+
         if executable_path.exists() {
             return Ok(executable_path);
         }
@@ -415,7 +446,6 @@ impl RuntimeManager {
         info!("Container runtime installed: {:?}", install_path);
         Ok(install_path)
     }
-
 }
 
 #[derive(Debug)]

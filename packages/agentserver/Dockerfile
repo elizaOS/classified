@@ -18,7 +18,7 @@ ARG TARGETARCH=arm64
 # Map Docker's TARGETARCH to our binary naming convention
 RUN echo "Target architecture: ${TARGETARCH}"
 COPY dist-binaries/server-linux-${TARGETARCH} ./server
-COPY health-check.sh ./health-check.sh
+COPY scripts/health-check.sh ./health-check.sh
 
 # Ensure executables are executable
 RUN chmod +x ./server ./health-check.sh && \

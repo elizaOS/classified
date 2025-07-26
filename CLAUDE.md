@@ -10,6 +10,10 @@ Otherwise, the player may connect to cloud AI APIs by providing keys (OpenAI, An
 
 # IMPORTANT: We will default to Ollama and setting everything up for local development
 
+# CRITICAL MODEL REQUIREMENTS
+
+**DO NOT change model configurations to smaller models during testing or development.** The larger models (llama3.2:3b, llama3.2:3b, etc.) are specifically chosen because they can follow the required response format and generate proper structured outputs. Smaller models often fail to generate responses that fit the expected shape and will break the message flow and agent functionality. Always wait for the proper models to download rather than switching to smaller alternatives.
+
 The installation bundle will include everything needed – if container software (podman) is required, the installer will guide the user through setup or utilize a bundled headless runtime. We aim for one-click startup where possible. The frontend communicates to Tauri host via IPC, and Tauri host forwards client messages back and forth to the agen server, which is a message server + live Eliza agent running in a container.
 
 Initial Launch & Configuration

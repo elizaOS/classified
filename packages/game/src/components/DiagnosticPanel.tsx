@@ -10,19 +10,18 @@ export const DiagnosticPanel: React.FC = () => {
   const [newUserId, setNewUserId] = useState('');
 
   useEffect(() => {
-    // Check for any global socket.io instances
+    // Check for any global WebSocket instances
     const checkGlobalSockets = () => {
       const info: any[] = [];
 
-      // Check window object for any io or socket references
-      if ((window as any).io) {
-        info.push({ type: 'window.io exists', value: true });
+      // Check window object for any WebSocket references
+      if ((window as any).WebSocket) {
+        info.push({ type: 'window.WebSocket exists', value: true });
       }
 
-      // Check for any socket.io manager
-      if ((window as any).io && (window as any).io.sockets) {
-        const sockets = (window as any).io.sockets;
-        info.push({ type: 'Active sockets', count: sockets.length });
+      // Check for any WebSocket manager
+      if ((window as any).webSocketManager) {
+        info.push({ type: 'WebSocket manager exists', value: true });
       }
 
       // Check localStorage for any old data

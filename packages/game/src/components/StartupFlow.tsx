@@ -3,11 +3,22 @@ import './StartupFlow.css';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
+interface ModelDownloadProgress {
+    model_name: string;
+    current_mb: number;
+    total_mb: number;
+    percentage: number;
+    speed_mbps: number;
+    eta_seconds: number;
+    status: 'Downloading' | 'Completed' | 'Failed' | 'AlreadyExists';
+}
+
 interface StartupStatus {
     stage: string;
     progress: number;
     description: string;
     error?: string;
+    model_progress?: ModelDownloadProgress;
 }
 
 interface UserConfig {
@@ -79,9 +90,69 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
       }
     });
 
-    // Get current status
+    // Listen for real-time setup progress updates (includes model download progress)
+    const unlistenProgress = await listen('setup-progress', (event: any) => {
+      console.log('[STARTUP] Setup progress update:', event.payload);
+      const setupProgress = event.payload;
+      
+      // Update status with the real-time progress
+      setStatus(prev => ({
+        ...prev,
+        stage: setupProgress.stage || prev.stage,
+        progress: setupProgress.progress || prev.progress,
+        description: setupProgress.message || prev.description,
+        model_progress: setupProgress.model_progress || null
+      }));
+      
+      // Log model progress if available
+      if (setupProgress.model_progress) {
+        console.log('[STARTUP] Model download progress:', setupProgress.model_progress);
+      }
+      
+      // Complete when setup is done
+      if (setupProgress.stage === 'complete' && setupProgress.progress >= 100) {
+        onComplete();
+      }
+    });
+
+    // Get current status from both startup manager and container manager
     const currentStatus = await invoke('get_startup_status') as StartupStatus;
     setStatus(currentStatus);
+
+    // Poll for setup progress (includes model download progress)
+    const pollSetupProgress = async () => {
+      try {
+        const setupProgress = await invoke('get_setup_progress_new') as any;
+        if (setupProgress) {
+          setStatus(prev => ({
+            ...prev,
+            stage: setupProgress.stage || prev.stage,
+            progress: setupProgress.progress || prev.progress,
+            description: setupProgress.message || prev.description,
+            model_progress: setupProgress.model_progress || prev.model_progress
+          }));
+          
+          // If we have model progress, we're actively downloading
+          if (setupProgress.model_progress) {
+            console.log('[STARTUP] Model progress:', setupProgress.model_progress);
+          }
+          
+          // Complete when setup is done
+          if (setupProgress.stage === 'complete' && setupProgress.progress >= 100) {
+            onComplete();
+            return;
+          }
+        }
+      } catch (error) {
+        console.log('[STARTUP] Setup progress not available yet:', error);
+      }
+      
+      // Continue polling every 500ms
+      setTimeout(pollSetupProgress, 500);
+    };
+
+    // Start polling after a short delay
+    setTimeout(pollSetupProgress, 1000);
 
     if (currentStatus.stage === 'waiting_for_config') {
       setShowConfig(true);
@@ -92,6 +163,7 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
 
     return () => {
       unlistenStatus();
+      unlistenProgress();
     };
   };
 
@@ -139,10 +211,37 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
 
     setIsSubmitting(true);
     setConfigValidation(null);
+    setShowConfig(false);
+    setIsLoading(true);
 
     if (window.__TAURI_INTERNALS__) {
       const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('submit_user_config', { config: userConfig });
+      
+      try {
+        // Submit user configuration
+        await invoke('submit_user_config', { config: userConfig });
+        
+        // Start the complete environment setup which includes model downloads
+        setStatus({
+          stage: 'starting_containers',
+          progress: 10,
+          description: 'Starting container environment...'
+        });
+        
+        // This will trigger the full setup including model downloads
+        await invoke('setup_complete_environment_new');
+        
+      } catch (error) {
+        console.error('[STARTUP] Setup failed:', error);
+        setStatus({
+          stage: 'error',
+          progress: 0,
+          description: 'Setup failed',
+          error: error.toString()
+        });
+        setShowRetry(true);
+        setIsLoading(false);
+      }
     } else {
       // Browser mode - just proceed
       console.log('[STARTUP] Config submitted (browser mode):', userConfig);
@@ -283,6 +382,32 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
         />
       </div>
 
+      {/* Model Download Progress */}
+      {status.model_progress && (
+        <div className="model-progress">
+          <div className="model-info">
+            <div className="model-name">
+              Downloading {status.model_progress.model_name}
+              <span className="model-status">({status.model_progress.status})</span>
+            </div>
+            <div className="model-stats">
+              {status.model_progress.current_mb.toFixed(1)}MB / {status.model_progress.total_mb.toFixed(1)}MB
+              <span className="model-speed">@ {status.model_progress.speed_mbps.toFixed(1)}MB/s</span>
+              {status.model_progress.eta_seconds > 0 && (
+                <span className="model-eta">ETA: {Math.floor(status.model_progress.eta_seconds / 60)}m {status.model_progress.eta_seconds % 60}s</span>
+              )}
+            </div>
+          </div>
+          <div className="model-progress-bar">
+            <div
+              className="model-progress-fill"
+              style={{ width: `${status.model_progress.percentage}%` }}
+            />
+          </div>
+          <div className="model-percentage">{status.model_progress.percentage}%</div>
+        </div>
+      )}
+
       <div className="startup-spinner">
         <div className="spinner-dot"></div>
         <div className="spinner-dot"></div>
@@ -294,6 +419,16 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
           <p>• Starting game environment...</p>
           <p>• Initializing AI agent...</p>
           <p>• Setting up local database...</p>
+        </div>
+      )}
+
+      {status.stage === 'models' && (
+        <div className="config-info">
+          <p>• Downloading AI models for local inference</p>
+          <p>• This may take several minutes depending on your connection</p>
+          {status.model_progress && (
+            <p>• Currently downloading: {status.model_progress.model_name}</p>
+          )}
         </div>
       )}
     </div>

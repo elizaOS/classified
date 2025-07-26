@@ -32,7 +32,7 @@ pub enum ContainerRuntimeType {
 impl Default for BackendConfig {
     fn default() -> Self {
         Self {
-            http_port: 7777,  // Frontend expects port 7777
+            http_port: 7777, // Frontend expects port 7777
             websocket_port: 7779,
             postgres_url: "postgresql://eliza:eliza@localhost:7771/eliza".to_string(),
             auth: AuthConfig {

@@ -6,7 +6,6 @@ import {
   ModelType,
   Plugin,
 } from '@elizaos/core';
-// Remove E2B and GitHub imports - these services won't be available
 import { FormsService } from '@elizaos/plugin-forms';
 
 // Define types that were imported before

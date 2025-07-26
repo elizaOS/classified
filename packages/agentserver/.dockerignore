@@ -19,10 +19,6 @@ node_modules/
 *.log
 logs/
 
-# Container data
-container-data/
-postgres-init/
-
 # Development tools
 cypress/
 cypress.config.*

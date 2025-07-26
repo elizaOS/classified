@@ -2,7 +2,7 @@ import { defineConfig } from 'cypress';
 import { existsSync } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { cypressTasks } from './cypress/support/tasks';
+import cypressTasks from './cypress/support/tasks';
 
 const execAsync = promisify(exec);
 
@@ -25,33 +25,38 @@ export default defineConfig({
     specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
     video: true,
     screenshotOnRunFailure: true,
+    
     setupNodeEvents(on, config) {
-      // Add file system and process tasks
+      // Add all tasks from tasks.ts
+      on('task', cypressTasks);
+      
+      // Additional inline tasks
       on('task', {
-        fileExists(filename: string) {
-          return existsSync(filename);
+        async checkPortAvailable(port: number) {
+          const checkCommand = process.platform === 'win32' 
+            ? `netstat -an | findstr :${port}` 
+            : `lsof -i :${port}`;
+          
+          try {
+            await execAsync(checkCommand);
+            return false; // Port is in use
+          } catch {
+            return true; // Port is available
+          }
         },
-
-        log(message: string) {
-          console.log(message);
-          return null;
-        },
-
-        async killProcessByPort(port: number) {
-          // Kill process on macOS/Linux
-          await execAsync(`lsof -ti:${port} | xargs kill -9`);
-          return null;
-        },
-
-        async startBackendServer() {
-          // Start the backend server in background
-          const process = exec('cd packages/game && npm run dev:backend');
-          return { success: true, pid: process.pid };
-        },
-
-        // Add all our custom tasks for API key testing
-        ...cypressTasks
+        
+        fileExists(filePath: string) {
+          return existsSync(filePath);
+        }
       });
-    },
-  },
+      
+      // Log configuration
+      console.log('Cypress E2E Configuration:');
+      console.log(`  Base URL: ${config.baseUrl}`);
+      console.log(`  Backend URL: ${process.env.CYPRESS_BACKEND_URL || 'http://localhost:7777'}`);
+      console.log(`  Test Mode: ${process.env.NODE_ENV === 'test'}`);
+      
+      return config;
+    }
+  }
 });

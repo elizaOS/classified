@@ -1,14 +1,6 @@
-import type {
-  ModelTypeName,
-  TextEmbeddingParams
-} from '@elizaos/core';
+import type { ModelTypeName, TextEmbeddingParams } from '@elizaos/core';
 import { type IAgentRuntime, ModelType, type Plugin, logger } from '@elizaos/core';
-import {
-  type Llama,
-  LlamaEmbeddingContext,
-  type LlamaModel,
-  getLlama
-} from 'node-llama-cpp';
+import { type Llama, LlamaEmbeddingContext, type LlamaModel, getLlama } from 'node-llama-cpp';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -459,7 +451,6 @@ class LocalAIManager {
   public getActiveModelConfig(): ModelSpec {
     return this.activeModelConfig;
   }
-
 }
 
 // Create manager instance
@@ -475,12 +466,12 @@ export const localEmbeddingPlugin: Plugin = {
 
   async init(_config: any, runtime: IAgentRuntime) {
     logger.info('🚀 Initializing Local AI plugin...');
-    
+
     try {
       // Initialize environment and validate configuration
       await localAIManager.initializeEnvironment();
       const config = validateConfig();
-      
+
       // Check if models directory is accessible
       const modelsDir = config.MODELS_DIR || path.join(os.homedir(), '.eliza', 'models');
       if (!fs.existsSync(modelsDir)) {
@@ -488,14 +479,14 @@ export const localEmbeddingPlugin: Plugin = {
         logger.warn('The directory will be created, but you need to download model files');
         logger.warn('Visit https://huggingface.co/models to download compatible GGUF models');
       }
-      
+
       // Perform a basic initialization test
       logger.info('🔍 Testing Local AI initialization...');
-      
+
       try {
         // Check platform capabilities
         await localAIManager.checkPlatformCapabilities();
-        
+
         // Test if we can get the llama instance
         const llamaInstance = await getLlama();
         if (llamaInstance) {
@@ -503,27 +494,28 @@ export const localEmbeddingPlugin: Plugin = {
         } else {
           throw new Error('Failed to load llama.cpp library');
         }
-        
+
         // Check if at least one model file exists
         const embeddingModelPath = path.join(modelsDir, config.LOCAL_EMBEDDING_MODEL);
-        
+
         const modelsExist = {
-          embedding: fs.existsSync(embeddingModelPath)
+          embedding: fs.existsSync(embeddingModelPath),
         };
-        
+
         if (!modelsExist.embedding) {
           logger.warn('⚠️ No model files found in models directory');
           logger.warn('Models will be downloaded on first use, which may take time');
-          logger.warn('To pre-download models, run the plugin and it will fetch them automatically');
+          logger.warn(
+            'To pre-download models, run the plugin and it will fetch them automatically'
+          );
         } else {
           logger.info('📦 Found model files:', {
-            embedding: modelsExist.embedding ? '✓' : '✗'
+            embedding: modelsExist.embedding ? '✓' : '✗',
           });
         }
-        
+
         logger.success('✅ Local AI plugin initialized successfully');
         logger.info('💡 Models will be loaded on-demand when first used');
-        
       } catch (testError) {
         logger.error('❌ Local AI initialization test failed:', testError);
         logger.warn('The plugin may not function correctly');
@@ -533,13 +525,12 @@ export const localEmbeddingPlugin: Plugin = {
         logger.warn('3. Your CPU supports the required instruction sets');
         // Don't throw here - allow the plugin to load even if the test fails
       }
-      
     } catch (error) {
       logger.error('❌ Failed to initialize Local AI plugin:', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
-      
+
       // Provide helpful guidance based on common errors
       if (error instanceof Error) {
         if (error.message.includes('Cannot find module')) {
@@ -553,7 +544,7 @@ export const localEmbeddingPlugin: Plugin = {
           logger.error('- Linux: Install build-essential package');
         }
       }
-      
+
       // Don't throw - allow the system to continue without this plugin
       logger.warn('⚠️ Local AI plugin will not be available');
     }

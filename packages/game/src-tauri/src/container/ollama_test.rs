@@ -17,7 +17,7 @@ mod ollama_container_tests {
 
         // This tests the Ollama container configuration without actually starting it
         let result = manager.start_ollama().await;
-        
+
         match result {
             Ok(status) => {
                 assert_eq!(status.name, "eliza-ollama");
@@ -25,23 +25,26 @@ mod ollama_container_tests {
                 assert_eq!(status.ports[0].host_port, 11434);
                 assert_eq!(status.ports[0].container_port, 11434);
                 println!("✅ Ollama container configuration test passed");
-                
+
                 // Clean up - stop the container
                 let _ = manager.stop_container("eliza-ollama").await;
             }
             Err(e) => {
                 // This is expected if no container runtime is available or images aren't present
-                println!("⚠️ Ollama container test couldn't start container (expected in CI): {}", e);
-                
+                println!(
+                    "⚠️ Ollama container test couldn't start container (expected in CI): {}",
+                    e
+                );
+
                 // Verify the error is about missing runtime/images/naming conflicts, not configuration
                 let error_str = e.to_string();
                 assert!(
-                    error_str.contains("No such image") || 
-                    error_str.contains("not found") ||
-                    error_str.contains("runtime not available") ||
-                    error_str.contains("Command not found") ||
-                    error_str.contains("already in use") ||
-                    error_str.contains("name is already in use"),
+                    error_str.contains("No such image")
+                        || error_str.contains("not found")
+                        || error_str.contains("runtime not available")
+                        || error_str.contains("Command not found")
+                        || error_str.contains("already in use")
+                        || error_str.contains("name is already in use"),
                     "Error should be about missing runtime/images/naming, not configuration: {}",
                     error_str
                 );
@@ -66,7 +69,7 @@ mod ollama_container_tests {
         match manager.start_ollama().await {
             Ok(status) => {
                 println!("✅ Ollama container started: {}", status.id);
-                
+
                 // Test getting status
                 match manager.get_container_status("eliza-ollama").await {
                     Ok(status) => {
@@ -98,7 +101,10 @@ mod ollama_container_tests {
                 }
             }
             Err(e) => {
-                println!("⚠️ Ollama container lifecycle test couldn't start container: {}", e);
+                println!(
+                    "⚠️ Ollama container lifecycle test couldn't start container: {}",
+                    e
+                );
                 // This is acceptable in CI environments without container runtime
             }
         }
@@ -120,18 +126,21 @@ mod ollama_container_tests {
         match manager.start_ollama().await {
             Ok(status) => {
                 println!("✅ Ollama container started with health monitoring");
-                
+
                 // Health monitoring should be configured for Ollama
                 assert_eq!(status.name, "eliza-ollama");
-                
+
                 // Verify port configuration for health checks
                 assert_eq!(status.ports[0].host_port, 11434);
-                
+
                 // Clean up
                 let _ = manager.stop_container("eliza-ollama").await;
             }
             Err(e) => {
-                println!("⚠️ Ollama health monitoring test couldn't start container: {}", e);
+                println!(
+                    "⚠️ Ollama health monitoring test couldn't start container: {}",
+                    e
+                );
                 // Expected in environments without container runtime
             }
         }
@@ -153,13 +162,13 @@ mod ollama_container_tests {
         match manager.start_ollama().await {
             Ok(status) => {
                 println!("✅ Ollama container started with volumes");
-                
+
                 // Verify the container name and ports
                 assert_eq!(status.name, "eliza-ollama");
                 assert_eq!(status.ports[0].container_port, 11434);
-                
+
                 println!("✅ Ollama volume configuration verified");
-                
+
                 // Clean up
                 let _ = manager.stop_container("eliza-ollama").await;
             }
@@ -186,14 +195,14 @@ mod ollama_container_tests {
         match manager.start_ollama().await {
             Ok(_) => {
                 println!("✅ Ollama container started for restart test");
-                
+
                 // Test restart functionality
                 match manager.restart_container("eliza-ollama").await {
                     Ok(status) => {
                         println!("✅ Ollama container restarted successfully");
                         assert_eq!(status.name, "eliza-ollama");
                         assert_eq!(status.restart_count, 1);
-                        
+
                         // Clean up
                         let _ = manager.stop_container("eliza-ollama").await;
                     }
@@ -245,7 +254,10 @@ mod ollama_container_tests {
 
         // Test getting setup progress (should work even without starting containers)
         let progress = manager.get_setup_progress().await;
-        println!("✅ Setup progress retrieved: {} ({}%)", progress.message, progress.progress);
+        println!(
+            "✅ Setup progress retrieved: {} ({}%)",
+            progress.message, progress.progress
+        );
 
         // Verify the progress structure
         assert!(!progress.stage.is_empty());

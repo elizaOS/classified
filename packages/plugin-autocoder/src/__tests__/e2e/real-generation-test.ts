@@ -1,13 +1,8 @@
+import { formsPlugin } from '@elizaos/plugin-forms';
+import { openaiPlugin } from '@elizaos/plugin-openai';
 import { createTestRuntime } from '@elizaos/test-utils';
 import { autocoderPlugin } from '../../index';
 import { CodeGenerationService } from '../../services/CodeGenerationService';
-import { elizaLogger } from '@elizaos/core';
-import { SecretsManagerService } from '../../services/SecretsManagerService';
-import sqlPlugin from '@elizaos/plugin-sql';
-import { formsPlugin } from '@elizaos/plugin-forms';
-import { e2bPlugin } from '@elizaos/plugin-e2b';
-import { githubPlugin } from '@elizaos/plugin-github';
-import { openaiPlugin } from '@elizaos/plugin-openai';
 
 /**
  * Real Code Generation Test - Creates actual applications and deploys them
@@ -55,7 +50,6 @@ async function testRealGeneration() {
   // Create real runtime with all required plugins
   const plugins = [
     openaiPlugin, // Provides TEXT_LARGE model handlers
-    e2bPlugin,
     formsPlugin,
     autocoderPlugin, // Must be last to have access to dependencies
   ];
@@ -131,7 +125,7 @@ async function testRealGeneration() {
         'Throttle notification frequency',
       ],
       githubRepo: `tesla-news-discord-bot-real-${Date.now()}`,
-    });
+    }) as any;
 
     if (teslaBot.success) {
       console.log('✅ Tesla News Discord Bot generated successfully!');
@@ -180,7 +174,7 @@ async function testRealGeneration() {
         'Support different units (metric/imperial)',
       ],
       githubRepo: `global-weather-app-real-${Date.now()}`,
-    });
+    }) as any;
 
     if (weatherApp.success) {
       console.log('✅ Global Weather App generated successfully!');

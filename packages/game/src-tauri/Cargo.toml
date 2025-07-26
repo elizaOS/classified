@@ -48,11 +48,10 @@ sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres"] }
 futures = "0.3"
 futures-util = "0.3"
 
-# WebSocket client (legacy - replaced by Socket.IO)
+# Native WebSocket client (App Store friendly)
 tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 
-# Socket.IO client
-rust_socketio = { version = "0.6", features = ["async"] }
+# Socket.IO removed - using native WebSocket instead
 
 # File system utilities
 walkdir = "2"

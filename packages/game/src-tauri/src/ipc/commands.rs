@@ -1,18 +1,18 @@
 use crate::backend::{ContainerStatus, SetupProgress};
 use crate::container::ContainerManager;
 use crate::websocket_manager::WebSocketManager;
-use std::sync::Arc;
-use tauri::{State, Manager};
-use tracing::{info, error};
 use reqwest;
 use serde_json;
+use std::sync::Arc;
+use tauri::{Manager, State};
 use tokio::sync::Mutex;
+use tracing::{error, info};
 
 // Container management commands
 /// Gets the status of all managed containers.
-/// 
+///
 /// # Errors
-/// 
+///
 /// Returns an error if the container manager fails to retrieve container statuses.
 #[tauri::command]
 pub async fn get_container_status_new(
@@ -28,9 +28,9 @@ pub async fn get_container_status_new(
 }
 
 /// Starts a PostgreSQL container with default configuration.
-/// 
+///
 /// # Errors
-/// 
+///
 /// Returns an error if the container runtime fails to start the PostgreSQL container.
 #[tauri::command]
 pub async fn start_postgres_container(
@@ -135,7 +135,9 @@ pub async fn setup_complete_environment_new(
     state: State<'_, Arc<ContainerManager>>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let resource_dir = app_handle.path().resource_dir()
+    let resource_dir = app_handle
+        .path()
+        .resource_dir()
         .map_err(|e| format!("Failed to get resource directory: {}", e))?;
 
     match state.setup_complete_environment(&resource_dir).await {
@@ -161,10 +163,14 @@ pub async fn get_setup_progress_new(
 
 #[tauri::command]
 pub async fn toggle_autonomy(enable: bool) -> Result<serde_json::Value, String> {
-    let endpoint = if enable { "/autonomy/enable" } else { "/autonomy/disable" };
+    let endpoint = if enable {
+        "/autonomy/enable"
+    } else {
+        "/autonomy/disable"
+    };
     match make_agent_server_request("POST", endpoint, None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to toggle autonomy: {}", e))
+        Err(e) => Err(format!("Failed to toggle autonomy: {}", e)),
     }
 }
 
@@ -172,7 +178,7 @@ pub async fn toggle_autonomy(enable: bool) -> Result<serde_json::Value, String> 
 pub async fn get_autonomy_status() -> Result<serde_json::Value, String> {
     match make_agent_server_request("GET", "/autonomy/status", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to get autonomy status: {}", e))
+        Err(e) => Err(format!("Failed to get autonomy status: {}", e)),
     }
 }
 
@@ -181,7 +187,7 @@ pub async fn toggle_capability(capability: String) -> Result<serde_json::Value, 
     let endpoint = format!("/api/agents/default/capabilities/{}/toggle", capability);
     match make_agent_server_request("POST", &endpoint, None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to toggle {} capability: {}", capability, e))
+        Err(e) => Err(format!("Failed to toggle {} capability: {}", capability, e)),
     }
 }
 
@@ -190,20 +196,26 @@ pub async fn get_capability_status(capability: String) -> Result<serde_json::Val
     let endpoint = format!("/api/agents/default/capabilities/{}", capability);
     match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to get {} capability status: {}", capability, e))
+        Err(e) => Err(format!(
+            "Failed to get {} capability status: {}",
+            capability, e
+        )),
     }
 }
 
 #[tauri::command]
-pub async fn update_agent_setting(key: String, value: serde_json::Value) -> Result<serde_json::Value, String> {
+pub async fn update_agent_setting(
+    key: String,
+    value: serde_json::Value,
+) -> Result<serde_json::Value, String> {
     let payload = serde_json::json!({
         "key": key,
         "value": value
     });
-    
+
     match make_agent_server_request("POST", "/api/agents/default/settings", Some(payload)).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to update setting {}: {}", key, e))
+        Err(e) => Err(format!("Failed to update setting {}: {}", key, e)),
     }
 }
 
@@ -211,7 +223,7 @@ pub async fn update_agent_setting(key: String, value: serde_json::Value) -> Resu
 pub async fn get_agent_settings() -> Result<serde_json::Value, String> {
     match make_agent_server_request("GET", "/api/agents/default/settings", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to get agent settings: {}", e))
+        Err(e) => Err(format!("Failed to get agent settings: {}", e)),
     }
 }
 
@@ -219,7 +231,7 @@ pub async fn get_agent_settings() -> Result<serde_json::Value, String> {
 pub async fn get_vision_settings() -> Result<serde_json::Value, String> {
     match make_agent_server_request("GET", "/api/agents/default/settings/vision", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to get vision settings: {}", e))
+        Err(e) => Err(format!("Failed to get vision settings: {}", e)),
     }
 }
 
@@ -227,7 +239,7 @@ pub async fn get_vision_settings() -> Result<serde_json::Value, String> {
 pub async fn refresh_vision_service() -> Result<serde_json::Value, String> {
     match make_agent_server_request("POST", "/api/agents/default/vision/refresh", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to refresh vision service: {}", e))
+        Err(e) => Err(format!("Failed to refresh vision service: {}", e)),
     }
 }
 
@@ -239,7 +251,7 @@ async fn make_agent_server_request(
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let url = format!("http://localhost:7777{}", endpoint);
-    
+
     let mut request = match method {
         "GET" => client.get(&url),
         "POST" => client.post(&url),
@@ -247,23 +259,30 @@ async fn make_agent_server_request(
         "DELETE" => client.delete(&url),
         _ => return Err("Invalid HTTP method".into()),
     };
-    
+
     if let Some(json_body) = body {
         request = request.json(&json_body);
     }
-    
+
     let response = request
         .timeout(std::time::Duration::from_secs(10))
         .send()
         .await?;
-    
+
     if response.status().is_success() {
         let data: serde_json::Value = response.json().await?;
         Ok(data)
     } else {
         let status = response.status();
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        Err(format!("Agent server responded with status: {} - {}", status, error_text).into())
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        Err(format!(
+            "Agent server responded with status: {} - {}",
+            status, error_text
+        )
+        .into())
     }
 }
 
@@ -272,7 +291,7 @@ async fn make_agent_server_request(
 pub async fn fetch_goals() -> Result<serde_json::Value, String> {
     match make_agent_server_request("GET", "/api/goals", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to fetch goals: {}", e))
+        Err(e) => Err(format!("Failed to fetch goals: {}", e)),
     }
 }
 
@@ -280,7 +299,7 @@ pub async fn fetch_goals() -> Result<serde_json::Value, String> {
 pub async fn fetch_todos() -> Result<serde_json::Value, String> {
     match make_agent_server_request("GET", "/api/todos", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to fetch todos: {}", e))
+        Err(e) => Err(format!("Failed to fetch todos: {}", e)),
     }
 }
 
@@ -288,7 +307,7 @@ pub async fn fetch_todos() -> Result<serde_json::Value, String> {
 pub async fn fetch_knowledge_files() -> Result<serde_json::Value, String> {
     match make_agent_server_request("GET", "/knowledge/documents", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to fetch knowledge files: {}", e))
+        Err(e) => Err(format!("Failed to fetch knowledge files: {}", e)),
     }
 }
 
@@ -297,7 +316,7 @@ pub async fn delete_knowledge_file(file_id: String) -> Result<serde_json::Value,
     let endpoint = format!("/knowledge/documents/{}", file_id);
     match make_agent_server_request("DELETE", &endpoint, None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to delete knowledge file: {}", e))
+        Err(e) => Err(format!("Failed to delete knowledge file: {}", e)),
     }
 }
 
@@ -305,20 +324,23 @@ pub async fn delete_knowledge_file(file_id: String) -> Result<serde_json::Value,
 pub async fn fetch_plugin_configs() -> Result<serde_json::Value, String> {
     match make_agent_server_request("GET", "/api/plugin-config", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to fetch plugin configs: {}", e))
+        Err(e) => Err(format!("Failed to fetch plugin configs: {}", e)),
     }
 }
 
 #[tauri::command]
-pub async fn update_plugin_config(plugin: String, config: serde_json::Value) -> Result<serde_json::Value, String> {
+pub async fn update_plugin_config(
+    plugin: String,
+    config: serde_json::Value,
+) -> Result<serde_json::Value, String> {
     let body = serde_json::json!({
         "plugin": plugin,
         "config": config
     });
-    
+
     match make_agent_server_request("POST", "/api/plugin-config", Some(body)).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to update plugin config: {}", e))
+        Err(e) => Err(format!("Failed to update plugin config: {}", e)),
     }
 }
 
@@ -326,7 +348,7 @@ pub async fn update_plugin_config(plugin: String, config: serde_json::Value) -> 
 pub async fn validate_configuration() -> Result<serde_json::Value, String> {
     match make_agent_server_request("POST", "/api/config/validate", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to validate configuration: {}", e))
+        Err(e) => Err(format!("Failed to validate configuration: {}", e)),
     }
 }
 
@@ -334,7 +356,7 @@ pub async fn validate_configuration() -> Result<serde_json::Value, String> {
 pub async fn test_configuration() -> Result<serde_json::Value, String> {
     match make_agent_server_request("POST", "/api/config/test", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to test configuration: {}", e))
+        Err(e) => Err(format!("Failed to test configuration: {}", e)),
     }
 }
 
@@ -342,16 +364,15 @@ pub async fn test_configuration() -> Result<serde_json::Value, String> {
 pub async fn reset_agent() -> Result<serde_json::Value, String> {
     match make_agent_server_request("POST", "/api/reset-agent", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to reset agent: {}", e))
+        Err(e) => Err(format!("Failed to reset agent: {}", e)),
     }
 }
-
 
 #[tauri::command]
 pub async fn fetch_autonomy_status() -> Result<serde_json::Value, String> {
     match make_agent_server_request("GET", "/autonomy/status", None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to fetch autonomy status: {}", e))
+        Err(e) => Err(format!("Failed to fetch autonomy status: {}", e)),
     }
 }
 
@@ -359,7 +380,7 @@ pub async fn fetch_autonomy_status() -> Result<serde_json::Value, String> {
 pub async fn fetch_memories(params: serde_json::Value) -> Result<serde_json::Value, String> {
     // Convert the params object to query string parameters
     let mut query_params = vec![];
-    
+
     if let Some(room_id) = params.get("roomId").and_then(|v| v.as_str()) {
         query_params.push(format!("roomId={}", room_id));
     }
@@ -372,18 +393,18 @@ pub async fn fetch_memories(params: serde_json::Value) -> Result<serde_json::Val
     if let Some(world_id) = params.get("worldId").and_then(|v| v.as_str()) {
         query_params.push(format!("worldId={}", world_id));
     }
-    
+
     let query_string = if query_params.is_empty() {
         String::new()
     } else {
         format!("?{}", query_params.join("&"))
     };
-    
+
     let endpoint = format!("/api/memories{}", query_string);
-    
+
     match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to fetch memories: {}", e))
+        Err(e) => Err(format!("Failed to fetch memories: {}", e)),
     }
 }
 
@@ -400,7 +421,7 @@ pub async fn health_check() -> Result<String, String> {
             "http_server": "operational"
         }
     });
-    
+
     Ok(health_status.to_string())
 }
 
@@ -429,7 +450,10 @@ pub async fn websocket_join_channel(
     channel_id: String,
 ) -> Result<(), String> {
     let mut manager = ws_manager.lock().await;
-    manager.join_channel(channel_id).await.map_err(|e| e.to_string())
+    manager
+        .join_channel(channel_id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -50,7 +50,7 @@ export const autocoderPlugin: Plugin = {
   providers: [projectsProvider],
 
   // Dependencies - required for functionality
-  dependencies: ['@elizaos/plugin-forms', '@elizaos/plugin-github'],
+  dependencies: ['@elizaos/plugin-forms'],
   testDependencies: ['@elizaos/plugin-forms'],
 
   // E2E Test Suites - Real runtime integration tests
