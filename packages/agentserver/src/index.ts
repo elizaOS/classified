@@ -17,19 +17,19 @@ import openaiPlugin from '@elizaos/plugin-openai';
 import PersonalityPlugin from '@elizaos/plugin-personality';
 import { shellPlugin } from '@elizaos/plugin-shell';
 import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
+import { TodoPlugin } from '@elizaos/plugin-todo';
+import { visionPlugin } from '@elizaos/plugin-vision';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { terminalCharacter } from './character';
+import { gameAPIPlugin } from './game-api-plugin.ts';
 import { AgentServer } from './server';
 // import { RolodexPlugin } from '@elizaos/plugin-rolodex';
 // import { pluginManagerPlugin } from '@elizaos/plugin-plugin-manager';
 // import { SAMPlugin } from '@elizaos/plugin-sam';
 // import { stagehandPlugin } from '@elizaos/plugin-stagehand';
-import { TodoPlugin } from '@elizaos/plugin-todo';
-import { visionPlugin } from '@elizaos/plugin-vision';
-import { gameAPIPlugin } from './game-api-plugin.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -115,10 +115,7 @@ export async function startServer() {
         
         while (!initialized && retries < maxRetries) {
           try {
-            await server.initialize({
-              dataDir,
-              postgresUrl: dbUrl
-            });
+            await server.initialize(dbUrl);
             initialized = true;
           } catch (error) {
             retries++;
@@ -130,9 +127,6 @@ export async function startServer() {
             }
           }
         }
-
-
-      await server.initialize(databaseUrl);
 
 
     // Add file upload middleware for knowledge document uploads

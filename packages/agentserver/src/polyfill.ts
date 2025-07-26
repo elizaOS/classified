@@ -93,7 +93,10 @@ import DOMMatrix from '@thednp/dommatrix';
             return { tagName, setAttribute: () => {}, getAttribute: () => null };
           },
           querySelector: () => null,
-          querySelectorAll: () => []
+          querySelectorAll: () => [],
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          visibilityState: 'visible'
         };
       }
     }
@@ -109,15 +112,15 @@ import DOMMatrix from '@thednp/dommatrix';
 if (typeof globalThis.window === 'undefined') {
   globalThis.window = {
     location: { 
-      href: '',
+      href: 'http://localhost:3000/',
       search: '',
-      origin: '',
+      origin: 'http://localhost:3000',
       pathname: '/',
       hash: '',
-      host: '',
-      hostname: '',
+      host: 'localhost:3000',
+      hostname: 'localhost',
       protocol: 'http:',
-      port: ''
+      port: '3000'
     },
     document: { 
       createElement: () => ({
@@ -133,7 +136,10 @@ if (typeof globalThis.window === 'undefined') {
       querySelector: () => null,
       querySelectorAll: () => ([]),
       body: { appendChild: () => {} },
-      head: { appendChild: () => {} }
+      head: { appendChild: () => {} },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      visibilityState: 'visible'
     },
     navigator: { userAgent: 'Node.js' },
     localStorage: {
@@ -165,14 +171,19 @@ if (typeof globalThis.document === 'undefined') {
 // Also set globalThis.location directly for URLSearchParams compatibility
 if (typeof globalThis.location === 'undefined') {
   globalThis.location = {
-    href: '',
+    href: 'http://localhost:3000/',
     search: '',
-    origin: '',
+    origin: 'http://localhost:3000',
     pathname: '/',
     hash: '',
-    host: '',
-    hostname: '',
+    host: 'localhost:3000',
+    hostname: 'localhost',
     protocol: 'http:',
-    port: ''
+    port: '3000'
   } as any;
+}
+
+// Ensure self.location exists if self is defined
+if (typeof globalThis.self !== 'undefined' && typeof globalThis.self.location === 'undefined') {
+  (globalThis.self as any).location = globalThis.location;
 }

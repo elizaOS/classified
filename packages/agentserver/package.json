@@ -5,9 +5,9 @@
   "type": "module",
   "description": "Autonomous coding game where AI agents self-improve through code generation",
   "scripts": {
-    "dev": "RESET_DB=true bun server.ts",
-    "dev:no-reset": "bun server.ts",
-    "start": "bun server.ts",
+    "dev": "RESET_DB=true bun src/index.ts",
+    "dev:no-reset": "bun src/index.ts",
+    "start": "bun src/index.ts",
     "build": "bun scripts/build-all.js",
     "build:clean": "CLEAN_CACHE=true bun scripts/build-all.js",
     "clean": "bun -e 'const { cleanContainerCache } = await import(\"./scripts/build-all.js\"); await cleanContainerCache();'",

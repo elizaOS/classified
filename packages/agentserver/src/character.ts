@@ -1,6 +1,5 @@
 import type { Character } from '@elizaos/core';
 import { stringToUuid } from '@elizaos/core';
-import { secureSecretsManager } from './security/SecureSecretsManager.js';
 import { config } from 'dotenv';
 config()
 
@@ -147,48 +146,4 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
   ]
 });
 
-/**
- * Populate character secrets from SecureSecretsManager
- * This should be called after the secure secrets manager is initialized
- */
-export async function populateSecureSecrets(character: Character): Promise<Character> {
-  console.log('[SECURITY] Populating character secrets from secure storage...');
-
-  try {
-    // Retrieve secrets securely
-    const openaiKey = await secureSecretsManager.getSecret('OPENAI_API_KEY', 'system', 'admin');
-    const anthropicKey = await secureSecretsManager.getSecret('ANTHROPIC_API_KEY', 'system', 'admin');
-
-    // Update character configuration with secure secrets
-    const updatedCharacter = {
-      ...character,
-      settings: {
-        ...character.settings,
-        secrets: {
-          ...(Object.values(character.settings?.secrets || {})),
-          OPENAI_API_KEY: openaiKey || (character.settings?.secrets as any).OPENAI_API_KEY,
-          ANTHROPIC_API_KEY: anthropicKey || (character.settings?.secrets as any).ANTHROPIC_API_KEY
-        }
-      },
-      secrets: {
-        ...character.secrets,
-        OPENAI_API_KEY: openaiKey || '',
-        ANTHROPIC_API_KEY: anthropicKey || ''
-      }
-    };
-
-    console.log('[SECURITY] Character secrets populated from secure storage');
-    console.log('[SECURITY] OpenAI key available:', !!openaiKey);
-    console.log('[SECURITY] Anthropic key available:', !!anthropicKey);
-
-    return updatedCharacter;
-  } catch (error) {
-    console.error('[SECURITY] Failed to populate secure secrets:', error);
-    console.warn('[SECURITY] Continuing with empty secrets - agent may not function properly');
-    return character;
-  }
-}
-
 export const terminalCharacter = createTerminalCharacter();
-export { createTerminalCharacter };
-export default terminalCharacter;
