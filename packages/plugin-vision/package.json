@@ -47,15 +47,15 @@
     "@elizaos/core": "workspace:*",
     "@elizaos/plugin-bootstrap": "workspace:*",
     "@tensorflow-models/coco-ssd": "^2.2.3",
+    "@tensorflow-models/mobilenet": "^2.1.0",
     "@tensorflow-models/pose-detection": "^2.1.0",
     "@tensorflow-models/posenet": "^2.2.2",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",
-    "@tensorflow-models/mobilenet": "^2.1.0",
     "axios": "^1.7.2",
     "canvas": "^3.1.2",
     "face-api.js": "^0.22.2",
-    "sharp": "^0.33.5",
+    "sharp": "^0.34.3",
     "tesseract.js": "^6.0.1",
     "zod": "^3.25.67"
   },
@@ -71,7 +71,13 @@
     "eslint": "^9.0.0",
     "prettier": "3.5.3",
     "tsx": "^4.7.0",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "patch-package": "^8.0.0",
+    "jimp": "^1.6.0"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.34.3",
+    "@napi-rs/canvas": "^0.1.63"
   },
   "scripts": {
     "build": "bun run build.ts",
@@ -79,8 +85,12 @@
     "start": "echo 'Plugin package, use with ElizaOS'",
     "test": "bun test",
     "lint": "eslint src --fix && prettier --write ./src",
-    "clean": "rm -rf dist && rm -rf .turbo",
-    "typecheck": "tsc --noEmit"
+    "clean": "rm -rf dist && rm -rf .turbo && rm -rf compile",
+    "typecheck": "tsc --noEmit",
+    "build:compile": "./scripts/build-compile.sh",
+    "embed:sharp": "bun ./scripts/embed-sharp.ts",
+    "compile:cross": "./scripts/cross-platform-compile.sh",
+    "postinstall": "patch-package || true"
   },
   "publishConfig": {
     "access": "public"

@@ -136,7 +136,7 @@ export class VisionModels {
       // Convert image data to tensor (compatible with WASM backend)
       // Since tf.browser.decodeImage is not available in Node.js, we need to use sharp 
       // to convert the image to the right format first
-      const sharp = require('sharp');
+      const sharp = require('./utils/sharp-wrapper');
       const { width, height } = await sharp(imageData).metadata();
       const rawImageData = await sharp(imageData)
         .raw()
@@ -269,7 +269,7 @@ export class VisionModels {
       // Convert image data to tensor (compatible with WASM backend)
       // Since tf.browser.decodeImage is not available in Node.js, we need to use sharp 
       // to convert the image to the right format first
-      const sharp = require('sharp');
+      const sharp = require('./utils/sharp-wrapper');
       const { width, height } = await sharp(imageData).metadata();
       const rawImageData = await sharp(imageData)
         .raw()

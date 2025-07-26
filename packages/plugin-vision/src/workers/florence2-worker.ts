@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'worker_threads';
 import { logger } from './worker-logger';
 import { Florence2Model } from '../florence2-model';
 import type { Florence2Result, ScreenTile } from '../types';
-import sharp from 'sharp';
+import sharp from '../utils/sharp-wrapper';
 
 interface WorkerConfig {
   tileSize: number;
@@ -206,13 +206,7 @@ class Florence2Worker {
     }
 
     // Convert raw RGBA to PNG for Florence-2
-    const pngBuffer = await sharp(tileData, {
-      raw: {
-        width: tile.width,
-        height: tile.height,
-        channels: 4,
-      },
-    })
+    const pngBuffer = await sharp(tileData)
       .png()
       .toBuffer();
 

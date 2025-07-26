@@ -49,6 +49,9 @@ ENV NODE_ENV=production \
     DOCKER_CONTAINER=true \
     POSTGRES_URL="postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza_game" \
     DATABASE_URL="postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza_game" \
+    OLLAMA_BASE_URL="http://eliza-ollama:11434" \
+    OLLAMA_API_ENDPOINT="http://eliza-ollama:11434/api" \
+    KNOWLEDGE_PATH="/app/knowledge" \
     RESET_DB=false
 
 # Use dumb-init for proper signal handling

@@ -12,13 +12,13 @@ import { SystemDetection } from './services/SystemDetection';
 function getOllamaUrl(): string {
   // Use container-local URL when running in container, localhost otherwise
   const isContainer = process.env.DOCKER_CONTAINER === 'true';
-  const baseUrl = isContainer ? 'http://eliza-ollama:11434' : 'http://localhost:7772';
+  const baseUrl = isContainer ? 'http://eliza-ollama:11434' : 'http://localhost:11434';
   logger.info(`[OLLAMA] Using Ollama URL: ${baseUrl} (container: ${isContainer})`);
   return baseUrl;
 }
 
 // Store the selected model globally
-let selectedModel: string = 'llama3.2:1b'; // Default fallback
+let selectedModel: string = 'gemma2:9b'; // Default fallback - 9B param model
 
 /**
  * Generate text using Ollama with the optimal DeepSeek model
@@ -114,8 +114,8 @@ export const ollamaPlugin: Plugin = {
 
     if (isContainerized) {
       logger.info('[OLLAMA] Initializing Ollama plugin for containerized environment...');
-      logger.info('[OLLAMA] Using pre-configured model: llama3.2:1b');
-      selectedModel = 'llama3.2:1b';
+      logger.info('[OLLAMA] Using pre-configured model: gemma2:9b');
+      selectedModel = 'gemma2:9b';
 
       const ollamaUrl = getOllamaUrl();
       logger.info(`[OLLAMA] Using Ollama URL: ${ollamaUrl} (container: true)`);
@@ -146,7 +146,7 @@ export const ollamaPlugin: Plugin = {
         }
       } catch (detectionError) {
         logger.warn('[OLLAMA] SystemDetection failed, using fallback configuration:', detectionError.message);
-        selectedModel = 'llama3.2:1b';
+        selectedModel = 'gemma2:9b';
       }
     }
 

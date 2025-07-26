@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'worker_threads';
 import { logger } from './worker-logger';
 import { OCRService } from '../ocr-service';
 import type { OCRResult } from '../types';
-import sharp from 'sharp';
+import sharp from '../utils/sharp-wrapper';
 
 interface WorkerConfig {
   processFullScreen: boolean;
@@ -177,13 +177,7 @@ class OCRWorker {
     }
 
     // Convert to PNG for OCR
-    const pngBuffer = await sharp(screenData, {
-      raw: {
-        width: metadata.width,
-        height: metadata.height,
-        channels: 4,
-      },
-    })
+    const pngBuffer = await sharp(screenData)
       .png()
       .toBuffer();
 
@@ -218,13 +212,7 @@ class OCRWorker {
     }
 
     // Convert to PNG for OCR
-    const pngBuffer = await sharp(regionData, {
-      raw: {
-        width,
-        height,
-        channels: 4,
-      },
-    })
+    const pngBuffer = await sharp(regionData)
       .png()
       .toBuffer();
 

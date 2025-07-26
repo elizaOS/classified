@@ -2,7 +2,7 @@ import * as tf from '@tensorflow/tfjs';
 import '@tensorflow/tfjs-backend-wasm';
 import { logger } from '@elizaos/core';
 import type { Florence2Result } from './types';
-import sharp from 'sharp';
+import sharp from './utils/sharp-wrapper';
 
 interface Florence2LocalConfig {
   modelPath?: string;

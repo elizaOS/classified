@@ -127,13 +127,13 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
     // Knowledge plugin configuration - ensure these are top-level
     LOAD_DOCS_ON_STARTUP: 'true',
     CTX_KNOWLEDGE_ENABLED: 'true',
-    EMBEDDING_PROVIDER: 'openai',
-    TEXT_EMBEDDING_MODEL: 'text-embedding-3-small',
-    TEXT_PROVIDER: 'openai',
-    OLLAMA_BASE_URL: 'http://eliza-ollama:11434',
-    OLLAMA_MODEL: 'llama3.2:1b',
+    EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER || 'ollama',
+    TEXT_EMBEDDING_MODEL: process.env.TEXT_EMBEDDING_MODEL || 'nomic-embed-text',
+    TEXT_PROVIDER: process.env.TEXT_PROVIDER || 'ollama',
+    OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL || 'http://eliza-ollama:11434',
+    OLLAMA_MODEL: process.env.LANGUAGE_MODEL || 'gemma2:9b',
     USE_SMALL_MODELS: process.env.USE_SMALL_MODELS || 'true',
-    KNOWLEDGE_PATH: './knowledge'  // Load from knowledge folder instead of default ./docs
+    KNOWLEDGE_PATH: '/app/knowledge'  // Load from knowledge folder in container
   },
 
   // Essential plugins for the ELIZA Terminal game

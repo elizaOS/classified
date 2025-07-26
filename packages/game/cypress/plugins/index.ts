@@ -79,7 +79,7 @@ export default (on: Cypress.PluginEvents, config: Cypress.PluginConfig) => {
 
       // Pull a small model for testing
       const { stdout, stderr } = await execAsync(
-        'ollama pull llama3.2:1b',
+        'ollama pull gemma2:9b',
         { timeout: 300000 } // 5 minutes timeout
       );
 
@@ -94,7 +94,7 @@ export default (on: Cypress.PluginEvents, config: Cypress.PluginConfig) => {
         timestamp: Date.now(),
         testId: `test-${Math.random().toString(36).substring(7)}`,
         ollamaConfig: {
-          model: 'llama3.2:1b',
+          model: 'gemma2:9b',
           url: 'http://localhost:11434',
         },
       };

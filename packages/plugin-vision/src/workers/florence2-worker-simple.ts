@@ -1,5 +1,5 @@
 import type { Florence2Result, BoundingBox } from '../types';
-import sharp from 'sharp';
+import sharp from '../utils/sharp-wrapper';
 
 export class Florence2WorkerModel {
   private initialized = false;

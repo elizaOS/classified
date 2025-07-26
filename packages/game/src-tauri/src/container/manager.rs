@@ -143,6 +143,8 @@ impl ContainerManager {
                 VolumeMount::new("eliza-postgres-init", "/docker-entrypoint-initdb.d"),
             ],
             health_check: Some(HealthCheckConfig::postgres_default()),
+            network: Some("eliza-network".to_string()),
+            memory_limit: Some("2g".to_string()),
         };
 
         self.start_container(config).await
@@ -159,18 +161,66 @@ impl ContainerManager {
     pub async fn start_ollama(&self) -> BackendResult<ContainerStatus> {
         info!("Starting Ollama container");
         
+        // Kill any existing system Ollama processes to free up port 11434
+        self.kill_existing_ollama_processes().await;
+        
         let config = ContainerConfig {
             name: "eliza-ollama".to_string(),
             image: "ollama/ollama:latest".to_string(),
             ports: vec![PortMapping::new(11434, 11434)],
-            environment: vec![],
+            environment: vec!["OLLAMA_PORT=11434".to_string()],
             volumes: vec![VolumeMount::new("eliza-ollama-data", "/root/.ollama")],
             health_check: Some(HealthCheckConfig::ollama_default()),
+            network: Some("eliza-network".to_string()),
+            memory_limit: Some("32g".to_string()), // 32GB for Ollama to handle large models
         };
 
         self.start_container(config).await
     }
 
+    /// Pulls required Ollama models for the agent
+    pub async fn pull_ollama_models(&self) -> BackendResult<()> {
+        info!("Pulling required Ollama models...");
+        
+        // List of models required by the agent
+        let required_models = vec![
+            "nomic-embed-text",  // Embedding model
+            "gemma2:9b",         // Text generation model (9B params, ~5.5GB)
+        ];
+        
+        // Pull each model
+        for model in required_models {
+            info!("Pulling Ollama model: {}", model);
+            
+            let output = match &self.runtime {
+                ContainerRuntime::Podman(client) => {
+                    client.exec("eliza-ollama", &["ollama", "pull", model]).await?
+                }
+                ContainerRuntime::Docker(client) => {
+                    client.exec("eliza-ollama", &["ollama", "pull", model]).await?
+                }
+            };
+            
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                
+                // Check if model already exists (not an error)
+                if stderr.contains("already exists") || stdout.contains("already exists") {
+                    info!("Model {} already exists", model);
+                } else {
+                    return Err(BackendError::Container(
+                        format!("Failed to pull model {}: {}", model, stderr)
+                    ));
+                }
+            } else {
+                info!("Successfully pulled model: {}", model);
+            }
+        }
+        
+        info!("✅ All required Ollama models pulled successfully");
+        Ok(())
+    }
 
     /// Starts the `ElizaOS` agent container.
     /// 
@@ -234,13 +284,16 @@ impl ContainerManager {
             "POSTGRES_DB=eliza_game".to_string(),
             "POSTGRES_USER=eliza".to_string(),
             "POSTGRES_PASSWORD=eliza_secure_pass".to_string(),
-            // Ollama connection - connects to eliza-ollama container
+            // Ollama connection - connects to eliza-ollama container via container network
             "OLLAMA_URL=http://eliza-ollama:11434".to_string(),
             "OLLAMA_SERVER_URL=http://eliza-ollama:11434".to_string(),
-            // Model configuration
-            "MODEL_PROVIDER=openai".to_string(),
-            "TEXT_EMBEDDING_MODEL=text-embedding-3-small".to_string(),
-            "LANGUAGE_MODEL=gpt-4o-mini".to_string(),
+            "OLLAMA_BASE_URL=http://eliza-ollama:11434".to_string(),
+            // Model configuration - use Ollama for local development
+            "MODEL_PROVIDER=ollama".to_string(),
+            "TEXT_PROVIDER=ollama".to_string(),
+            "EMBEDDING_PROVIDER=ollama".to_string(),
+            "TEXT_EMBEDDING_MODEL=nomic-embed-text".to_string(),
+            "LANGUAGE_MODEL=gemma2:9b".to_string(),
             // Plugin configuration
             "AUTONOMY_ENABLED=true".to_string(),
             "AUTONOMY_AUTO_START=true".to_string(),
@@ -280,6 +333,8 @@ impl ContainerManager {
                 VolumeMount::new("eliza-agent-knowledge", "/app/knowledge"),
             ],
             health_check: Some(HealthCheckConfig::agent_default()),
+            network: Some("eliza-network".to_string()),
+            memory_limit: Some("8g".to_string()), // 8GB for agent container
         };
 
         self.start_container(config).await
@@ -677,6 +732,111 @@ impl ContainerManager {
         }
         
         Ok(())
+    }
+    
+    /// Kills any existing system Ollama processes to free up port 11434
+    async fn kill_existing_ollama_processes(&self) {
+        info!("🔍 Checking for existing Ollama processes on port 11434...");
+        
+        // Find processes using port 11434
+        let lsof_output = std::process::Command::new("lsof")
+            .args(["-ti:11434"])
+            .output();
+            
+        match lsof_output {
+            Ok(output) => {
+                let pids_str = String::from_utf8_lossy(&output.stdout);
+                let pids: Vec<&str> = pids_str.lines().filter(|line| !line.trim().is_empty()).collect();
+                
+                if !pids.is_empty() {
+                    info!("🚫 Found {} process(es) using port 11434: {:?}", pids.len(), pids);
+                    
+                    for pid in pids {
+                        if let Ok(pid_num) = pid.trim().parse::<u32>() {
+                            info!("🔪 Killing process with PID: {}", pid_num);
+                            
+                            // Try graceful termination first
+                            let kill_result = std::process::Command::new("kill")
+                                .args(["-TERM", &pid_num.to_string()])
+                                .output();
+                                
+                            match kill_result {
+                                Ok(result) => {
+                                    if result.status.success() {
+                                        info!("✅ Successfully terminated process {}", pid_num);
+                                        
+                                        // Wait a moment for graceful shutdown
+                                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                                        
+                                        // Check if process is still running, force kill if needed
+                                        let check_result = std::process::Command::new("kill")
+                                            .args(["-0", &pid_num.to_string()])
+                                            .output();
+                                            
+                                        if let Ok(check) = check_result {
+                                            if check.status.success() {
+                                                info!("⚡ Process {} still running, force killing...", pid_num);
+                                                let _ = std::process::Command::new("kill")
+                                                    .args(["-KILL", &pid_num.to_string()])
+                                                    .output();
+                                            }
+                                        }
+                                    } else {
+                                        warn!("Failed to kill process {}: {}", pid_num, String::from_utf8_lossy(&result.stderr));
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!("Error killing process {}: {}", pid_num, e);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Wait a moment for processes to fully terminate
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    info!("✅ Finished cleaning up processes on port 11434");
+                } else {
+                    info!("✅ No existing processes found on port 11434");
+                }
+            }
+            Err(e) => {
+                // lsof might not be available or permission denied, try alternative approach
+                warn!("Could not use lsof to check port 11434: {}, trying alternative approach", e);
+                
+                // Try to find Ollama processes by name
+                let ps_output = std::process::Command::new("pgrep")
+                    .args(["-f", "ollama"])
+                    .output();
+                    
+                match ps_output {
+                    Ok(output) => {
+                        let pids_str = String::from_utf8_lossy(&output.stdout);
+                        let pids: Vec<&str> = pids_str.lines().filter(|line| !line.trim().is_empty()).collect();
+                        
+                        if !pids.is_empty() {
+                            info!("🚫 Found {} Ollama process(es): {:?}", pids.len(), pids);
+                            
+                            for pid in pids {
+                                if let Ok(pid_num) = pid.trim().parse::<u32>() {
+                                    info!("🔪 Killing Ollama process with PID: {}", pid_num);
+                                    let _ = std::process::Command::new("kill")
+                                        .args(["-TERM", &pid_num.to_string()])
+                                        .output();
+                                }
+                            }
+                            
+                            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                            info!("✅ Finished cleaning up Ollama processes");
+                        } else {
+                            info!("✅ No existing Ollama processes found");
+                        }
+                    }
+                    Err(_) => {
+                        info!("ℹ️ Could not check for existing Ollama processes, proceeding anyway");
+                    }
+                }
+            }
+        }
     }
 }
 

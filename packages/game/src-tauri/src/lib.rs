@@ -95,12 +95,12 @@ async fn route_message_to_agent(message: &str) -> Result<String, Box<dyn std::er
     let response = client
         .post(message_url)
         .json(&serde_json::json!({
-            "channelId": channel_id,
-            "serverId": "00000000-0000-0000-0000-000000000000", // Default server ID
-            "authorId": author_id,
+            "channel_id": channel_id,
+            "server_id": "00000000-0000-0000-0000-000000000000", // Default server ID
+            "author_id": author_id,
             "content": message,
-            "sourceType": "game_ui",
-            "rawMessage": {
+            "source_type": "game_ui",
+            "raw_message": {
                 "text": message,
                 "type": "user_message"
             },
@@ -544,30 +544,14 @@ pub fn run() {
             });
 
             // Setup cleanup on app exit
-            let startup_manager_cleanup = startup_manager_arc.clone();
-            
             #[cfg(desktop)]
             {
                 if let Some(main_window) = app.get_webview_window("main") {
                     main_window.on_window_event(move |event| {
                         if let tauri::WindowEvent::CloseRequested { .. } = event {
-                            info!("App closing, cleaning up resources...");
-
-                            // Stop containers if available
-                            let container_manager = tauri::async_runtime::block_on(async {
-                                let manager = startup_manager_cleanup.lock().await;
-                                manager.get_container_manager()
-                            });
-                            
-                            if let Some(container_manager) = container_manager {
-                                tauri::async_runtime::block_on(async {
-                                    if let Err(e) = container_manager.stop_containers().await {
-                                        error!("Failed to stop containers during cleanup: {}", e);
-                                    }
-                                });
-                            }
-                            
-                            info!("Cleanup completed");
+                            info!("App closing - containers will continue running for development");
+                            // Note: We intentionally do not stop containers here to avoid tokio runtime panic
+                            // Containers can be stopped manually if needed, or will be cleaned up by podman
                         }
                     });
                 }
@@ -580,8 +564,8 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|_app_handle, event| {
             if let tauri::RunEvent::Exit = event {
-                info!("Application exiting, performing final cleanup...");
-                // Final cleanup is handled by the window close event above
+                info!("Application exiting gracefully");
+                // Note: No cleanup needed - containers left running for development
             }
         });
 }

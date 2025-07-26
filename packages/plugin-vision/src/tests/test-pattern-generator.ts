@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import sharp from '../utils/sharp-wrapper';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { logger } from '@elizaos/core';

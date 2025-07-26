@@ -28,17 +28,30 @@ async function build() {
       external: [
         // Canvas has native dependencies that can't be bundled
         'canvas',
-        '@napi-rs/canvas',
         'pino-pretty',
-        // Playwright and its native dependencies
+        // Playwright and its native dependencies - ALL variations
         'playwright',
         'playwright-core',
+        'playwright-chromium',
+        'playwright-firefox',
+        'playwright-webkit',
         '@playwright/test',
+        // Electron (used by playwright)
+        'electron',
         // Native node modules that can't be bundled
         'fsevents',
-        // External dependencies for the stagehand plugin
+        // External dependencies for plugins that use browser automation
         '@browserbasehq/stagehand',
-        'electron'
+        // Additional playwright dependencies that might cause issues
+        'playwright-core/lib/server/electron/loader.js',
+        'playwright/lib/server/electron/loader.js',
+        // WebSocket library (will be bundled in plugin, not needed in server)
+        'ws',
+        // Ensure the plugin's browser automation deps are external
+        '@elizaos/plugin-stagehand/stagehand-server',
+        // Vision plugin dependencies that should remain external
+        'sharp',
+        'jimp',
       ],
       // Add a plugin to resolve workspace dependencies
       plugins: [{

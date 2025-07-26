@@ -18,6 +18,8 @@ pub struct ContainerConfig {
     pub environment: Vec<String>,
     pub volumes: Vec<VolumeMount>,
     pub health_check: Option<HealthCheckConfig>,
+    pub network: Option<String>,
+    pub memory_limit: Option<String>, // e.g., "8g", "8192m", "8589934592"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,7 +103,7 @@ impl HealthCheckConfig {
             command: vec![
                 "curl".to_string(),
                 "-f".to_string(),
-                "http://localhost:7777/api/health".to_string(),
+                "http://localhost:7777/api/server/health".to_string(),
             ],
             interval_seconds: 15,
             timeout_seconds: 10,

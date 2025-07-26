@@ -1867,6 +1867,27 @@ const gameAPIRoutes: Route[] = [
           const ollamaUrl = process.env.OLLAMA_SERVER_URL || 'http://localhost:11434';
           const ollamaModel = process.env.LANGUAGE_MODEL || 'llama2';
 
+          // Test Ollama connectivity with a simple message
+          try {
+            const testResponse = await fetch(`${ollamaUrl}/api/generate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: ollamaModel,
+                prompt: 'Hello! Please respond with just "OK" to test connectivity.',
+                stream: false
+              }),
+              timeout: 10000
+            });
+            
+            if (testResponse.ok) {
+              const testData = await testResponse.json();
+              logger.info(`[OLLAMA] ✅ Connectivity test successful: ${testData.response?.substring(0, 50) || 'Response received'}`);
+            }
+          } catch (testError) {
+            logger.warn(`[OLLAMA] ⚠️ Connectivity test failed: ${testError.message}`);
+          }
+
           validationResults.providers.ollama = {
             serverUrl: ollamaUrl,
             model: ollamaModel,

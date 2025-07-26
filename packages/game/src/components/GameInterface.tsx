@@ -563,7 +563,7 @@ export const GameInterface: React.FC = () => {
       }
 
       // Fetch ALL messages from the autonomous room
-      const data = await TauriService.fetchMemories(20);
+      const data = await TauriService.fetchMemoriesFromRoom(autonomousRoomId, 20);
       console.log(`[MONOLOGUE] Fetched ${data.length} memories from autonomy room`);
 
       // Show ALL messages from the autonomy room in chronological order

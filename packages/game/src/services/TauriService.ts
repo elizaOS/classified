@@ -335,7 +335,22 @@ class TauriServiceClass {
   }
 
   public async fetchMemories(limit: number = 50): Promise<TauriMessage[]> {
-    const memories = await this.tauriInvoke('fetch_memories', { limit });
+    const memories = await this.tauriInvoke('fetch_memories', { count: limit });
+
+    // Convert memories to TauriMessage format
+    return memories.map((memory: any) => ({
+      id: memory.id || uuidv4(),
+      content: memory.content?.text || memory.content || '',
+      type: memory.userId === this.userId ? 'user' : 'agent',
+      authorId: memory.userId || memory.authorId || 'unknown',
+      authorName: memory.userId === this.userId ? 'User' : 'Agent',
+      timestamp: memory.timestamp ? new Date(memory.timestamp) : new Date(memory.createdAt || Date.now()),
+      metadata: memory.metadata || {}
+    }));
+  }
+
+  public async fetchMemoriesFromRoom(roomId: string, limit: number = 50): Promise<TauriMessage[]> {
+    const memories = await this.tauriInvoke('fetch_memories', { roomId, count: limit });
 
     // Convert memories to TauriMessage format
     return memories.map((memory: any) => ({

@@ -6,6 +6,7 @@
  */
 
 import { $ } from 'bun';
+import { fileURLToPath } from 'url';
 import { buildConfig, workersConfig } from './build.config';
 
 async function build() {
@@ -29,23 +30,31 @@ async function build() {
   console.log(`✅ Built ${mainResult.outputs.length} main files`);
 
   // Check if workers exist before building them
+  const fs = await import('fs');
+  const path = await import('path');
+  const workersDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'src', 'workers');
+  
   try {
-    await $`ls src/workers/*.ts > /dev/null 2>&1`;
+    const workerFiles = fs.readdirSync(workersDir).filter(f => f.endsWith('.ts') && !f.includes('worker-logger'));
+    
+    if (workerFiles.length > 0) {
+      console.log('👷 Building workers...');
+      const workersResult = await Bun.build(workersConfig);
 
-    console.log('👷 Building workers...');
-    const workersResult = await Bun.build(workersConfig);
-
-    if (!workersResult.success) {
-      console.error('❌ Workers build failed:');
-      for (const message of workersResult.logs) {
-        console.error(message);
+      if (!workersResult.success) {
+        console.error('❌ Workers build failed:');
+        for (const message of workersResult.logs) {
+          console.error(message);
+        }
+        process.exit(1);
       }
-      process.exit(1);
-    }
 
-    console.log(`✅ Built ${workersResult.outputs.length} worker files`);
+      console.log(`✅ Built ${workersResult.outputs.length} worker files`);
+    } else {
+      console.log('ℹ️  No workers found, skipping worker build');
+    }
   } catch (error) {
-    console.log('ℹ️  No workers found, skipping worker build');
+    console.log('ℹ️  Error checking workers:', error.message);
   }
 
   // Generate TypeScript declarations

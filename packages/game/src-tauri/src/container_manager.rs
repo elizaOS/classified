@@ -201,6 +201,9 @@ impl ContainerManager {
     async fn start_ollama_container(&self) -> Result<(), String> {
         let container_name = "eliza-ollama";
         
+        // Kill any existing system Ollama processes to free up port 11434
+        self.kill_existing_ollama_processes().await;
+        
         // First check if Ollama is already running on port 11434
         if self.is_ollama_running().await {
             println!("[CONTAINER] Ollama is already running on port 11434, reusing existing instance");
@@ -666,5 +669,110 @@ impl ContainerManager {
         self.start_containers().await?;
 
         Ok(())
+    }
+
+    /// Kills any existing system Ollama processes to free up port 11434
+    async fn kill_existing_ollama_processes(&self) {
+        println!("[CONTAINER] 🔍 Checking for existing Ollama processes on port 11434...");
+        
+        // Find processes using port 11434
+        let lsof_output = std::process::Command::new("lsof")
+            .args(["-ti:11434"])
+            .output();
+            
+        match lsof_output {
+            Ok(output) => {
+                let pids_str = String::from_utf8_lossy(&output.stdout);
+                let pids: Vec<&str> = pids_str.lines().filter(|line| !line.trim().is_empty()).collect();
+                
+                if !pids.is_empty() {
+                    println!("[CONTAINER] 🚫 Found {} process(es) using port 11434: {:?}", pids.len(), pids);
+                    
+                    for pid in pids {
+                        if let Ok(pid_num) = pid.trim().parse::<u32>() {
+                            println!("[CONTAINER] 🔪 Killing process with PID: {}", pid_num);
+                            
+                            // Try graceful termination first
+                            let kill_result = std::process::Command::new("kill")
+                                .args(["-TERM", &pid_num.to_string()])
+                                .output();
+                                
+                            match kill_result {
+                                Ok(result) => {
+                                    if result.status.success() {
+                                        println!("[CONTAINER] ✅ Successfully terminated process {}", pid_num);
+                                        
+                                        // Wait a moment for graceful shutdown
+                                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                                        
+                                        // Check if process is still running, force kill if needed
+                                        let check_result = std::process::Command::new("kill")
+                                            .args(["-0", &pid_num.to_string()])
+                                            .output();
+                                            
+                                        if let Ok(check) = check_result {
+                                            if check.status.success() {
+                                                println!("[CONTAINER] ⚡ Process {} still running, force killing...", pid_num);
+                                                let _ = std::process::Command::new("kill")
+                                                    .args(["-KILL", &pid_num.to_string()])
+                                                    .output();
+                                            }
+                                        }
+                                    } else {
+                                        println!("[CONTAINER] Failed to kill process {}: {}", pid_num, String::from_utf8_lossy(&result.stderr));
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("[CONTAINER] Error killing process {}: {}", pid_num, e);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Wait a moment for processes to fully terminate
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    println!("[CONTAINER] ✅ Finished cleaning up processes on port 11434");
+                } else {
+                    println!("[CONTAINER] ✅ No existing processes found on port 11434");
+                }
+            }
+            Err(e) => {
+                // lsof might not be available or permission denied, try alternative approach
+                println!("[CONTAINER] Could not use lsof to check port 11434: {}, trying alternative approach", e);
+                
+                // Try to find Ollama processes by name
+                let ps_output = std::process::Command::new("pgrep")
+                    .args(["-f", "ollama"])
+                    .output();
+                    
+                match ps_output {
+                    Ok(output) => {
+                        let pids_str = String::from_utf8_lossy(&output.stdout);
+                        let pids: Vec<&str> = pids_str.lines().filter(|line| !line.trim().is_empty()).collect();
+                        
+                        if !pids.is_empty() {
+                            println!("[CONTAINER] 🚫 Found {} Ollama process(es): {:?}", pids.len(), pids);
+                            
+                            for pid in pids {
+                                if let Ok(pid_num) = pid.trim().parse::<u32>() {
+                                    println!("[CONTAINER] 🔪 Killing Ollama process with PID: {}", pid_num);
+                                    let _ = std::process::Command::new("kill")
+                                        .args(["-TERM", &pid_num.to_string()])
+                                        .output();
+                                }
+                            }
+                            
+                            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                            println!("[CONTAINER] ✅ Finished cleaning up Ollama processes");
+                        } else {
+                            println!("[CONTAINER] ✅ No existing Ollama processes found");
+                        }
+                    }
+                    Err(_) => {
+                        println!("[CONTAINER] ℹ️ Could not check for existing Ollama processes, proceeding anyway");
+                    }
+                }
+            }
+        }
     }
 }

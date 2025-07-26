@@ -79,8 +79,15 @@ impl DockerClient {
             cmd.args(["-v", &format!("{}:{}", volume.host_path, volume.container_path)]);
         }
         
-        // Add container to eliza network for inter-container communication
-        cmd.args(["--network", "eliza-network"]);
+        // Add container to network for inter-container communication
+        if let Some(network) = &config.network {
+            cmd.args(["--network", network]);
+        }
+        
+        // Add memory limit if specified
+        if let Some(memory_limit) = &config.memory_limit {
+            cmd.args(["-m", memory_limit]);
+        }
 
         cmd.arg(&config.image);
 
@@ -210,5 +217,21 @@ impl DockerClient {
             uptime_seconds: 0,
             restart_count: 0,
         })
+    }
+    
+    /// Execute a command inside a running container
+    pub async fn exec(&self, container_name: &str, command: &[&str]) -> BackendResult<std::process::Output> {
+        warn!("Docker exec implementation is basic - using simple docker exec command");
+        
+        let mut args = vec!["exec", container_name];
+        args.extend(command);
+        
+        let output = tokio::process::Command::new("docker")
+            .args(&args)
+            .output()
+            .await
+            .map_err(|e| BackendError::Container(format!("Failed to exec in container {}: {}", container_name, e)))?;
+            
+        Ok(output)
     }
 }

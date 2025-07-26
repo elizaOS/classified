@@ -6,7 +6,7 @@ import DOMMatrix from '@thednp/dommatrix';
   console.log('[DOM-POLYFILL] Setting up comprehensive DOM polyfills with professional DOMMatrix');
   
   // Collect all available global contexts safely
-  const contexts = [];
+  const contexts: any = [];
   try { if (typeof globalThis !== 'undefined') contexts.push(globalThis); } catch (e) {}
   try { if (typeof global !== 'undefined') contexts.push(global); } catch (e) {}
   try { if (typeof window !== 'undefined') contexts.push(window); } catch (e) {}
@@ -23,6 +23,10 @@ import DOMMatrix from '@thednp/dommatrix';
   
   // Additional DOM API polyfills
   class ImageDataPolyfill {
+    data: Uint8ClampedArray<ArrayBufferLike>;
+    width: any;
+    height: any;
+    colorSpace: string;
     constructor(dataOrWidth, height, width) {
       if (dataOrWidth instanceof Uint8ClampedArray) {
         this.data = dataOrWidth;
@@ -38,12 +42,15 @@ import DOMMatrix from '@thednp/dommatrix';
   }
   
   class Path2DPolyfill {
+    path: any;
     constructor(path) { this.path = path || ''; }
     addPath() {} arc() {} arcTo() {} bezierCurveTo() {} closePath() {}
     ellipse() {} lineTo() {} moveTo() {} quadraticCurveTo() {} rect() {}
   }
   
   class HTMLCanvasElementPolyfill {
+    width: number;
+    height: number;
     constructor() { 
       this.width = 300; 
       this.height = 150; 
@@ -53,9 +60,9 @@ import DOMMatrix from '@thednp/dommatrix';
       if (type === '2d') {
         return {
           arc: () => {}, beginPath: () => {}, clearRect: () => {}, closePath: () => {},
-          createImageData: (w, h) => new ImageDataPolyfill(w, h),
+          createImageData: (w, h, colorSpace) => new ImageDataPolyfill(w, h, colorSpace),
           drawImage: () => {}, fill: () => {}, fillRect: () => {},
-          getImageData: (x, y, w, h) => new ImageDataPolyfill(w, h),
+          getImageData: (x, y, w, h, colorSpace) => new ImageDataPolyfill(w, h, colorSpace),
           lineTo: () => {}, moveTo: () => {}, putImageData: () => {},
           restore: () => {}, save: () => {}, scale: () => {}, stroke: () => {},
           translate: () => {}, transform: () => {}, setTransform: () => {},
@@ -143,7 +150,7 @@ export async function startServer() {
 
     if (isContainerized) {
       logger.info('[BACKEND] 🚀 Containerized environment detected - using pre-configured models');
-      logger.info('[BACKEND] 📊 Text model: llama3.2:1b');
+      logger.info('[BACKEND] 📊 Text model: gemma2:9b');
       logger.info('[BACKEND] 📊 Embedding model: nomic-embed-text');
       logger.info('[BACKEND] ✅ Container optimized setup complete');
     } else {
@@ -156,7 +163,7 @@ export async function startServer() {
         logger.info(`[BACKEND] 🖥️ System Analysis Complete:\n${systemSummary}`);
 
         // Pre-configure Ollama with optimal model (before any other services start)
-        const ollamaUrl = 'http://localhost:7772';
+        const ollamaUrl = 'http://localhost:11434';
 
         logger.info(`[BACKEND] 🤖 Optimizing Ollama configuration at ${ollamaUrl}...`);
 
@@ -334,6 +341,210 @@ export async function startServer() {
     }
 
     console.log(`[BACKEND] Server initialized with ${postgresAvailable ? 'PostgreSQL' : 'PGLite'} database`);
+
+    // IMPORTANT: Add custom endpoints BEFORE server.start() so they take precedence over base routes
+    console.log('[BACKEND] Adding custom Agent Message endpoints BEFORE server start...');
+    
+    // POST /api/agents/{agentId}/message - Send message to agent
+    server.app.post('/api/agents/:agentId/message', async (req, res) => {
+      console.log('[BACKEND] MY CUSTOM ENDPOINT WAS CALLED!');
+      try {
+        const { agentId } = req.params;
+        const { text, userId, userName, roomId, messageId } = req.body;
+
+        console.log('[BACKEND] Agent message endpoint called:', { agentId, text: text?.substring(0, 50), userId, roomId });
+
+        // Validate required fields
+        if (!text) {
+          return res.status(400).json({
+            success: false,
+            error: { message: 'Message text is required' }
+          });
+        }
+
+        // This will be populated with the runtime after agent starts
+        const runtime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+        if (!runtime) {
+          return res.status(503).json({
+            success: false,
+            error: { message: 'Agent runtime not available yet' }
+          });
+        }
+
+        // Check if this is the correct agent
+        if (agentId !== runtime.agentId && agentId !== 'default' && agentId !== 'terminal') {
+          return res.status(404).json({
+            success: false,
+            error: { message: 'Agent not found' }
+          });
+        }
+
+        // Create user entity ID from userId or use default
+        const userEntityId = userId ? stringToUuid(userId) : stringToUuid('admin-user');
+        const roomUuid = roomId ? stringToUuid(roomId) : stringToUuid('default-room');
+
+        // Create a message memory for the user's input
+        const messageMemory = {
+          entityId: userEntityId,
+          agentId: runtime.agentId,
+          roomId: roomUuid,
+          content: {
+            text: text,
+            source: 'user',
+            entityId: userEntityId,
+            entityName: userName || userId || 'User'
+          },
+          createdAt: Date.now()
+        };
+
+        console.log('[BACKEND] Creating message memory:', { entityId: userEntityId, roomId: roomUuid, text: text.substring(0, 50) });
+
+        // Store the message in memory
+        const messageId_created = await runtime.createMemory(messageMemory, 'messages', false);
+        console.log('[BACKEND] Message memory created with ID:', messageId_created);
+
+        // Process the message through the agent to generate a response
+        const message = {
+          id: messageId_created,
+          entityId: userEntityId,
+          agentId: runtime.agentId,
+          roomId: roomUuid,
+          content: messageMemory.content,
+          createdAt: messageMemory.createdAt
+        };
+
+        console.log('[BACKEND] Processing message through agent pipeline...');
+
+        // Let the agent process this message and potentially respond
+        // The agent's autonomy and response systems will handle generating replies
+        runtime.processActions(runtime, message, {}, async (response) => {
+          if (response && response.content?.text) {
+            console.log('[BACKEND] Agent generated response:', response.content.text.substring(0, 100));
+          }
+        });
+
+        res.json({
+          success: true,
+          data: {
+            messageId: messageId_created,
+            message: 'Message received and processed by agent',
+            agentId: runtime.agentId,
+            roomId: roomUuid,
+            userId: userEntityId
+          }
+        });
+
+      } catch (error) {
+        console.error('[BACKEND] Error processing agent message:', error);
+        res.status(500).json({
+          success: false,
+          error: { message: error.message }
+        });
+      }
+    });
+
+    // GET /api/agents/{agentId}/messages - Get messages for agent/room
+    server.app.get('/api/agents/:agentId/messages', async (req, res) => {
+      try {
+        const { agentId } = req.params;
+        const { roomId, limit = 10, offset = 0 } = req.query;
+
+        console.log('[BACKEND] Agent messages retrieval called:', { agentId, roomId, limit });
+
+        const runtime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+        if (!runtime) {
+          return res.status(503).json({
+            success: false,
+            error: { message: 'Agent runtime not available yet' }
+          });
+        }
+
+        // Check if this is the correct agent
+        if (agentId !== runtime.agentId && agentId !== 'default' && agentId !== 'terminal') {
+          return res.status(404).json({
+            success: false,
+            error: { message: 'Agent not found' }
+          });
+        }
+
+        const roomUuid = roomId ? stringToUuid(roomId as string) : null;
+
+        // Get messages from memory
+        const memories = await runtime.getMemories({
+          tableName: 'messages',
+          roomId: roomUuid,
+          count: parseInt(limit as string),
+          agentId: runtime.agentId
+        });
+
+        console.log(`[BACKEND] Retrieved ${memories.length} messages from memory`);
+
+        const messages = memories.map(memory => ({
+          id: memory.id,
+          text: memory.content?.text || '',
+          entityId: memory.entityId,
+          entityName: memory.content?.entityName || 'Unknown',
+          agentId: memory.agentId,
+          roomId: memory.roomId,
+          createdAt: memory.createdAt,
+          source: memory.content?.source || 'unknown'
+        }));
+
+        res.json({
+          success: true,
+          data: {
+            messages,
+            count: messages.length,
+            agentId: runtime.agentId,
+            roomId: roomUuid
+          }
+        });
+
+      } catch (error) {
+        console.error('[BACKEND] Error retrieving agent messages:', error);
+        res.status(500).json({
+          success: false,
+          error: { message: error.message }
+        });
+      }
+    });
+
+    // Add alternative non-conflicting message endpoint
+    server.app.post('/api/custom-agent-message/:agentId', async (req, res) => {
+      console.log('[BACKEND] NON-CONFLICTING ENDPOINT WAS CALLED!');
+      try {
+        const { agentId } = req.params;
+        const { text, userId, userName, roomId, messageId } = req.body;
+
+        // Validate required fields
+        if (!text) {
+          return res.status(400).json({
+            success: false,
+            error: { message: 'Message text is required' }
+          });
+        }
+
+        res.json({
+          success: true,
+          message: 'Non-conflicting endpoint received message',
+          data: { agentId, text: text.substring(0, 50), userId }
+        });
+
+      } catch (error) {
+        console.error('[BACKEND] Error in non-conflicting endpoint:', error);
+        res.status(500).json({
+          success: false,
+          error: { message: error.message }
+        });
+      }
+    });
+
+    // Add a simple test endpoint to verify our routes are working
+    server.app.get('/api/test-custom-endpoint', (req, res) => {
+      res.json({ success: true, message: 'Custom endpoint is working!' });
+    });
+
+    console.log('[BACKEND] ✅ Custom Agent Message endpoints added BEFORE server start');
 
     // Run plugin migrations for goals and todos to ensure tables exist
     console.log('[BACKEND] Running plugin migrations for goals and todos...');
@@ -1049,7 +1260,6 @@ export async function startServer() {
     });
 
     console.log('[BACKEND] ✅ Todos API endpoints added with runtime access');
-
 
     // Wait for all initialization to complete
     await new Promise(resolve => setTimeout(resolve, 2000));

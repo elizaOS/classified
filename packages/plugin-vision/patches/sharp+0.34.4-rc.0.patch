@@ -1,0 +1,28 @@
+diff --git a/node_modules/sharp/lib/sharp.js b/node_modules/sharp/lib/sharp.js
+index 3428c5f..fd8dbff 100644
+--- a/node_modules/sharp/lib/sharp.js
++++ b/node_modules/sharp/lib/sharp.js
+@@ -6,6 +6,7 @@
+ // Inspects the runtime environment and exports the relevant sharp.node binary
+ 
+ const { familySync, versionSync } = require('detect-libc');
++const { join } = require('node:path');
+ 
+ const { runtimePlatformArch, isUnsupportedNodeRuntime, prebuiltPlatforms, minimumLibvipsVersion } = require('./libvips');
+ const runtimePlatform = runtimePlatformArch();
+@@ -29,6 +30,15 @@ for (const path of paths) {
+   }
+ }
+ 
++// Support for Bun embedded files
++if (!sharp && typeof Bun !== 'undefined' && Bun.embeddedFiles && Bun.embeddedFiles.length) {
++  const sharpModule = Bun.embeddedFiles.find(file => /sharp-(.*).node$/.test(file.name));
++  if (sharpModule) {
++    console.log('[SHARP] Loading from embedded file:', sharpModule.name);
++    sharp = require(join(import.meta.dirname || __dirname, sharpModule.name));
++  }
++}
++
+ /* istanbul ignore next */
+ if (sharp) {
+   module.exports = sharp; 

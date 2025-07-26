@@ -1,0 +1,93 @@
+# Stage 1: Build the Stagehand server binary
+FROM node:20-alpine AS stagehand-builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache python3 make g++ git
+
+# Copy stagehand server source
+COPY packages/plugin-stagehand/stagehand-server/package*.json ./
+RUN npm ci
+
+COPY packages/plugin-stagehand/stagehand-server/ ./
+
+# Build the server
+RUN npm run build
+
+# Note: SEA build requires Node.js binary manipulation which is complex in Alpine
+# For production, we'll run the server via Node.js directly
+
+# Stage 2: Build the agent server
+FROM oven/bun:1 AS builder
+
+WORKDIR /app
+
+# Copy workspace files
+COPY package.json ./
+COPY lerna.json ./
+COPY packages/ ./packages/
+
+# Install dependencies
+RUN bun install
+
+# Build the agent server
+WORKDIR /app/packages/agentserver
+RUN bun run build
+
+# Stage 3: Runtime
+FROM oven/bun:1-alpine
+
+WORKDIR /app
+
+# Install Node.js for running the Stagehand server
+RUN apk add --no-cache nodejs npm chromium
+
+# Copy built agent server
+COPY --from=builder /app/packages/agentserver/dist-backend /app/dist-backend
+COPY --from=builder /app/packages/agentserver/package.json /app/
+
+# Copy Stagehand server
+COPY --from=stagehand-builder /app/dist /app/stagehand-server
+COPY --from=stagehand-builder /app/package.json /app/stagehand-server/
+
+# Install production dependencies for Stagehand server
+WORKDIR /app/stagehand-server
+RUN npm ci --production
+
+WORKDIR /app
+
+# Install production dependencies for agent server
+RUN bun install --production
+
+# Create startup script
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo '# Start Stagehand server in background' >> /app/start.sh && \
+    echo 'cd /app/stagehand-server && node index.js &' >> /app/start.sh && \
+    echo 'STAGEHAND_PID=$!' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Wait for Stagehand server to be ready' >> /app/start.sh && \
+    echo 'sleep 5' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Start agent server' >> /app/start.sh && \
+    echo 'cd /app && bun dist-backend/server.js &' >> /app/start.sh && \
+    echo 'AGENT_PID=$!' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Handle shutdown' >> /app/start.sh && \
+    echo 'trap "kill $STAGEHAND_PID $AGENT_PID" EXIT' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Wait for both processes' >> /app/start.sh && \
+    echo 'wait' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Environment variables
+ENV BROWSER_HEADLESS=true
+ENV STAGEHAND_SERVER_PORT=3456
+ENV OLLAMA_BASE_URL=http://ollama:11434
+ENV OLLAMA_MODEL=llama3.2-vision
+
+# Expose ports
+EXPOSE 5173 3456
+
+# Run the startup script
+CMD ["/app/start.sh"] 

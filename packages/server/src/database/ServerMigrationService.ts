@@ -46,28 +46,22 @@ export class ServerMigrationService {
     const tableName = 'message_servers';
 
     try {
-      // Check if table exists
-      const tableExists = await this.tableExists(tableName);
+      logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
 
-      if (!tableExists) {
-        logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
+      // Use CREATE TABLE IF NOT EXISTS to avoid errors
+      await this.db.execute(sql`
+        CREATE TABLE IF NOT EXISTS ${sql.identifier(tableName)} (
+          id UUID PRIMARY KEY,
+          name TEXT NOT NULL,
+          source_type TEXT NOT NULL,
+          source_id TEXT,
+          metadata JSONB,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+        )
+      `);
 
-        await this.db.execute(sql`
-          CREATE TABLE ${sql.identifier(tableName)} (
-            id UUID PRIMARY KEY,
-            name TEXT NOT NULL,
-            source_type TEXT NOT NULL,
-            source_id TEXT,
-            metadata JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
-          )
-        `);
-
-        logger.success(`[ServerMigrationService] Created ${tableName} table`);
-      } else {
-        logger.debug(`[ServerMigrationService] Table ${tableName} already exists`);
-      }
+      logger.success(`[ServerMigrationService] Created/verified ${tableName} table`);
     } catch (error) {
       logger.error(`[ServerMigrationService] Failed to create ${tableName} table:`, error);
       throw error;
@@ -78,35 +72,29 @@ export class ServerMigrationService {
     const tableName = 'channels';
 
     try {
-      const tableExists = await this.tableExists(tableName);
+      logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
 
-      if (!tableExists) {
-        logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
+      await this.db.execute(sql`
+        CREATE TABLE IF NOT EXISTS ${sql.identifier(tableName)} (
+          id TEXT PRIMARY KEY,
+          message_server_id UUID NOT NULL REFERENCES message_servers(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          source_type TEXT,
+          source_id TEXT,
+          topic TEXT,
+          metadata JSONB,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+        )
+      `);
 
-        await this.db.execute(sql`
-          CREATE TABLE ${sql.identifier(tableName)} (
-            id TEXT PRIMARY KEY,
-            message_server_id UUID NOT NULL REFERENCES message_servers(id) ON DELETE CASCADE,
-            name TEXT NOT NULL,
-            type TEXT NOT NULL,
-            source_type TEXT,
-            source_id TEXT,
-            topic TEXT,
-            metadata JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
-          )
-        `);
+      // Create index on server_id for better query performance
+      await this.db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_channels_server_id ON ${sql.identifier(tableName)} (message_server_id)
+      `);
 
-        // Create index on server_id for better query performance
-        await this.db.execute(sql`
-          CREATE INDEX idx_channels_server_id ON ${sql.identifier(tableName)} (message_server_id)
-        `);
-
-        logger.success(`[ServerMigrationService] Created ${tableName} table`);
-      } else {
-        logger.debug(`[ServerMigrationService] Table ${tableName} already exists`);
-      }
+      logger.success(`[ServerMigrationService] Created/verified ${tableName} table`);
     } catch (error) {
       logger.error(`[ServerMigrationService] Failed to create ${tableName} table:`, error);
       throw error;
@@ -117,42 +105,36 @@ export class ServerMigrationService {
     const tableName = 'central_messages';
 
     try {
-      const tableExists = await this.tableExists(tableName);
+      logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
 
-      if (!tableExists) {
-        logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
+      await this.db.execute(sql`
+        CREATE TABLE IF NOT EXISTS ${sql.identifier(tableName)} (
+          id TEXT PRIMARY KEY,
+          channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+          author_id TEXT NOT NULL,
+          content TEXT NOT NULL,
+          raw_message JSONB,
+          in_reply_to_root_message_id TEXT REFERENCES ${sql.identifier(tableName)}(id) ON DELETE SET NULL,
+          source_type TEXT,
+          source_id TEXT,
+          metadata JSONB,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+        )
+      `);
 
-        await this.db.execute(sql`
-          CREATE TABLE ${sql.identifier(tableName)} (
-            id TEXT PRIMARY KEY,
-            channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-            author_id TEXT NOT NULL,
-            content TEXT NOT NULL,
-            raw_message JSONB,
-            in_reply_to_root_message_id TEXT REFERENCES ${sql.identifier(tableName)}(id) ON DELETE SET NULL,
-            source_type TEXT,
-            source_id TEXT,
-            metadata JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
-          )
-        `);
+      // Create indexes for better query performance
+      await this.db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_messages_channel_id ON ${sql.identifier(tableName)} (channel_id)
+      `);
+      await this.db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_messages_author_id ON ${sql.identifier(tableName)} (author_id)
+      `);
+      await this.db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_messages_created_at ON ${sql.identifier(tableName)} (created_at DESC)
+      `);
 
-        // Create indexes for better query performance
-        await this.db.execute(sql`
-          CREATE INDEX idx_messages_channel_id ON ${sql.identifier(tableName)} (channel_id)
-        `);
-        await this.db.execute(sql`
-          CREATE INDEX idx_messages_author_id ON ${sql.identifier(tableName)} (author_id)
-        `);
-        await this.db.execute(sql`
-          CREATE INDEX idx_messages_created_at ON ${sql.identifier(tableName)} (created_at DESC)
-        `);
-
-        logger.success(`[ServerMigrationService] Created ${tableName} table`);
-      } else {
-        logger.debug(`[ServerMigrationService] Table ${tableName} already exists`);
-      }
+      logger.success(`[ServerMigrationService] Created/verified ${tableName} table`);
     } catch (error) {
       logger.error(`[ServerMigrationService] Failed to create ${tableName} table:`, error);
       throw error;
@@ -163,31 +145,25 @@ export class ServerMigrationService {
     const tableName = 'channel_participants';
 
     try {
-      const tableExists = await this.tableExists(tableName);
+      logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
 
-      if (!tableExists) {
-        logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
+      await this.db.execute(sql`
+        CREATE TABLE IF NOT EXISTS ${sql.identifier(tableName)} (
+          channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL,
+          joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          role TEXT,
+          metadata JSONB,
+          PRIMARY KEY (channel_id, user_id)
+        )
+      `);
 
-        await this.db.execute(sql`
-          CREATE TABLE ${sql.identifier(tableName)} (
-            channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-            user_id TEXT NOT NULL,
-            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-            role TEXT,
-            metadata JSONB,
-            PRIMARY KEY (channel_id, user_id)
-          )
-        `);
+      // Create indexes for better query performance
+      await this.db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_channel_participants_user_id ON ${sql.identifier(tableName)} (user_id)
+      `);
 
-        // Create indexes for better query performance
-        await this.db.execute(sql`
-          CREATE INDEX idx_channel_participants_user_id ON ${sql.identifier(tableName)} (user_id)
-        `);
-
-        logger.success(`[ServerMigrationService] Created ${tableName} table`);
-      } else {
-        logger.debug(`[ServerMigrationService] Table ${tableName} already exists`);
-      }
+      logger.success(`[ServerMigrationService] Created/verified ${tableName} table`);
     } catch (error) {
       logger.error(`[ServerMigrationService] Failed to create ${tableName} table:`, error);
       throw error;
@@ -198,38 +174,32 @@ export class ServerMigrationService {
     const tableName = 'server_agents';
 
     try {
-      const tableExists = await this.tableExists(tableName);
+      logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
 
-      if (!tableExists) {
-        logger.info(`[ServerMigrationService] Creating ${tableName} table...`);
+      await this.db.execute(sql`
+        CREATE TABLE IF NOT EXISTS ${sql.identifier(tableName)} (
+          server_id UUID NOT NULL REFERENCES message_servers(id) ON DELETE CASCADE,
+          agent_id UUID NOT NULL,
+          PRIMARY KEY (server_id, agent_id)
+        )
+      `);
 
+      // Add foreign key constraint to agents table separately
+      // This assumes the agents table exists (created by plugin-sql)
+      try {
         await this.db.execute(sql`
-          CREATE TABLE ${sql.identifier(tableName)} (
-            server_id UUID NOT NULL REFERENCES message_servers(id) ON DELETE CASCADE,
-            agent_id UUID NOT NULL,
-            PRIMARY KEY (server_id, agent_id)
-          )
+          ALTER TABLE ${sql.identifier(tableName)} 
+          ADD CONSTRAINT IF NOT EXISTS fk_server_agents_agent_id 
+          FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
         `);
-
-        // Add foreign key constraint to agents table separately
-        // This assumes the agents table exists (created by plugin-sql)
-        try {
-          await this.db.execute(sql`
-            ALTER TABLE ${sql.identifier(tableName)} 
-            ADD CONSTRAINT fk_server_agents_agent_id 
-            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
-          `);
-          logger.debug(`[ServerMigrationService] Added foreign key constraint for agent_id`);
-        } catch (fkError) {
-          logger.warn(
-            `[ServerMigrationService] Could not add foreign key for agent_id (agents table may not exist yet)`
-          );
-        }
-
-        logger.success(`[ServerMigrationService] Created ${tableName} table`);
-      } else {
-        logger.debug(`[ServerMigrationService] Table ${tableName} already exists`);
+        logger.debug(`[ServerMigrationService] Added/verified foreign key constraint for agent_id`);
+      } catch (fkError) {
+        logger.warn(
+          `[ServerMigrationService] Could not add foreign key for agent_id (agents table may not exist yet)`
+        );
       }
+
+      logger.success(`[ServerMigrationService] Created/verified ${tableName} table`);
     } catch (error) {
       logger.error(`[ServerMigrationService] Failed to create ${tableName} table:`, error);
       throw error;

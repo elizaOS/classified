@@ -208,7 +208,7 @@ describe('Tauri IPC Integration Tests', () => {
           count: 10,
           roomId: 'test-room'
         };
-        const memories = await invoke('fetch_memories', { params });
+        const memories = await invoke('fetch_memories', params);
         expect(memories).toBeDefined();
         console.log('Memories data:', typeof memories === 'object' ? `${JSON.stringify(memories).substring(0, 100)}...` : memories);
       } catch (error) {

@@ -266,18 +266,10 @@ impl StartupManager {
             None
         };
 
-        // Start Agent (always required)
+        // Note: Agent will be started after Ollama is ready with models
         required_containers.push("agent");
-        self.update_container_status("agent", "building").await;
-        let agent_task = tokio::spawn({
-            let container_manager = container_manager.clone();
-            async move {
-                let result = container_manager.start_agent().await;
-                ("agent", result)
-            }
-        });
 
-        // Wait for all tasks and process results as they complete
+        // Wait for all initial tasks and process results as they complete
         let mut completed_count = 0;
         let total_count = if postgres_task.is_some() { 1 } else { 0 } + 
                          if ollama_task.is_some() { 1 } else { 0 } + 1; // +1 for agent
@@ -343,12 +335,29 @@ impl StartupManager {
                     match self.verify_container_health(container_manager, "ollama", "eliza-ollama").await {
                         Ok(true) => {
                             info!("✅ Ollama container is healthy and ready");
-                            completed_count += 1;
-                            self.update_container_status("ollama", "running").await;
-                            let progress = 55 + (completed_count * 8) as u8;
-                            self.update_status(StartupStage::StartingOllama, progress, 
-                                "Ollama container ready", 
-                                &format!("{}/{} containers started", completed_count, total_count)).await;
+                            
+                            // Pull required models before marking as complete
+                            self.update_status(StartupStage::StartingOllama, 60, 
+                                "Pulling required Ollama models...", 
+                                "This may take a few minutes on first run").await;
+                            
+                            match container_manager.pull_ollama_models().await {
+                                Ok(()) => {
+                                    info!("✅ Ollama models pulled successfully");
+                                    completed_count += 1;
+                                    self.update_container_status("ollama", "running").await;
+                                    let progress = 55 + (completed_count * 8) as u8;
+                                    self.update_status(StartupStage::StartingOllama, progress, 
+                                        "Ollama container ready with models", 
+                                        &format!("{}/{} containers started", completed_count, total_count)).await;
+                                }
+                                Err(e) => {
+                                    let error = BackendError::Container(format!("Failed to pull Ollama models: {}", e));
+                                    failed_containers.insert("ollama", error);
+                                    error!("❌ Failed to pull required Ollama models: {}", e);
+                                    self.update_container_status("ollama", "error").await;
+                                }
+                            }
                         }
                         Ok(false) => {
                             let error = BackendError::Container("Ollama container started but failed health check".to_string());
@@ -394,51 +403,55 @@ impl StartupManager {
             }
         }
 
-        // Process Agent result
-        self.update_container_status("agent", "starting").await;
-        match agent_task.await {
-            Ok(("agent", Ok(_status))) => {
-                info!("✅ Agent container started, verifying health...");
-                
-                // Verify container is actually running and healthy
-                match self.verify_container_health(container_manager, "agent", "eliza-agent").await {
-                    Ok(true) => {
-                        info!("✅ Agent container is healthy and ready");
-                        completed_count += 1;
-                        self.update_container_status("agent", "running").await;
-                        let progress = 55 + (completed_count * 8) as u8;
-                        self.update_status(StartupStage::StartingAgent, progress, 
-                            "Agent container ready", 
-                            &format!("{}/{} containers started", completed_count, total_count)).await;
-                    }
-                    Ok(false) => {
-                        let error = BackendError::Container("Agent container started but failed health check".to_string());
-                        failed_containers.insert("agent", error);
-                        error!("❌ Agent container started but is not healthy");
-                        self.update_container_status("agent", "unhealthy").await;
-                    }
-                    Err(e) => {
-                        failed_containers.insert("agent", e);
-                        error!("❌ Failed to verify Agent container health");
-                        self.update_container_status("agent", "error").await;
+        // Now start the agent after Ollama is ready
+        let ollama_ready = !failed_containers.contains_key("ollama") && 
+                          (matches!(config.ai_provider, AiProvider::Ollama) || config.use_local_ollama);
+        
+        // Only start agent if dependencies are satisfied
+        if !ollama_ready && (matches!(config.ai_provider, AiProvider::Ollama) || config.use_local_ollama) {
+            let error = BackendError::Container("Cannot start agent: Ollama is not ready".to_string());
+            failed_containers.insert("agent", error);
+            error!("❌ Cannot start agent because Ollama failed to start or pull models");
+            self.update_container_status("agent", "failed").await;
+        } else {
+            // Start the agent container now
+            self.update_container_status("agent", "building").await;
+            let agent_result = container_manager.start_agent().await;
+            
+                                    self.update_container_status("agent", "starting").await;
+            match agent_result {
+                Ok(_status) => {
+                    info!("✅ Agent container started, verifying health...");
+                    
+                    // Verify container is actually running and healthy
+                    match self.verify_container_health(container_manager, "agent", "eliza-agent").await {
+                        Ok(true) => {
+                            info!("✅ Agent container is healthy and ready");
+                            completed_count += 1;
+                            self.update_container_status("agent", "running").await;
+                            let progress = 55 + (completed_count * 8) as u8;
+                            self.update_status(StartupStage::StartingAgent, progress, 
+                                "Agent container ready", 
+                                &format!("{}/{} containers started", completed_count, total_count)).await;
+                        }
+                        Ok(false) => {
+                            let error = BackendError::Container("Agent container started but failed health check".to_string());
+                            failed_containers.insert("agent", error);
+                            error!("❌ Agent container started but is not healthy");
+                            self.update_container_status("agent", "unhealthy").await;
+                        }
+                        Err(e) => {
+                            failed_containers.insert("agent", e);
+                            error!("❌ Failed to verify Agent container health");
+                            self.update_container_status("agent", "error").await;
+                        }
                     }
                 }
-            }
-            Ok(("agent", Err(e))) => {
-                failed_containers.insert("agent", e);
-                error!("❌ Failed to start Agent container: {}", failed_containers["agent"]);
-                self.update_container_status("agent", "failed").await;
-            }
-            Err(e) => {
-                failed_containers.insert("agent", BackendError::Container(format!("Task error: {}", e)));
-                error!("❌ Agent task failed: {}", e);
-                self.update_container_status("agent", "failed").await;
-            }
-            Ok((_, _)) => {
-                let error = BackendError::Container("Unexpected task result".to_string());
-                failed_containers.insert("agent", error);
-                error!("❌ Agent task returned unexpected result");
-                self.update_container_status("agent", "failed").await;
+                Err(e) => {
+                    failed_containers.insert("agent", e);
+                    error!("❌ Failed to start Agent container: {}", failed_containers["agent"]);
+                    self.update_container_status("agent", "failed").await;
+                }
             }
         }
 
@@ -758,7 +771,9 @@ impl StartupManager {
                     let health_data: serde_json::Value = response.json().await
                         .map_err(|e| BackendError::Container(format!("Failed to parse health response: {}", e)))?;
                     
-                    if health_data["status"].as_str() == Some("OK") || health_data["success"].as_bool().unwrap_or(false) {
+                    if health_data["success"].as_bool().unwrap_or(false) || 
+                       health_data["data"]["status"].as_str() == Some("healthy") ||
+                       health_data["status"].as_str() == Some("OK") {
                         info!("✅ Agent API health check successful");
                         Ok(true)
                     } else {

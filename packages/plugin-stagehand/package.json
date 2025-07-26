@@ -40,16 +40,9 @@
     "tsup.config.ts"
   ],
   "dependencies": {
-    "@browserbasehq/stagehand": "^1.7.0",
     "@elizaos/core": "workspace:*",
-    "@elizaos/plugin-anthropic": "^1.0.0",
-    "@elizaos/plugin-discord": "github:elizaos-plugins/plugin-discord#v1.0.10",
-    "@elizaos/plugin-knowledge": "1.0.4",
-    "@elizaos/plugin-telegram": "github:elizaos-plugins/plugin-telegram#v1.0.2",
-    "@napi-rs/canvas": "^0.1.74",
-    "axios": "^1.7.7",
-    "playwright": "^1.48.0",
     "ws": "^8.18.0",
+    "axios": "^1.7.7",
     "zod": "3.25.67"
   },
   "peerDependencies": {},
@@ -58,15 +51,20 @@
     "@types/ws": "^8.5.10",
     "dotenv": "16.4.5",
     "prettier": "3.5.3",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "tsup": "^8.3.5",
+    "@browserbasehq/stagehand": "^1.7.0",
+    "playwright": "^1.48.0"
   },
   "scripts": {
-    "build": "bun run build.ts",
-    "dev": "bun run build.ts --watch",
+    "build": "tsup && cd stagehand-server && npm run build",
+    "build:plugin": "tsup",
+    "build:server": "cd stagehand-server && npm run build",
+    "dev": "tsup --watch",
     "start": "echo 'Plugin package, use with ElizaOS'",
     "test": "bun test",
     "lint": "eslint src --fix && prettier --write ./src",
-    "clean": "rm -rf dist && rm -rf .turbo",
+    "clean": "rm -rf dist && rm -rf .turbo && rm -rf stagehand-server/dist",
     "typecheck": "tsc --noEmit"
   },
   "publishConfig": {

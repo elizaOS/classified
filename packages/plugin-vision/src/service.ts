@@ -9,7 +9,7 @@ import {
 import { exec } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import sharp from 'sharp';
+import sharp from './utils/sharp-wrapper';
 import { promisify } from 'util';
 import { AudioCaptureService, type AudioConfig } from './audio-capture';
 import { StreamingAudioCaptureService, type StreamingAudioConfig } from './audio-capture-stream';

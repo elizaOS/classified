@@ -1,7 +1,7 @@
 import { logger } from '@elizaos/core';
 import Tesseract from 'tesseract.js';
 import type { OCRResult, ScreenTile, BoundingBox } from './types';
-import sharp from 'sharp';
+import sharp from './utils/sharp-wrapper';
 
 export class RealOCRService {
   private worker: Tesseract.Worker | null = null;

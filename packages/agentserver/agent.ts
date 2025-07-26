@@ -93,7 +93,7 @@ import PersonalityPlugin from '@elizaos/plugin-personality';
 import { shellPlugin } from '@elizaos/plugin-shell';
 import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
 // Import only workspace plugins that exist
-import { ollamaPlugin } from '@elizaos/plugin-ollama';
+import { ollamaPlugin } from './ollama-plugin.js';
 // import anthropicPlugin from '@elizaos/plugin-anthropic';
 // import openaiPlugin from '@elizaos/plugin-openai';
 import { GoalsPlugin } from '@elizaos/plugin-goals';
@@ -102,7 +102,7 @@ import { GoalsPlugin } from '@elizaos/plugin-goals';
 // import { pluginManagerPlugin } from '@elizaos/plugin-plugin-manager';
 // import { SAMPlugin } from '@elizaos/plugin-sam';
 // Import stagehand with correct structure
-import { stagehandPlugin } from '@elizaos/plugin-stagehand';
+// import { stagehandPlugin } from '@elizaos/plugin-stagehand'; // DISABLED - server binary not available in container
 import { visionPlugin } from '@elizaos/plugin-vision';
 
 import * as dotenv from 'dotenv';
@@ -147,11 +147,11 @@ export async function startAgent(character: any, server: any) {
     TodoPlugin, // ENABLED - Task management system
     PersonalityPlugin, // ENABLED - Agent personality traits
     experiencePlugin, // ENABLED - Experience and memory management
-    knowledgePlugin, // TEMPORARILY DISABLED - Knowledge base and RAG
+    knowledgePlugin, // ENABLED - Knowledge base and RAG (using local ollama embeddings)
     shellPlugin, // ENABLED - Shell command execution
-    stagehandPlugin, // TEMPORARILY DISABLED - Browser automation (requires playwright)
+    // stagehandPlugin, // TEMPORARILY DISABLED - Browser automation server binary not found in container
     gameAPIPlugin, // ENABLED - Game-specific API endpoints plugin
-    visionPlugin, // TEMPORARILY DISABLED - Vision and image processing (requires Sharp)
+    visionPlugin, // ENABLED - Vision and image processing (using jimp instead of sharp)
   ].filter(Boolean);
   
   console.log('[AGENT START] Loaded plugins:', plugins.map(p => p.name || 'unnamed').join(', '));
