@@ -19,7 +19,7 @@ export function TauriInitializer({ children }: TauriInitializerProps) {
         console.log('[TauriInitializer] Starting Tauri initialization...');
 
         // Wait a bit to ensure window is fully loaded
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Initialize TauriService
         await TauriService.initialize();
@@ -44,15 +44,17 @@ export function TauriInitializer({ children }: TauriInitializerProps) {
 
   if (!isInitialized) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        backgroundColor: '#0a0a0a',
-        color: '#00ff00',
-        fontFamily: 'monospace'
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          backgroundColor: '#0a0a0a',
+          color: '#00ff00',
+          fontFamily: 'monospace',
+        }}
+      >
         <div>Initializing Tauri environment...</div>
       </div>
     );

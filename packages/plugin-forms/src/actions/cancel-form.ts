@@ -1,11 +1,4 @@
-import {
-  Action,
-  IAgentRuntime,
-  Memory,
-  State,
-  HandlerCallback,
-  logger,
-} from '@elizaos/core';
+import { Action, IAgentRuntime, Memory, State, HandlerCallback, logger } from '@elizaos/core';
 import { FormsService } from '../services/forms-service';
 
 /**
@@ -97,7 +90,7 @@ export const cancelFormAction: Action = {
 
       if (success) {
         await callback?.({
-          text: `I've cancelled the form. Is there anything else I can help you with?`,
+          text: "I've cancelled the form. Is there anything else I can help you with?",
           actions: ['CANCEL_FORM'],
           data: {
             formId,

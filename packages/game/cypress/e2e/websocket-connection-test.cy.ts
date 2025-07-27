@@ -17,21 +17,20 @@ describe('WebSocket Connection Test', () => {
         try {
           // Run the comprehensive startup test
           const testResults = await invoke('run_startup_hello_world_test');
-          
+
           // Log the full test results
           cy.log('Startup Test Results:');
           cy.log(testResults);
-          
+
           // Check that all critical systems passed
           expect(testResults).to.include('✅ Startup manager is ready');
           expect(testResults).to.include('✅ HTTP API connection to AgentServer working');
           expect(testResults).to.include('✅ Test message sent via WebSocket');
           expect(testResults).to.include('✅ HTTP message ingestion working');
           expect(testResults).to.include('🎉 All critical systems operational!');
-          
+
           // Take a screenshot showing successful test
           cy.screenshot('startup-test-success');
-          
         } catch (error) {
           cy.log('Startup test failed:', error);
           // Take a screenshot of the failure state
@@ -49,7 +48,10 @@ describe('WebSocket Connection Test', () => {
     cy.get('[data-testid="game-interface"]', { timeout: 10000 }).should('be.visible');
 
     // Check connection status
-    cy.get('[data-testid="connection-status"]', { timeout: 15000 }).should('contain.text', 'ONLINE');
+    cy.get('[data-testid="connection-status"]', { timeout: 15000 }).should(
+      'contain.text',
+      'ONLINE'
+    );
 
     // Verify WebSocket connection through Tauri IPC
     cy.window().then(async (win: any) => {
@@ -61,11 +63,13 @@ describe('WebSocket Connection Test', () => {
         for (let i = 0; i < 20; i++) {
           try {
             connected = await invoke('is_native_websocket_connected');
-            if (connected) {break;}
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } catch (error) {
+            if (connected) {
+              break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } catch (_error) {
             // WebSocket service might not be ready yet
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise((resolve) => setTimeout(resolve, 1000));
           }
         }
 

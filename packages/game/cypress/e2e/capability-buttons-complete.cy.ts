@@ -6,7 +6,10 @@ describe('Capability Buttons Complete Test', () => {
 
     // Wait for the app to fully load
     cy.get('[data-testid="game-interface"]', { timeout: 30000 }).should('be.visible');
-    cy.get('[data-testid="connection-status"]', { timeout: 10000 }).should('contain.text', 'ONLINE');
+    cy.get('[data-testid="connection-status"]', { timeout: 10000 }).should(
+      'contain.text',
+      'ONLINE'
+    );
   });
 
   it('should display all capability buttons in correct layout', () => {
@@ -18,10 +21,10 @@ describe('Capability Buttons Complete Test', () => {
       'microphone-toggle',
       'speakers-toggle',
       'shell-toggle',
-      'browser-toggle'
+      'browser-toggle',
     ];
 
-    expectedButtons.forEach(buttonId => {
+    expectedButtons.forEach((buttonId) => {
       cy.get(`[data-testid="${buttonId}"]`)
         .should('be.visible')
         .should('have.css', 'cursor', 'pointer');
@@ -31,10 +34,10 @@ describe('Capability Buttons Complete Test', () => {
     cy.screenshot('capability-buttons-layout');
 
     // Verify buttons are in a horizontal row
-    cy.get('[data-testid="autonomy-toggle"]').then($first => {
+    cy.get('[data-testid="autonomy-toggle"]').then(($first) => {
       const firstRect = $first[0].getBoundingClientRect();
 
-      cy.get('[data-testid="camera-toggle"]').then($second => {
+      cy.get('[data-testid="camera-toggle"]').then(($second) => {
         const secondRect = $second[0].getBoundingClientRect();
 
         // Buttons should be on same horizontal line
@@ -48,7 +51,7 @@ describe('Capability Buttons Complete Test', () => {
 
   it('should have square buttons that fill the row', () => {
     // Check that buttons have correct sizing
-    cy.get('[data-testid="autonomy-toggle"]').then($btn => {
+    cy.get('[data-testid="autonomy-toggle"]').then(($btn) => {
       const rect = $btn[0].getBoundingClientRect();
 
       // Button should have height of 40px (plus borders)
@@ -67,16 +70,16 @@ describe('Capability Buttons Complete Test', () => {
       '[data-testid="microphone-toggle"]',
       '[data-testid="speakers-toggle"]',
       '[data-testid="shell-toggle"]',
-      '[data-testid="browser-toggle"]'
+      '[data-testid="browser-toggle"]',
     ];
 
     let firstHeight: number;
 
-    cy.get(buttonSelectors[0]).then($first => {
+    cy.get(buttonSelectors[0]).then(($first) => {
       firstHeight = $first[0].getBoundingClientRect().height;
 
-      buttonSelectors.slice(1).forEach(selector => {
-        cy.get(selector).then($btn => {
+      buttonSelectors.slice(1).forEach((selector) => {
+        cy.get(selector).then(($btn) => {
           const height = $btn[0].getBoundingClientRect().height;
           expect(height).to.be.approximately(firstHeight, 2);
         });
@@ -93,7 +96,7 @@ describe('Capability Buttons Complete Test', () => {
       { testId: 'microphone-toggle', statusTestId: 'microphone-toggle-status', name: 'microphone' },
       { testId: 'speakers-toggle', statusTestId: 'speakers-toggle-status', name: 'speakers' },
       { testId: 'shell-toggle', statusTestId: 'shell-toggle-status', name: 'shell' },
-      { testId: 'browser-toggle', statusTestId: 'browser-toggle-status', name: 'browser' }
+      { testId: 'browser-toggle', statusTestId: 'browser-toggle-status', name: 'browser' },
     ];
 
     buttonTests.forEach(({ testId, statusTestId, name }) => {
@@ -115,12 +118,14 @@ describe('Capability Buttons Complete Test', () => {
       // We focus on verifying button interaction works (no cross-activation)
 
       // Verify ALL OTHER buttons remain in their original states (no cross-activation)
-      buttonTests.forEach(({ testId: otherTestId, statusTestId: otherStatusTestId, name: otherName }) => {
-        if (otherName !== name) {
-          // Other buttons should not change from their initial state
-          cy.get(`[data-testid="${otherStatusTestId}"]`).should('contain.text', '○');
+      buttonTests.forEach(
+        ({ testId: _otherTestId, statusTestId: otherStatusTestId, name: otherName }) => {
+          if (otherName !== name) {
+            // Other buttons should not change from their initial state
+            cy.get(`[data-testid="${otherStatusTestId}"]`).should('contain.text', '○');
+          }
         }
-      });
+      );
 
       cy.wait(1000); // Allow time for API calls to complete
     });
@@ -138,10 +143,16 @@ describe('Capability Buttons Complete Test', () => {
     cy.get('[data-testid="camera-toggle-status"]').should('contain.text', '●');
 
     // Verify visual states
-    cy.get('[data-testid="autonomy-toggle"]')
-      .should('have.css', 'background-color', 'rgb(0, 255, 0)');
-    cy.get('[data-testid="camera-toggle"]')
-      .should('have.css', 'background-color', 'rgb(0, 255, 0)');
+    cy.get('[data-testid="autonomy-toggle"]').should(
+      'have.css',
+      'background-color',
+      'rgb(0, 255, 0)'
+    );
+    cy.get('[data-testid="camera-toggle"]').should(
+      'have.css',
+      'background-color',
+      'rgb(0, 255, 0)'
+    );
 
     // Add screen button
     cy.get('[data-testid="screen-toggle"]').click();
@@ -200,13 +211,15 @@ describe('Capability Buttons Complete Test', () => {
       { testId: 'microphone-toggle', label: 'MIC' },
       { testId: 'speakers-toggle', label: 'SPK' },
       { testId: 'shell-toggle', label: 'SH' },
-      { testId: 'browser-toggle', label: 'WWW' }
+      { testId: 'browser-toggle', label: 'WWW' },
     ];
 
     expectedLabels.forEach(({ testId, label }) => {
       cy.get(`[data-testid="${testId}"]`).should('contain.text', label);
-      cy.get(`[data-testid="${testId.replace('-toggle', '-toggle-status')}"]`)
-        .should('contain.text', '○'); // Should start inactive
+      cy.get(`[data-testid="${testId.replace('-toggle', '-toggle-status')}"]`).should(
+        'contain.text',
+        '○'
+      ); // Should start inactive
     });
 
     // Test status indicator change

@@ -1,11 +1,8 @@
-use crate::backend::{ContainerStatus, SetupProgress};
-use crate::container::ContainerManager;
-use crate::websocket_manager::WebSocketManager;
+use crate::{backend::*, container::*};
 use reqwest;
 use serde_json;
 use std::sync::Arc;
 use tauri::{Manager, State};
-use tokio::sync::Mutex;
 use tracing::{error, info};
 
 // Container management commands
@@ -423,43 +420,4 @@ pub async fn health_check() -> Result<String, String> {
     });
 
     Ok(health_status.to_string())
-}
-
-// WebSocket management commands
-#[tauri::command]
-pub async fn connect_websocket(
-    ws_manager: State<'_, Arc<Mutex<WebSocketManager>>>,
-    url: String,
-) -> Result<(), String> {
-    let mut manager = ws_manager.lock().await;
-    manager.connect(&url).await.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn disconnect_websocket(
-    ws_manager: State<'_, Arc<Mutex<WebSocketManager>>>,
-) -> Result<(), String> {
-    let mut manager = ws_manager.lock().await;
-    manager.disconnect().await;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn websocket_join_channel(
-    ws_manager: State<'_, Arc<Mutex<WebSocketManager>>>,
-    channel_id: String,
-) -> Result<(), String> {
-    let mut manager = ws_manager.lock().await;
-    manager
-        .join_channel(channel_id)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn is_websocket_connected(
-    ws_manager: State<'_, Arc<Mutex<WebSocketManager>>>,
-) -> Result<bool, String> {
-    let manager = ws_manager.lock().await;
-    Ok(manager.is_connected())
 }

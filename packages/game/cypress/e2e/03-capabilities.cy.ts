@@ -19,7 +19,7 @@ describe('Capabilities', () => {
       cy.request('GET', `${BACKEND_URL}/autonomy/status`).then((response) => {
         expect(response.status).to.eq(200);
         expect(response.body.success).to.be.true;
-        
+
         const data = response.body.data;
         expect(data).to.have.property('enabled');
         expect(data).to.have.property('running');
@@ -28,12 +28,12 @@ describe('Capabilities', () => {
         expect(data).to.have.property('autonomousRoomId');
         expect(data).to.have.property('agentId');
         expect(data).to.have.property('characterName');
-        
+
         expect(data.enabled).to.be.a('boolean');
         expect(data.running).to.be.a('boolean');
         expect(data.interval).to.be.a('number');
         expect(data.intervalSeconds).to.be.a('number');
-        
+
         cy.log(`✅ Autonomy status: ${data.enabled ? 'enabled' : 'disabled'}`);
         cy.log(`Running: ${data.running}`);
         cy.log(`Interval: ${data.intervalSeconds}s`);
@@ -46,7 +46,7 @@ describe('Capabilities', () => {
         expect(response.body.success).to.be.true;
         expect(response.body.data).to.have.property('enabled', true);
         expect(response.body.data).to.have.property('message', 'Autonomy enabled');
-        
+
         // Verify it's actually enabled
         cy.request('GET', `${BACKEND_URL}/autonomy/status`).then((statusResponse) => {
           expect(statusResponse.body.data.enabled).to.be.true;
@@ -58,14 +58,14 @@ describe('Capabilities', () => {
       // First enable to ensure we can disable
       cy.request('POST', `${BACKEND_URL}/autonomy/enable`);
       cy.wait(1000);
-      
+
       // Now disable
       cy.request('POST', `${BACKEND_URL}/autonomy/disable`).then((response) => {
         expect(response.status).to.eq(200);
         expect(response.body.success).to.be.true;
         expect(response.body.data).to.have.property('enabled', false);
         expect(response.body.data).to.have.property('message', 'Autonomy disabled');
-        
+
         // Verify it's actually disabled
         cy.request('GET', `${BACKEND_URL}/autonomy/status`).then((statusResponse) => {
           expect(statusResponse.body.data.enabled).to.be.false;
@@ -77,14 +77,14 @@ describe('Capabilities', () => {
       // Get current state
       cy.request('GET', `${BACKEND_URL}/autonomy/status`).then((initialResponse) => {
         const initialState = initialResponse.body.data.enabled;
-        
+
         // Toggle
         cy.request('POST', `${BACKEND_URL}/autonomy/toggle`).then((toggleResponse) => {
           expect(toggleResponse.status).to.eq(200);
           expect(toggleResponse.body.success).to.be.true;
           expect(toggleResponse.body.data.enabled).to.eq(!initialState);
         });
-        
+
         // Toggle back
         cy.request('POST', `${BACKEND_URL}/autonomy/toggle`).then((toggleBackResponse) => {
           expect(toggleBackResponse.status).to.eq(200);
@@ -96,11 +96,11 @@ describe('Capabilities', () => {
 
   describe('Vision Settings', () => {
     it('should get current vision settings', () => {
-      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings/vision`)
-        .then((response) => {
+      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings/vision`).then(
+        (response) => {
           expect(response.status).to.eq(200);
           expect(response.body.success).to.be.true;
-          
+
           const settings = response.body.data;
           expect(settings).to.have.property('ENABLE_CAMERA');
           expect(settings).to.have.property('ENABLE_SCREEN_CAPTURE');
@@ -110,13 +110,14 @@ describe('Capabilities', () => {
           expect(settings).to.have.property('VISION_SCREEN_ENABLED');
           expect(settings).to.have.property('VISION_MICROPHONE_ENABLED');
           expect(settings).to.have.property('VISION_SPEAKER_ENABLED');
-          
+
           cy.log('✅ Vision settings retrieved');
           cy.log(`Camera: ${settings.ENABLE_CAMERA}`);
           cy.log(`Screen: ${settings.ENABLE_SCREEN_CAPTURE}`);
           cy.log(`Microphone: ${settings.ENABLE_MICROPHONE}`);
           cy.log(`Speaker: ${settings.ENABLE_SPEAKER}`);
-        });
+        }
+      );
     });
 
     it('should toggle camera capability', () => {
@@ -124,18 +125,18 @@ describe('Capabilities', () => {
       cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings/vision`)
         .then((response) => {
           const currentState = response.body.data.ENABLE_CAMERA === 'true';
-          
+
           // Toggle camera
           return cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`, {
             key: 'ENABLE_CAMERA',
-            value: (!currentState).toString()
+            value: (!currentState).toString(),
           });
         })
         .then((response) => {
           expect(response.status).to.eq(200);
           expect(response.body.success).to.be.true;
           expect(response.body.data.key).to.eq('ENABLE_CAMERA');
-          
+
           // Refresh vision service
           return cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/vision/refresh`);
         })
@@ -149,10 +150,10 @@ describe('Capabilities', () => {
       cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings/vision`)
         .then((response) => {
           const currentState = response.body.data.ENABLE_SCREEN_CAPTURE === 'true';
-          
+
           return cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`, {
             key: 'ENABLE_SCREEN_CAPTURE',
-            value: (!currentState).toString()
+            value: (!currentState).toString(),
           });
         })
         .then((response) => {
@@ -165,10 +166,10 @@ describe('Capabilities', () => {
       cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings/vision`)
         .then((response) => {
           const currentState = response.body.data.ENABLE_MICROPHONE === 'true';
-          
+
           return cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`, {
             key: 'ENABLE_MICROPHONE',
-            value: (!currentState).toString()
+            value: (!currentState).toString(),
           });
         })
         .then((response) => {
@@ -181,10 +182,10 @@ describe('Capabilities', () => {
       cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings/vision`)
         .then((response) => {
           const currentState = response.body.data.ENABLE_SPEAKER === 'true';
-          
+
           return cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`, {
             key: 'ENABLE_SPEAKER',
-            value: (!currentState).toString()
+            value: (!currentState).toString(),
           });
         })
         .then((response) => {
@@ -196,31 +197,35 @@ describe('Capabilities', () => {
 
   describe('Shell and Browser Capabilities', () => {
     it('should get shell capability status', () => {
-      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/shell`)
-        .then((response) => {
+      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/shell`).then(
+        (response) => {
           expect(response.status).to.eq(200);
           expect(response.body.success).to.be.true;
-          
+
           const data = response.body.data;
           expect(data).to.have.property('enabled');
           expect(data).to.have.property('service_available');
           expect(data).to.have.property('service_name');
           expect(data.enabled).to.be.a('boolean');
           expect(data.service_available).to.be.a('boolean');
-          
+
           cy.log(`✅ Shell capability: ${data.enabled ? 'enabled' : 'disabled'}`);
           cy.log(`Service available: ${data.service_available}`);
-        });
+        }
+      );
     });
 
     it('should toggle shell capability', () => {
       // Get current state
       cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/shell`)
         .then((response) => {
-          const currentState = response.body.data.enabled;
-          
+          const _currentState = response.body.data.enabled;
+
           // Toggle
-          return cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/shell/toggle`);
+          return cy.request(
+            'POST',
+            `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/shell/toggle`
+          );
         })
         .then((response) => {
           expect(response.status).to.eq(200);
@@ -230,7 +235,10 @@ describe('Capabilities', () => {
         })
         .then(() => {
           // Verify toggle worked
-          return cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/shell`);
+          return cy.request(
+            'GET',
+            `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/shell`
+          );
         })
         .then((response) => {
           expect(response.status).to.eq(200);
@@ -239,27 +247,31 @@ describe('Capabilities', () => {
     });
 
     it('should get browser capability status', () => {
-      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/browser`)
-        .then((response) => {
+      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/browser`).then(
+        (response) => {
           expect(response.status).to.eq(200);
           expect(response.body.success).to.be.true;
-          
+
           const data = response.body.data;
           expect(data).to.have.property('enabled');
           expect(data).to.have.property('service_available');
           expect(data).to.have.property('service_name');
-          
+
           cy.log(`✅ Browser capability: ${data.enabled ? 'enabled' : 'disabled'}`);
           cy.log(`Service available: ${data.service_available}`);
-        });
+        }
+      );
     });
 
     it('should toggle browser capability', () => {
       cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/browser`)
         .then((response) => {
-          const currentState = response.body.data.enabled;
-          
-          return cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/browser/toggle`);
+          const _currentState = response.body.data.enabled;
+
+          return cy.request(
+            'POST',
+            `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/browser/toggle`
+          );
         })
         .then((response) => {
           expect(response.status).to.eq(200);
@@ -273,43 +285,57 @@ describe('Capabilities', () => {
   describe('Concurrent Capability Management', () => {
     it('should handle multiple capability toggles concurrently', () => {
       const capabilities = ['shell', 'browser'];
-      const promises = capabilities.map(cap =>
-        cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${cap}/toggle`)
+      const promises = capabilities.map((cap) =>
+        cy.request(
+          'POST',
+          `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${cap}/toggle`
+        )
       );
 
       cy.wrap(Promise.all(promises)).then((responses: any[]) => {
-        responses.forEach(response => {
+        responses.forEach((response) => {
           expect(response.status).to.eq(200);
           expect(response.body.success).to.be.true;
         });
-        
+
         cy.log(`✅ Handled ${capabilities.length} concurrent toggles`);
       });
     });
 
     it('should handle rapid toggling without race conditions', () => {
       const capability = 'shell';
-      
+
       // Get initial state
-      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}`)
-        .then((initialResponse) => {
-          const initialState = initialResponse.body.data.enabled;
-          
-          // Rapid toggles (3 times - odd number)
-          const togglePromises = [];
-          for (let i = 0; i < 3; i++) {
-            togglePromises.push(
-              cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}/toggle`)
-            );
-          }
-          
-          return cy.wrap(Promise.all(togglePromises)).then(() => {
+      cy.request(
+        'GET',
+        `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}`
+      ).then((initialResponse) => {
+        const initialState = initialResponse.body.data.enabled;
+
+        // Rapid toggles (3 times - odd number)
+        const togglePromises = [];
+        for (let i = 0; i < 3; i++) {
+          togglePromises.push(
+            cy.request(
+              'POST',
+              `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}/toggle`
+            )
+          );
+        }
+
+        return cy
+          .wrap(Promise.all(togglePromises))
+          .then(() => {
             // Final state should be opposite of initial
-            return cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}`);
-          }).then((finalResponse) => {
+            return cy.request(
+              'GET',
+              `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}`
+            );
+          })
+          .then((finalResponse) => {
             expect(finalResponse.body.data.enabled).to.eq(!initialState);
           });
-        });
+      });
     });
   });
 
@@ -317,53 +343,55 @@ describe('Capabilities', () => {
     it('should persist capability settings', () => {
       const testKey = `TEST_CAPABILITY_${Date.now()}`;
       const testValue = 'true';
-      
+
       // Set a custom setting
       cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`, {
         key: testKey,
-        value: testValue
+        value: testValue,
       }).then((response) => {
         expect(response.status).to.eq(200);
         expect(response.body.success).to.be.true;
         expect(response.body.data.key).to.eq(testKey);
         expect(response.body.data.value).to.eq(testValue);
       });
-      
+
       // Verify it persisted
-      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`)
-        .then((response) => {
+      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`).then(
+        (response) => {
           expect(response.status).to.eq(200);
           expect(response.body.success).to.be.true;
           expect(response.body.data).to.have.property(testKey, testValue);
-        });
+        }
+      );
     });
 
     it('should handle batch setting updates', () => {
       const settings = {
         BATCH_TEST_1: 'value1',
         BATCH_TEST_2: 'value2',
-        BATCH_TEST_3: 'value3'
+        BATCH_TEST_3: 'value3',
       };
-      
+
       // Update multiple settings
       const promises = Object.entries(settings).map(([key, value]) =>
         cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`, { key, value })
       );
-      
+
       cy.wrap(Promise.all(promises)).then((responses: any[]) => {
-        responses.forEach(response => {
+        responses.forEach((response) => {
           expect(response.status).to.eq(200);
           expect(response.body.success).to.be.true;
         });
       });
-      
+
       // Verify all settings persisted
-      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`)
-        .then((response) => {
+      cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`).then(
+        (response) => {
           Object.entries(settings).forEach(([key, value]) => {
             expect(response.body.data).to.have.property(key, value);
           });
-        });
+        }
+      );
     });
   });
 
@@ -372,7 +400,7 @@ describe('Capabilities', () => {
       cy.request({
         method: 'GET',
         url: `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/invalid_capability`,
-        failOnStatusCode: false
+        failOnStatusCode: false,
       }).then((response) => {
         expect(response.status).to.eq(200);
         expect(response.body.success).to.be.true;
@@ -385,7 +413,7 @@ describe('Capabilities', () => {
         method: 'POST',
         url: `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`,
         body: { value: 'test' },
-        failOnStatusCode: false
+        failOnStatusCode: false,
       }).then((response) => {
         expect(response.status).to.eq(400);
         expect(response.body.success).to.be.false;
@@ -397,7 +425,7 @@ describe('Capabilities', () => {
       cy.request({
         method: 'GET',
         url: `${BACKEND_URL}/autonomy/status`,
-        failOnStatusCode: false
+        failOnStatusCode: false,
       }).then((response) => {
         if (response.status === 503) {
           expect(response.body.success).to.be.false;
@@ -413,20 +441,27 @@ describe('Capabilities', () => {
   describe('Real-time Updates', () => {
     it('should reflect capability changes immediately', () => {
       const capability = 'shell';
-      
+
       // Get initial state
       cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}`)
         .then((response) => {
-          const initialState = response.body.data.enabled;
-          
+          const _initialState = response.body.data.enabled;
+
           // Toggle capability
-          return cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}/toggle`);
+          return cy.request(
+            'POST',
+            `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}/toggle`
+          );
         })
         .then((toggleResponse) => {
           const newState = toggleResponse.body.data.enabled;
-          
+
           // Immediately check state
-          return cy.request('GET', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}`)
+          return cy
+            .request(
+              'GET',
+              `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${capability}`
+            )
             .then((checkResponse) => {
               expect(checkResponse.body.data.enabled).to.eq(newState);
             });
@@ -442,7 +477,7 @@ describe('Capabilities', () => {
         })
         .then((response) => {
           expect(response.body.data.enabled).to.be.true;
-          
+
           // Disable autonomy
           return cy.request('POST', `${BACKEND_URL}/autonomy/disable`);
         })
@@ -461,29 +496,29 @@ describe('Capabilities', () => {
 describe('Capabilities Summary', () => {
   it('should verify all capabilities are functional', () => {
     const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
-    const capabilities = [
+    const _capabilities = [
       { name: 'Autonomy', type: 'autonomy' },
       { name: 'Camera', type: 'vision', key: 'ENABLE_CAMERA' },
       { name: 'Screen', type: 'vision', key: 'ENABLE_SCREEN_CAPTURE' },
       { name: 'Microphone', type: 'vision', key: 'ENABLE_MICROPHONE' },
       { name: 'Speaker', type: 'vision', key: 'ENABLE_SPEAKER' },
       { name: 'Shell', type: 'capability', key: 'shell' },
-      { name: 'Browser', type: 'capability', key: 'browser' }
+      { name: 'Browser', type: 'capability', key: 'browser' },
     ];
-    
+
     const results = [];
-    
+
     cy.log('🎯 CAPABILITIES VERIFICATION:');
-    
+
     // Test autonomy
     cy.request('GET', `${BACKEND_URL}/autonomy/status`).then((response) => {
       results.push({
         name: 'Autonomy',
         status: response.status === 200 ? 'working' : 'failed',
-        enabled: response.body.data?.enabled || false
+        enabled: response.body.data?.enabled || false,
       });
     });
-    
+
     // Test vision settings
     cy.request('GET', `${BACKEND_URL}/api/agents/default/settings/vision`).then((response) => {
       if (response.status === 200) {
@@ -496,29 +531,31 @@ describe('Capabilities Summary', () => {
         );
       }
     });
-    
+
     // Test other capabilities
-    ['shell', 'browser'].forEach(cap => {
-      cy.request('GET', `${BACKEND_URL}/api/agents/default/capabilities/${cap}`).then((response) => {
-        results.push({
-          name: cap.charAt(0).toUpperCase() + cap.slice(1),
-          status: response.status === 200 ? 'working' : 'failed',
-          enabled: response.body.data?.enabled || false
-        });
-      });
+    ['shell', 'browser'].forEach((cap) => {
+      cy.request('GET', `${BACKEND_URL}/api/agents/default/capabilities/${cap}`).then(
+        (response) => {
+          results.push({
+            name: cap.charAt(0).toUpperCase() + cap.slice(1),
+            status: response.status === 200 ? 'working' : 'failed',
+            enabled: response.body.data?.enabled || false,
+          });
+        }
+      );
     });
-    
+
     cy.then(() => {
-      results.forEach(result => {
+      results.forEach((result) => {
         const icon = result.status === 'working' ? '✅' : '❌';
         const state = result.enabled ? 'ON' : 'OFF';
         cy.log(`${icon} ${result.name}: ${result.status} [${state}]`);
       });
-      
-      const workingCount = results.filter(r => r.status === 'working').length;
+
+      const workingCount = results.filter((r) => r.status === 'working').length;
       cy.log(`\n✅ ${workingCount}/${results.length} capabilities functional`);
-      
+
       cy.screenshot('capabilities-summary');
     });
   });
-}); 
+});

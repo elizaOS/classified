@@ -113,7 +113,7 @@ teardown() {
             "source_type": "game_ui",
             "metadata": {
                 "callback_url": "http://127.0.0.1:8888/agent-response",
-                "source": "eliza_game",
+                "source": "eliza",
                 "userName": "Admin"
             }
         }')

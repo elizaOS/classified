@@ -8,7 +8,7 @@ import {
   encryptStringValue,
 } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import { sendError, sendSuccess } from '../shared/response-utils';
 
 /**
@@ -127,8 +127,15 @@ export function createAgentCrudRouter(
         logger.debug('[AGENT CREATE] Encrypting secrets');
         const salt = getSalt();
         // Only encrypt if secrets is an object
-        if (typeof character.settings.secrets === 'object' && character.settings.secrets !== null && !Array.isArray(character.settings.secrets)) {
-          character.settings.secrets = encryptObjectValues(character.settings.secrets as Record<string, any>, salt);
+        if (
+          typeof character.settings.secrets === 'object' &&
+          character.settings.secrets !== null &&
+          !Array.isArray(character.settings.secrets)
+        ) {
+          character.settings.secrets = encryptObjectValues(
+            character.settings.secrets as Record<string, any>,
+            salt
+          );
         }
       }
 
@@ -152,7 +159,7 @@ export function createAgentCrudRouter(
         success: true,
         data: {
           id: newAgent.id,
-          character: character,
+          character,
         },
       });
       logger.success(`[AGENT CREATE] Successfully created agent: ${character.name}`);
@@ -342,75 +349,6 @@ export function createAgentCrudRouter(
           details: lastError instanceof Error ? lastError.message : String(lastError),
         },
       });
-    }
-  });
-
-  // Send message to agent
-  router.post('/:agentId/message', async (req, res) => {
-    logger.debug('[AGENT MESSAGE] Received message request');
-    
-    const agentId = validateUuid(req.params.agentId);
-    if (!agentId) {
-      return sendError(res, 400, 'INVALID_ID', 'Invalid agent ID format');
-    }
-
-    const { text, userId, userName, roomId, messageId } = req.body;
-    
-    if (!text || typeof text !== 'string') {
-      return sendError(res, 400, 'INVALID_INPUT', 'Message text is required');
-    }
-
-    try {
-      const runtime = agents.get(agentId);
-      if (!runtime) {
-        return sendError(res, 404, 'AGENT_NOT_FOUND', 'Agent not found or not running');
-      }
-
-      logger.debug(`[AGENT MESSAGE] Processing message for agent ${agentId}: "${text}"`);
-
-      // Create message object for the agent
-      const message = {
-        id: messageId || crypto.randomUUID(),
-        agentId,
-        userId: userId || 'user',
-        content: {
-          text,
-          action: 'CONTINUE',
-        },
-        roomId: roomId || 'default',
-        userName: userName || 'User',
-        createdAt: Date.now(),
-      };
-
-      logger.debug(`[AGENT MESSAGE] Created message object for agent ${agentId}:`, JSON.stringify(message, null, 2));
-
-      // Try to process the message through the agent
-      logger.debug(`[AGENT MESSAGE] Attempting to process message through agent runtime...`);
-      
-      // Use the composeState function to prepare state for the agent
-      const state = await runtime.composeState(message);
-      
-      // Generate a response using the agent
-      const response = await runtime.generateText(state);
-      
-      logger.debug(`[AGENT MESSAGE] Agent ${agentId} generated response: "${response}"`);
-
-      sendSuccess(res, {
-        message: 'Message processed successfully',
-        messageId: message.id,
-        response: response || 'Message received',
-        agentId,
-      });
-
-    } catch (error) {
-      logger.error('[AGENT MESSAGE] Error processing message:', error);
-      sendError(
-        res,
-        500,
-        'PROCESSING_ERROR',
-        'Error processing message',
-        error instanceof Error ? error.message : String(error)
-      );
     }
   });
 

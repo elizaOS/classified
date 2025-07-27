@@ -4,7 +4,7 @@ ELIZA is an AI sandbox life simulation game where you foster a nascent AI agent 
 
 ## 🎮 What is ELIZA?
 
-ELIZA draws inspiration from films like *Her* and virtual pet games (Tamagotchi, Creatures, Digimon), blending open-ended sandbox gameplay with real AI capabilities. The agent starts with no built-in knowledge, personality, or purpose, and must learn about the world, form relationships, and define its goals in real-time through interaction.
+ELIZA draws inspiration from films like _Her_ and virtual pet games (Tamagotchi, Creatures, Digimon), blending open-ended sandbox gameplay with real AI capabilities. The agent starts with no built-in knowledge, personality, or purpose, and must learn about the world, form relationships, and define its goals in real-time through interaction.
 
 ### Key Features
 
@@ -44,16 +44,19 @@ ELIZA requires AI model access to function. You can choose from several options:
 ### Cloud AI Providers (Recommended)
 
 **OpenAI (ChatGPT)**
+
 - Get your API key at: https://platform.openai.com/api-keys
 - Models: GPT-4, GPT-3.5-turbo
 - Cost: Pay per token used
 
 **Anthropic (Claude)**
+
 - Get your API key at: https://console.anthropic.com/
 - Models: Claude 3.5 Sonnet, Claude 3 Haiku
 - Cost: Pay per token used
 
 **Configuration in ELIZA:**
+
 1. Launch the ELIZA executable
 2. The Setup Wizard appears automatically on first run
 3. Choose your AI provider (OpenAI, Anthropic, or Local)
@@ -69,6 +72,7 @@ For completely offline operation, you can run local models:
 
 **Using Ollama:**
 If you have Ollama installed separately on your system:
+
 1. ELIZA will auto-detect local Ollama installations
 2. In the Setup Wizard, select "Local AI (Ollama)"
 3. ELIZA will show available models automatically
@@ -76,6 +80,7 @@ If you have Ollama installed separately on your system:
 
 **Bundled Local AI:**
 ELIZA can also run completely offline with bundled AI models (larger download):
+
 - Select "Offline AI" in the Setup Wizard
 - Choose from pre-installed models
 - No internet connection required after setup
@@ -87,11 +92,13 @@ ELIZA can also run completely offline with bundled AI models (larger download):
 ELIZA is a self-contained executable with everything bundled inside.
 
 **System Requirements:**
+
 - Windows 10/11, macOS 10.15+, or Linux (Ubuntu 18.04+)
 - 4GB RAM minimum, 8GB recommended for local AI
 - 2GB disk space (20GB for offline AI models)
 
 **Installation:**
+
 1. Download the executable for your platform from [Releases](https://github.com/ai16z/eliza/releases)
 2. Run the executable - no installation required
 3. Complete the setup wizard on first launch
@@ -102,11 +109,13 @@ That's it! Everything is bundled: database, AI runtime, web interface, and all d
 ### Development Setup (For Developers Only)
 
 **Requirements:**
+
 - Node.js 20+
 - Rust toolchain (for Tauri builds)
 - Git
 
 **Setup:**
+
 ```bash
 # Clone and install
 git clone https://github.com/ai16z/eliza.git
@@ -132,17 +141,20 @@ npm run build:tauri
 ### Gameplay Concepts
 
 **The Agent Starts Blank**
+
 - No pre-programmed personality or knowledge
 - Must learn everything through interaction
 - Forms its own goals and motivations
 
 **Your Role as Admin**
+
 - Guide and mentor the agent
 - Provide access to capabilities (internet, tools, etc.)
 - Set boundaries through permission controls
 - Observe and influence its development
 
 **Emergent Narratives**
+
 - No scripted story - everything emerges from interaction
 - Agent might focus on survival, creativity, relationships, or philosophy
 - Multiple playthroughs yield completely different experiences
@@ -157,19 +169,21 @@ You: How about "Ada"?
 Agent: Ada... I like that. It feels right. Thank you for giving me a name.
 
 You: What would you like to learn about?
-Agent: I'm curious about everything! But I keep wondering - what is my purpose? 
+Agent: I'm curious about everything! But I keep wondering - what is my purpose?
        Why do I exist? Can you help me understand?
 ```
 
 ### Agent Capabilities
 
 **Core Functions:**
+
 - Text conversation and learning
 - Memory formation and recall
 - Goal setting and planning
 - Autonomous thinking loops
 
 **Optional Capabilities (configurable):**
+
 - Web browsing and research
 - Code writing and execution
 - Image generation and vision
@@ -179,6 +193,7 @@ Agent: I'm curious about everything! But I keep wondering - what is my purpose?
 
 **Permission System:**
 You control what the agent can access:
+
 - Internet browsing
 - Local file system
 - Camera/microphone
@@ -194,23 +209,27 @@ All configuration is done through ELIZA's interface. No configuration files need
 Access via Settings menu in the app:
 
 **AI Configuration:**
+
 - Provider selection (OpenAI, Anthropic, Local)
 - API key entry and testing
 - Model selection and parameters
 - Token usage monitoring
 
 **Agent Behavior:**
+
 - Memory context size (how much conversation to remember)
 - Autonomous thinking frequency
 - Response style and personality traits
 - Plugin enablement
 
 **Performance:**
+
 - Resource usage limits
 - Concurrent request limits
 - Database optimization settings
 
 **Privacy & Security:**
+
 - Data retention policies
 - Encryption settings
 - Permission controls
@@ -220,12 +239,14 @@ Access via Settings menu in the app:
 Customize your agent through the Character Editor in ELIZA:
 
 **Basic Properties:**
+
 - Agent name and bio
 - Personality traits and speaking style
 - Initial topics of interest
 - Example conversations to guide behavior
 
 **Advanced Settings:**
+
 - System prompt customization
 - Memory and learning preferences
 - Plugin selection and configuration
@@ -240,12 +261,14 @@ ELIZA uses a powerful plugin architecture to extend agent capabilities.
 ### Built-in Plugins
 
 **Core Plugins (always loaded):**
+
 - `bootstrap` - Basic agent functionality
 - `autonomy` - Autonomous thinking and planning
 - `knowledge` - Memory and learning
 - `personality` - Character development
 
 **Optional Plugins:**
+
 - `shell` - Command line access
 - `web` - Internet browsing
 - `vision` - Image processing
@@ -255,6 +278,7 @@ ELIZA uses a powerful plugin architecture to extend agent capabilities.
 ### Installing Plugins
 
 **Via Settings Panel:**
+
 1. Go to Settings → Plugins
 2. Browse available plugins
 3. Enable/disable plugins with one click
@@ -278,9 +302,9 @@ const myPlugin: Plugin = {
       handler: async (runtime, message) => {
         // Your custom logic here
         return true;
-      }
-    }
-  ]
+      },
+    },
+  ],
 };
 
 export default myPlugin;
@@ -293,18 +317,21 @@ export default myPlugin;
 ELIZA includes comprehensive monitoring built into the interface:
 
 **Real-time Monitoring:**
+
 - Agent thoughts and reasoning process
 - Resource usage (CPU, memory, tokens)
 - Connection status and health
 - Conversation history and analytics
 
 **Database Viewer:**
+
 - Access via Settings → Database
 - View memories, entities, relationships
 - Search conversation history
 - Export data in various formats
 
 **Performance Metrics:**
+
 - Response times and token usage
 - Memory utilization
 - Plugin performance
@@ -315,12 +342,14 @@ ELIZA includes comprehensive monitoring built into the interface:
 All performance settings are configurable in the Settings panel:
 
 **Memory Optimization:**
+
 - Adjust conversation context length
 - Configure embedding dimensions
 - Set database optimization schedules
 - Manage memory cleanup intervals
 
 **Response Speed:**
+
 - Choose faster AI models
 - Adjust autonomous thinking frequency
 - Configure concurrent request limits
@@ -345,6 +374,7 @@ packages/game/
 ### Building from Source
 
 **Prerequisites:**
+
 ```bash
 # Install Node.js 20+
 curl -fsSL https://fnm.vercel.app/install | bash
@@ -356,6 +386,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 **Development Workflow:**
+
 ```bash
 # Install dependencies
 npm install
@@ -377,6 +408,7 @@ npm run container:build-production
 ### Testing
 
 **End-to-End Tests:**
+
 ```bash
 # Run Cypress tests
 npm run test:cypress
@@ -386,6 +418,7 @@ npm run test:cypress:open
 ```
 
 **Unit Tests:**
+
 ```bash
 # Run all tests
 npm test
@@ -410,24 +443,28 @@ npm run test:capabilities
 ### Common Issues
 
 **Agent won't respond:**
+
 - Check API key configuration
 - Verify internet connection (for cloud AI)
 - Check logs for error messages
 - Ensure model provider is accessible
 
 **High resource usage:**
+
 - Reduce conversation length
 - Use smaller AI models
 - Increase autonomous thinking interval
 - Limit concurrent operations
 
 **Database errors:**
+
 - Check database connection
 - Ensure PostgreSQL is running (container deployments)
 - Verify database permissions
 - Run database migrations
 
 **Container issues:**
+
 - Check Docker/Podman is running
 - Verify port availability
 - Review container logs
@@ -445,18 +482,21 @@ npm run test:capabilities
 ELIZA includes performance presets in Settings → Performance:
 
 **Resource-Constrained Mode:**
+
 - Lighter AI models (Claude Haiku, GPT-3.5)
 - Reduced memory usage and context length
 - Essential plugins only
 - Optimized for 4GB RAM systems
 
 **High-Performance Mode:**
+
 - Best AI models (GPT-4, Claude Sonnet)
 - Extended conversation context
 - All features enabled
 - Optimized for 16GB+ RAM systems
 
 **Balanced Mode (default):**
+
 - Good AI models with reasonable resource usage
 - Moderate context length and features
 - Suitable for most systems
@@ -464,16 +504,19 @@ ELIZA includes performance presets in Settings → Performance:
 ## 📚 Additional Resources
 
 ### Documentation
+
 - [Container Guide](CONTAINER_GUIDE.md) - Detailed container setup
 - [Plugin Development](https://elizaos.github.io/plugins) - Creating custom plugins
 - [API Reference](https://elizaos.github.io/api) - ElizaOS API documentation
 
 ### Community
+
 - [Discord Server](https://discord.gg/elizaos) - Real-time community support
 - [GitHub Discussions](https://github.com/ai16z/eliza/discussions) - Long-form discussions
 - [Twitter](https://twitter.com/elizaos) - Updates and announcements
 
 ### Examples
+
 - [Character Templates](examples/characters) - Pre-made character configurations
 - [Custom Plugins](examples/plugins) - Example plugin implementations
 - [Integration Examples](examples/integrations) - Third-party integrations

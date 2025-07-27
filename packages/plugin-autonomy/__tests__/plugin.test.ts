@@ -18,7 +18,7 @@ describe('Autonomy Plugin Tests', () => {
       ADMIN_USER_ID: 'a1b2c3d4-5678-4abc-b123-123456789012',
       AUTONOMY_ENABLED: false,
     };
-    
+
     mockRuntime = {
       character: {
         name: 'TestAgent',

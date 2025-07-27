@@ -2,7 +2,7 @@
 
 # Build outputs
 dist/
-dist-backend/
+dist/
 build/
 target/
 # Keep dist-binaries for containerization

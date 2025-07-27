@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { 
-  AgentRuntime, 
-  elizaLogger, 
-  type IAgentRuntime, 
+import {
+  AgentRuntime,
+  elizaLogger,
+  type IAgentRuntime,
   type UUID,
   type Plugin,
-  Service
+  Service,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import sqlPlugin from '@elizaos/plugin-sql';
@@ -57,7 +57,7 @@ describe('AutoCoder Real-World Scenarios', () => {
     const missingVars = Object.entries(requiredEnvVars)
       .filter(([_, value]) => !value)
       .map(([key]) => key);
-    
+
     if (missingVars.length > 0) {
       console.warn(`⚠️ Missing environment variables: ${missingVars.join(', ')}`);
       console.warn('Some tests may be skipped without real API keys');
@@ -87,11 +87,17 @@ describe('AutoCoder Real-World Scenarios', () => {
         secrets: {},
         settings: {
           // Pass through required API keys
-          ...(requiredEnvVars.ANTHROPIC_API_KEY && { ANTHROPIC_API_KEY: requiredEnvVars.ANTHROPIC_API_KEY }),
+          ...(requiredEnvVars.ANTHROPIC_API_KEY && {
+            ANTHROPIC_API_KEY: requiredEnvVars.ANTHROPIC_API_KEY,
+          }),
           ...(requiredEnvVars.E2B_API_KEY && { E2B_API_KEY: requiredEnvVars.E2B_API_KEY }),
           ...(requiredEnvVars.GITHUB_TOKEN && { GITHUB_TOKEN: requiredEnvVars.GITHUB_TOKEN }),
-          ...(requiredEnvVars.DISCORD_BOT_TOKEN && { DISCORD_BOT_TOKEN: requiredEnvVars.DISCORD_BOT_TOKEN }),
-          ...(requiredEnvVars.OPENWEATHER_API_KEY && { OPENWEATHER_API_KEY: requiredEnvVars.OPENWEATHER_API_KEY }),
+          ...(requiredEnvVars.DISCORD_BOT_TOKEN && {
+            DISCORD_BOT_TOKEN: requiredEnvVars.DISCORD_BOT_TOKEN,
+          }),
+          ...(requiredEnvVars.OPENWEATHER_API_KEY && {
+            OPENWEATHER_API_KEY: requiredEnvVars.OPENWEATHER_API_KEY,
+          }),
         },
       },
     });
@@ -156,7 +162,9 @@ describe('AutoCoder Real-World Scenarios', () => {
         try {
           await runtime.registerService(serviceClass);
         } catch (error) {
-          console.warn(`⚠️ Failed to register service: ${error instanceof Error ? error.message : String(error)}`);
+          console.warn(
+            `⚠️ Failed to register service: ${error instanceof Error ? error.message : String(error)}`
+          );
         }
       }
       servicesInitQueue.clear();
@@ -179,19 +187,19 @@ describe('AutoCoder Real-World Scenarios', () => {
     } catch (error) {
       console.warn('⚠️ Code generation service not available');
     }
-    
+
     try {
       formsService = runtime.getService('forms');
     } catch (error) {
       console.warn('⚠️ Forms service not available');
     }
-    
+
     try {
       e2bService = runtime.getService('e2b');
     } catch (error) {
       console.warn('⚠️ E2B service not available');
     }
-    
+
     try {
       githubService = runtime.getService('github');
     } catch (error) {
@@ -208,21 +216,25 @@ describe('AutoCoder Real-World Scenarios', () => {
     // For testing, we'll create a mock code generation service if the real one isn't available
     if (!codeGenService) {
       console.log('🎭 Creating mock code generation service for testing...');
-      
+
       // Create a mock service that simulates code generation
       const mockCodeGenService = {
         generateCode: async (request: any) => {
           console.log('🎭 Mock generateCode called with:', request.projectName);
-          
+
           // Simulate successful code generation
           const files = [
             {
               path: 'package.json',
-              content: JSON.stringify({
-                name: request.projectName,
-                version: '1.0.0',
-                description: request.description,
-              }, null, 2),
+              content: JSON.stringify(
+                {
+                  name: request.projectName,
+                  version: '1.0.0',
+                  description: request.description,
+                },
+                null,
+                2
+              ),
             },
             {
               path: 'src/index.ts',
@@ -238,11 +250,11 @@ describe('AutoCoder Real-World Scenarios', () => {
             },
             {
               path: 'src/services/main.ts',
-              content: `// Main service implementation`,
+              content: '// Main service implementation',
             },
             {
               path: 'src/actions/core.ts',
-              content: `// Core actions implementation`,
+              content: '// Core actions implementation',
             },
           ];
 
@@ -250,11 +262,15 @@ describe('AutoCoder Real-World Scenarios', () => {
           if (request.targetType === 'agent') {
             files.push({
               path: 'character.json',
-              content: JSON.stringify({
-                name: request.projectName,
-                bio: [request.description],
-                system: 'Generated agent character',
-              }, null, 2),
+              content: JSON.stringify(
+                {
+                  name: request.projectName,
+                  bio: [request.description],
+                  system: 'Generated agent character',
+                },
+                null,
+                2
+              ),
             });
           }
 
@@ -263,11 +279,11 @@ describe('AutoCoder Real-World Scenarios', () => {
             files.push(
               {
                 path: 'src/__tests__/integration.test.ts',
-                content: `// Integration tests`,
+                content: '// Integration tests',
               },
               {
                 path: 'src/__tests__/unit.test.ts',
-                content: `// Unit tests`,
+                content: '// Unit tests',
               }
             );
           }
@@ -289,7 +305,7 @@ describe('AutoCoder Real-World Scenarios', () => {
 
     if (!formsService) {
       console.log('🎭 Creating mock forms service for testing...');
-      
+
       // Create a mock forms service
       const mockFormsService = {
         createForm: async (config: any) => {
@@ -320,7 +336,7 @@ describe('AutoCoder Real-World Scenarios', () => {
 
   afterAll(async () => {
     console.log('🧹 Cleaning up AutoCoder test environment...');
-    
+
     try {
       // Stop all services through runtime
       if (e2bService) {
@@ -408,7 +424,7 @@ describe('AutoCoder Real-World Scenarios', () => {
             console.log('🔬 Triggering research phase...');
             researchTriggered = true;
             researchData = data;
-            
+
             // Simulate research process
             return {
               researchResults: {
@@ -423,7 +439,7 @@ describe('AutoCoder Real-World Scenarios', () => {
       };
 
       const form = await formsService.createForm(formConfig);
-      
+
       // Simulate form step completion
       try {
         await formsService.updateForm(form.id, {
@@ -477,7 +493,7 @@ describe('AutoCoder Real-World Scenarios', () => {
         onComplete: async (data: any) => {
           console.log('📄 Generating project plan...');
           planGenerated = true;
-          
+
           // Simulate plan generation
           generatedPlan = {
             projectName: data.projectName,
@@ -489,13 +505,13 @@ describe('AutoCoder Real-World Scenarios', () => {
             timeline: '2 weeks',
             deliverables: ['MVP', 'Documentation', 'Tests'],
           };
-          
+
           return generatedPlan;
         },
       };
 
       const form = await formsService.createForm(formConfig);
-      
+
       // Simulate form completion
       planGenerated = true;
       generatedPlan = {
@@ -530,7 +546,7 @@ describe('AutoCoder Real-World Scenarios', () => {
 
       expect(result).toBeDefined();
       expect(result.success).toBe(true);
-      
+
       if (result.success) {
         expect(result.files).toBeDefined();
         expect(result.files!.length).toBeGreaterThan(0);
@@ -614,9 +630,7 @@ describe('AutoCoder Real-World Scenarios', () => {
       if (result.success && result.files) {
         // Look for RSS monitoring implementation
         const rssFiles = result.files.filter(
-          (f) =>
-            f.content.toLowerCase().includes('rss') ||
-            f.content.toLowerCase().includes('feed')
+          (f) => f.content.toLowerCase().includes('rss') || f.content.toLowerCase().includes('feed')
         );
 
         expect(rssFiles.length).toBeGreaterThan(0);
@@ -648,8 +662,7 @@ describe('AutoCoder Real-World Scenarios', () => {
         // Look for Discord integration features
         const discordFiles = result.files.filter(
           (f) =>
-            f.content.toLowerCase().includes('discord') ||
-            f.content.toLowerCase().includes('embed')
+            f.content.toLowerCase().includes('discord') || f.content.toLowerCase().includes('embed')
         );
 
         expect(discordFiles.length).toBeGreaterThan(0);
@@ -772,8 +785,7 @@ describe('AutoCoder Real-World Scenarios', () => {
         // Look for API integration
         const apiFiles = result.files.filter(
           (f) =>
-            f.content.toLowerCase().includes('api') ||
-            f.content.toLowerCase().includes('fetch')
+            f.content.toLowerCase().includes('api') || f.content.toLowerCase().includes('fetch')
         );
 
         expect(apiFiles.length).toBeGreaterThan(0);
@@ -903,7 +915,7 @@ describe('AutoCoder Real-World Scenarios', () => {
 
         // Verify comprehensive file generation
         expect(result.files).toBeDefined();
-        
+
         // When using mock generation, we might get fewer files
         const hasModelHandler = (runtime as any).modelHandlers?.TEXT_LARGE;
         if (hasModelHandler) {
@@ -916,7 +928,7 @@ describe('AutoCoder Real-World Scenarios', () => {
         // Check for essential components
         const fileNames = result.files!.map((f) => f.path);
         const requiredFiles = ['src/index.ts', 'package.json'];
-        
+
         // character.json only for agents
         if (validationProject.targetType === 'agent') {
           requiredFiles.push('character.json');

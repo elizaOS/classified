@@ -3,9 +3,9 @@ import { logger, validateUuid } from '@elizaos/core';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
-import http from 'node:http';
+
 import { match, MatchFunction } from 'path-to-regexp';
-import type { AgentServer } from '../index';
+import type { AgentServer } from '../server';
 // Import new domain routers
 import { agentsRouter } from './agents';
 import { messagingRouter } from './messaging';
@@ -23,7 +23,6 @@ import {
   validateContentTypeMiddleware,
   createApiRateLimit,
 } from './shared/middleware';
-
 
 // Extracted function to handle plugin routes
 export function createPluginRouteHandler(agents: Map<UUID, IAgentRuntime>): express.RequestHandler {
@@ -66,8 +65,51 @@ export function createPluginRouteHandler(agents: Map<UUID, IAgentRuntime>): expr
       res.setHeader('Content-Type', 'application/javascript');
     }
 
+    // First, check if any agent has a public route that matches
+    // Public routes should work even without agents
+    for (const [_, runtime] of agents) {
+      for (const route of runtime.routes) {
+        if (!route.public) {
+          continue;
+        } // Only check public routes here
+
+        const methodMatches = req.method.toLowerCase() === route.type.toLowerCase();
+        if (!methodMatches) {
+          continue;
+        }
+
+        const routePath = route.path.startsWith('/') ? route.path : `/${route.path}`;
+
+        if (routePath === req.path) {
+          logger.debug(
+            `Public plugin route matched: [${route.type.toUpperCase()}] ${routePath} (Agent: ${runtime.agentId})`
+          );
+          try {
+            route?.handler?.(req, res, runtime);
+            return; // Route handled
+          } catch (error) {
+            logger.error(`Error handling public plugin route ${routePath}`, {
+              error,
+              path: req.path,
+            });
+            if (!res.headersSent) {
+              const status =
+                (error instanceof Error && 'code' in error && error.code === 'ENOENT') ||
+                (error instanceof Error && error.message?.includes('not found'))
+                  ? 404
+                  : 500;
+              res.status(status).json({
+                error: error instanceof Error ? error.message : 'Error processing route',
+              });
+            }
+            return; // Error handled
+          }
+        }
+      }
+    }
+
     if (agents.size === 0) {
-      logger.debug('No agents available, skipping plugin route handling.');
+      logger.debug('No agents available, skipping non-public plugin route handling.');
       return next();
     }
 
@@ -82,10 +124,14 @@ export function createPluginRouteHandler(agents: Map<UUID, IAgentRuntime>): expr
           `Agent-scoped request for Agent ID: ${agentIdFromQuery} from query. Path: ${reqPath}`
         );
         for (const route of runtime.routes) {
-          if (handled) break;
+          if (handled) {
+            break;
+          }
 
           const methodMatches = req.method.toLowerCase() === route.type.toLowerCase();
-          if (!methodMatches) continue;
+          if (!methodMatches) {
+            continue;
+          }
 
           const routePath = route.path.startsWith('/') ? route.path : `/${route.path}`;
 
@@ -216,13 +262,19 @@ export function createPluginRouteHandler(agents: Map<UUID, IAgentRuntime>): expr
       logger.debug(`No valid agentId in query. Trying global match for path: ${reqPath}`);
       for (const [_, runtime] of agents) {
         // Iterate over all agents
-        if (handled) break; // If handled by a previous agent's route (e.g. specific match)
+        if (handled) {
+          break;
+        } // If handled by a previous agent's route (e.g. specific match)
 
         for (const route of runtime.routes) {
-          if (handled) break;
+          if (handled) {
+            break;
+          }
 
           const methodMatches = req.method.toLowerCase() === route.type.toLowerCase();
-          if (!methodMatches) continue;
+          if (!methodMatches) {
+            continue;
+          }
 
           const routePath = route.path.startsWith('/') ? route.path : `/${route.path}`;
 

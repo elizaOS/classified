@@ -4,8 +4,8 @@ describe('🎉 Final Success Verification', () => {
     cy.request('GET', 'http://localhost:7777/api/todos').then((response) => {
       expect(response.status).to.equal(200);
       const todoCount = response.body
-        .flatMap(world => world.rooms)
-        .flatMap(room => room.tasks).length;
+        .flatMap((world) => world.rooms)
+        .flatMap((room) => room.tasks).length;
       expect(todoCount).to.equal(8);
       cy.log('✅ Backend returning 8 TODOs correctly');
     });
@@ -21,7 +21,7 @@ describe('🎉 Final Success Verification', () => {
       timeout: 30000,
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');
-      }
+      },
     });
 
     cy.get('[data-testid="game-interface"]', { timeout: 30000 }).should('be.visible');
@@ -36,7 +36,7 @@ describe('🎉 Final Success Verification', () => {
 
     // Test 4: All tabs are present and clickable
     const tabs = ['goals', 'todos', 'monologue', 'files', 'config'];
-    tabs.forEach(tab => {
+    tabs.forEach((tab) => {
       cy.get(`[data-testid="${tab}-tab"]`).should('be.visible').click();
       cy.screenshot(`01-success-${tab}-tab`);
     });

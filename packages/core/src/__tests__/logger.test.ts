@@ -218,7 +218,7 @@ describe('Logger', () => {
       const destination = (logger as any)[Symbol.for('pino-destination')];
       expect(destination).toBeDefined();
       expect(typeof destination.clear).toBe('function');
-      
+
       // Clear should work
       expect(() => destination.clear()).not.toThrow();
     });
@@ -268,7 +268,7 @@ describe('Logger', () => {
     it('should have destination accessible via symbol', () => {
       const customLogger = createLogger();
       const destination = (customLogger as any)[Symbol.for('pino-destination')];
-      
+
       expect(destination).toBeDefined();
       expect(typeof destination.recentLogs).toBe('function');
       expect(typeof destination.clear).toBe('function');
@@ -279,14 +279,14 @@ describe('Logger', () => {
     it('should store recent logs', () => {
       const destination = (logger as any)[Symbol.for('pino-destination')];
       expect(destination).toBeDefined();
-      
+
       const logs = destination.recentLogs();
       expect(Array.isArray(logs)).toBe(true);
     });
 
     it('should add logs with proper format', () => {
       const destination = (logger as any)[Symbol.for('pino-destination')];
-      
+
       // Add a test log
       destination.addLog({
         time: Date.now(),
@@ -294,10 +294,10 @@ describe('Logger', () => {
         msg: 'Test message',
         agentName: 'TestAgent',
       });
-      
+
       const logs = destination.recentLogs();
       const lastLog = logs[logs.length - 1];
-      
+
       expect(lastLog).toBeDefined();
       expect(lastLog.msg).toBe('Test message');
       expect(lastLog.agentName).toBe('TestAgent');

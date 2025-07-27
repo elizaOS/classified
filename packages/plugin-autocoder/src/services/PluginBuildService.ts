@@ -1,13 +1,8 @@
-import { Service, type IAgentRuntime, logger } from '@elizaos/core';
-import { execa } from 'execa';
+import { logger, Service, type IAgentRuntime } from '@elizaos/core';
+import execa from 'execa';
 import fs from 'fs-extra';
 import path from 'path';
-import {
-  PLUGIN_BUILD_SERVICE,
-  type BuildResult,
-  type BuildError,
-  PluginCreationError,
-} from '../types/index';
+import { PLUGIN_BUILD_SERVICE, type BuildError, type BuildResult } from '../types/index';
 
 /**
  * PluginBuildService - Validates plugins with real TypeScript compilation and testing
@@ -120,7 +115,7 @@ export class PluginBuildService extends Service {
 
     return {
       success: true,
-      output: `Dependencies installed:\n${stdout}${stderr ? '\n' + stderr : ''}`,
+      output: `Dependencies installed:\n${stdout}${stderr ? `\n${stderr}` : ''}`,
       errors: [],
     };
   }
@@ -175,7 +170,7 @@ export class PluginBuildService extends Service {
 
     return {
       success: true,
-      output: `TypeScript compilation successful:\n${stdout}${stderr ? '\n' + stderr : ''}`,
+      output: `TypeScript compilation successful:\n${stdout}${stderr ? `\n${stderr}` : ''}`,
       errors: [],
     };
   }
@@ -193,8 +188,8 @@ export class PluginBuildService extends Service {
       if (match) {
         errors.push({
           file: match[1],
-          line: parseInt(match[2]),
-          column: parseInt(match[3]),
+          line: parseInt(match[2], 10),
+          column: parseInt(match[3], 10),
           message: match[4],
           type: 'typescript',
         });
@@ -243,7 +238,7 @@ export class PluginBuildService extends Service {
 
     return {
       success: true,
-      output: `Tests passed:\n${stdout}${stderr ? '\n' + stderr : ''}`,
+      output: `Tests passed:\n${stdout}${stderr ? `\n${stderr}` : ''}`,
       errors: [],
     };
   }
@@ -303,7 +298,7 @@ export class PluginBuildService extends Service {
           for (const pattern of secretPatterns) {
             if (pattern.test(content)) {
               warnings.push({
-                file: file,
+                file,
                 line: 0,
                 column: 0,
                 message: 'Potential hardcoded secret detected',

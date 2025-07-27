@@ -251,6 +251,39 @@ impl DockerClient {
         })
     }
 
+    pub async fn container_exists(&self, container_name: &str) -> BackendResult<bool> {
+        match std::process::Command::new("docker")
+            .args(["container", "inspect", container_name])
+            .output()
+        {
+            Ok(output) => Ok(output.status.success()),
+            Err(e) => Err(BackendError::Container(format!(
+                "Failed to check if container exists: {}",
+                e
+            ))),
+        }
+    }
+    
+    pub async fn is_container_running(&self, container_name: &str) -> BackendResult<bool> {
+        match std::process::Command::new("docker")
+            .args(["ps", "-q", "-f", &format!("name={}", container_name)])
+            .output()
+        {
+            Ok(output) => {
+                if output.status.success() {
+                    let container_list = String::from_utf8_lossy(&output.stdout);
+                    Ok(!container_list.trim().is_empty())
+                } else {
+                    Ok(false)
+                }
+            }
+            Err(e) => Err(BackendError::Container(format!(
+                "Failed to check if container is running: {}",
+                e
+            ))),
+        }
+    }
+
     /// Execute a command inside a running container
     #[allow(dead_code)]
     pub async fn exec(

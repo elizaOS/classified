@@ -66,7 +66,7 @@ function AutonomyPanel() {
   };
 
   const handleIntervalChange = async () => {
-    const intervalMs = parseInt(interval);
+    const intervalMs = parseInt(interval, 10);
     if (isNaN(intervalMs) || intervalMs < 1000) {
       setError('Interval must be at least 1000ms');
       return;

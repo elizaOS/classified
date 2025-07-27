@@ -42,12 +42,15 @@ describe('File Upload - Working Test', () => {
     cy.intercept('GET', '**/knowledge/documents').as('documentsRequest');
 
     // Attempt file upload using the fixture
-    cy.fixture('test-knowledge.txt').then(fileContent => {
-      cy.get('input[type="file"]').selectFile({
-        contents: Cypress.Buffer.from(fileContent),
-        fileName: 'test-upload.txt',
-        mimeType: 'text/plain'
-      }, { force: true });
+    cy.fixture('test-knowledge.txt').then((fileContent) => {
+      cy.get('input[type="file"]').selectFile(
+        {
+          contents: Cypress.Buffer.from(fileContent),
+          fileName: 'test-upload.txt',
+          mimeType: 'text/plain',
+        },
+        { force: true }
+      );
     });
 
     // Wait and check if upload request was made
@@ -73,18 +76,20 @@ describe('File Upload - Working Test', () => {
     cy.get('input[type="file"]').should('exist');
 
     // Check if there are any existing files in the interface
-    cy.get('body').then($body => {
+    cy.get('body').then(($body) => {
       if ($body.find('.file-item').length > 0) {
         cy.log('Files found in knowledge base');
         cy.get('.file-item').should('be.visible');
 
         // If files exist, check their structure
-        cy.get('.file-item').first().within(() => {
-          cy.get('.file-icon').should('exist');
-          cy.get('.file-name').should('exist');
-          cy.get('.file-meta').should('exist');
-          cy.get('.file-action').should('exist');
-        });
+        cy.get('.file-item')
+          .first()
+          .within(() => {
+            cy.get('.file-icon').should('exist');
+            cy.get('.file-name').should('exist');
+            cy.get('.file-meta').should('exist');
+            cy.get('.file-action').should('exist');
+          });
       } else {
         cy.log('No files currently in knowledge base');
         cy.contains('No knowledge files loaded').should('exist');
@@ -110,12 +115,15 @@ describe('File Upload - Working Test', () => {
     cy.screenshot('03-workflow-upload-button-visible');
 
     // Step 4: Perform upload
-    cy.fixture('test-knowledge.txt').then(fileContent => {
-      cy.get('input[type="file"]').selectFile({
-        contents: Cypress.Buffer.from(fileContent),
-        fileName: 'workflow-test.txt',
-        mimeType: 'text/plain'
-      }, { force: true });
+    cy.fixture('test-knowledge.txt').then((fileContent) => {
+      cy.get('input[type="file"]').selectFile(
+        {
+          contents: Cypress.Buffer.from(fileContent),
+          fileName: 'workflow-test.txt',
+          mimeType: 'text/plain',
+        },
+        { force: true }
+      );
     });
 
     // Step 5: Wait for processing
@@ -123,7 +131,7 @@ describe('File Upload - Working Test', () => {
     cy.screenshot('04-workflow-upload-processed');
 
     // Step 6: Check for any updates in the UI
-    cy.get('.chat-line').then($chatLines => {
+    cy.get('.chat-line').then(($chatLines) => {
       if ($chatLines.length > 0) {
         cy.log(`Found ${$chatLines.length} chat messages`);
         cy.screenshot('05-workflow-chat-messages');

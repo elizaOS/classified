@@ -1,75 +1,12 @@
 import type { TestSuite, IAgentRuntime, Memory } from '@elizaos/core';
 import { createUniqueUuid } from '@elizaos/core';
 import { VisionService } from '../../service';
-import { killAutonomousAction } from '../../action';
 
 export class VisionAutonomyE2ETestSuite implements TestSuite {
   name = 'plugin-vision-autonomy-e2e';
   description = 'Tests for vision plugin integration with autonomy plugin';
 
   tests = [
-    {
-      name: 'Should stop autonomous loop with kill command',
-      fn: async (runtime: IAgentRuntime) => {
-        console.log('Testing kill autonomous action...');
-
-        const roomId = createUniqueUuid(runtime, 'test-room');
-        const message: Memory = {
-          id: createUniqueUuid(runtime, 'test-msg-kill'),
-          entityId: runtime.agentId,
-          content: { text: 'kill the autonomous loop' },
-          agentId: runtime.agentId,
-          roomId,
-          createdAt: Date.now(),
-        };
-
-        let callbackCalled = false;
-        let callbackResponse: any = null;
-
-        // Validate the action
-        const isValid = await killAutonomousAction.validate(runtime, message, {
-          values: {},
-          data: {},
-          text: '',
-        });
-        if (!isValid) {
-          throw new Error('killAutonomousAction validation failed');
-        }
-
-        await killAutonomousAction.handler(
-          runtime,
-          message,
-          { values: {}, data: {}, text: '' },
-          {},
-          async (response) => {
-            callbackCalled = true;
-            callbackResponse = response;
-            return [];
-          }
-        );
-
-        if (!callbackCalled) {
-          throw new Error('Callback was not called - action handler failed');
-        }
-
-        if (!callbackResponse || !callbackResponse.text) {
-          throw new Error('No response text returned from kill action');
-        }
-
-        console.log('✓ Kill autonomous action executed');
-        console.log(`  Response: ${callbackResponse.text}`);
-
-        if (callbackResponse.thought) {
-          console.log(`  Thought: ${callbackResponse.thought}`);
-        }
-
-        // Verify action was included
-        if (!callbackResponse.actions || !callbackResponse.actions.includes('KILL_AUTONOMOUS')) {
-          throw new Error('Response does not include KILL_AUTONOMOUS action');
-        }
-      },
-    },
-
     {
       name: 'Should provide continuous vision updates for autonomous agent',
       fn: async (runtime: IAgentRuntime) => {

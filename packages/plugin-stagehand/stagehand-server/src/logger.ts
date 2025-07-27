@@ -18,4 +18,4 @@ export class Logger {
   warn(message: string, ...args: any[]) {
     console.warn(`${this.prefix} WARN:`, message, ...args);
   }
-} 
+}

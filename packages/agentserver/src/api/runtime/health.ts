@@ -1,7 +1,7 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { logger } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 
 /**
  * Health monitoring and status endpoints
@@ -45,12 +45,13 @@ export function createHealthRouter(
       version: process.env.APP_VERSION || 'unknown',
       timestamp: new Date().toISOString(),
       dependencies: {
-        agents: agents.size > 0 ? 'healthy' : 'no_agents',
+        // Server is healthy even with no agents - it's ready to accept agent registrations
+        agents: agents.size > 0 ? 'healthy' : 'ready',
       },
     };
 
-    const statusCode = healthcheck.dependencies.agents === 'healthy' ? 200 : 503;
-    res.status(statusCode).json(healthcheck);
+    // Always return 200 if server is running - agent count doesn't affect server health
+    res.status(200).json(healthcheck);
   });
 
   // Server stop endpoint

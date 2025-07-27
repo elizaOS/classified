@@ -1,10 +1,4 @@
-import {
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, index } from 'drizzle-orm/pg-core';
 import { entityTable } from './entity';
 import { roomTable } from './room';
 import { agentTable } from './agent';
@@ -37,16 +31,10 @@ export const participantTable = pgTable(
     roomIdx: index('participant_room_idx').on(table.roomId),
     agentIdx: index('participant_agent_idx').on(table.agentId),
     // Index for finding participants in a room
-    roomEntityIdx: index('participant_room_entity_idx').on(
-      table.roomId,
-      table.entityId,
-    ),
+    roomEntityIdx: index('participant_room_entity_idx').on(table.roomId, table.entityId),
     // Index for finding all rooms a participant is in
-    entityRoomIdx: index('participant_entity_room_idx').on(
-      table.entityId,
-      table.roomId,
-    ),
-  }),
+    entityRoomIdx: index('participant_entity_room_idx').on(table.entityId, table.roomId),
+  })
 );
 
 export type Participant = typeof participantTable.$inferSelect;

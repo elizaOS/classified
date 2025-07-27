@@ -73,18 +73,3 @@ export const goalTagRelations = relations(goalTagsTable, ({ one }) => ({
     references: [goalsTable.id],
   }),
 }));
-
-/**
- * Export the complete schema
- */
-export const goalSchema = {
-  goalsTable,
-  goalTagsTable,
-  // Also include the original structure for compatibility
-  tables: {
-    goals: goalsTable,
-    goalTags: goalTagsTable,
-  },
-};
-
-export default goalSchema;

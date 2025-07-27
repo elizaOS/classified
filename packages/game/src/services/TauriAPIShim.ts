@@ -45,7 +45,7 @@ export async function invoke(cmd: string, args?: Record<string, any>): Promise<a
       window.__TAURI_INTERNALS__.postMessage({
         id,
         cmd,
-        args: args || {}
+        args: args || {},
       });
     });
   }
@@ -54,7 +54,10 @@ export async function invoke(cmd: string, args?: Record<string, any>): Promise<a
 }
 
 // Fallback event listener
-export async function listen<T>(event: string, handler: (event: { payload: T }) => void): Promise<() => void> {
+export async function listen<T>(
+  event: string,
+  handler: (event: { payload: T }) => void
+): Promise<() => void> {
   if (window.__TAURI_INTERNALS__?.event?.listen) {
     return window.__TAURI_INTERNALS__.event.listen(event, handler);
   }

@@ -4,7 +4,7 @@ describe('Final Verification - CORS Fixed', () => {
       timeout: 30000,
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');
-      }
+      },
     });
   });
 

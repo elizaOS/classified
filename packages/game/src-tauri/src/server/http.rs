@@ -1,14 +1,14 @@
 use crate::backend::{BackendConfig, BackendError, BackendResult};
 use crate::container::ContainerManager;
-use crate::server::websocket::WebSocketHub;
+use crate::server::websocket::{WebSocketHub, app_websocket_handler};
 use axum::{
-    extract::{State, WebSocketUpgrade},
+    extract::State,
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{get, post},
     Router,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
@@ -49,7 +49,7 @@ impl HttpServer {
             .route("/api/containers/:name/restart", post(restart_container))
             // Note: Agent management handled via Tauri IPC, not HTTP routes
             // WebSocket upgrade
-            .route("/ws", get(app_websocket_handler))
+            .route("/ws", get(ws_handler))
             .route("/api/websocket/info", get(websocket_info))
             // Add state
             .with_state(AppState {
@@ -102,7 +102,7 @@ struct AppState {
 // Handler functions
 
 async fn health_check() -> Json<Value> {
-    Json(json!({
+    Json(serde_json::json!({
         "status": "healthy",
         "backend": "rust",
         "timestamp": chrono::Utc::now().timestamp()
@@ -110,13 +110,13 @@ async fn health_check() -> Json<Value> {
 }
 
 async fn agent_id() -> Json<Value> {
-    Json(json!({
+    Json(serde_json::json!({
         "agent_id": uuid::Uuid::new_v4()
     }))
 }
 
 async fn autonomy_status() -> Json<Value> {
-    Json(json!({
+    Json(serde_json::json!({
         "status": "running",
         "autonomous": true,
         "goals": [],
@@ -127,7 +127,7 @@ async fn autonomy_status() -> Json<Value> {
 
 async fn container_status(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
     match state.container_manager.get_all_statuses().await {
-        Ok(statuses) => Ok(Json(json!({ "containers": statuses }))),
+        Ok(statuses) => Ok(Json(serde_json::json!({ "containers": statuses }))),
         Err(e) => {
             error!("Failed to get container status: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -140,7 +140,7 @@ async fn restart_container(
     State(state): State<AppState>,
 ) -> Result<Json<Value>, StatusCode> {
     match state.container_manager.restart_container(&name).await {
-        Ok(status) => Ok(Json(json!({
+        Ok(status) => Ok(Json(serde_json::json!({
             "message": format!("Container {} restarted successfully", name),
             "status": status
         }))),
@@ -154,7 +154,7 @@ async fn restart_container(
 // All agent management handlers removed - functionality handled via Tauri IPC
 
 async fn websocket_info(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({
+    Json(serde_json::json!({
         "websocket_endpoint": "/ws",
         "connected_clients": state.websocket_hub.get_client_count(),
         "active_rooms": state.websocket_hub.get_room_count(),
@@ -162,10 +162,10 @@ async fn websocket_info(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
-async fn app_websocket_handler(
-    ws: WebSocketUpgrade,
+// Local wrapper for WebSocket handler that extracts hub from state
+async fn ws_handler(
+    ws: axum::extract::WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    use crate::server::websocket::handle_client;
-    ws.on_upgrade(|socket| handle_client(socket, state.websocket_hub))
+    app_websocket_handler(ws, state.websocket_hub).await
 }

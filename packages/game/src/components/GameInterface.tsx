@@ -4,36 +4,37 @@ import { useTauriChat } from '../hooks/useTauriChat';
 import { v4 as uuidv4 } from 'uuid';
 import { SecurityWarning, SECURITY_CAPABILITIES } from './SecurityWarning';
 import { InputValidator, SecurityLogger } from '../utils/SecurityUtils';
+import { ContainerLogs } from './ContainerLogs';
 // Services replaced by TauriService for complete IPC integration
 
 // Tauri environment detection is handled by TauriService
 
 interface OutputLine {
-    type: 'user' | 'agent' | 'system' | 'error';
-    content: string;
-    timestamp: Date;
+  type: 'user' | 'agent' | 'system' | 'error';
+  content: string;
+  timestamp: Date;
 }
 
 interface PluginToggleState {
-    autonomy: boolean;
-    camera: boolean;
-    screen: boolean;
-    microphone: boolean;
-    speakers: boolean;
-    shell: boolean;
-    browser: boolean;
+  autonomy: boolean;
+  camera: boolean;
+  screen: boolean;
+  microphone: boolean;
+  speakers: boolean;
+  shell: boolean;
+  browser: boolean;
 }
 
 interface SecurityWarningState {
-    isVisible: boolean;
-    capability: string;
-    onConfirm: () => void;
+  isVisible: boolean;
+  capability: string;
+  onConfirm: () => void;
 }
 
 // Ultra simple buttons - each button triggers API calls and updates backend state
 const UltraSimpleButtons: React.FC<{
-    states: PluginToggleState;
-    onToggle: (capability: string) => Promise<void>;
+  states: PluginToggleState;
+  onToggle: (capability: string) => Promise<void>;
 }> = ({ states, onToggle }) => {
   const [isTogglingState, setIsTogglingState] = useState({
     autonomy: false,
@@ -42,7 +43,7 @@ const UltraSimpleButtons: React.FC<{
     microphone: false,
     speakers: false,
     shell: false,
-    browser: false
+    browser: false,
   });
 
   const buttonStyle = (isActive: boolean, isToggling: boolean) => ({
@@ -64,19 +65,21 @@ const UltraSimpleButtons: React.FC<{
     flexDirection: 'column' as const,
     gap: '2px',
     minWidth: 0,
-    opacity: isToggling ? 0.7 : 1
+    opacity: isToggling ? 0.7 : 1,
   });
 
   const handleClick = async (capability: string) => {
-    if (isTogglingState[capability as keyof typeof isTogglingState]) {return;} // Prevent double clicks
+    if (isTogglingState[capability as keyof typeof isTogglingState]) {
+      return;
+    } // Prevent double clicks
 
-    setIsTogglingState(prev => ({ ...prev, [capability]: true }));
+    setIsTogglingState((prev) => ({ ...prev, [capability]: true }));
     try {
       await onToggle(capability);
     } catch (error) {
       console.error(`Failed to toggle ${capability}:`, error);
     } finally {
-      setIsTogglingState(prev => ({ ...prev, [capability]: false }));
+      setIsTogglingState((prev) => ({ ...prev, [capability]: false }));
     }
   };
 
@@ -184,21 +187,20 @@ const UltraSimpleButtons: React.FC<{
 };
 
 interface Goal {
-    id: string;
-    name: string;
-    description: string;
-    isCompleted: boolean;
-    createdAt: string;
+  id: string;
+  name: string;
+  description: string;
+  isCompleted: boolean;
+  createdAt: string;
 }
 
 interface Todo {
-    id: string;
-    name: string;
-    type: 'daily' | 'one-off' | 'aspirational';
-    isCompleted: boolean;
-    priority?: number;
+  id: string;
+  name: string;
+  type: 'daily' | 'one-off' | 'aspirational';
+  isCompleted: boolean;
+  priority?: number;
 }
-
 
 export const GameInterface: React.FC = () => {
   // Chat state
@@ -225,14 +227,20 @@ export const GameInterface: React.FC = () => {
   // Data state
   const [goals, setGoals] = useState<Goal[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [agentMonologue, setAgentMonologue] = useState<Array<{text: string, timestamp: number, isFromAgent: boolean}>>([]);
+  const [agentMonologue, setAgentMonologue] = useState<
+    Array<{ text: string; timestamp: number; isFromAgent: boolean }>
+  >([]);
   // Agent status removed - not currently used
 
   // UI state
-  const [currentTab, setCurrentTab] = useState<'goals' | 'todos' | 'monologue' | 'files' | 'config'>('goals');
+  const [currentTab, setCurrentTab] = useState<
+    'goals' | 'todos' | 'monologue' | 'files' | 'config' | 'logs'
+  >('goals');
   // Config dialog removed - not currently used
   const [showResetDialog, setShowResetDialog] = useState(false);
-  const [knowledgeFiles, setKnowledgeFiles] = useState<Array<{id: string, title: string, type: string, createdAt: string}>>([]);
+  const [knowledgeFiles, setKnowledgeFiles] = useState<
+    Array<{ id: string; title: string; type: string; createdAt: string }>
+  >([]);
   const [isResetting, setIsResetting] = useState(false);
   const [pluginConfigs, setPluginConfigs] = useState<any>({});
   const [configValues, setConfigValues] = useState<any>({});
@@ -241,15 +249,14 @@ export const GameInterface: React.FC = () => {
   const [securityWarning, setSecurityWarning] = useState<SecurityWarningState>({
     isVisible: false,
     capability: '',
-    onConfirm: () => {}
+    onConfirm: () => {},
   });
 
-  // Track user messages posted immediately to filter out server echoes
-  const [immediateUserMessages, setImmediateUserMessages] = useState<Set<string>>(new Set());
-
-  const [userId] = useState(() => {
+  const [_userId] = useState(() => {
     const stored = localStorage.getItem('terminal-user-id');
-    if (stored) {return stored;}
+    if (stored) {
+      return stored;
+    }
     const newId = uuidv4();
     localStorage.setItem('terminal-user-id', newId);
     return newId;
@@ -258,73 +265,84 @@ export const GameInterface: React.FC = () => {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const historyPosition = useRef<number>(-1);
   const commandHistory = useRef<string[]>([]);
+  const lastProcessedRef = useRef<number>(0);
 
-  // Check if running in Tauri environment
-  const isRunningInTauri = TauriService.isRunningInTauri();
+  // Check if running in Tauri environment - make it reactive
+  const [isRunningInTauri, setIsRunningInTauri] = useState(false);
+  const [tauriCheckComplete, setTauriCheckComplete] = useState(false);
 
-  // Use Tauri chat hook if in Tauri, otherwise we shouldn't be here
-  const {
-    isConnected,
-    sendMessage,
-    messages,
-    error
-  } = isRunningInTauri ? useTauriChat() : {
-    isConnected: false,
-    sendMessage: async () => { throw new Error('Not in Tauri environment'); },
-    messages: [],
-    error: 'Not running in Tauri environment'
-  };
+  // Check Tauri environment on mount and after a delay
+  useEffect(() => {
+    const checkTauri = async () => {
+      // Initial check
+      setIsRunningInTauri(TauriService.isRunningInTauri());
+
+      // Wait for potential initialization
+      await TauriService.ensureInitialized();
+
+      // Check again after initialization
+      const status = TauriService.getInitializationStatus();
+      setIsRunningInTauri(status.isTauri);
+      setTauriCheckComplete(true);
+    };
+
+    checkTauri();
+  }, []);
+
+  // Use Tauri chat hook if in Tauri, otherwise show loading or error
+  const tauriChatResult = useTauriChat();
+
+  const { isConnected, sendMessage, messages, error } = isRunningInTauri
+    ? tauriChatResult
+    : {
+        isConnected: false,
+        sendMessage: async () => {
+          throw new Error('Not in Tauri environment');
+        },
+        messages: [],
+        error: tauriCheckComplete ? 'Not running in Tauri environment' : null,
+      };
 
   // Handle incoming messages
   useEffect(() => {
-    // Process messages from TauriService
-    messages.forEach((message: TauriMsg) => {
-      // Filter out user messages that we've already posted immediately (check this FIRST)
-      const isUserEcho = message.type === 'user' && immediateUserMessages.has(message.content);
+    // Only process new messages
+    const newMessages = messages.slice(lastProcessedRef.current);
 
-      if (isUserEcho) {
-        // Remove from tracking set since we've seen the server echo
-        setImmediateUserMessages(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(message.content);
-          return newSet;
-        });
-        return; // Skip adding this duplicate user message
-      }
-
+    newMessages.forEach((message: TauriMsg) => {
       // Ensure timestamp is a Date object
-      const messageTimestamp = message.timestamp instanceof Date 
-        ? message.timestamp 
-        : new Date(message.timestamp);
+      const messageTimestamp =
+        message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
 
-      // Check if we already have this message (for non-user messages or user messages not in our immediate set)
-      const existingOutput = output.find(line =>
-        line.timestamp.getTime() === messageTimestamp.getTime() &&
-        line.content === message?.content
-      );
-
-      if (!existingOutput) {
-        setOutput((prev) => [...prev, {
+      // Add to output - deduplication is now handled by TauriService
+      setOutput((prev) => [
+        ...prev,
+        {
           type: message.type,
           content: message.content,
           timestamp: messageTimestamp,
-        }]);
+        },
+      ]);
 
-        // Add to agent monologue if it contains thinking patterns
-        if (message.type === 'agent' && (
-          message.content.includes('thinking:') ||
+      // Add to agent monologue if it contains thinking patterns
+      if (
+        message.type === 'agent' &&
+        (message.content.includes('thinking:') ||
           message.content.includes('goal:') ||
           message.content.includes('planning:') ||
-          message.content.includes('What should I do next?')
-        )) {
-          setAgentMonologue(prev => [
+          message.content.includes('What should I do next?'))
+      ) {
+        setAgentMonologue((prev) =>
+          [
             ...prev.slice(-9),
-            { text: message.content, timestamp: messageTimestamp.getTime(), isFromAgent: true }
-          ].slice(-10));
-        }
+            { text: message.content, timestamp: messageTimestamp.getTime(), isFromAgent: true },
+          ].slice(-10)
+        );
       }
     });
-  }, [messages, immediateUserMessages, output]);
+
+    // Update last processed index
+    lastProcessedRef.current = messages.length;
+  }, [messages]);
 
   // Connection status is managed by TauriService
   const effectiveIsConnected = isConnected;
@@ -339,7 +357,8 @@ export const GameInterface: React.FC = () => {
 
     // If enabling a dangerous capability, show security warning first
     if (isDangerous && !currentState) {
-      const securityConfig = SECURITY_CAPABILITIES[capability as keyof typeof SECURITY_CAPABILITIES];
+      const securityConfig =
+        SECURITY_CAPABILITIES[capability as keyof typeof SECURITY_CAPABILITIES];
       if (securityConfig) {
         setSecurityWarning({
           isVisible: true,
@@ -347,7 +366,7 @@ export const GameInterface: React.FC = () => {
           onConfirm: () => {
             setSecurityWarning({ isVisible: false, capability: '', onConfirm: () => {} });
             performCapabilityToggle(capability);
-          }
+          },
         });
         return;
       }
@@ -392,16 +411,16 @@ export const GameInterface: React.FC = () => {
 
       if (success) {
         // Update the local plugin state to reflect the change
-        setPlugins(prev => ({
+        setPlugins((prev) => ({
           ...prev,
-          [capability]: newState
+          [capability]: newState,
         }));
         console.log(`[API_TOGGLE] Successfully toggled ${capability} to ${newState}`);
 
         // Log security events for dangerous capabilities
         if (['shell', 'browser'].includes(capability)) {
           SecurityLogger.logSecurityEvent(
-            newState ? 'access_granted' as any : 'access_revoked' as any,
+            newState ? ('access_granted' as any) : ('access_revoked' as any),
             `${capability} capability ${newState ? 'enabled' : 'disabled'}`,
             newState ? 'high' : 'medium'
           );
@@ -441,7 +460,7 @@ export const GameInterface: React.FC = () => {
             type: 'system',
             content: '◉ Agent reset successful - New agent instance started',
             timestamp: new Date(),
-          }
+          },
         ]);
         setGoals([]);
         setTodos([]);
@@ -463,22 +482,28 @@ export const GameInterface: React.FC = () => {
 
         // Show success message
         setTimeout(() => {
-          setOutput(prev => [...prev, {
-            type: 'system',
-            content: '◉ Fresh agent initialized. All previous data cleared.',
-            timestamp: new Date(),
-          }]);
+          setOutput((prev) => [
+            ...prev,
+            {
+              type: 'system',
+              content: '◉ Fresh agent initialized. All previous data cleared.',
+              timestamp: new Date(),
+            },
+          ]);
         }, 1000);
       } else {
         throw new Error('Not running in Tauri environment');
       }
     } catch (error) {
       console.error('Reset agent failed:', error);
-      setOutput(prev => [...prev, {
-        type: 'error',
-        content: `Reset failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'error',
+          content: `Reset failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsResetting(false);
     }
@@ -537,10 +562,13 @@ export const GameInterface: React.FC = () => {
       const result = await TauriService.fetchAutonomyStatus();
       // Handle new API response format
       const data = result;
-      console.log('[FETCH] fetchAutonomyStatus updating autonomy to:', data.enabled && data.running);
-      setPlugins(prev => ({
+      console.log(
+        '[FETCH] fetchAutonomyStatus updating autonomy to:',
+        data.enabled && data.running
+      );
+      setPlugins((prev) => ({
         ...prev,
-        autonomy: data.enabled && data.running
+        autonomy: data.enabled && data.running,
       }));
     } catch (error) {
       console.error('Failed to fetch autonomy status:', error);
@@ -563,7 +591,9 @@ export const GameInterface: React.FC = () => {
       // If we don't have the autonomy room ID, try fallback approach
       if (!autonomousRoomId) {
         console.log('[MONOLOGUE] Autonomy room ID not found, trying fallback...');
-        setAgentMonologue([{ text: 'Autonomy system not available...', timestamp: Date.now(), isFromAgent: false }]);
+        setAgentMonologue([
+          { text: 'Autonomy system not available...', timestamp: Date.now(), isFromAgent: false },
+        ]);
         return;
       }
 
@@ -581,18 +611,22 @@ export const GameInterface: React.FC = () => {
           timestamp: memory.createdAt,
           entityId: memory.entityId,
           agentId: memory.agentId,
-          isFromAgent: memory.entityId === memory.agentId
+          isFromAgent: memory.entityId === memory.agentId,
         }));
 
       if (roomMessages.length === 0) {
-        setAgentMonologue([{ text: 'Agent is thinking...', timestamp: Date.now(), isFromAgent: true }]);
+        setAgentMonologue([
+          { text: 'Agent is thinking...', timestamp: Date.now(), isFromAgent: true },
+        ]);
       } else {
         setAgentMonologue(roomMessages);
       }
       console.log(`[MONOLOGUE] Displayed ${roomMessages.length} autonomy messages`);
     } catch (error) {
       console.error('[MONOLOGUE] Failed to fetch monologue:', error);
-      setAgentMonologue([{ text: 'Error loading monologue...', timestamp: Date.now(), isFromAgent: false }]);
+      setAgentMonologue([
+        { text: 'Error loading monologue...', timestamp: Date.now(), isFromAgent: false },
+      ]);
     }
   };
 
@@ -609,14 +643,14 @@ export const GameInterface: React.FC = () => {
         camera: data.ENABLE_CAMERA === 'true' || data.VISION_CAMERA_ENABLED === 'true',
         screen: data.ENABLE_SCREEN_CAPTURE === 'true' || data.VISION_SCREEN_ENABLED === 'true',
         microphone: data.ENABLE_MICROPHONE === 'true' || data.VISION_MICROPHONE_ENABLED === 'true',
-        speakers: data.ENABLE_SPEAKER === 'true' || data.VISION_SPEAKER_ENABLED === 'true'
+        speakers: data.ENABLE_SPEAKER === 'true' || data.VISION_SPEAKER_ENABLED === 'true',
       };
 
       console.log('[FETCH] fetchVisionSettings updating vision settings to:', visionUpdates);
 
-      setPlugins(prev => ({
+      setPlugins((prev) => ({
         ...prev,
-        ...visionUpdates
+        ...visionUpdates,
       }));
     } catch (error) {
       console.error('[VISION] Failed to fetch vision settings:', error);
@@ -627,9 +661,9 @@ export const GameInterface: React.FC = () => {
     try {
       const result = await TauriService.getCapabilityStatus('shell');
       console.log('[SHELL] Fetched shell settings:', result);
-      setPlugins(prev => ({
+      setPlugins((prev) => ({
         ...prev,
-        shell: result.enabled
+        shell: result.enabled,
       }));
     } catch (error) {
       console.error('[SHELL] Failed to fetch shell settings:', error);
@@ -640,9 +674,9 @@ export const GameInterface: React.FC = () => {
     try {
       const result = await TauriService.getCapabilityStatus('browser');
       console.log('[BROWSER] Fetched browser settings:', result);
-      setPlugins(prev => ({
+      setPlugins((prev) => ({
         ...prev,
-        browser: result.enabled
+        browser: result.enabled,
       }));
     } catch (error) {
       console.error('[BROWSER] Failed to fetch browser settings:', error);
@@ -668,7 +702,7 @@ export const GameInterface: React.FC = () => {
         id: doc.id,
         title: doc.title || doc.originalFilename || 'Untitled',
         type: doc.contentType || 'unknown',
-        createdAt: doc.createdAt || new Date().toISOString()
+        createdAt: doc.createdAt || new Date().toISOString(),
       }));
       setKnowledgeFiles(formattedFiles);
       console.log('[KNOWLEDGE] Successfully fetched', formattedFiles.length, 'knowledge files');
@@ -707,23 +741,27 @@ export const GameInterface: React.FC = () => {
           `Configuration validation failed for ${plugin}.${key}: ${validation.error}`,
           'medium'
         );
-        setOutput(prev => [...prev, {
-          type: 'error',
-          content: `Configuration validation failed: ${validation.error}`,
-          timestamp: new Date(),
-        }]);
+        setOutput((prev) => [
+          ...prev,
+          {
+            type: 'error',
+            content: `Configuration validation failed: ${validation.error}`,
+            timestamp: new Date(),
+          },
+        ]);
         return;
       }
 
-      const sanitizedValue = validation.sanitizedValue !== undefined ? validation.sanitizedValue : value;
+      const sanitizedValue =
+        validation.sanitizedValue !== undefined ? validation.sanitizedValue : value;
 
       // Update local state immediately for responsive UI
       setConfigValues((prev: any) => ({
         ...prev,
         [plugin]: {
           ...prev[plugin],
-          [key]: sanitizedValue
-        }
+          [key]: sanitizedValue,
+        },
       }));
 
       // Don't send empty values for API keys
@@ -732,21 +770,30 @@ export const GameInterface: React.FC = () => {
         return;
       }
 
-      console.log(`[CONFIG] Updating ${plugin}.${key}:`, key.includes('KEY') ? '***REDACTED***' : sanitizedValue);
+      console.log(
+        `[CONFIG] Updating ${plugin}.${key}:`,
+        key.includes('KEY') ? '***REDACTED***' : sanitizedValue
+      );
 
       // Send update to server with proper error handling
       await TauriService.updatePluginConfig(plugin, { [key]: sanitizedValue });
       console.log(`[CONFIG] Successfully updated ${plugin}.${key}`);
 
       // Show success message
-      setOutput(prev => [...prev, {
-        type: 'system',
-        content: `◉ Updated ${plugin}.${key} configuration`,
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'system',
+          content: `◉ Updated ${plugin}.${key} configuration`,
+          timestamp: new Date(),
+        },
+      ]);
 
       // If we're updating critical environment variables, refresh the config
-      if (plugin === 'environment' && ['MODEL_PROVIDER', 'LANGUAGE_MODEL', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'].includes(key)) {
+      if (
+        plugin === 'environment' &&
+        ['MODEL_PROVIDER', 'LANGUAGE_MODEL', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'].includes(key)
+      ) {
         // Small delay then refresh plugin configs to get updated status
         setTimeout(() => {
           fetchPluginConfigs();
@@ -754,113 +801,152 @@ export const GameInterface: React.FC = () => {
       }
     } catch (error) {
       console.error('[CONFIG] Failed to update plugin config:', error);
-      setOutput(prev => [...prev, {
-        type: 'error',
-        content: 'Failed to update config: Network error',
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'error',
+          content: 'Failed to update config: Network error',
+          timestamp: new Date(),
+        },
+      ]);
     }
   };
 
   const validateConfiguration = async () => {
     try {
-      setOutput(prev => [...prev, {
-        type: 'system',
-        content: '◉ Validating configuration...',
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'system',
+          content: '◉ Validating configuration...',
+          timestamp: new Date(),
+        },
+      ]);
 
       const result = await TauriService.validateConfiguration();
 
       if (result) {
-        setOutput(prev => [...prev, {
-          type: 'system',
-          content: 'Configuration Validation Complete',
-          timestamp: new Date(),
-        }]);
+        setOutput((prev) => [
+          ...prev,
+          {
+            type: 'system',
+            content: 'Configuration Validation Complete',
+            timestamp: new Date(),
+          },
+        ]);
 
         // Show overall status
         const statusIcon = result.valid ? '✅' : '❌';
-        setOutput(prev => [...prev, {
-          type: result.valid ? 'system' : 'error',
-          content: `${statusIcon} Configuration Status: ${result.valid ? 'VALID' : 'INVALID'}`,
-          timestamp: new Date(),
-        }]);
+        setOutput((prev) => [
+          ...prev,
+          {
+            type: result.valid ? 'system' : 'error',
+            content: `${statusIcon} Configuration Status: ${result.valid ? 'VALID' : 'INVALID'}`,
+            timestamp: new Date(),
+          },
+        ]);
 
         // Show errors if any
         if (result.errors && result.errors.length > 0) {
-          result.errors.forEach(error => {
-            setOutput(prev => [...prev, {
-              type: 'error',
-              content: `❌ ${error}`,
-              timestamp: new Date(),
-            }]);
+          result.errors.forEach((error) => {
+            setOutput((prev) => [
+              ...prev,
+              {
+                type: 'error',
+                content: `❌ ${error}`,
+                timestamp: new Date(),
+              },
+            ]);
           });
         }
 
         // Configuration validation complete
       } else {
-        setOutput(prev => [...prev, {
-          type: 'error',
-          content: 'Validation failed: Unknown error',
-          timestamp: new Date(),
-        }]);
+        setOutput((prev) => [
+          ...prev,
+          {
+            type: 'error',
+            content: 'Validation failed: Unknown error',
+            timestamp: new Date(),
+          },
+        ]);
       }
     } catch (error) {
       console.error('[CONFIG] Validation failed:', error);
-      setOutput(prev => [...prev, {
-        type: 'error',
-        content: 'Configuration validation failed: Network error',
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'error',
+          content: 'Configuration validation failed: Network error',
+          timestamp: new Date(),
+        },
+      ]);
     }
   };
 
   const testConfiguration = async () => {
     try {
-      setOutput(prev => [...prev, {
-        type: 'system',
-        content: '◉ Testing configuration with actual LLM calls...',
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'system',
+          content: '◉ Testing configuration with actual LLM calls...',
+          timestamp: new Date(),
+        },
+      ]);
 
       const result = await TauriService.testConfiguration();
 
       if (result) {
-        setOutput(prev => [...prev, {
-          type: 'system',
-          content: 'Configuration Test Complete',
-          timestamp: new Date(),
-        }]);
+        setOutput((prev) => [
+          ...prev,
+          {
+            type: 'system',
+            content: 'Configuration Test Complete',
+            timestamp: new Date(),
+          },
+        ]);
 
         // Show overall test status
         const statusIcon = result.success ? '✅' : '❌';
-        setOutput(prev => [...prev, {
-          type: result.success ? 'system' : 'error',
-          content: `${statusIcon} Test Status: ${result.success ? 'SUCCESS' : 'FAILED'}`,
-          timestamp: new Date(),
-        }]);
+        setOutput((prev) => [
+          ...prev,
+          {
+            type: result.success ? 'system' : 'error',
+            content: `${statusIcon} Test Status: ${result.success ? 'SUCCESS' : 'FAILED'}`,
+            timestamp: new Date(),
+          },
+        ]);
 
         // Show test message
-        setOutput(prev => [...prev, {
-          type: result.success ? 'system' : 'error',
-          content: result.results || 'Test completed',
-          timestamp: new Date(),
-        }]);
+        setOutput((prev) => [
+          ...prev,
+          {
+            type: result.success ? 'system' : 'error',
+            content: result.results || 'Test completed',
+            timestamp: new Date(),
+          },
+        ]);
       } else {
-        setOutput(prev => [...prev, {
-          type: 'error',
-          content: 'Configuration test failed: Unknown error',
-          timestamp: new Date(),
-        }]);
+        setOutput((prev) => [
+          ...prev,
+          {
+            type: 'error',
+            content: 'Configuration test failed: Unknown error',
+            timestamp: new Date(),
+          },
+        ]);
       }
     } catch (error) {
       console.error('[CONFIG] Test failed:', error);
-      setOutput(prev => [...prev, {
-        type: 'error',
-        content: 'Configuration test failed: Network error',
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'error',
+          content: 'Configuration test failed: Network error',
+          timestamp: new Date(),
+        },
+      ]);
     }
   };
 
@@ -870,24 +956,32 @@ export const GameInterface: React.FC = () => {
 
       // Refresh the file list
       await fetchKnowledgeFiles();
-      setOutput(prev => [...prev, {
-        type: 'system',
-        content: '◉ Knowledge file deleted successfully',
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'system',
+          content: '◉ Knowledge file deleted successfully',
+          timestamp: new Date(),
+        },
+      ]);
     } catch (error) {
       console.error('Failed to delete knowledge file:', error);
-      setOutput(prev => [...prev, {
-        type: 'error',
-        content: 'Failed to delete file: Network error',
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'error',
+          content: 'Failed to delete file: Network error',
+          timestamp: new Date(),
+        },
+      ]);
     }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) {return;}
+    if (!file) {
+      return;
+    }
 
     // Validate file upload
     const validation = InputValidator.validateFileUpload(file);
@@ -897,11 +991,14 @@ export const GameInterface: React.FC = () => {
         `File upload validation failed: ${validation.error}`,
         'medium'
       );
-      setOutput(prev => [...prev, {
-        type: 'error',
-        content: `File upload failed: ${validation.error}`,
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'error',
+          content: `File upload failed: ${validation.error}`,
+          timestamp: new Date(),
+        },
+      ]);
       e.target.value = ''; // Reset the input
       return;
     }
@@ -911,24 +1008,29 @@ export const GameInterface: React.FC = () => {
 
       // Refresh the file list
       await fetchKnowledgeFiles();
-      setOutput(prev => [...prev, {
-        type: 'system',
-        content: `◉ File "${file.name}" uploaded successfully`,
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'system',
+          content: `◉ File "${file.name}" uploaded successfully`,
+          timestamp: new Date(),
+        },
+      ]);
     } catch (error) {
       console.error('Failed to upload file:', error);
-      setOutput(prev => [...prev, {
-        type: 'error',
-        content: 'Failed to upload file: Network error',
-        timestamp: new Date(),
-      }]);
+      setOutput((prev) => [
+        ...prev,
+        {
+          type: 'error',
+          content: 'Failed to upload file: Network error',
+          timestamp: new Date(),
+        },
+      ]);
     }
 
     // Reset the input
     e.target.value = '';
   };
-
 
   // Auto-scroll chat
   useEffect(() => {
@@ -979,7 +1081,9 @@ export const GameInterface: React.FC = () => {
   // Security-aware chat handlers
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !effectiveIsConnected) {return;}
+    if (!input.trim() || !effectiveIsConnected) {
+      return;
+    }
 
     const trimmedInput = input.trim();
 
@@ -1008,9 +1112,6 @@ export const GameInterface: React.FC = () => {
 
     setInput('');
 
-    // Track this message to filter out duplicates - TauriService will handle immediate UI feedback
-    setImmediateUserMessages(prev => new Set(prev).add(sanitizedInput));
-
     try {
       await sendMessage(sanitizedInput);
       // User message handled by TauriService immediately, server response via useEffect
@@ -1032,13 +1133,17 @@ export const GameInterface: React.FC = () => {
       e.preventDefault();
       if (historyPosition.current < commandHistory.current.length - 1) {
         historyPosition.current++;
-        setInput(commandHistory.current[commandHistory.current.length - 1 - historyPosition.current]);
+        setInput(
+          commandHistory.current[commandHistory.current.length - 1 - historyPosition.current]
+        );
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (historyPosition.current > 0) {
         historyPosition.current--;
-        setInput(commandHistory.current[commandHistory.current.length - 1 - historyPosition.current]);
+        setInput(
+          commandHistory.current[commandHistory.current.length - 1 - historyPosition.current]
+        );
       } else if (historyPosition.current === 0) {
         historyPosition.current = -1;
         setInput('');
@@ -1047,7 +1152,14 @@ export const GameInterface: React.FC = () => {
   };
 
   const renderStatusPanel = () => {
-    console.log('[RENDER] Current tab:', currentTab, 'Goals count:', goals.length, 'Todos count:', todos.length);
+    console.log(
+      '[RENDER] Current tab:',
+      currentTab,
+      'Goals count:',
+      goals.length,
+      'Todos count:',
+      todos.length
+    );
     switch (currentTab) {
       case 'goals':
         return (
@@ -1059,11 +1171,9 @@ export const GameInterface: React.FC = () => {
               {goals.length === 0 ? (
                 <div className="empty-state">No active goals</div>
               ) : (
-                goals.map(goal => (
+                goals.map((goal) => (
                   <div key={goal.id} className="status-item">
-                    <div className="status-indicator">
-                      {goal.isCompleted ? '✓' : '○'}
-                    </div>
+                    <div className="status-indicator">{goal.isCompleted ? '✓' : '○'}</div>
                     <div className="status-text">
                       <div className="status-title">{goal.name}</div>
                       <div className="status-desc">{goal.description}</div>
@@ -1085,15 +1195,13 @@ export const GameInterface: React.FC = () => {
               {todos.length === 0 ? (
                 <div className="empty-state">No pending tasks</div>
               ) : (
-                todos.map(todo => (
+                todos.map((todo) => (
                   <div key={todo.id} className="status-item">
-                    <div className="status-indicator">
-                      {todo.isCompleted ? '✓' : '○'}
-                    </div>
+                    <div className="status-indicator">{todo.isCompleted ? '✓' : '○'}</div>
                     <div className="status-text">
                       <div className="status-title">{todo.name}</div>
                       <div className="status-desc">
-                                                Type: {todo.type} {todo.priority && `| P${todo.priority}`}
+                        Type: {todo.type} {todo.priority && `| P${todo.priority}`}
                       </div>
                     </div>
                   </div>
@@ -1116,10 +1224,14 @@ export const GameInterface: React.FC = () => {
                 agentMonologue.map((thought, index) => (
                   <div key={index} className="monologue-item" data-testid="monologue-content">
                     <div className="monologue-timestamp">
-                      {thought.timestamp ? new Date(thought.timestamp).toLocaleTimeString() : '--:--:--'}
+                      {thought.timestamp
+                        ? new Date(thought.timestamp).toLocaleTimeString()
+                        : '--:--:--'}
                     </div>
                     <div className="monologue-text">
-                      <span className={`monologue-sender ${thought.isFromAgent ? 'agent' : 'system'}`}>
+                      <span
+                        className={`monologue-sender ${thought.isFromAgent ? 'agent' : 'system'}`}
+                      >
                         {thought.isFromAgent ? '🤖 ' : '⚙️ '}
                       </span>
                       {typeof thought === 'string' ? thought : thought.text}
@@ -1145,19 +1257,21 @@ export const GameInterface: React.FC = () => {
               {knowledgeFiles.length === 0 ? (
                 <div className="empty-state">No knowledge files loaded</div>
               ) : (
-                knowledgeFiles.map(file => (
+                knowledgeFiles.map((file) => (
                   <div key={file.id} className="file-item">
                     <span className="file-icon">📄</span>
                     <div className="file-info">
                       <span className="file-name">{file.title}</span>
-                      <span className="file-meta">{file.type} • {new Date(file.createdAt).toLocaleDateString()}</span>
+                      <span className="file-meta">
+                        {file.type} • {new Date(file.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
                     <button
                       className="file-action"
                       onClick={() => deleteKnowledgeFile(file.id)}
                       title="Delete file"
                     >
-                                            ✕
+                      ✕
                     </button>
                   </div>
                 ))
@@ -1172,7 +1286,7 @@ export const GameInterface: React.FC = () => {
                   accept=".txt,.md,.pdf,.doc,.docx,.html,.json,.csv"
                 />
                 <label htmlFor="file-upload" className="upload-btn">
-                                    + Upload File
+                  + Upload File
                 </label>
               </div>
             </div>
@@ -1208,7 +1322,8 @@ export const GameInterface: React.FC = () => {
                 </div>
 
                 {/* OpenAI Configuration */}
-                {(configValues.environment?.MODEL_PROVIDER === 'openai' || !configValues.environment?.MODEL_PROVIDER) && (
+                {(configValues.environment?.MODEL_PROVIDER === 'openai' ||
+                  !configValues.environment?.MODEL_PROVIDER) && (
                   <>
                     <div className="config-item">
                       <label>OpenAI API Key</label>
@@ -1216,8 +1331,14 @@ export const GameInterface: React.FC = () => {
                         type="password"
                         className="config-input"
                         value={configValues.environment?.OPENAI_API_KEY || ''}
-                        placeholder={pluginConfigs.environment?.OPENAI_API_KEY === '***SET***' ? 'Currently Set' : 'Enter OpenAI API Key'}
-                        onChange={(e) => updatePluginConfig('environment', 'OPENAI_API_KEY', e.target.value)}
+                        placeholder={
+                          pluginConfigs.environment?.OPENAI_API_KEY === '***SET***'
+                            ? 'Currently Set'
+                            : 'Enter OpenAI API Key'
+                        }
+                        onChange={(e) =>
+                          updatePluginConfig('environment', 'OPENAI_API_KEY', e.target.value)
+                        }
                         data-testid="openai-api-key-input"
                       />
                     </div>
@@ -1226,7 +1347,9 @@ export const GameInterface: React.FC = () => {
                       <select
                         className="config-select"
                         value={configValues.environment?.LANGUAGE_MODEL || 'gpt-4o-mini'}
-                        onChange={(e) => updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)}
+                        onChange={(e) =>
+                          updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
+                        }
                         data-testid="openai-model-select"
                       >
                         <option value="gpt-4o-mini">GPT-4o Mini</option>
@@ -1248,8 +1371,14 @@ export const GameInterface: React.FC = () => {
                         type="password"
                         className="config-input"
                         value={configValues.environment?.ANTHROPIC_API_KEY || ''}
-                        placeholder={pluginConfigs.environment?.ANTHROPIC_API_KEY === '***SET***' ? 'Currently Set' : 'Enter Anthropic API Key'}
-                        onChange={(e) => updatePluginConfig('environment', 'ANTHROPIC_API_KEY', e.target.value)}
+                        placeholder={
+                          pluginConfigs.environment?.ANTHROPIC_API_KEY === '***SET***'
+                            ? 'Currently Set'
+                            : 'Enter Anthropic API Key'
+                        }
+                        onChange={(e) =>
+                          updatePluginConfig('environment', 'ANTHROPIC_API_KEY', e.target.value)
+                        }
                         data-testid="anthropic-api-key-input"
                       />
                     </div>
@@ -1257,8 +1386,12 @@ export const GameInterface: React.FC = () => {
                       <label>Model</label>
                       <select
                         className="config-select"
-                        value={configValues.environment?.LANGUAGE_MODEL || 'claude-3-5-sonnet-20241022'}
-                        onChange={(e) => updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)}
+                        value={
+                          configValues.environment?.LANGUAGE_MODEL || 'claude-3-5-sonnet-20241022'
+                        }
+                        onChange={(e) =>
+                          updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
+                        }
                         data-testid="anthropic-model-select"
                       >
                         <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
@@ -1279,9 +1412,13 @@ export const GameInterface: React.FC = () => {
                       <input
                         type="text"
                         className="config-input"
-                        value={configValues.environment?.OLLAMA_SERVER_URL || 'http://localhost:11434'}
+                        value={
+                          configValues.environment?.OLLAMA_SERVER_URL || 'http://localhost:11434'
+                        }
                         placeholder="http://localhost:11434"
-                        onChange={(e) => updatePluginConfig('environment', 'OLLAMA_SERVER_URL', e.target.value)}
+                        onChange={(e) =>
+                          updatePluginConfig('environment', 'OLLAMA_SERVER_URL', e.target.value)
+                        }
                         data-testid="ollama-server-url-input"
                       />
                     </div>
@@ -1290,13 +1427,15 @@ export const GameInterface: React.FC = () => {
                       <input
                         type="text"
                         className="config-input"
-                        value={configValues.environment?.LANGUAGE_MODEL || 'llama3.1:8b'}
-                        placeholder="llama3.1:8b"
-                        onChange={(e) => updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)}
+                        value={configValues.environment?.LANGUAGE_MODEL || 'llama3.2:3b'}
+                        placeholder="llama3.2:3b"
+                        onChange={(e) =>
+                          updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
+                        }
                         data-testid="ollama-model-input"
                       />
                       <small style={{ color: '#888', fontSize: '10px', marginTop: '4px' }}>
-                                                Enter the model name as it appears in your Ollama installation
+                        Enter the model name as it appears in your Ollama installation
                       </small>
                     </div>
                   </>
@@ -1307,31 +1446,39 @@ export const GameInterface: React.FC = () => {
                   <input
                     type="text"
                     className="config-input"
-                    value={configValues.environment?.TEXT_EMBEDDING_MODEL || 'text-embedding-3-small'}
+                    value={
+                      configValues.environment?.TEXT_EMBEDDING_MODEL || 'text-embedding-3-small'
+                    }
                     placeholder="text-embedding-3-small"
-                    onChange={(e) => updatePluginConfig('environment', 'TEXT_EMBEDDING_MODEL', e.target.value)}
+                    onChange={(e) =>
+                      updatePluginConfig('environment', 'TEXT_EMBEDDING_MODEL', e.target.value)
+                    }
                     data-testid="embedding-model-input"
                   />
                 </div>
               </div>
 
               {/* Plugin-specific configurations */}
-              {Object.entries(pluginConfigs).filter(([key]) => key !== 'environment').map(([plugin, config]: [string, any]) => (
-                <div key={plugin} className="config-section">
-                  <div className="config-title">{plugin.charAt(0).toUpperCase() + plugin.slice(1)} Plugin</div>
-                  {Object.entries(config || {}).map(([key, value]: [string, any]) => (
-                    <div key={key} className="config-item">
-                      <label>{key}</label>
-                      <input
-                        className="config-input"
-                        value={configValues[plugin]?.[key] || ''}
-                        placeholder={String(value)}
-                        onChange={(e) => updatePluginConfig(plugin, key, e.target.value)}
-                      />
+              {Object.entries(pluginConfigs)
+                .filter(([key]) => key !== 'environment')
+                .map(([plugin, config]: [string, any]) => (
+                  <div key={plugin} className="config-section">
+                    <div className="config-title">
+                      {plugin.charAt(0).toUpperCase() + plugin.slice(1)} Plugin
                     </div>
-                  ))}
-                </div>
-              ))}
+                    {Object.entries(config || {}).map(([key, value]: [string, any]) => (
+                      <div key={key} className="config-item">
+                        <label>{key}</label>
+                        <input
+                          className="config-input"
+                          value={configValues[plugin]?.[key] || ''}
+                          placeholder={String(value)}
+                          onChange={(e) => updatePluginConfig(plugin, key, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
 
               {/* Configuration Testing Section */}
               <div className="config-section">
@@ -1342,20 +1489,21 @@ export const GameInterface: React.FC = () => {
                     onClick={validateConfiguration}
                     data-testid="validate-config-button"
                   >
-                                        🔍 VALIDATE CONFIG
+                    🔍 VALIDATE CONFIG
                   </button>
                   <button
                     className="config-btn test-btn"
                     onClick={testConfiguration}
                     data-testid="test-config-button"
                   >
-                                        🧪 TEST CONFIG
+                    🧪 TEST CONFIG
                   </button>
                 </div>
                 <div className="config-help">
                   <small style={{ color: '#888', fontSize: '10px', lineHeight: '1.3' }}>
-                                        Validate: Check API connectivity and configuration<br/>
-                                        Test: Run actual LLM calls to verify functionality
+                    Validate: Check API connectivity and configuration
+                    <br />
+                    Test: Run actual LLM calls to verify functionality
                   </small>
                 </div>
               </div>
@@ -1370,10 +1518,18 @@ export const GameInterface: React.FC = () => {
                   {isResetting ? 'RESETTING...' : 'RESET AGENT'}
                 </button>
                 <div className="config-warning">
-                                    This will permanently delete all agent memories, goals, todos, and restart with a fresh instance.
+                  This will permanently delete all agent memories, goals, todos, and restart with a
+                  fresh instance.
                 </div>
               </div>
             </div>
+          </div>
+        );
+
+      case 'logs':
+        return (
+          <div className="status-content" data-testid="logs-content">
+            <ContainerLogs />
           </div>
         );
 
@@ -1385,7 +1541,10 @@ export const GameInterface: React.FC = () => {
   return (
     <div className="terminal-container" data-testid="game-interface">
       {/* Connection Status */}
-      <div className={`connection-status ${effectiveIsConnected ? 'connected' : 'disconnected'}`} data-testid="connection-status">
+      <div
+        className={`connection-status ${effectiveIsConnected ? 'connected' : 'disconnected'}`}
+        data-testid="connection-status"
+      >
         {effectiveIsConnected ? '◉ ONLINE' : '◯ OFFLINE'}
         <span className="autonomy-status" data-testid="autonomy-status">
           {plugins.autonomy ? 'Active' : 'Paused'}
@@ -1396,9 +1555,7 @@ export const GameInterface: React.FC = () => {
       <div className="terminal-layout">
         {/* Left Panel - Chat */}
         <div className="panel panel-left">
-          <div className="panel-header">
-                        ◆ ADMIN TERMINAL
-          </div>
+          <div className="panel-header">◆ ADMIN TERMINAL</div>
 
           <div
             className="panel-content chat-content"
@@ -1407,23 +1564,51 @@ export const GameInterface: React.FC = () => {
             role="log"
           >
             {output.map((line, index) => (
-              <div key={index} className={`chat-line chat-${line.type}`} data-testid={line.type === 'user' ? 'user-message' : line.type === 'agent' ? 'agent-message' : 'system-message'}>
+              <div
+                key={index}
+                className={`chat-line chat-${line.type}`}
+                data-testid={
+                  line.type === 'user'
+                    ? 'user-message'
+                    : line.type === 'agent'
+                      ? 'agent-message'
+                      : 'system-message'
+                }
+              >
                 <span className="chat-timestamp" data-testid="message-timestamp">
                   {line.timestamp.toLocaleTimeString()}
                 </span>
                 <span className="chat-prefix">
-                  {line.type === 'user' ? '[USER]' :
-                    line.type === 'agent' ? '[AGENT]' :
-                      line.type === 'system' ? '[SYS]' : '[ERR]'}
+                  {line.type === 'user'
+                    ? '[USER]'
+                    : line.type === 'agent'
+                      ? '[AGENT]'
+                      : line.type === 'system'
+                        ? '[SYS]'
+                        : '[ERR]'}
                 </span>
                 <span className="chat-content">{line.content}</span>
-                <div className="message-actions" data-testid="message-actions" style={{ display: 'none' }}>
-                  <button className="message-action" data-testid="copy-message-button" onClick={() => copyToClipboard(line.content)}>
-                                        Copy
+                <div
+                  className="message-actions"
+                  data-testid="message-actions"
+                  style={{ display: 'none' }}
+                >
+                  <button
+                    className="message-action"
+                    data-testid="copy-message-button"
+                    onClick={() => copyToClipboard(line.content)}
+                  >
+                    Copy
                   </button>
                 </div>
               </div>
             ))}
+            {!tauriCheckComplete && !error && (
+              <div className="chat-line chat-system">
+                <span className="chat-prefix">[SYS]</span>
+                <span className="chat-content">Checking Tauri environment...</span>
+              </div>
+            )}
             {error && (
               <div className="chat-line chat-error">
                 <span className="chat-prefix">[ERR]</span>
@@ -1456,7 +1641,7 @@ export const GameInterface: React.FC = () => {
                 disabled={!input.trim() || !effectiveIsConnected}
                 data-testid="send-button"
               >
-                                SEND
+                SEND
               </button>
             </div>
           </form>
@@ -1472,7 +1657,7 @@ export const GameInterface: React.FC = () => {
 
           {/* Status Tabs */}
           <div className="status-tabs">
-            {(['goals', 'todos', 'monologue', 'files', 'config'] as const).map(tab => (
+            {(['goals', 'todos', 'monologue', 'files', 'config', 'logs'] as const).map((tab) => (
               <button
                 key={tab}
                 className={`tab-btn ${currentTab === tab ? 'active' : ''}`}
@@ -1485,9 +1670,7 @@ export const GameInterface: React.FC = () => {
           </div>
 
           {/* Status Panel Content */}
-          <div data-testid={`${currentTab}-content`}>
-            {renderStatusPanel()}
-          </div>
+          <div data-testid={`${currentTab}-content`}>{renderStatusPanel()}</div>
         </div>
       </div>
 
@@ -1528,7 +1711,7 @@ export const GameInterface: React.FC = () => {
                 onClick={() => setShowResetDialog(false)}
                 disabled={isResetting}
               >
-                                Cancel
+                Cancel
               </button>
               <button
                 className="confirm-reset-btn"
@@ -1537,7 +1720,14 @@ export const GameInterface: React.FC = () => {
                   if (input?.value === 'RESET AGENT') {
                     resetAgent();
                   } else {
-                    alert('Please type "RESET AGENT" exactly to confirm.');
+                    // Show error in console instead of alert
+                    console.error(
+                      'Reset confirmation failed: Please type "RESET AGENT" exactly to confirm.'
+                    );
+                    // Clear and focus the input for retry
+                    input.value = '';
+                    input.focus();
+                    input.placeholder = 'Please type "RESET AGENT" exactly';
                   }
                 }}
                 disabled={isResetting}
@@ -1551,12 +1741,26 @@ export const GameInterface: React.FC = () => {
 
       {/* Security Warning Modal */}
       <SecurityWarning
-        capability={SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]?.capability || ''}
-        riskLevel={SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]?.riskLevel || 'medium'}
-        description={SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]?.description || ''}
-        risks={SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]?.risks || []}
+        capability={
+          SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]
+            ?.capability || ''
+        }
+        riskLevel={
+          SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]
+            ?.riskLevel || 'medium'
+        }
+        description={
+          SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]
+            ?.description || ''
+        }
+        risks={
+          SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]
+            ?.risks || []
+        }
         onConfirm={securityWarning.onConfirm}
-        onCancel={() => setSecurityWarning({ isVisible: false, capability: '', onConfirm: () => {} })}
+        onCancel={() =>
+          setSecurityWarning({ isVisible: false, capability: '', onConfirm: () => {} })
+        }
         isVisible={securityWarning.isVisible}
       />
     </div>

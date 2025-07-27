@@ -1,7 +1,7 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { logger, validateUuid } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import { sendError, sendSuccess } from '../shared/response-utils';
 
 interface KnowledgeFile {
@@ -19,7 +19,7 @@ interface KnowledgeFile {
  */
 export function createAgentKnowledgeRouter(
   agents: Map<UUID, IAgentRuntime>,
-  serverInstance: AgentServer
+  _serverInstance: AgentServer
 ): express.Router {
   const router = express.Router();
 
@@ -28,7 +28,7 @@ export function createAgentKnowledgeRouter(
     try {
       const agentId = validateUuid(req.params.agentId);
       const runtime = agents.get(agentId);
-      
+
       if (!runtime) {
         return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
       }
@@ -52,7 +52,7 @@ export function createAgentKnowledgeRouter(
           type: 'markdown',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        }
+        },
       ];
 
       sendSuccess(res, { knowledgeFiles });
@@ -73,13 +73,15 @@ export function createAgentKnowledgeRouter(
     try {
       const agentId = validateUuid(req.params.agentId);
       const fileId = req.params.fileId;
-      
+
       const runtime = agents.get(agentId);
       if (!runtime) {
         return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
       }
 
-      logger.info(`[KNOWLEDGE API] Deleted knowledge file ${fileId} for agent ${runtime.character.name}`);
+      logger.info(
+        `[KNOWLEDGE API] Deleted knowledge file ${fileId} for agent ${runtime.character.name}`
+      );
       sendSuccess(res, { message: `Knowledge file ${fileId} deleted successfully` });
     } catch (error) {
       logger.error('[KNOWLEDGE API] Error deleting knowledge file:', error);

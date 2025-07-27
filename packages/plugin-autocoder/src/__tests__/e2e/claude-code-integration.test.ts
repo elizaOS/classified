@@ -413,7 +413,7 @@ Make it a production-ready, enterprise-grade plugin.`;
             throw new Error('No files generated in E2B sandbox');
           }
 
-          console.log(`✅ Claude Code successfully ran in E2B sandbox`);
+          console.log('✅ Claude Code successfully ran in E2B sandbox');
           console.log(`   Generated ${result.files.length} files`);
 
           // Check for execution results

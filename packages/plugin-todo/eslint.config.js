@@ -13,7 +13,7 @@ export default [
     files: ['**/*.{js,jsx,ts,tsx}'],
     rules: {
       // Allow flexibility for todo data structures
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'off', // Aligned with project-wide settings
       'no-console': 'off', // Allow console for todo operations
     },
   },

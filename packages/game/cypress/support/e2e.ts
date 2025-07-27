@@ -23,7 +23,7 @@ Cypress.config('responseTimeout', 20000);
 Cypress.config('pageLoadTimeout', 30000);
 
 // Global error handling
-Cypress.on('uncaught:exception', (err, runnable) => {
+Cypress.on('uncaught:exception', (err, _runnable) => {
   // Don't fail tests on uncaught exceptions unless they're test-related
   if (err.message.includes('ResizeObserver loop limit exceeded')) {
     return false; // Ignore ResizeObserver errors
@@ -67,7 +67,7 @@ beforeEach(() => {
 // Global after hook
 afterEach(() => {
   // Capture final state for debugging
-  cy.window().then((win) => {
+  cy.window().then((_win) => {
     // Just log that the test completed
     console.log('Test completed at:', new Date().toISOString());
   });
@@ -83,7 +83,7 @@ afterEach(() => {
 chai.use((chai, utils) => {
   utils.addMethod(chai.Assertion.prototype, 'containOneOf', function (list) {
     const obj = utils.flag(this, 'object');
-    const found = list.some(item => obj.includes(item));
+    const found = list.some((item) => obj.includes(item));
 
     this.assert(
       found,

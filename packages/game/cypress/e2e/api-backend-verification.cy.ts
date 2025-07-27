@@ -12,7 +12,7 @@ describe('API Key Backend Verification', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/server/health`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       expect(response.status).to.eq(200);
       expect(response.body.success).to.be.true;
@@ -28,7 +28,7 @@ describe('API Key Backend Verification', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/plugin-config`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       expect(response.status).to.eq(200);
       expect(response.body.success).to.be.true;
@@ -48,7 +48,7 @@ describe('API Key Backend Verification', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/plugin-config`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       const env = response.body.data.configurations.environment;
 
@@ -60,7 +60,9 @@ describe('API Key Backend Verification', () => {
       expect(anthropicSet).to.be.true;
       expect(env.MODEL_PROVIDER).to.be.oneOf(['openai', 'anthropic']);
 
-      cy.log(`✅ API keys verified: OpenAI=${env.OPENAI_API_KEY}, Anthropic=${env.ANTHROPIC_API_KEY}`);
+      cy.log(
+        `✅ API keys verified: OpenAI=${env.OPENAI_API_KEY}, Anthropic=${env.ANTHROPIC_API_KEY}`
+      );
       cy.log(`✅ Model provider: ${env.MODEL_PROVIDER}`);
     });
   });
@@ -70,7 +72,7 @@ describe('API Key Backend Verification', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/server/health`,
-      timeout: 10000
+      timeout: 10000,
     }).then((healthResponse) => {
       expect(healthResponse.body.data.agent).to.eq('connected');
 
@@ -87,7 +89,7 @@ describe('API Key Backend Verification', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/plugin-config`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       const plugins = response.body.data.availablePlugins;
 
@@ -110,7 +112,7 @@ describe('API Key Backend Verification', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/server/health`,
-      timeout: 10000
+      timeout: 10000,
     }).then((healthResponse) => {
       const agentId = healthResponse.body.data.agentId;
 
@@ -119,7 +121,7 @@ describe('API Key Backend Verification', () => {
         method: 'GET',
         url: `${BACKEND_URL}/api/agents/${agentId}/memories?count=1`,
         failOnStatusCode: false,
-        timeout: 10000
+        timeout: 10000,
       }).then((memoryResponse) => {
         // Even if no memories exist, a 200 response means DB is connected
         if (memoryResponse.status === 200) {
@@ -136,7 +138,7 @@ describe('API Key Backend Verification', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/plugin-config`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response1) => {
       const config1 = response1.body.data.configurations.environment;
 
@@ -146,7 +148,7 @@ describe('API Key Backend Verification', () => {
       cy.request({
         method: 'GET',
         url: `${BACKEND_URL}/api/plugin-config`,
-        timeout: 10000
+        timeout: 10000,
       }).then((response2) => {
         const config2 = response2.body.data.configurations.environment;
 
@@ -165,7 +167,7 @@ describe('API Key Backend Verification', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/server/health`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       expect(response.body.data.status).to.eq('healthy');
       expect(response.body.data.agent).to.eq('connected');
@@ -191,12 +193,12 @@ describe('API Key Setup Requirements Validation', () => {
 
     cy.request(`${BACKEND_URL}/api/plugin-config`).then((configResponse) => {
       cy.request(`${BACKEND_URL}/api/server/health`).then((healthResponse) => {
-
         const env = configResponse.body.data.configurations.environment;
         const health = healthResponse.body.data;
 
         // Requirement 1: API keys are stored in database
-        const apiKeysStored = env.OPENAI_API_KEY !== 'NOT_SET' && env.ANTHROPIC_API_KEY !== 'NOT_SET';
+        const apiKeysStored =
+          env.OPENAI_API_KEY !== 'NOT_SET' && env.ANTHROPIC_API_KEY !== 'NOT_SET';
         expect(apiKeysStored, 'API keys should be stored in database').to.be.true;
 
         // Requirement 2: API keys are actually used by the system

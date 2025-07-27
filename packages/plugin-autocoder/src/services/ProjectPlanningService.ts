@@ -142,46 +142,46 @@ export class ProjectPlanningService extends Service {
   }): Promise<ProjectPlan> {
     elizaLogger.info(`Creating project plan for ${request.name}`);
 
-      // Analyze project requirements
-      const analysis = await this.analyzeRequirements(request);
+    // Analyze project requirements
+    const analysis = await this.analyzeRequirements(request);
 
-      // Generate architecture
-      const architecture = await this.generateArchitecture(request, analysis);
+    // Generate architecture
+    const architecture = await this.generateArchitecture(request, analysis);
 
-      // Create detailed requirements
-      const requirements = await this.generateRequirements(request, analysis);
+    // Create detailed requirements
+    const requirements = await this.generateRequirements(request, analysis);
 
-      // Plan milestones
-      const milestones = await this.planMilestones(request, requirements);
+    // Plan milestones
+    const milestones = await this.planMilestones(request, requirements);
 
-      // Identify risks
-      const risks = await this.identifyRisks(request, architecture);
+    // Identify risks
+    const risks = await this.identifyRisks(request, architecture);
 
-      // Determine tech stack
-      const techStack = await this.selectTechStack(request, architecture);
+    // Determine tech stack
+    const techStack = await this.selectTechStack(request, architecture);
 
-      // Estimate effort
-      const estimatedEffort = await this.estimateEffort(requirements, architecture);
+    // Estimate effort
+    const estimatedEffort = await this.estimateEffort(requirements, architecture);
 
-      const plan: ProjectPlan = {
-        id: `plan-${Date.now()}`,
-        name: request.name,
-        description: request.description,
-        type: request.type,
-        architecture,
-        requirements,
-        milestones,
-        risks,
-        techStack,
-        estimatedEffort,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+    const plan: ProjectPlan = {
+      id: `plan-${Date.now()}`,
+      name: request.name,
+      description: request.description,
+      type: request.type,
+      architecture,
+      requirements,
+      milestones,
+      risks,
+      techStack,
+      estimatedEffort,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-      this.plans.set(plan.id, plan);
-      elizaLogger.info(`Created project plan ${plan.id}`);
+    this.plans.set(plan.id, plan);
+    elizaLogger.info(`Created project plan ${plan.id}`);
 
-      return plan;
+    return plan;
   }
 
   /**
@@ -210,8 +210,8 @@ Return analysis as JSON.`;
       max_tokens: 1500,
     });
 
-      const jsonText = this.extractJSON(response);
-      return JSON.parse(jsonText);
+    const jsonText = this.extractJSON(response);
+    return JSON.parse(jsonText);
   }
 
   /**
@@ -237,8 +237,8 @@ Return as JSON with components, dependencies, and integrations arrays.`;
       max_tokens: 2000,
     });
 
-      const jsonText = this.extractJSON(response);
-      return JSON.parse(jsonText);
+    const jsonText = this.extractJSON(response);
+    return JSON.parse(jsonText);
   }
 
   /**
@@ -293,9 +293,9 @@ Return as JSON array of strings.`;
       max_tokens: 500,
     });
 
-      const jsonText = this.extractJSON(response);
-      const criteria = JSON.parse(jsonText);
-      return Array.isArray(criteria) ? criteria : [];
+    const jsonText = this.extractJSON(response);
+    const criteria = JSON.parse(jsonText);
+    return Array.isArray(criteria) ? criteria : [];
   }
 
   /**
@@ -323,17 +323,17 @@ Return as JSON array.`;
       max_tokens: 1000,
     });
 
-      const jsonText = this.extractJSON(response);
-      const milestones = JSON.parse(jsonText);
+    const jsonText = this.extractJSON(response);
+    const milestones = JSON.parse(jsonText);
 
-      return milestones.map((m: any, index: number) => ({
-        id: `M${index + 1}`,
-        name: m.name || `Milestone ${index + 1}`,
-        description: m.description || '',
-        deliverables: m.deliverables || [],
-        status: 'pending',
-        dependencies: m.dependencies || [],
-      }));
+    return milestones.map((m: any, index: number) => ({
+      id: `M${index + 1}`,
+      name: m.name || `Milestone ${index + 1}`,
+      description: m.description || '',
+      deliverables: m.deliverables || [],
+      status: 'pending',
+      dependencies: m.dependencies || [],
+    }));
   }
 
   /**
@@ -359,22 +359,22 @@ Return as JSON array.`;
       max_tokens: 1000,
     });
 
-      const jsonText = this.extractJSON(response);
-      const risks = JSON.parse(jsonText);
+    const jsonText = this.extractJSON(response);
+    const risks = JSON.parse(jsonText);
 
-      return risks.map((r: any, index: number) => ({
-        id: `RISK-${index + 1}`,
-        description: r.description || 'Unknown risk',
-        impact: r.impact || 'medium',
-        likelihood: r.likelihood || 'medium',
-        mitigation: r.mitigation || 'Monitor and address as needed',
-      }));
+    return risks.map((r: any, index: number) => ({
+      id: `RISK-${index + 1}`,
+      description: r.description || 'Unknown risk',
+      impact: r.impact || 'medium',
+      likelihood: r.likelihood || 'medium',
+      mitigation: r.mitigation || 'Monitor and address as needed',
+    }));
   }
 
   /**
    * Select appropriate tech stack
    */
-  private async selectTechStack(request: any, architecture: any): Promise<TechStackSpec> {
+  private async selectTechStack(request: any, _architecture: any): Promise<TechStackSpec> {
     const typeToStack: Record<string, TechStackSpec> = {
       plugin: {
         language: 'TypeScript',
@@ -485,7 +485,7 @@ Return as JSON array.`;
     }
 
     // Remove markdown code blocks
-    let jsonText = response.replace(/```json\s*|\s*```/g, '').trim();
+    const jsonText = response.replace(/```json\s*|\s*```/g, '').trim();
 
     // Try to find JSON object or array
     const objectMatch = jsonText.match(/\{[\s\S]*\}/);

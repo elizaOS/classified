@@ -25,16 +25,16 @@ interface LogEntry {
 class InMemoryLogger {
   private logs: LogEntry[] = [];
   private maxLogs = 1000;
-  
+
   addLog(entry: LogEntry) {
     // Add timestamp if not present
     if (!entry.time) {
       entry.time = Date.now();
     }
-    
+
     // Filter out service registration logs unless in debug mode
     const isDebugMode = (process?.env?.LOG_LEVEL || '').toLowerCase() === 'debug';
-    
+
     if (!isDebugMode && entry.agentName && entry.agentId) {
       const msg = entry.msg || entry.message || '';
       if (
@@ -48,19 +48,19 @@ class InMemoryLogger {
         return; // Skip service registration logs
       }
     }
-    
+
     this.logs.push(entry);
-    
+
     // Maintain buffer size
     if (this.logs.length > this.maxLogs) {
       this.logs.shift();
     }
   }
-  
+
   recentLogs(): LogEntry[] {
     return this.logs;
   }
-  
+
   clear(): void {
     this.logs = [];
   }
@@ -112,14 +112,14 @@ const showTimestamps =
 // Helper function to capture logs to in-memory storage
 function captureLogEntry(level: string, args: any[]) {
   const [message, ...context] = args;
-  
+
   // Create log entry
   const entry: LogEntry = {
     time: Date.now(),
     level: levelValues[level as keyof typeof levelValues] || 30,
     msg: typeof message === 'string' ? message : JSON.stringify(message),
   };
-  
+
   // Extract context data
   if (context.length > 0) {
     const contextObj = context[0];
@@ -127,10 +127,10 @@ function captureLogEntry(level: string, args: any[]) {
       Object.assign(entry, contextObj);
     }
   }
-  
+
   // Add to in-memory logger
   inMemoryLogger.addLog(entry);
-  
+
   // Capture errors in Sentry if enabled
   if (process.env.SENTRY_LOGGING !== 'false') {
     for (const item of args) {
@@ -144,10 +144,10 @@ function captureLogEntry(level: string, args: any[]) {
 // Create the main logger instance with custom methods
 class ElizaLogger {
   private context: any;
-  
+
   constructor(config?: any) {
     this.context = config?.context || {};
-    
+
     // Bind all standard methods
     this.fatal = this.fatal.bind(this);
     this.error = this.error.bind(this);
@@ -157,20 +157,20 @@ class ElizaLogger {
     this.trace = this.trace.bind(this);
     this.verbose = this.verbose.bind(this);
   }
-  
+
   // Custom level methods
   log(...args: any[]) {
     this.info(...args);
   }
-  
+
   progress(...args: any[]) {
     this.info('[PROGRESS]', ...args);
   }
-  
+
   success(...args: any[]) {
     this.info('[SUCCESS]', ...args);
   }
-  
+
   // Standard adze methods
   fatal(...args: any[]) {
     if (this.isLevelEnabled('fatal')) {
@@ -179,7 +179,7 @@ class ElizaLogger {
       adze.error(formattedArgs[0], ...(formattedArgs.slice(1) as any[])); // Use error level for fatal
     }
   }
-  
+
   error(...args: any[]) {
     if (this.isLevelEnabled('error')) {
       const formattedArgs = this.formatArgs(args);
@@ -187,7 +187,7 @@ class ElizaLogger {
       adze.error(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
     }
   }
-  
+
   warn(...args: any[]) {
     if (this.isLevelEnabled('warn')) {
       const formattedArgs = this.formatArgs(args);
@@ -195,7 +195,7 @@ class ElizaLogger {
       adze.warn(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
     }
   }
-  
+
   info(...args: any[]) {
     if (this.isLevelEnabled('info')) {
       const formattedArgs = this.formatArgs(args);
@@ -203,7 +203,7 @@ class ElizaLogger {
       adze.info(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
     }
   }
-  
+
   debug(...args: any[]) {
     if (this.isLevelEnabled('debug')) {
       const formattedArgs = this.formatArgs(args);
@@ -211,7 +211,7 @@ class ElizaLogger {
       adze.debug(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
     }
   }
-  
+
   trace(...args: any[]) {
     if (this.isLevelEnabled('trace')) {
       const formattedArgs = this.formatArgs(args);
@@ -219,7 +219,7 @@ class ElizaLogger {
       adze.verbose(formattedArgs[0], ...(formattedArgs.slice(1) as any[])); // Use verbose for trace
     }
   }
-  
+
   verbose(...args: any[]) {
     if (this.isLevelEnabled('verbose')) {
       const formattedArgs = this.formatArgs(args);
@@ -227,40 +227,41 @@ class ElizaLogger {
       adze.verbose(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
     }
   }
-  
+
   // Helper method to format arguments
   private formatArgs(args: any[]): any[] {
     if (args.length === 0) return args;
-    
+
     const [first, ...rest] = args;
-    
+
     // Handle Error objects
     if (first instanceof Error) {
       return [`(${first.name}) ${first.message}`, { error: first, stack: first.stack }, ...rest];
     }
-    
+
     // Handle object as first argument (context)
     if (typeof first === 'object' && first !== null && !(first instanceof Error)) {
       // Combine with message
-      const message = rest.filter(arg => typeof arg === 'string').join(' ');
+      const message = rest.filter((arg) => typeof arg === 'string').join(' ');
       return [message || 'Log', first];
     }
-    
+
     // Add context if available
     if (Object.keys(this.context).length > 0) {
       return [...args, this.context];
     }
-    
+
     return args;
   }
-  
+
   // Check if level is enabled
   private isLevelEnabled(level: string): boolean {
-    const currentLevel = customLevels[effectiveLogLevel as keyof typeof customLevels] || customLevels.info;
+    const currentLevel =
+      customLevels[effectiveLogLevel as keyof typeof customLevels] || customLevels.info;
     const requestedLevel = customLevels[level as keyof typeof customLevels];
     return requestedLevel >= currentLevel;
   }
-  
+
   // Pino compatibility methods
   child(bindings: any): ElizaLogger {
     const childConfig = {
@@ -268,31 +269,31 @@ class ElizaLogger {
     };
     return new ElizaLogger(childConfig);
   }
-  
+
   // Add clear method for compatibility
   clear() {
     inMemoryLogger.clear();
   }
-  
+
   // Pino compatibility properties
   get level() {
     return effectiveLogLevel;
   }
-  
+
   set level(newLevel: string) {
     // Note: In adze, we can't change level dynamically per instance
     // This is here for compatibility only
   }
-  
+
   get levels() {
     return { values: levelValues };
   }
-  
+
   // Add pino-compatible flush methods
   flush(): Promise<void> {
     return Promise.resolve();
   }
-  
+
   flushSync(): void {
     // No-op for compatibility
   }
@@ -305,10 +306,10 @@ class ElizaLogger {
 const createLogger = (bindings: any | boolean = false) => {
   const config = bindings === true ? {} : { context: bindings || {} };
   const logger = new ElizaLogger(config);
-  
+
   // Add in-memory logger access
   (logger as any)[Symbol.for('pino-destination')] = inMemoryLogger;
-  
+
   return logger as any;
 };
 

@@ -24,7 +24,7 @@ import type { PGliteClientManager } from './manager';
  */
 export class PgliteDatabaseAdapter extends BaseDrizzleAdapter {
   private manager: PGliteClientManager;
-  protected embeddingDimension: EmbeddingDimensionColumn = DIMENSION_MAP[384];
+  protected embeddingDimension: EmbeddingDimensionColumn = DIMENSION_MAP[768];
 
   /**
    * Constructor for creating an instance of a class.

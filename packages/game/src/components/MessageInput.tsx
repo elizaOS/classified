@@ -1,8 +1,8 @@
 import { useState, useRef, KeyboardEvent, useEffect } from 'react';
 
 interface MessageInputProps {
-    onSendMessage: (text: string) => void;
-    disabled?: boolean;
+  onSendMessage: (text: string) => void;
+  disabled?: boolean;
 }
 
 export default function MessageInput({ onSendMessage, disabled }: MessageInputProps) {
@@ -31,10 +31,12 @@ export default function MessageInput({ onSendMessage, disabled }: MessageInputPr
 
   const handleSend = () => {
     const trimmedInput = input.trim();
-    if (!trimmedInput || disabled) {return;}
+    if (!trimmedInput || disabled) {
+      return;
+    }
 
     // Add to history
-    setCommandHistory(prev => [...prev, trimmedInput]);
+    setCommandHistory((prev) => [...prev, trimmedInput]);
     setHistoryIndex(-1);
 
     // Send message
@@ -45,17 +47,15 @@ export default function MessageInput({ onSendMessage, disabled }: MessageInputPr
   };
 
   const navigateHistory = (direction: 'up' | 'down') => {
-    if (commandHistory.length === 0) {return;}
+    if (commandHistory.length === 0) {
+      return;
+    }
 
     let newIndex = historyIndex;
     if (direction === 'up') {
-      newIndex = historyIndex === -1
-        ? commandHistory.length - 1
-        : Math.max(0, historyIndex - 1);
+      newIndex = historyIndex === -1 ? commandHistory.length - 1 : Math.max(0, historyIndex - 1);
     } else {
-      newIndex = historyIndex >= commandHistory.length - 1
-        ? -1
-        : historyIndex + 1;
+      newIndex = historyIndex >= commandHistory.length - 1 ? -1 : historyIndex + 1;
     }
 
     setHistoryIndex(newIndex);
@@ -63,18 +63,24 @@ export default function MessageInput({ onSendMessage, disabled }: MessageInputPr
   };
 
   return (
-    <div className="input-area" style={{
-      display: 'flex',
-      alignItems: 'flex-start',
-      borderTop: '1px solid var(--terminal-border)',
-      paddingTop: '12px'
-    }}>
-      <span className="input-prefix glow" style={{
-        marginRight: '8px',
-        marginTop: '2px',
-        color: disabled ? 'var(--terminal-red)' : 'var(--terminal-green)'
-      }}>
-                $
+    <div
+      className="input-area"
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        borderTop: '1px solid var(--terminal-border)',
+        paddingTop: '12px',
+      }}
+    >
+      <span
+        className="input-prefix glow"
+        style={{
+          marginRight: '8px',
+          marginTop: '2px',
+          color: disabled ? 'var(--terminal-red)' : 'var(--terminal-green)',
+        }}
+      >
+        $
       </span>
       <textarea
         ref={inputRef}
@@ -97,13 +103,11 @@ export default function MessageInput({ onSendMessage, disabled }: MessageInputPr
           maxHeight: '100px',
           padding: 0,
           margin: 0,
-          outline: 'none'
+          outline: 'none',
         }}
         rows={1}
       />
-      {input && (
-        <div className="cursor" style={{ marginLeft: '2px' }}></div>
-      )}
+      {input && <div className="cursor" style={{ marginLeft: '2px' }}></div>}
     </div>
   );
 }

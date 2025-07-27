@@ -5,6 +5,8 @@
 **/*-lock.yaml
 dev-dist
 
+**/eslint.config.js
+
 **/CHANGELOG.md
 
 # Build artifacts

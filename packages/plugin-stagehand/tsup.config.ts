@@ -13,7 +13,7 @@ export default defineConfig({
     'playwright',
     'playwright-core',
     'playwright-chromium',
-    'playwright-firefox', 
+    'playwright-firefox',
     'playwright-webkit',
     '@playwright/test',
     'electron',
@@ -32,4 +32,4 @@ export default defineConfig({
     './security',
     './plugin',
   ],
-}); 
+});

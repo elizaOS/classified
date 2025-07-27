@@ -1,4 +1,4 @@
-import { type Plugin, type IAgentRuntime, logger } from '@elizaos/core';
+import { type Plugin } from '@elizaos/core';
 import { AutonomyService } from './service';
 import { adminChatProvider } from './provider';
 import { autonomyStatusProvider } from './status-provider';
@@ -9,7 +9,7 @@ import { autonomyTests } from './tests';
 /**
  * Clean autonomy plugin with settings-based control:
  * 1. Service: Autonomous loop controlled via AUTONOMY_ENABLED setting
- * 2. Admin Chat Provider: Admin history (autonomous context only) 
+ * 2. Admin Chat Provider: Admin history (autonomous context only)
  * 3. Status Provider: Shows autonomy status (regular chat only)
  * 4. Action: Send message to admin (autonomous context only)
  * 5. Routes: API for enable/disable/status

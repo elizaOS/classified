@@ -4,10 +4,20 @@ import { logger } from '@elizaos/core';
 import { TodoReminderService } from '../services/reminderService';
 import { v4 as uuidv4 } from 'uuid';
 
+interface MockRolodexService {
+  sendMessage: ReturnType<typeof mock>;
+}
+
+interface LoggerMock {
+  mock: {
+    calls: Array<unknown[]>;
+  };
+}
+
 describe('Reminder and Rolodex Integration', () => {
   let runtime: IAgentRuntime;
   let reminderService: TodoReminderService;
-  let mockRolodexService: any;
+  let mockRolodexService: MockRolodexService;
 
   beforeEach(async () => {
     spyOn(logger, 'info').mockImplementation(() => {});
@@ -27,7 +37,7 @@ describe('Reminder and Rolodex Integration', () => {
     runtime = {
       agentId: 'test-agent' as UUID,
       character: { name: 'TestAgent' },
-      db: {} as any,
+      db: {} as IAgentRuntime['db'],
       getService: mock((name: string) => {
         if (name === 'rolodex') {
           return mockRolodexService;
@@ -63,13 +73,9 @@ describe('Reminder and Rolodex Integration', () => {
   it('should detect rolodex service on initialization', () => {
     expect(runtime.getService).toHaveBeenCalledWith('rolodex');
     // Check that the service logged about finding rolodex
-    const logCalls = (logger.info as any).mock.calls;
-    const hasRolodexLog = logCalls.some((call: any[]) => {
-      const msg = call[0];
-      return (
-        typeof msg === 'string' &&
-        msg.includes('Rolodex service found - enhanced entity management enabled')
-      );
+    const logCalls = (logger.info as unknown as LoggerMock).mock.calls;
+    const hasRolodexLog = logCalls.some((call: unknown[]) => {
+      return (call[0] as string)?.includes('Rolodex service found');
     });
     expect(hasRolodexLog).toBe(true);
   });
@@ -104,13 +110,9 @@ describe('Reminder and Rolodex Integration', () => {
     const service = await TodoReminderService.start(noRolodexRuntime);
 
     // Check that the service logged about not finding rolodex
-    const logCalls = (logger.info as any).mock.calls;
-    const hasNoRolodexLog = logCalls.some((call: any[]) => {
-      const msg = call[0];
-      return (
-        typeof msg === 'string' &&
-        msg.includes('Rolodex service not found - using basic reminder functionality')
-      );
+    const logCalls = (logger.info as unknown as LoggerMock).mock.calls;
+    const hasNoRolodexLog = logCalls.some((call: unknown[]) => {
+      return (call[0] as string)?.includes('Rolodex service not found');
     });
     expect(hasNoRolodexLog).toBe(true);
 

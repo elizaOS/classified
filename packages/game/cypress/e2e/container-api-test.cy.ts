@@ -16,7 +16,7 @@ describe('Container-Managed Agent API Test', () => {
       url: `${AGENT_CONTAINER_URL}/api/server/health`,
       timeout: STARTUP_TIMEOUT,
       retries: 10,
-      retryOnStatusCodeFailure: true
+      retryOnStatusCodeFailure: true,
     }).then((response) => {
       expect(response.status).to.equal(200);
       expect(response.body).to.have.property('status');
@@ -27,7 +27,7 @@ describe('Container-Managed Agent API Test', () => {
     cy.request({
       method: 'GET',
       url: `${AGENT_CONTAINER_URL}/api/agents/default/settings`,
-      timeout: 30000
+      timeout: 30000,
     }).then((response) => {
       expect(response.status).to.equal(200);
 
@@ -50,9 +50,9 @@ describe('Container-Managed Agent API Test', () => {
       body: {
         text: 'Hello from container test',
         userId: 'test-user',
-        userName: 'TestUser'
+        userName: 'TestUser',
       },
-      timeout: 60000 // Allow time for AI response
+      timeout: 60000, // Allow time for AI response
     }).then((response) => {
       expect(response.status).to.equal(200);
       expect(response.body).to.have.property('data');
@@ -69,7 +69,7 @@ describe('Container-Managed Agent API Test', () => {
     cy.request({
       method: 'GET',
       url: `${AGENT_CONTAINER_URL}/api/memories?count=5`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       expect(response.status).to.equal(200);
       expect(response.body).to.have.property('data');
@@ -86,7 +86,7 @@ describe('Container-Managed Agent API Test', () => {
       method: 'GET',
       url: `${AGENT_CONTAINER_URL}/api/goals`,
       timeout: 10000,
-      failOnStatusCode: false // Goals might not exist yet
+      failOnStatusCode: false, // Goals might not exist yet
     }).then((response) => {
       if (response.status === 200) {
         cy.log('✅ Goals API accessible');
@@ -100,7 +100,7 @@ describe('Container-Managed Agent API Test', () => {
       method: 'GET',
       url: `${AGENT_CONTAINER_URL}/api/todos`,
       timeout: 10000,
-      failOnStatusCode: false // Todos might not exist yet
+      failOnStatusCode: false, // Todos might not exist yet
     }).then((response) => {
       if (response.status === 200) {
         cy.log('✅ Todos API accessible');
@@ -114,7 +114,7 @@ describe('Container-Managed Agent API Test', () => {
       method: 'GET',
       url: `${AGENT_CONTAINER_URL}/autonomy/status`,
       timeout: 10000,
-      failOnStatusCode: false // Autonomy might not be enabled
+      failOnStatusCode: false, // Autonomy might not be enabled
     }).then((response) => {
       if (response.status === 200) {
         cy.log('✅ Autonomy API accessible');
@@ -131,7 +131,7 @@ describe('Container-Managed Agent API Test', () => {
       method: 'GET',
       url: 'http://localhost:11434/api/tags',
       timeout: 30000,
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       if (response.status === 200) {
         cy.log('✅ Ollama container is accessible');
@@ -150,7 +150,7 @@ describe('Container-Managed Agent API Test', () => {
     cy.request({
       method: 'GET',
       url: `${AGENT_CONTAINER_URL}/api/memories?count=1`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       expect(response.status).to.equal(200);
       cy.log('✅ PostgreSQL container is accessible (agent can query memories)');
@@ -168,9 +168,9 @@ describe('Container-Managed Agent API Test', () => {
       body: {
         text: testMessage,
         userId: 'math-test-user',
-        userName: 'MathTester'
+        userName: 'MathTester',
       },
-      timeout: 60000 // Allow time for AI processing
+      timeout: 60000, // Allow time for AI processing
     }).then((response) => {
       expect(response.status).to.equal(200);
       expect(response.body).to.have.property('data');

@@ -48,11 +48,13 @@ export const describeSceneAction: Action = {
     'Analyzes the current visual scene and provides a detailed description of what the agent sees through the camera. Returns scene analysis data including people count, objects, and camera info for action chaining.',
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Check if vision capabilities are enabled in runtime settings
-    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
-                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
-    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
-                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
-    
+    const cameraEnabled =
+      runtime.getSetting('ENABLE_CAMERA') === 'true' ||
+      runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled =
+      runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' ||
+      runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+
     if (!cameraEnabled && !screenEnabled) {
       logger.debug('[describeSceneAction] Vision capabilities disabled in settings.');
       return false;
@@ -274,11 +276,13 @@ export const captureImageAction: Action = {
   // Note: This action is disabled by default - privacy-sensitive, can capture images
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Check if camera or screen capture capabilities are enabled in runtime settings
-    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
-                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
-    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
-                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
-    
+    const cameraEnabled =
+      runtime.getSetting('ENABLE_CAMERA') === 'true' ||
+      runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled =
+      runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' ||
+      runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+
     if (!cameraEnabled && !screenEnabled) {
       logger.debug('[captureImageAction] Vision capture capabilities disabled in settings.');
       return false;
@@ -470,95 +474,6 @@ export const captureImageAction: Action = {
   ] as ActionExample[][],
 };
 
-export const killAutonomousAction: Action = {
-  name: 'KILL_AUTONOMOUS',
-  similes: ['STOP_AUTONOMOUS', 'HALT_AUTONOMOUS', 'KILL_AUTO_LOOP'],
-  description: 'Stops the autonomous agent loop for debugging purposes.',
-  // Note: This action is disabled by default - potentially dangerous, can halt autonomous operations
-  validate: async (_runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
-    // Always allow this action for debugging
-    return true;
-  },
-  handler: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    _state?: State,
-    _options?: any,
-    callback?: HandlerCallback,
-    _responses?: Memory[]
-  ): Promise<void> => {
-    try {
-      // Try to get the autonomous service and stop it
-      const autonomousService = runtime.getService('AUTONOMOUS');
-
-      if (autonomousService && 'stop' in autonomousService) {
-        await (autonomousService as any).stop();
-
-        const thought = 'Successfully stopped the autonomous agent loop.';
-        const text =
-          'Autonomous loop has been killed. The agent will no longer run autonomously until restarted.';
-
-        await saveExecutionRecord(runtime, message, thought, text, ['KILL_AUTONOMOUS']);
-        if (callback) {
-          await callback({
-            thought,
-            text,
-            actions: ['KILL_AUTONOMOUS'],
-          });
-        }
-      } else {
-        const thought = 'Autonomous service not found or already stopped.';
-        const text = 'No autonomous loop was running or the service could not be found.';
-
-        await saveExecutionRecord(runtime, message, thought, text, ['KILL_AUTONOMOUS']);
-        if (callback) {
-          await callback({
-            thought,
-            text,
-            actions: ['KILL_AUTONOMOUS'],
-          });
-        }
-      }
-    } catch (error: any) {
-      logger.error('[killAutonomousAction] Error stopping autonomous service:', error);
-
-      const thought = 'An error occurred while trying to stop the autonomous loop.';
-      const text = `Error stopping autonomous loop: ${error.message}`;
-
-      await saveExecutionRecord(runtime, message, thought, text, ['KILL_AUTONOMOUS']);
-      if (callback) {
-        await callback({
-          thought,
-          text,
-          actions: ['KILL_AUTONOMOUS'],
-        });
-      }
-    }
-  },
-  examples: [
-    [
-      { name: 'user', content: { text: 'kill the autonomous loop' } },
-      {
-        name: 'agent',
-        content: {
-          actions: ['KILL_AUTONOMOUS'],
-          thought: 'The user wants to stop the autonomous agent loop for debugging.',
-          text: 'Autonomous loop has been killed. The agent will no longer run autonomously until restarted.',
-        },
-      },
-    ],
-    [
-      { name: 'user', content: { text: 'stop autonomous mode' } },
-      {
-        name: 'agent',
-        content: {
-          actions: ['KILL_AUTONOMOUS'],
-        },
-      },
-    ],
-  ],
-};
-
 export const setVisionModeAction: Action = {
   name: 'SET_VISION_MODE',
   description: 'Set the vision mode to OFF, CAMERA, SCREEN, or BOTH',
@@ -573,11 +488,13 @@ export const setVisionModeAction: Action = {
   ],
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Check if any vision capabilities are enabled in runtime settings
-    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
-                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
-    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
-                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
-    
+    const cameraEnabled =
+      runtime.getSetting('ENABLE_CAMERA') === 'true' ||
+      runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled =
+      runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' ||
+      runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+
     if (!cameraEnabled && !screenEnabled) {
       logger.debug('[setVisionModeAction] Vision capabilities disabled in settings.');
       return false;
@@ -766,11 +683,13 @@ export const nameEntityAction: Action = {
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Check if vision capabilities are enabled in runtime settings
-    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
-                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
-    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
-                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
-    
+    const cameraEnabled =
+      runtime.getSetting('ENABLE_CAMERA') === 'true' ||
+      runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled =
+      runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' ||
+      runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+
     if (!cameraEnabled && !screenEnabled) {
       logger.debug('Vision capabilities disabled in settings.');
       return false;
@@ -930,11 +849,13 @@ export const identifyPersonAction: Action = {
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Check if vision capabilities are enabled in runtime settings
-    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
-                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
-    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
-                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
-    
+    const cameraEnabled =
+      runtime.getSetting('ENABLE_CAMERA') === 'true' ||
+      runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled =
+      runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' ||
+      runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+
     if (!cameraEnabled && !screenEnabled) {
       logger.debug('Vision capabilities disabled in settings.');
       return false;
@@ -1102,11 +1023,13 @@ export const trackEntityAction: Action = {
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Check if vision capabilities are enabled in runtime settings
-    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || 
-                          runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
-    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || 
-                          runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
-    
+    const cameraEnabled =
+      runtime.getSetting('ENABLE_CAMERA') === 'true' ||
+      runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled =
+      runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' ||
+      runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+
     if (!cameraEnabled && !screenEnabled) {
       logger.debug('Vision capabilities disabled in settings.');
       return false;

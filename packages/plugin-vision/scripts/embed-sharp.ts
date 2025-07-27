@@ -8,7 +8,9 @@ const __dirname = dirname(__filename);
 const packageRoot = join(__dirname, '..');
 
 // Import runtimePlatformArch from sharp
-const { runtimePlatformArch } = await import(join(packageRoot, 'node_modules/sharp/lib/libvips.js'));
+const { runtimePlatformArch } = await import(
+  join(packageRoot, 'node_modules/sharp/lib/libvips.js')
+);
 
 const runtimePlatform = runtimePlatformArch();
 console.log(`🔍 Detected platform: ${runtimePlatform}`);
@@ -20,7 +22,9 @@ const fullPath = join(packageRoot, nativeModulePath);
 // Check if the native module exists
 if (!existsSync(fullPath)) {
   console.error(`❌ Native module not found at: ${fullPath}`);
-  console.error(`💡 You may need to rebuild sharp from source or install platform-specific binaries`);
+  console.error(
+    `💡 You may need to rebuild sharp from source or install platform-specific binaries`
+  );
   process.exit(1);
 }
 
@@ -45,4 +49,4 @@ const outputPath = join(compileDir, 'sharp.ts');
 await Bun.write(outputPath, importStatement);
 
 console.log(`✅ Generated embed file at: ${outputPath}`);
-console.log(`📦 Native module will be embedded from: ${nativeModulePath}`); 
+console.log(`📦 Native module will be embedded from: ${nativeModulePath}`);

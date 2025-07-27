@@ -31,7 +31,7 @@ export async function retryWithBackoff<T>(
   config: RetryConfig,
   operation: string
 ): Promise<T> {
-  let lastError: Error;
+  let lastError: Error | undefined;
   let delay = config.initialDelay;
 
   for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
@@ -44,11 +44,11 @@ export async function retryWithBackoff<T>(
 
       if (attempt < config.maxAttempts) {
         logger.debug(`Retrying ${operation} in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
         delay = Math.min(delay * config.backoffMultiplier, config.maxDelay);
       }
     }
   }
 
-  throw lastError!;
+  throw lastError || new Error(`${operation} failed after ${config.maxAttempts} attempts`);
 }

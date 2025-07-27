@@ -85,8 +85,10 @@ export function createLoggingRouter(): express.Router {
           let levelMatch = true;
           if (requestedLevel && requestedLevel !== 'all') {
             // Handle both numeric and string levels for compatibility
-            const logLevel = typeof log.level === 'number' ? log.level : 
-                           LOG_LEVELS[log.level as keyof typeof LOG_LEVELS] || 30;
+            const logLevel =
+              typeof log.level === 'number'
+                ? log.level
+                : LOG_LEVELS[log.level as keyof typeof LOG_LEVELS] || 30;
             levelMatch = logLevel === requestedLevelValue;
           }
 
@@ -129,8 +131,8 @@ export function createLoggingRouter(): express.Router {
         totalLogs: recentLogs.length,
         logsWithAgentNames,
         logsWithAgentIds,
-        agentNamePopulationRate: Math.round(agentNamePopulationRate * 100) + '%',
-        agentIdPopulationRate: Math.round(agentIdPopulationRate * 100) + '%',
+        agentNamePopulationRate: `${Math.round(agentNamePopulationRate * 100)}%`,
+        agentIdPopulationRate: `${Math.round(agentIdPopulationRate * 100)}%`,
         isAgentNameDataSparse,
         isAgentIdDataSparse,
         sampleLogAgentNames: recentLogs.slice(0, 5).map((log) => log.agentName),
@@ -145,7 +147,7 @@ export function createLoggingRouter(): express.Router {
         logs: filtered,
         count: filtered.length,
         total: recentLogs.length,
-        requestedLevel: requestedLevel,
+        requestedLevel,
         agentName: requestedAgentName,
         agentId: requestedAgentId,
         levels: Object.keys(LOG_LEVELS),

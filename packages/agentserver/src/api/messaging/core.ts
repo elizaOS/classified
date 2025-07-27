@@ -1,7 +1,7 @@
 import { logger, validateUuid, type UUID } from '@elizaos/core';
 import express from 'express';
 import internalMessageBus from '../../bus'; // Import the bus
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import type { MessageServiceStructure as MessageService } from '../../types';
 
 const DEFAULT_SERVER_ID = '00000000-0000-0000-0000-000000000000' as UUID; // Single default server
@@ -221,9 +221,9 @@ export function createMessagingCoreRouter(serverInstance: AgentServer): express.
           : undefined,
         metadata: messagePayload.metadata,
       };
-      
+
       const createdUserMessage = await serverInstance.createMessage(messageToCreate);
-      
+
       // Set up a promise to wait for the agent's response
       const responsePromise = new Promise<string>((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -238,14 +238,15 @@ export function createMessagingCoreRouter(serverInstance: AgentServer): express.
               messagePayload.channel_id as UUID,
               5 // Get last 5 messages
             );
-            
+
             // Find an agent response that's newer than our user message
-            const agentResponse = recentMessages.find(msg => 
-              msg.createdAt > createdUserMessage.createdAt && 
-              msg.source_type === 'agent_response' &&
-              msg.channelId === messagePayload.channel_id
+            const agentResponse = recentMessages.find(
+              (msg) =>
+                msg.createdAt > createdUserMessage.createdAt &&
+                msg.source_type === 'agent_response' &&
+                msg.channelId === messagePayload.channel_id
             );
-            
+
             if (agentResponse) {
               clearTimeout(timeout);
               resolve(agentResponse.content);
@@ -280,19 +281,22 @@ export function createMessagingCoreRouter(serverInstance: AgentServer): express.
       };
 
       internalMessageBus.emit('new_message', messageForBus);
-      logger.info('[SYNC MESSAGING] Published message to bus, waiting for agent response:', createdUserMessage.id);
+      logger.info(
+        '[SYNC MESSAGING] Published message to bus, waiting for agent response:',
+        createdUserMessage.id
+      );
 
       // Wait for agent response
       try {
         const agentResponse = await responsePromise;
-        
+
         res.status(200).json({
           success: true,
           message: 'Message processed successfully',
           data: {
             messageId: createdUserMessage.id,
-            agentResponse: agentResponse
-          }
+            agentResponse,
+          },
         });
       } catch (error) {
         logger.error('[SYNC MESSAGING] Agent response timeout or error:', error);
@@ -301,8 +305,9 @@ export function createMessagingCoreRouter(serverInstance: AgentServer): express.
           error: 'Agent did not respond in time',
           data: {
             messageId: createdUserMessage.id,
-            agentResponse: 'I apologize, but I\'m having trouble responding right now. Please try again.'
-          }
+            agentResponse:
+              "I apologize, but I'm having trouble responding right now. Please try again.",
+          },
         });
       }
     } catch (error) {

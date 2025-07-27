@@ -79,7 +79,7 @@ class InternalMessageBus extends EventTarget {
       // Remove all listeners for a specific event
       const eventHandlers = this.handlers.get(event);
       if (eventHandlers) {
-        for (const [handler, wrappedHandler] of eventHandlers) {
+        for (const [_handler, wrappedHandler] of eventHandlers) {
           this.removeEventListener(event, wrappedHandler);
         }
         this.handlers.delete(event);
@@ -87,7 +87,7 @@ class InternalMessageBus extends EventTarget {
     } else {
       // Remove all listeners for all events
       for (const [eventName, eventHandlers] of this.handlers) {
-        for (const [handler, wrappedHandler] of eventHandlers) {
+        for (const [_handler, wrappedHandler] of eventHandlers) {
           this.removeEventListener(eventName, wrappedHandler);
         }
       }

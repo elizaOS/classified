@@ -13,7 +13,8 @@ import {
   type UUID,
   composePrompt,
 } from '@elizaos/core';
-import { createGoalDataService } from '../services/goalDataService';
+import { GoalData } from '../types';
+import type { GoalService } from '../services/goalService';
 
 // Interface for parsed goal data
 interface GoalInput {
@@ -196,86 +197,74 @@ async function checkForSimilarGoal(
  */
 export const createGoalAction: Action = {
   name: 'CREATE_GOAL',
-  similes: ['ADD_GOAL', 'NEW_GOAL', 'SET_GOAL', 'TRACK_GOAL'],
-  description:
-    'Creates a new long-term achievable goal for the agent or a user. Can be chained with LIST_GOALS to see all goals or UPDATE_GOAL to modify properties',
+  similes: ['NEW_GOAL', 'ADD_GOAL', 'SET_GOAL', 'MAKE_GOAL', 'ESTABLISH_GOAL'],
+  description: 'Create a new goal or objective to track',
+  validate: async (runtime: IAgentRuntime, message: Memory) => {
+    const dataService = runtime.getService('goals') as GoalService;
+    if (!dataService) {
+      console.error('[CREATE_GOAL] Goals service not found');
+      return false;
+    }
 
-  validate: async (_runtime: IAgentRuntime, _message: Memory): Promise<boolean> => {
-    // Always allow validation, we'll check limits in the handler
     return true;
   },
-
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
     state: State | undefined,
-    _options: any,
-    callback?: HandlerCallback
+    options?: { [key: string]: unknown },
+    callback?: HandlerCallback,
+    _responses?: Memory[]
   ): Promise<ActionResult> => {
+    logger.debug('[CREATE_GOAL] Handler started', {
+      entityId: message.entityId,
+      agentId: message.agentId,
+      roomId: message.roomId,
+    });
+
     try {
-      // Step 1: Compose state if needed
-      const currentState = state || (await runtime.composeState(message, ['GOALS']));
+      const dataService = runtime.getService('goals') as GoalService;
+      if (!dataService) {
+        logger.error('[CREATE_GOAL] Goals service not found');
+        throw new Error('Goal tracking is not available at the moment.');
+      }
 
-      // Step 2: Extract goal info from the message
-      const goalInfo = await extractGoalInfo(runtime, message, currentState);
+      // Extract goal information from the message
+      const goalInput = await extractGoalInfo(runtime, message, state || ({} as State));
 
-      if (!goalInfo) {
-        if (callback) {
-          await callback({
-            text: "I couldn't understand what goal you want to create. Could you please provide a clear goal description?",
-            actions: ['CREATE_GOAL_FAILED'],
-            source: message.content.source,
-          });
-        }
+      if (!goalInput) {
+        logger.debug('[CREATE_GOAL] Could not extract goal information');
+        await callback?.({
+          text: 'I could not understand what goal you want to create. Please specify a clear goal.',
+          actions: ['CREATE_GOAL_FAILED'],
+          source: message.content.source,
+        });
         return {
+          success: false,
           data: {
             actionName: 'CREATE_GOAL',
-            error: 'Failed to understand goal',
+            error: 'Could not extract goal information',
           },
           values: {
             success: false,
-            error: 'Failed to understand goal',
           },
-          success: false,
         };
       }
 
-      // Step 3: Get the data service
-      const dataService = createGoalDataService(runtime);
+      // Determine owner ID based on ownerType
+      const ownerId =
+        goalInput.ownerType === 'agent' ? (runtime.agentId as UUID) : (message.entityId as UUID);
 
-      // Determine the owner
-      const ownerId = goalInfo.ownerType === 'agent' ? runtime.agentId : (message.entityId as UUID);
+      // Check for existing similar goals
+      const existingGoals = await dataService.getGoals({
+        ownerType: goalInput.ownerType,
+        ownerId: ownerId,
+      });
 
-      // Step 4: Check goal count
-      const activeGoalCount = await dataService.countGoals(goalInfo.ownerType, ownerId, false);
+      // Calculate active goal count
+      const activeGoalCount = existingGoals.filter((g) => !g.isCompleted).length;
 
-      if (activeGoalCount >= 5) {
-        if (callback) {
-          await callback({
-            text: `Cannot add new goal: The ${goalInfo.ownerType === 'agent' ? 'agent' : 'user'} already has 5 active goals, which is the maximum allowed. Please complete or remove some existing goals first.`,
-            actions: ['CREATE_GOAL_LIMIT_REACHED'],
-            source: message.content.source,
-          });
-        }
-        return {
-          data: {
-            actionName: 'CREATE_GOAL',
-            error: 'Goal limit reached',
-            currentCount: activeGoalCount,
-            maxAllowed: 5,
-          },
-          values: {
-            success: false,
-            error: 'Goal limit reached',
-            goalCount: activeGoalCount,
-          },
-          success: false,
-        };
-      }
-
-      // Step 5: Check for similar goals
-      const existingGoals = await dataService.getAllGoalsForOwner(goalInfo.ownerType, ownerId);
-      const similarityCheck = await checkForSimilarGoal(runtime, goalInfo, existingGoals);
+      const similarityCheck = await checkForSimilarGoal(runtime, goalInput, existingGoals);
 
       if (similarityCheck.hasSimilar && similarityCheck.confidence > 70) {
         if (callback) {
@@ -303,7 +292,7 @@ export const createGoalAction: Action = {
 
       // Step 6: Create the goal
       const tags = ['GOAL'];
-      if (goalInfo.ownerType === 'agent') {
+      if (goalInput.ownerType === 'agent') {
         tags.push('agent-goal');
       } else {
         tags.push('entity-goal');
@@ -315,10 +304,10 @@ export const createGoalAction: Action = {
 
       const createdGoalId = await dataService.createGoal({
         agentId: runtime.agentId,
-        ownerType: goalInfo.ownerType,
+        ownerType: goalInput.ownerType,
         ownerId,
-        name: goalInfo.name,
-        description: goalInfo.description || goalInfo.name,
+        name: goalInput.name,
+        description: goalInput.description || goalInput.name,
         metadata,
         tags,
       });
@@ -328,7 +317,7 @@ export const createGoalAction: Action = {
       }
 
       // Step 7: Send success message with guidance based on goal count
-      let successMessage = `✅ New goal created: "${goalInfo.name}"`;
+      let successMessage = `✅ New goal created: "${goalInput.name}"`;
 
       if (activeGoalCount >= 4) {
         successMessage += `\n\n⚠️ You now have ${activeGoalCount + 1} active goals. Consider focusing on completing some of these before adding more.`;
@@ -346,14 +335,14 @@ export const createGoalAction: Action = {
         data: {
           actionName: 'CREATE_GOAL',
           createdGoalId,
-          goalInfo,
+          goalInfo: goalInput,
           activeGoalCount: activeGoalCount + 1,
         },
         values: {
           success: true,
           goalId: createdGoalId,
-          goalName: goalInfo.name,
-          ownerType: goalInfo.ownerType,
+          goalName: goalInput.name,
+          ownerType: goalInput.ownerType,
           totalGoals: activeGoalCount + 1,
         },
         success: true,

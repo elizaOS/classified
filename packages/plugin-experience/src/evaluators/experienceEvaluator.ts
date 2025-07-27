@@ -6,64 +6,57 @@ import {
   logger,
   type HandlerCallback,
   type ProviderResult,
-} from "@elizaos/core";
-import { ExperienceService } from "../service";
-import { ExperienceType, OutcomeType } from "../types";
+} from '@elizaos/core';
+import { ExperienceService } from '../service';
+import { ExperienceType, OutcomeType } from '../types';
 
 export const experienceEvaluator: Evaluator = {
-  name: "EXPERIENCE_EVALUATOR",
-  similes: ["experience recorder", "learning evaluator", "self-reflection"],
-  description:
-    "Periodically analyzes conversation patterns to extract novel learning experiences",
+  name: 'EXPERIENCE_EVALUATOR',
+  similes: ['experience recorder', 'learning evaluator', 'self-reflection'],
+  description: 'Periodically analyzes conversation patterns to extract novel learning experiences',
   alwaysRun: false,
 
   examples: [
     {
-      prompt:
-        "The agent successfully executed a shell command after initially failing",
+      prompt: 'The agent successfully executed a shell command after initially failing',
       messages: [
         {
-          name: "Autoliza",
+          name: 'Autoliza',
           content: {
-            text: "Let me try to run this Python script.",
+            text: 'Let me try to run this Python script.',
           },
         },
         {
-          name: "Autoliza",
+          name: 'Autoliza',
           content: {
-            text: "Error: ModuleNotFoundError for pandas. I need to install it first.",
+            text: 'Error: ModuleNotFoundError for pandas. I need to install it first.',
           },
         },
         {
-          name: "Autoliza",
+          name: 'Autoliza',
           content: {
-            text: "After installing pandas, the script ran successfully and produced the expected output.",
+            text: 'After installing pandas, the script ran successfully and produced the expected output.',
           },
         },
       ],
       outcome:
-        "Record a CORRECTION experience about needing to install dependencies before running Python scripts",
+        'Record a CORRECTION experience about needing to install dependencies before running Python scripts',
     },
     {
-      prompt: "The agent discovered a new system capability",
+      prompt: 'The agent discovered a new system capability',
       messages: [
         {
-          name: "Autoliza",
+          name: 'Autoliza',
           content: {
-            text: "I found that the system has jq installed, which is perfect for parsing JSON data.",
+            text: 'I found that the system has jq installed, which is perfect for parsing JSON data.',
           },
         },
       ],
-      outcome:
-        "Record a DISCOVERY experience about the availability of jq for JSON processing",
+      outcome: 'Record a DISCOVERY experience about the availability of jq for JSON processing',
     },
   ],
 
-  async validate(
-    runtime: IAgentRuntime,
-    message: Memory,
-    state?: State,
-  ): Promise<boolean> {
+  async validate(runtime: IAgentRuntime, message: Memory, state?: State): Promise<boolean> {
     // Only run every 10 messages and only on agent messages
     if (message.entityId !== runtime.agentId) {
       return false;
@@ -71,19 +64,21 @@ export const experienceEvaluator: Evaluator = {
 
     // Check cooldown - only extract experiences every 10 messages
     const lastExtractionKey = 'experience-extraction:last-message-count';
-    const currentCount = await runtime.getCache<string>(lastExtractionKey) || '0';
+    const currentCount = (await runtime.getCache<string>(lastExtractionKey)) || '0';
     const messageCount = parseInt(currentCount, 10);
     const newMessageCount = messageCount + 1;
-    
+
     await runtime.setCache(lastExtractionKey, newMessageCount.toString());
-    
+
     // Trigger extraction every 10 messages
     const shouldExtract = newMessageCount % 10 === 0;
-    
+
     if (shouldExtract) {
-      logger.info(`[experienceEvaluator] Triggering experience extraction after ${newMessageCount} messages`);
+      logger.info(
+        `[experienceEvaluator] Triggering experience extraction after ${newMessageCount} messages`
+      );
     }
-    
+
     return shouldExtract;
   },
 
@@ -93,14 +88,12 @@ export const experienceEvaluator: Evaluator = {
     state?: State,
     options?: Record<string, unknown>,
     callback?: HandlerCallback,
-    responses?: Memory[],
+    responses?: Memory[]
   ): Promise<void> {
-    const experienceService = runtime.getService(
-      "EXPERIENCE",
-    ) as ExperienceService;
+    const experienceService = runtime.getService('EXPERIENCE') as ExperienceService;
 
     if (!experienceService) {
-      logger.warn("[experienceEvaluator] Experience service not available");
+      logger.warn('[experienceEvaluator] Experience service not available');
       return;
     }
 
@@ -108,13 +101,13 @@ export const experienceEvaluator: Evaluator = {
       // Get last 10 messages as context for analysis
       const recentMessages = state?.recentMessagesData?.slice(-10) || [];
       if (recentMessages.length < 3) {
-        logger.debug("[experienceEvaluator] Not enough messages for experience extraction");
+        logger.debug('[experienceEvaluator] Not enough messages for experience extraction');
         return;
       }
-      
+
       // Combine recent messages into analysis context
       const conversationContext = recentMessages
-        .map(m => m.content.text)
+        .map((m) => m.content.text)
         .filter(Boolean)
         .join(' ');
 
@@ -122,9 +115,9 @@ export const experienceEvaluator: Evaluator = {
       const existingExperiences = await experienceService.queryExperiences({
         query: conversationContext,
         limit: 10,
-        minConfidence: 0.7
+        minConfidence: 0.7,
       });
-      
+
       // Use LLM to extract novel experiences from the conversation
       const extractionPrompt = `Analyze this conversation for novel learning experiences that would be surprising or valuable to remember.
 
@@ -132,7 +125,7 @@ Conversation context:
 ${conversationContext}
 
 Existing similar experiences:
-${existingExperiences.map(exp => `- ${exp.learning}`).join('\n') || 'None'}
+${existingExperiences.map((exp) => `- ${exp.learning}`).join('\n') || 'None'}
 
 Extract ONLY experiences that are:
 1. Genuinely novel (not in existing experiences)
@@ -166,26 +159,31 @@ Return empty array [] if no novel experiences found.`;
           experiences = JSON.parse(jsonMatch[0]);
         }
       } catch (parseError) {
-        logger.warn("[experienceEvaluator] Failed to parse LLM response", parseError);
+        logger.warn('[experienceEvaluator] Failed to parse LLM response', parseError);
         return;
       }
 
       // Record each novel experience
-      for (const exp of experiences.slice(0, 3)) { // Max 3 experiences per extraction
+      for (const exp of experiences.slice(0, 3)) {
+        // Max 3 experiences per extraction
         if (!exp.learning || !exp.confidence || exp.confidence < 0.6) {
           continue;
         }
 
-        const experienceType = {
-          'DISCOVERY': ExperienceType.DISCOVERY,
-          'CORRECTION': ExperienceType.CORRECTION, 
-          'SUCCESS': ExperienceType.SUCCESS,
-          'LEARNING': ExperienceType.LEARNING
-        }[exp.type] || ExperienceType.LEARNING;
+        const experienceType =
+          {
+            DISCOVERY: ExperienceType.DISCOVERY,
+            CORRECTION: ExperienceType.CORRECTION,
+            SUCCESS: ExperienceType.SUCCESS,
+            LEARNING: ExperienceType.LEARNING,
+          }[exp.type] || ExperienceType.LEARNING;
 
         await experienceService.recordExperience({
           type: experienceType,
-          outcome: experienceType === ExperienceType.CORRECTION ? OutcomeType.POSITIVE : OutcomeType.NEUTRAL,
+          outcome:
+            experienceType === ExperienceType.CORRECTION
+              ? OutcomeType.POSITIVE
+              : OutcomeType.NEUTRAL,
           context: sanitizeContext(exp.context || 'Conversation analysis'),
           action: 'pattern_recognition',
           result: exp.learning,
@@ -196,17 +194,20 @@ Return empty array [] if no novel experiences found.`;
           importance: 0.8, // High importance for extracted experiences
         });
 
-        logger.info(`[experienceEvaluator] Recorded novel experience: ${exp.learning.substring(0, 100)}...`);
+        logger.info(
+          `[experienceEvaluator] Recorded novel experience: ${exp.learning.substring(0, 100)}...`
+        );
       }
 
       if (experiences.length > 0) {
-        logger.info(`[experienceEvaluator] Extracted ${experiences.length} novel experiences from conversation`);
+        logger.info(
+          `[experienceEvaluator] Extracted ${experiences.length} novel experiences from conversation`
+        );
       } else {
         logger.debug(`[experienceEvaluator] No novel experiences found in recent conversation`);
       }
-
     } catch (error) {
-      logger.error("[experienceEvaluator] Error extracting experiences:", error);
+      logger.error('[experienceEvaluator] Error extracting experiences:', error);
     }
   },
 };
@@ -214,8 +215,8 @@ Return empty array [] if no novel experiences found.`;
 // Helper functions
 
 function sanitizeContext(text: string): string {
-  if (!text) return "Unknown context";
-  
+  if (!text) return 'Unknown context';
+
   // Remove user-specific details while preserving technical context
   return text
     .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[EMAIL]') // emails
@@ -229,12 +230,21 @@ function sanitizeContext(text: string): string {
 
 function detectDomain(text: string): string {
   const domains = {
-    shell: ["command", "terminal", "bash", "shell", "execute", "script", "cli"],
-    coding: ["code", "function", "variable", "syntax", "programming", "debug", "typescript", "javascript"],
-    system: ["file", "directory", "process", "memory", "cpu", "system", "install", "package"],
-    network: ["http", "api", "request", "response", "url", "network", "fetch", "curl"],
-    data: ["json", "csv", "database", "query", "data", "sql", "table"],
-    ai: ["model", "llm", "embedding", "prompt", "token", "inference"],
+    shell: ['command', 'terminal', 'bash', 'shell', 'execute', 'script', 'cli'],
+    coding: [
+      'code',
+      'function',
+      'variable',
+      'syntax',
+      'programming',
+      'debug',
+      'typescript',
+      'javascript',
+    ],
+    system: ['file', 'directory', 'process', 'memory', 'cpu', 'system', 'install', 'package'],
+    network: ['http', 'api', 'request', 'response', 'url', 'network', 'fetch', 'curl'],
+    data: ['json', 'csv', 'database', 'query', 'data', 'sql', 'table'],
+    ai: ['model', 'llm', 'embedding', 'prompt', 'token', 'inference'],
   };
 
   const lowerText = text.toLowerCase();
@@ -245,5 +255,5 @@ function detectDomain(text: string): string {
     }
   }
 
-  return "general";
+  return 'general';
 }

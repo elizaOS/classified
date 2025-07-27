@@ -136,7 +136,7 @@ describe('File Utilities', () => {
     });
 
     it('should truncate long filenames while preserving extension', () => {
-      const longName = 'a'.repeat(300) + '.jpg';
+      const longName = `${'a'.repeat(300)}.jpg`;
       const result = sanitizeFilename(longName);
 
       expect(result.length).toBeLessThanOrEqual(255);

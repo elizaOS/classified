@@ -77,7 +77,7 @@ async function testSandboxGeneration() {
       console.log('✅ Weather plugin generated successfully!');
       console.log(`📁 Project path: ${pluginResult.projectPath}`);
       console.log(`📄 Files generated: ${pluginResult.files?.length || 0}`);
-      
+
       if (pluginResult.files && pluginResult.files.length > 0) {
         console.log('\nGenerated files:');
         pluginResult.files.forEach((file: any) => {

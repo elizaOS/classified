@@ -102,7 +102,7 @@ async function testRealGeneration() {
   try {
     // Test 1: Generate Tesla News Discord Bot
     console.log('🤖 Generating Tesla News Discord Bot...');
-    const teslaBot = await codeGenService.generateCode({
+    const teslaBot = (await codeGenService.generateCode({
       projectName: 'tesla-news-discord-bot-real',
       description:
         'Discord bot that monitors RSS feeds for Tesla news and sends alerts to Discord channels',
@@ -125,7 +125,7 @@ async function testRealGeneration() {
         'Throttle notification frequency',
       ],
       githubRepo: `tesla-news-discord-bot-real-${Date.now()}`,
-    }) as any;
+    })) as any;
 
     if (teslaBot.success) {
       console.log('✅ Tesla News Discord Bot generated successfully!');
@@ -144,7 +144,7 @@ async function testRealGeneration() {
 
     // Test 2: Generate Weather App Agent
     console.log('🌤️ Generating Global Weather App Agent...');
-    const weatherApp = await codeGenService.generateCode({
+    const weatherApp = (await codeGenService.generateCode({
       projectName: 'global-weather-app-real',
       description:
         'Complete weather application agent supporting global location queries with natural language',
@@ -174,7 +174,7 @@ async function testRealGeneration() {
         'Support different units (metric/imperial)',
       ],
       githubRepo: `global-weather-app-real-${Date.now()}`,
-    }) as any;
+    })) as any;
 
     if (weatherApp.success) {
       console.log('✅ Global Weather App generated successfully!');

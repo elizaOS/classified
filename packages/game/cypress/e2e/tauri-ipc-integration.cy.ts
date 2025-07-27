@@ -29,19 +29,13 @@ describe('Tauri IPC Integration Test', () => {
     cy.get('[data-testid="chat-send-button"]').click();
 
     // Verify the user message appears
-    cy.get('[data-testid="user-message"]')
-      .last()
-      .should('contain', testMessage);
+    cy.get('[data-testid="user-message"]').last().should('contain', testMessage);
 
     // Wait for agent response (via Tauri IPC → Rust → HTTP → ElizaOS)
-    cy.get('[data-testid="agent-message"]', { timeout: 15000 })
-      .should('exist')
-      .and('be.visible');
+    cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('exist').and('be.visible');
 
     // Verify we're getting actual agent responses (not just echo)
-    cy.get('[data-testid="agent-message"]')
-      .last()
-      .should('not.contain', 'Echo from Rust backend');
+    cy.get('[data-testid="agent-message"]').last().should('not.contain', 'Echo from Rust backend');
   });
 
   it('should toggle capabilities through Tauri IPC', () => {
@@ -52,16 +46,14 @@ describe('Tauri IPC Integration Test', () => {
     cy.wait(1000);
 
     // Check the status changed
-    cy.get('[data-testid="autonomy-toggle-status"]')
-      .should('contain', '●'); // Active state
+    cy.get('[data-testid="autonomy-toggle-status"]').should('contain', '●'); // Active state
 
     // Toggle it back off
     cy.get('[data-testid="autonomy-toggle"]').click();
 
     cy.wait(1000);
 
-    cy.get('[data-testid="autonomy-toggle-status"]')
-      .should('contain', '○'); // Inactive state
+    cy.get('[data-testid="autonomy-toggle-status"]').should('contain', '○'); // Inactive state
   });
 
   it('should fetch and display goals via Tauri IPC', () => {
@@ -125,19 +117,14 @@ describe('Tauri IPC Integration Test', () => {
 
   it('should maintain connection through entire session', () => {
     // Send multiple messages to test stability
-    const messages = [
-      'First test message',
-      'Second test message',
-      'Third test message'
-    ];
+    const messages = ['First test message', 'Second test message', 'Third test message'];
 
     messages.forEach((msg, index) => {
       cy.get('[data-testid="chat-input"]').type(msg);
       cy.get('[data-testid="chat-send-button"]').click();
 
       // Wait for each message to appear
-      cy.get('[data-testid="user-message"]')
-        .should('have.length.at.least', index + 1);
+      cy.get('[data-testid="user-message"]').should('have.length.at.least', index + 1);
 
       // Small delay between messages
       cy.wait(2000);
@@ -147,7 +134,6 @@ describe('Tauri IPC Integration Test', () => {
     cy.get('[data-testid="connection-status"]').should('contain', 'ONLINE');
 
     // Verify we got agent responses
-    cy.get('[data-testid="agent-message"]', { timeout: 20000 })
-      .should('have.length.at.least', 1);
+    cy.get('[data-testid="agent-message"]', { timeout: 20000 }).should('have.length.at.least', 1);
   });
 });

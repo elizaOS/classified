@@ -124,11 +124,7 @@ export const selfModificationPlugin: Plugin = {
 };
 
 // Export individual components for testing
-export {
-  characterEvolutionEvaluator,
-  modifyCharacterAction,
-  CharacterFileManager,
-};
+export { characterEvolutionEvaluator, modifyCharacterAction, CharacterFileManager };
 
 // Test suites and scenarios exports removed - now using bun:test format
 

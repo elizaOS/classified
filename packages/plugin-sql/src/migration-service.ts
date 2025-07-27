@@ -16,11 +16,18 @@ export class DatabaseMigrationService {
   }
 
   discoverAndRegisterPluginSchemas(plugins: Plugin[]): void {
-    console.log(`[MIGRATION SERVICE] discoverAndRegisterPluginSchemas called with ${plugins.length} plugins`);
+    console.log(
+      `[MIGRATION SERVICE] discoverAndRegisterPluginSchemas called with ${plugins.length} plugins`
+    );
     for (const plugin of plugins) {
-      console.log(`[MIGRATION SERVICE] Checking plugin: ${plugin.name}, has schema: ${!!plugin.schema}`);
+      console.log(
+        `[MIGRATION SERVICE] Checking plugin: ${plugin.name}, has schema: ${!!plugin.schema}`
+      );
       if (plugin.schema) {
-        console.log(`[MIGRATION SERVICE] Schema keys for ${plugin.name}:`, Object.keys(plugin.schema));
+        console.log(
+          `[MIGRATION SERVICE] Schema keys for ${plugin.name}:`,
+          Object.keys(plugin.schema)
+        );
         this.registeredSchemas.set(plugin.name, plugin.schema);
         logger.info(`Registered schema for plugin: ${plugin.name}`);
       }
@@ -36,7 +43,9 @@ export class DatabaseMigrationService {
       throw new Error('Database not initialized in DatabaseMigrationService');
     }
 
-    console.log(`[MIGRATION SERVICE] Running migrations for ${this.registeredSchemas.size} plugins...`);
+    console.log(
+      `[MIGRATION SERVICE] Running migrations for ${this.registeredSchemas.size} plugins...`
+    );
     logger.info(`Running migrations for ${this.registeredSchemas.size} plugins...`);
 
     for (const [pluginName, schema] of this.registeredSchemas) {

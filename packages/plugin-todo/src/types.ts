@@ -1,14 +1,23 @@
 import type { UUID } from '@elizaos/core';
 
-/**
- * Module augmentation to extend core ServiceTypeRegistry with TODO plugin service types
- */
+// Extend the core service types with todo service
 declare module '@elizaos/core' {
   interface ServiceTypeRegistry {
+    TODO: 'TODO';
     TODO_REMINDER: 'TODO_REMINDER';
-    TODO_INTEGRATION_BRIDGE: 'TODO_INTEGRATION_BRIDGE';
   }
 }
+
+// Export service type constant
+export const TodoServiceType = {
+  TODO: 'TODO' as const,
+  TODO_REMINDER: 'TODO_REMINDER' as const,
+} satisfies Partial<import('@elizaos/core').ServiceTypeRegistry>;
+
+/**
+ * Type for todo metadata
+ */
+export type TodoMetadata = Record<string, string | number | boolean | null | undefined>;
 
 /**
  * Todo-specific types
@@ -29,7 +38,7 @@ export interface TodoData {
   completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
-  metadata: Record<string, any>;
+  metadata: TodoMetadata;
   tags?: string[];
 }
 
@@ -44,7 +53,7 @@ export interface CreateTodoInput {
   priority?: number;
   isUrgent?: boolean;
   dueDate?: Date;
-  metadata?: Record<string, any>;
+  metadata?: TodoMetadata;
   tags?: string[];
 }
 
@@ -57,5 +66,5 @@ export interface UpdateTodoInput {
   isCompleted?: boolean;
   dueDate?: Date;
   completedAt?: Date;
-  metadata?: Record<string, any>;
+  metadata?: TodoMetadata;
 }

@@ -84,6 +84,30 @@ export const recentMessagesProvider: Provider = {
           : Promise.resolve([]),
       ]);
 
+      // Fetch entities for all message authors to avoid "no entity for" warnings
+      const messageEntityIds = [...new Set(recentMessagesData.map((msg) => msg.entityId))];
+      const additionalEntities = await Promise.all(
+        messageEntityIds.map(async (entityId) => {
+          // Skip if entity already exists in entitiesData
+          if (entitiesData.some((e) => e.id === entityId)) {
+            return null;
+          }
+          const entity = await runtime.getEntityById(entityId);
+          if (entity) {
+            return {
+              id: entity.id,
+              name: entity.names[0],
+              names: entity.names,
+              data: JSON.stringify(entity.metadata || {}),
+            };
+          }
+          return null;
+        })
+      );
+
+      // Combine entities from room with entities from messages
+      const allEntities = [...entitiesData, ...additionalEntities.filter((e) => e !== null)];
+
       // Separate action results from regular messages
       const actionResultMessages = recentMessagesData.filter(
         (msg) => msg.content?.type === 'action_result' && msg.metadata?.type === 'action_result'
@@ -102,11 +126,11 @@ export const recentMessagesProvider: Provider = {
       const [formattedRecentMessages, formattedRecentPosts] = await Promise.all([
         formatMessages({
           messages: dialogueMessages,
-          entities: entitiesData,
+          entities: allEntities,
         }),
         formatPosts({
           messages: dialogueMessages,
-          entities: entitiesData,
+          entities: allEntities,
           conversationHeader: false,
         }),
       ]);

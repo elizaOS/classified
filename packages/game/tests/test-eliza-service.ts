@@ -62,4 +62,4 @@ async function testElizaService() {
 }
 
 // Run the test
-testElizaService().catch(console.error); 
+testElizaService().catch(console.error);

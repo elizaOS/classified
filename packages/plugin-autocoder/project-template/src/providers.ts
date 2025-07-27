@@ -6,7 +6,7 @@
 // const helloWorldProvider: Provider = {
 //     name: 'HELLO_WORLD_PROVIDER',
 //     description: 'A simple example provider',
-  
+
 //     get: async (
 //       _runtime: IAgentRuntime,
 //       _message: Memory,
@@ -21,5 +21,5 @@
 //   };
 
 export const providers = [
-    // providers go here  
+  // providers go here
 ];

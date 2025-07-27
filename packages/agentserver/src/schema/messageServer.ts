@@ -13,4 +13,4 @@ export const messageServerTable = pgTable('message_servers', {
   updatedAt: timestamp('updated_at', { mode: 'date' })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
-}); 
+});

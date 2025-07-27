@@ -134,19 +134,16 @@ export class VisionModels {
 
     try {
       // Convert image data to tensor (compatible with WASM backend)
-      // Since tf.browser.decodeImage is not available in Node.js, we need to use sharp 
+      // Since tf.browser.decodeImage is not available in Node.js, we need to use sharp
       // to convert the image to the right format first
       const sharp = require('./utils/sharp-wrapper');
       const { width, height } = await sharp(imageData).metadata();
-      const rawImageData = await sharp(imageData)
-        .raw()
-        .toBuffer();
-      
-      const imageTensor = tf.tensor3d(
-        new Uint8Array(rawImageData), 
-        [height, width, 3], 
-        'int32'
-      ).cast('float32').div(255);
+      const rawImageData = await sharp(imageData).raw().toBuffer();
+
+      const imageTensor = tf
+        .tensor3d(new Uint8Array(rawImageData), [height, width, 3], 'int32')
+        .cast('float32')
+        .div(255);
 
       // Ensure the tensor has the right shape [1, height, width, 3]
       const batched = imageTensor.expandDims(0);
@@ -267,19 +264,16 @@ export class VisionModels {
 
     try {
       // Convert image data to tensor (compatible with WASM backend)
-      // Since tf.browser.decodeImage is not available in Node.js, we need to use sharp 
+      // Since tf.browser.decodeImage is not available in Node.js, we need to use sharp
       // to convert the image to the right format first
       const sharp = require('./utils/sharp-wrapper');
       const { width, height } = await sharp(imageData).metadata();
-      const rawImageData = await sharp(imageData)
-        .raw()
-        .toBuffer();
-      
-      const imageTensor = tf.tensor3d(
-        new Uint8Array(rawImageData), 
-        [height, width, 3], 
-        'int32'
-      ).cast('float32').div(255);
+      const rawImageData = await sharp(imageData).raw().toBuffer();
+
+      const imageTensor = tf
+        .tensor3d(new Uint8Array(rawImageData), [height, width, 3], 'int32')
+        .cast('float32')
+        .div(255);
 
       // Run pose detection
       const poses = await this.poseDetector.estimatePoses({

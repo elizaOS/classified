@@ -261,7 +261,7 @@ impl StartupManager {
             BackendError::Container("Container manager not initialized".to_string())
         })?;
 
-        let config = self
+        let _config = self
             .config
             .as_ref()
             .ok_or_else(|| BackendError::Container("User config not available".to_string()))?;
@@ -274,402 +274,62 @@ impl StartupManager {
         )
         .await;
 
-        // Create container network for inter-container communication
-        info!("Creating container network for inter-container communication");
-        if let Err(e) = self.create_container_network(container_manager).await {
-            warn!(
-                "Failed to create container network: {}. Containers may have connectivity issues.",
-                e
-            );
-        }
+        // Use the new robust container startup method with retry logic
+        info!("🚀 Starting containers with dependency management and retry logic...");
+        
+        // Start containers with proper error handling and retries
+        match container_manager.start_containers_with_dependencies().await {
+            Ok(()) => {
+                info!("✅ All containers started successfully");
+                
+                // Update status to indicate containers are ready
+                self.update_status(
+                    StartupStage::ContainersReady,
+                    90,
+                    "All containers are healthy",
+                    "PostgreSQL, Ollama, and Agent are running",
+                )
+                .await;
 
-        // Start all containers in parallel for faster startup
-        self.update_status(
-            StartupStage::StartingDatabase,
-            55,
-            "Starting all containers in parallel...",
-            "PostgreSQL, Ollama, and Agent starting simultaneously",
-        )
-        .await;
+                // Start message server after all containers are ready
+                self.update_status(
+                    StartupStage::StartingMessageServer,
+                    95,
+                    "Initializing message server...",
+                    "Starting WebSocket connection to agent",
+                )
+                .await;
 
-        info!("🚀 Starting containers in parallel...");
+                // Give a moment for all services to stabilize
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-        let mut required_containers = Vec::new();
-        let mut failed_containers = std::collections::HashMap::new();
+                self.update_status(
+                    StartupStage::Ready,
+                    100,
+                    "ELIZA Game is ready!",
+                    "All systems operational",
+                )
+                .await;
 
-        // Start PostgreSQL (required)
-        let postgres_task = if config.postgres_enabled {
-            required_containers.push("postgres");
-            self.update_container_status("postgres", "building").await;
-            Some(tokio::spawn({
-                let container_manager = container_manager.clone();
-                async move {
-                    let result = container_manager.start_postgres().await;
-                    ("postgres", result)
-                }
-            }))
-        } else {
-            None
-        };
-
-        // Start Ollama (optional unless it's the only AI provider)
-        let ollama_required = matches!(config.ai_provider, AiProvider::Ollama);
-        let ollama_task =
-            if matches!(config.ai_provider, AiProvider::Ollama) || config.use_local_ollama {
-                if ollama_required {
-                    required_containers.push("ollama");
-                }
-                self.update_container_status("ollama", "building").await;
-                Some(tokio::spawn({
-                    let container_manager = container_manager.clone();
-                    async move {
-                        let result = container_manager.start_ollama().await;
-                        ("ollama", result)
-                    }
-                }))
-            } else {
-                None
-            };
-
-        // Note: Agent will be started after Ollama is ready with models
-        required_containers.push("agent");
-
-        // Wait for all initial tasks and process results as they complete
-        let mut completed_count = 0;
-        let total_count = if postgres_task.is_some() { 1 } else { 0 }
-            + if ollama_task.is_some() { 1 } else { 0 }
-            + 1; // +1 for agent
-
-        // Process PostgreSQL result
-        if let Some(task) = postgres_task {
-            self.update_container_status("postgres", "starting").await;
-            match task.await {
-                Ok(("postgres", Ok(_status))) => {
-                    info!("✅ PostgreSQL container started, verifying health...");
-
-                    // Verify container is actually running and healthy
-                    match self
-                        .verify_container_health(container_manager, "postgres", "eliza-postgres")
-                        .await
-                    {
-                        Ok(true) => {
-                            info!("✅ PostgreSQL container is healthy and ready");
-                            completed_count += 1;
-                            self.update_container_status("postgres", "running").await;
-                            let progress = 55 + (completed_count * 8) as u8;
-                            self.update_status(
-                                StartupStage::StartingDatabase,
-                                progress,
-                                "PostgreSQL container ready",
-                                &format!("{}/{} containers started", completed_count, total_count),
-                            )
-                            .await;
-                        }
-                        Ok(false) => {
-                            let error = BackendError::Container(
-                                "PostgreSQL container started but failed health check".to_string(),
-                            );
-                            failed_containers.insert("postgres", error);
-                            error!("❌ PostgreSQL container started but is not healthy");
-                            self.update_container_status("postgres", "unhealthy").await;
-                        }
-                        Err(e) => {
-                            failed_containers.insert("postgres", e);
-                            error!("❌ Failed to verify PostgreSQL container health");
-                            self.update_container_status("postgres", "error").await;
-                        }
-                    }
-                }
-                Ok(("postgres", Err(e))) => {
-                    failed_containers.insert("postgres", e);
-                    error!(
-                        "❌ Failed to start PostgreSQL container: {}",
-                        failed_containers["postgres"]
-                    );
-                    self.update_container_status("postgres", "failed").await;
-                }
-                Err(e) => {
-                    failed_containers.insert(
-                        "postgres",
-                        BackendError::Container(format!("Task error: {}", e)),
-                    );
-                    error!("❌ PostgreSQL task failed: {}", e);
-                    self.update_container_status("postgres", "failed").await;
-                }
-                Ok((_, _)) => {
-                    let error = BackendError::Container("Unexpected task result".to_string());
-                    failed_containers.insert("postgres", error);
-                    error!("❌ PostgreSQL task returned unexpected result");
-                    self.update_container_status("postgres", "failed").await;
-                }
+                Ok(())
             }
-        }
-
-        // Process Ollama result
-        if let Some(task) = ollama_task {
-            self.update_container_status("ollama", "starting").await;
-            match task.await {
-                Ok(("ollama", Ok(_status))) => {
-                    info!("✅ Ollama container started, verifying health...");
-
-                    // Verify container is actually running and healthy
-                    match self
-                        .verify_container_health(container_manager, "ollama", "eliza-ollama")
-                        .await
-                    {
-                        Ok(true) => {
-                            info!("✅ Ollama container is healthy and ready");
-
-                            // Pull required models before marking as complete
-                            self.update_status(
-                                StartupStage::StartingOllama,
-                                60,
-                                "Pulling required Ollama models...",
-                                "This may take a few minutes on first run",
-                            )
-                            .await;
-
-                            match container_manager.pull_ollama_models().await {
-                                Ok(()) => {
-                                    info!("✅ Ollama models pulled successfully");
-                                    completed_count += 1;
-                                    self.update_container_status("ollama", "running").await;
-                                    let progress = 55 + (completed_count * 8) as u8;
-                                    self.update_status(
-                                        StartupStage::StartingOllama,
-                                        progress,
-                                        "Ollama container ready with models",
-                                        &format!(
-                                            "{}/{} containers started",
-                                            completed_count, total_count
-                                        ),
-                                    )
-                                    .await;
-                                }
-                                Err(e) => {
-                                    let error = BackendError::Container(format!(
-                                        "Failed to pull Ollama models: {}",
-                                        e
-                                    ));
-                                    failed_containers.insert("ollama", error);
-                                    error!("❌ Failed to pull required Ollama models: {}", e);
-                                    self.update_container_status("ollama", "error").await;
-                                }
-                            }
-                        }
-                        Ok(false) => {
-                            let error = BackendError::Container(
-                                "Ollama container started but failed health check".to_string(),
-                            );
-                            failed_containers.insert("ollama", error);
-                            if ollama_required {
-                                error!("❌ Required Ollama container started but is not healthy");
-                            } else {
-                                warn!("⚠️ Optional Ollama container started but is not healthy");
-                            }
-                            self.update_container_status("ollama", "unhealthy").await;
-                        }
-                        Err(e) => {
-                            failed_containers.insert("ollama", e);
-                            if ollama_required {
-                                error!("❌ Failed to verify required Ollama container health");
-                            } else {
-                                warn!("⚠️ Failed to verify optional Ollama container health");
-                            }
-                            self.update_container_status("ollama", "error").await;
-                        }
-                    }
-                }
-                Ok(("ollama", Err(e))) => {
-                    failed_containers.insert("ollama", e);
-                    if ollama_required {
-                        error!(
-                            "❌ Failed to start required Ollama container: {}",
-                            failed_containers["ollama"]
-                        );
-                    } else {
-                        warn!(
-                            "⚠️ Failed to start optional Ollama container: {}",
-                            failed_containers["ollama"]
-                        );
-                    }
-                    self.update_container_status("ollama", "failed").await;
-                }
-                Err(e) => {
-                    failed_containers.insert(
-                        "ollama",
-                        BackendError::Container(format!("Task error: {}", e)),
-                    );
-                    error!("❌ Ollama task failed: {}", e);
-                    self.update_container_status("ollama", "failed").await;
-                }
-                Ok((_, _)) => {
-                    let error = BackendError::Container("Unexpected task result".to_string());
-                    failed_containers.insert("ollama", error);
-                    error!("❌ Ollama task returned unexpected result");
-                    self.update_container_status("ollama", "failed").await;
-                }
-            }
-        }
-
-        // Now start the agent after Ollama is ready
-        let ollama_ready = !failed_containers.contains_key("ollama")
-            && (matches!(config.ai_provider, AiProvider::Ollama) || config.use_local_ollama);
-
-        // Only start agent if dependencies are satisfied
-        if !ollama_ready
-            && (matches!(config.ai_provider, AiProvider::Ollama) || config.use_local_ollama)
-        {
-            let error =
-                BackendError::Container("Cannot start agent: Ollama is not ready".to_string());
-            failed_containers.insert("agent", error);
-            error!("❌ Cannot start agent because Ollama failed to start or pull models");
-            self.update_container_status("agent", "failed").await;
-        } else {
-            // Start the agent container now
-            self.update_container_status("agent", "building").await;
-            let agent_result = container_manager.start_agent().await;
-
-            self.update_container_status("agent", "starting").await;
-            match agent_result {
-                Ok(_status) => {
-                    info!("✅ Agent container started, verifying health...");
-
-                    // Verify container is actually running and healthy
-                    match self
-                        .verify_container_health(container_manager, "agent", "eliza-agent")
-                        .await
-                    {
-                        Ok(true) => {
-                            info!("✅ Agent container is healthy and ready");
-                            completed_count += 1;
-                            self.update_container_status("agent", "running").await;
-                            let progress = 55 + (completed_count * 8) as u8;
-                            self.update_status(
-                                StartupStage::StartingAgent,
-                                progress,
-                                "Agent container ready",
-                                &format!("{}/{} containers started", completed_count, total_count),
-                            )
-                            .await;
-                        }
-                        Ok(false) => {
-                            let error = BackendError::Container(
-                                "Agent container started but failed health check".to_string(),
-                            );
-                            failed_containers.insert("agent", error);
-                            error!("❌ Agent container started but is not healthy");
-                            self.update_container_status("agent", "unhealthy").await;
-                        }
-                        Err(e) => {
-                            failed_containers.insert("agent", e);
-                            error!("❌ Failed to verify Agent container health");
-                            self.update_container_status("agent", "error").await;
-                        }
-                    }
-                }
-                Err(e) => {
-                    failed_containers.insert("agent", e);
-                    error!(
-                        "❌ Failed to start Agent container: {}",
-                        failed_containers["agent"]
-                    );
-                    self.update_container_status("agent", "failed").await;
-                }
-            }
-        }
-
-        // Check if any required containers failed
-        for required_container in &required_containers {
-            if let Some(error) = failed_containers.get(required_container) {
+            Err(e) => {
+                error!("❌ Failed to start containers: {}", e);
+                
                 self.update_status(
                     StartupStage::Error,
                     0,
-                    &format!("Failed to start required {} container", required_container),
-                    &format!(
-                        "Error: {}. This container is required for game functionality.",
-                        error
-                    ),
+                    "Container startup failed",
+                    &format!("Error: {}\n\nPlease check Podman status and try again.", e),
                 )
                 .await;
-                return Err(BackendError::Container(format!(
-                    "Failed to start required {} container: {}",
-                    required_container, error
-                )));
+
+                Err(e)
             }
         }
-
-        info!(
-            "🎉 All required containers started successfully! ({}/{} total)",
-            completed_count, total_count
-        );
-
-        // Stage 4: Wait for container health checks
-        self.update_status(
-            StartupStage::WaitingForHealth,
-            85,
-            "Waiting for containers to be healthy...",
-            "Performing health checks",
-        )
-        .await;
-
-        self.wait_for_container_health().await?;
-
-        // Stage 5: All containers ready
-        self.update_status(
-            StartupStage::ContainersReady,
-            95,
-            "All containers are healthy",
-            "Finalizing initialization",
-        )
-        .await;
-
-        // Stage 6: Everything ready!
-        self.update_status(
-            StartupStage::Ready,
-            100,
-            "ELIZA Game ready!",
-            "All systems initialized - ready for chat",
-        )
-        .await;
-
-        info!("🎉 ELIZA Game initialization completed successfully!");
-
-        Ok(())
     }
 
-    async fn wait_for_container_health(&self) -> BackendResult<()> {
-        let container_manager = self.container_manager.as_ref().ok_or_else(|| {
-            BackendError::Container("Container manager not initialized".to_string())
-        })?;
 
-        // Wait for containers to be healthy (simplified)
-        let max_wait = 30; // 30 seconds max
-        for i in 0..max_wait {
-            let statuses = container_manager.get_all_statuses().await?;
-            let all_healthy = statuses
-                .iter()
-                .all(|status| matches!(status.health, crate::backend::HealthStatus::Healthy));
-
-            if all_healthy {
-                info!("✅ All containers are healthy");
-                return Ok(());
-            }
-
-            if i % 5 == 0 {
-                info!(
-                    "⏳ Waiting for containers to be healthy... ({}/{})",
-                    i, max_wait
-                );
-            }
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        }
-
-        Err(BackendError::Container(
-            "Containers failed to become healthy within timeout".to_string(),
-        ))
-    }
 
     async fn update_status(&self, stage: StartupStage, progress: u8, message: &str, details: &str) {
         let mut status = self.status.lock().unwrap();
@@ -687,22 +347,9 @@ impl StartupManager {
         }
     }
 
-    async fn update_container_status(&self, container_name: &str, status: &str) {
-        let mut startup_status = self.status.lock().unwrap();
-        startup_status
-            .container_statuses
-            .insert(container_name.to_string(), status.to_string());
 
-        let status_clone = startup_status.clone();
-        drop(startup_status);
 
-        // Emit to frontend
-        if let Err(e) = self.app_handle.emit("startup-status", &status_clone) {
-            error!("Failed to emit container status update: {}", e);
-        }
-    }
-
-    pub fn get_current_status(&self) -> StartupStatus {
+    pub fn get_status(&self) -> StartupStatus {
         self.status.lock().unwrap().clone()
     }
 
@@ -714,69 +361,164 @@ impl StartupManager {
         self.container_manager.clone()
     }
 
-    async fn create_container_network(
-        &self,
-        container_manager: &Arc<ContainerManager>,
-    ) -> BackendResult<()> {
-        container_manager.create_network("eliza-network").await
-    }
+
 
     async fn ensure_podman_ready(&self) -> BackendResult<()> {
-        info!("🔍 Checking Podman machine status...");
+        use crate::container::retry::{retry_with_backoff, RetryConfig};
+        
+        info!("🔍 Ensuring Podman is ready...");
 
-        // Check if Podman machine is running
-        let output = tokio::process::Command::new("podman")
-            .args(["machine", "list"])
+        // First, check if Podman is already healthy with retries
+        let quick_check_result = retry_with_backoff(
+            "Podman health check",
+            RetryConfig::quick(),
+            || async {
+                let output = tokio::process::Command::new("podman")
+                    .args(["info", "--format", "{{.Host.Arch}}"])
+                    .output()
+                    .await
+                    .map_err(|e| BackendError::Container(format!("Failed to run podman info: {}", e)))?;
+
+                if output.status.success() {
+                    Ok(())
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    Err(BackendError::Container(format!("Podman not healthy: {}", stderr)))
+                }
+            },
+        )
+        .await;
+
+        if quick_check_result.is_ok() {
+            info!("✅ Podman is already running and healthy");
+            return Ok(());
+        }
+
+        // Podman not healthy, try to recover
+        info!("⚠️ Podman not responding, attempting recovery...");
+
+        // Check connection status
+        let connection_check = tokio::process::Command::new("podman")
+            .args(["system", "connection", "list", "--format", "{{.Name}},{{.Default}}"])
             .output()
             .await
-            .map_err(|e| {
-                BackendError::Container(format!("Failed to check Podman machine: {}", e))
-            })?;
+            .map_err(|e| BackendError::Container(format!("Failed to check connections: {}", e)))?;
 
-        let output_str = String::from_utf8_lossy(&output.stdout);
-
-        if !output_str.contains("Currently running") {
-            warn!("⚠️ Podman machine not running, attempting to start...");
-
-            let start_output = tokio::process::Command::new("podman")
-                .args(["machine", "start"])
+        if !connection_check.status.success() {
+            // No connections available, try to initialize
+            info!("📝 No Podman connections found, initializing machine...");
+            
+            let init_result = tokio::process::Command::new("podman")
+                .args(["machine", "init"])
                 .output()
                 .await
-                .map_err(|e| {
-                    BackendError::Container(format!("Failed to start Podman machine: {}", e))
-                })?;
+                .map_err(|e| BackendError::Container(format!("Failed to init Podman machine: {}", e)))?;
 
-            if !start_output.status.success() {
-                let error_str = String::from_utf8_lossy(&start_output.stderr);
+            let stderr = String::from_utf8_lossy(&init_result.stderr);
+            if !init_result.status.success() && !stderr.contains("already exists") {
                 return Err(BackendError::Container(format!(
-                    "Podman machine start failed: {}",
-                    error_str
+                    "Failed to initialize Podman machine: {}",
+                    stderr
                 )));
             }
+        }
+
+        // Check machine status
+        let machine_check = tokio::process::Command::new("podman")
+            .args(["machine", "list", "--format", "{{.Name}},{{.Running}}"])
+            .output()
+            .await;
+
+        let needs_start = match machine_check {
+            Ok(output) => {
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                !output_str.lines().any(|line| line.contains("true"))
+            }
+            Err(_) => true, // Assume we need to start if we can't check
+        };
+
+        if needs_start {
+            info!("🚀 Starting Podman machine...");
+            
+            // Try to stop first in case it's in a bad state
+            let _ = tokio::process::Command::new("podman")
+                .args(["machine", "stop"])
+                .output()
+                .await;
+
+            // Wait a bit for clean shutdown
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+            // Now start the machine with retries
+            retry_with_backoff(
+                "Podman machine start",
+                RetryConfig::podman_recovery(),
+                || async {
+                    let output = tokio::process::Command::new("podman")
+                        .args(["machine", "start"])
+                        .output()
+                        .await
+                        .map_err(|e| BackendError::Container(format!("Failed to run podman machine start: {}", e)))?;
+
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    
+                    // Check if it's already running (not an error)
+                    if !output.status.success() && !stderr.contains("already running") {
+                        Err(BackendError::Container(format!(
+                            "Failed to start Podman machine: {}",
+                            stderr
+                        )))
+                    } else {
+                        Ok(())
+                    }
+                },
+            )
+            .await?;
 
             info!("✅ Podman machine started successfully");
-        } else {
-            info!("✅ Podman machine already running");
+            
+            // Wait for it to be fully ready
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
 
-        // Test connection
-        let test_output = tokio::process::Command::new("podman")
-            .args(["version"])
+        // Reset the default connection if needed
+        info!("🔗 Resetting Podman connection...");
+        let reset_result = tokio::process::Command::new("podman")
+            .args(["system", "connection", "default", "podman-machine-default"])
             .output()
-            .await
-            .map_err(|e| {
-                BackendError::Container(format!("Failed to test Podman connection: {}", e))
-            })?;
+            .await;
 
-        if !test_output.status.success() {
-            let error_str = String::from_utf8_lossy(&test_output.stderr);
-            return Err(BackendError::Container(format!(
-                "Podman connection test failed: {}",
-                error_str
-            )));
+        if let Ok(output) = reset_result {
+            if !output.status.success() {
+                warn!("Failed to reset default connection: {}", String::from_utf8_lossy(&output.stderr));
+            }
         }
 
-        info!("✅ Podman connection verified");
+        // Final health check with retries
+        retry_with_backoff(
+            "Final Podman health check",
+            RetryConfig::podman_recovery(),
+            || async {
+                let output = tokio::process::Command::new("podman")
+                    .args(["info", "--format", "{{.Host.Arch}}"])
+                    .output()
+                    .await
+                    .map_err(|e| BackendError::Container(format!("Final health check failed: {}", e)))?;
+
+                if !output.status.success() {
+                    let error_str = String::from_utf8_lossy(&output.stderr);
+                    Err(BackendError::Container(format!(
+                        "Podman is not responding after recovery: {}",
+                        error_str
+                    )))
+                } else {
+                    Ok(())
+                }
+            },
+        )
+        .await?;
+
+        info!("✅ Podman connection verified and ready");
         Ok(())
     }
 
@@ -826,6 +568,43 @@ impl StartupManager {
         }
 
         info!("🐳 Building Docker image...");
+        
+        // First, ensure Podman machine is running before attempting build
+        let machine_check = tokio::process::Command::new("podman")
+            .args(["system", "connection", "list"])
+            .output()
+            .await;
+            
+        if machine_check.is_err() || !machine_check.unwrap().status.success() {
+            warn!("⚠️ Cannot connect to Podman, attempting to start machine...");
+            
+            // Try to list machines
+            let machine_list = tokio::process::Command::new("podman")
+                .args(["machine", "list", "--format", "json"])
+                .output()
+                .await;
+                
+            if let Ok(list_output) = machine_list {
+                if list_output.status.success() {
+                    // Try to start the default machine
+                    let start_result = tokio::process::Command::new("podman")
+                        .args(["machine", "start"])
+                        .output()
+                        .await;
+                        
+                    if let Ok(start_output) = start_result {
+                        if start_output.status.success() {
+                            info!("✅ Podman machine started successfully");
+                            // Wait for machine to be ready
+                            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                        } else {
+                            warn!("Failed to start Podman machine, attempting to continue anyway");
+                        }
+                    }
+                }
+            }
+        }
+        
         let docker_output = tokio::process::Command::new("podman")
             .args([
                 "build",
@@ -852,202 +631,5 @@ impl StartupManager {
         Ok(())
     }
 
-    async fn verify_container_health(
-        &self,
-        container_manager: &Arc<ContainerManager>,
-        service_name: &str,
-        container_name: &str,
-    ) -> BackendResult<bool> {
-        info!("🔍 Verifying {} container health...", service_name);
 
-        // Wait a moment for container to initialize
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
-        // Check container status first
-        match container_manager
-            .get_runtime_container_status(container_name)
-            .await
-        {
-            Ok(status) => {
-                match status.state {
-                    crate::backend::ContainerState::Running => {
-                        info!("✅ {} container is running", service_name);
-
-                        // Additional health checks based on service type
-                        match service_name {
-                            "postgres" => {
-                                // Test PostgreSQL connection
-                                self.test_postgres_connection().await
-                            }
-                            "agent" => {
-                                // Test Agent API health endpoint
-                                self.test_agent_health().await
-                            }
-                            "ollama" => {
-                                // Test Ollama API endpoint
-                                self.test_ollama_health().await
-                            }
-                            _ => Ok(true), // Unknown service, assume healthy if running
-                        }
-                    }
-                    crate::backend::ContainerState::Starting => {
-                        warn!("⚠️ {} container is still starting", service_name);
-
-                        // Wait a bit longer for starting containers
-                        let mut attempts = 0;
-                        while attempts < 10 {
-                            tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-                            attempts += 1;
-
-                            match container_manager
-                                .get_runtime_container_status(container_name)
-                                .await
-                            {
-                                Ok(status)
-                                    if status.state == crate::backend::ContainerState::Running =>
-                                {
-                                    info!("✅ {} container finished starting", service_name);
-                                    return Box::pin(self.verify_container_health(
-                                        container_manager,
-                                        service_name,
-                                        container_name,
-                                    ))
-                                    .await;
-                                }
-                                Ok(status)
-                                    if status.state == crate::backend::ContainerState::Stopped =>
-                                {
-                                    error!("❌ {} container stopped unexpectedly", service_name);
-                                    return Ok(false);
-                                }
-                                _ => {
-                                    info!(
-                                        "⏳ {} container still starting... (attempt {}/10)",
-                                        service_name, attempts
-                                    );
-                                }
-                            }
-                        }
-
-                        error!(
-                            "❌ {} container failed to start within timeout",
-                            service_name
-                        );
-                        Ok(false)
-                    }
-                    _ => {
-                        error!(
-                            "❌ {} container is in unexpected state: {:?}",
-                            service_name, status.state
-                        );
-                        Ok(false)
-                    }
-                }
-            }
-            Err(e) => {
-                error!("❌ Failed to get {} container status: {}", service_name, e);
-                Ok(false)
-            }
-        }
-    }
-
-    async fn test_postgres_connection(&self) -> BackendResult<bool> {
-        info!("🔍 Testing PostgreSQL connection...");
-
-        // Try to connect to PostgreSQL using pg_isready equivalent
-        let test_output = tokio::process::Command::new("podman")
-            .args([
-                "exec",
-                "eliza-postgres",
-                "pg_isready",
-                "-U",
-                "eliza",
-                "-d",
-                "eliza_game",
-            ])
-            .output()
-            .await
-            .map_err(|e| {
-                BackendError::Container(format!("Failed to test PostgreSQL connection: {}", e))
-            })?;
-
-        if test_output.status.success() {
-            info!("✅ PostgreSQL connection test successful");
-            Ok(true)
-        } else {
-            let error_str = String::from_utf8_lossy(&test_output.stderr);
-            warn!("⚠️ PostgreSQL connection test failed: {}", error_str);
-            Ok(false)
-        }
-    }
-
-    async fn test_agent_health(&self) -> BackendResult<bool> {
-        info!("🔍 Testing Agent API health...");
-
-        let client = reqwest::Client::new();
-        match client
-            .get("http://localhost:7777/api/server/health")
-            .timeout(std::time::Duration::from_secs(10))
-            .send()
-            .await
-        {
-            Ok(response) => {
-                if response.status().is_success() {
-                    let health_data: serde_json::Value = response.json().await.map_err(|e| {
-                        BackendError::Container(format!("Failed to parse health response: {}", e))
-                    })?;
-
-                    if health_data["success"].as_bool().unwrap_or(false)
-                        || health_data["data"]["status"].as_str() == Some("healthy")
-                        || health_data["status"].as_str() == Some("OK")
-                    {
-                        info!("✅ Agent API health check successful");
-                        Ok(true)
-                    } else {
-                        warn!("⚠️ Agent API responded but health check failed");
-                        Ok(false)
-                    }
-                } else {
-                    warn!(
-                        "⚠️ Agent API health check returned status: {}",
-                        response.status()
-                    );
-                    Ok(false)
-                }
-            }
-            Err(e) => {
-                warn!("⚠️ Agent API health check failed: {}", e);
-                Ok(false)
-            }
-        }
-    }
-
-    async fn test_ollama_health(&self) -> BackendResult<bool> {
-        info!("🔍 Testing Ollama API health...");
-
-        let client = reqwest::Client::new();
-        match client
-            .get("http://localhost:11434/api/tags")
-            .timeout(std::time::Duration::from_secs(10))
-            .send()
-            .await
-        {
-            Ok(response) => {
-                if response.status().is_success() {
-                    info!("✅ Ollama API health check successful");
-                    Ok(true)
-                } else {
-                    warn!(
-                        "⚠️ Ollama API health check returned status: {}",
-                        response.status()
-                    );
-                    Ok(false)
-                }
-            }
-            Err(e) => {
-                warn!("⚠️ Ollama API health check failed: {}", e);
-                Ok(false)
-            }
-        }
-    }
 }

@@ -22,11 +22,13 @@ beforeAll(() => {
       constructor(public url: string) {
         setTimeout(() => {
           this.readyState = 1;
-          if (this.onopen) {this.onopen(new Event('open'));}
+          if (this.onopen) {
+            this.onopen(new Event('open'));
+          }
         }, 10);
       }
 
-      send(data: string) {}
+      send(_data: string) {}
       close() {
         this.readyState = 3;
       }

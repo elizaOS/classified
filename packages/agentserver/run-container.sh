@@ -11,7 +11,7 @@ if ! podman ps | grep -q eliza-postgres; then
         --network eliza-network \
         -e POSTGRES_USER=eliza \
         -e POSTGRES_PASSWORD=eliza_secure_pass \
-        -e POSTGRES_DB=eliza_game \
+        -e POSTGRES_DB=eliza \
         -p 5433:5432 \
         -v eliza-postgres-data:/var/lib/postgresql/data \
         pgvector/pgvector:pg16

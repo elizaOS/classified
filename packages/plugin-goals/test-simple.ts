@@ -6,7 +6,7 @@
  */
 
 import { logger } from '@elizaos/core';
-import { GoalDataManager } from './src/services/goalDataService';
+import { GoalDataManager } from './src/services/goalService';
 
 // Mock runtime with minimal database adapter
 const mockRuntime = {
@@ -14,7 +14,7 @@ const mockRuntime = {
   db: {
     goals: new Map(),
     goalTags: new Map(),
-    
+
     insert(table: any) {
       const self = this;
       return {
@@ -23,15 +23,20 @@ const mockRuntime = {
             // Handle different table types based on table object structure
             const tableName = table?._?.name || table?.name || table?.toString() || 'unknown';
             const tableStr = String(tableName).toLowerCase();
-            
-            if (tableStr.includes('goals') || tableStr === 'goals' || !tableName || tableName === 'unknown') {
+
+            if (
+              tableStr.includes('goals') ||
+              tableStr === 'goals' ||
+              !tableName ||
+              tableName === 'unknown'
+            ) {
               const goalId = values.id || `goal-${Date.now()}`;
-              const goal = { 
-                ...values, 
-                id: goalId, 
-                createdAt: new Date(), 
+              const goal = {
+                ...values,
+                id: goalId,
+                createdAt: new Date(),
                 updatedAt: new Date(),
-                isCompleted: values.isCompleted || false
+                isCompleted: values.isCompleted || false,
               };
               self.goals.set(goalId, goal);
               logger.debug(`Created goal: ${goalId}`);
@@ -41,7 +46,8 @@ const mockRuntime = {
                 // Multiple tag inserts
                 const insertedTags = [];
                 for (const tagData of values) {
-                  const tagId = tagData.id || `tag-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                  const tagId =
+                    tagData.id || `tag-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                   const tag = { ...tagData, id: tagId, createdAt: new Date() };
                   self.goalTags.set(tagId, tag);
                   insertedTags.push(tag);
@@ -58,42 +64,42 @@ const mockRuntime = {
               }
             }
             return [values];
-          }
-        })
+          },
+        }),
       };
     },
-    
+
     select() {
       const self = this;
       let currentTable = 'goals';
       let whereCondition: any = null;
-      
+
       const executeQuery = async () => {
         let results = [];
-        
+
         if (currentTable.includes('tag')) {
           results = Array.from(self.goalTags.values());
         } else {
           results = Array.from(self.goals.values());
         }
-        
+
         // Apply where condition if present (simplified for testing)
         if (whereCondition && results.length > 0) {
           // For getGoal, just return the first goal for simplicity
           // In a real implementation, we'd parse the condition to find the specific goal
           results = results.slice(0, 1);
         }
-        
+
         logger.debug(`Query result: table=${currentTable}, results=${results.length}`);
-        
+
         return results;
       };
-      
+
       return {
         from: (table: any) => {
           const tableName = table?._?.name || table?.name || table?.toString() || 'goals';
           currentTable = String(tableName).toLowerCase();
-          
+
           return {
             where: (condition: any) => {
               whereCondition = condition;
@@ -101,18 +107,18 @@ const mockRuntime = {
                 orderBy: () => executeQuery(),
                 then: (resolve: any) => resolve(executeQuery()),
                 catch: (reject: any) => reject,
-                finally: (handler: any) => handler
+                finally: (handler: any) => handler,
               };
             },
             orderBy: () => executeQuery(),
             then: (resolve: any) => resolve(executeQuery()),
             catch: (reject: any) => reject,
-            finally: (handler: any) => handler
+            finally: (handler: any) => handler,
           };
-        }
+        },
       };
     },
-    
+
     update(table: any) {
       const self = this;
       return {
@@ -127,12 +133,12 @@ const mockRuntime = {
                 return [updated];
               }
               return [];
-            }
-          })
-        })
+            },
+          }),
+        }),
       };
     },
-    
+
     delete(table: any) {
       const self = this;
       return {
@@ -150,19 +156,19 @@ const mockRuntime = {
               return [goal];
             }
             return [];
-          }
-        })
+          },
+        }),
       };
-    }
-  }
+    },
+  },
 } as any;
 
 async function runSimpleTests() {
   try {
     logger.info('🧪 Running Simple Goals Plugin Tests');
-    
+
     const goalManager = new GoalDataManager(mockRuntime);
-    
+
     logger.info('📝 Test 1: Creating a goal');
     const goalId = await goalManager.createGoal({
       agentId: mockRuntime.agentId,
@@ -171,14 +177,14 @@ async function runSimpleTests() {
       name: 'Test Goal',
       description: 'Test goal for validation',
       metadata: {},
-      tags: ['test', 'validation']
+      tags: ['test', 'validation'],
     });
-    
+
     if (!goalId) {
       throw new Error('Failed to create goal');
     }
     logger.info(`✅ Goal created with ID: ${goalId}`);
-    
+
     logger.info('📖 Test 2: Retrieving the goal');
     const goal = await goalManager.getGoal(goalId);
     if (!goal) {
@@ -188,43 +194,42 @@ async function runSimpleTests() {
       throw new Error(`Goal name mismatch: expected 'Test Goal', got '${goal.name}'`);
     }
     logger.info('✅ Goal retrieved successfully');
-    
+
     logger.info('📝 Test 3: Updating goal completion');
     await goalManager.updateGoal(goalId, {
       isCompleted: true,
-      completedAt: new Date()
+      completedAt: new Date(),
     });
-    
+
     const updatedGoal = await goalManager.getGoal(goalId);
     if (!updatedGoal?.isCompleted) {
       throw new Error('Goal should be marked as completed');
     }
     logger.info('✅ Goal marked as completed successfully');
-    
+
     logger.info('📝 Test 4: Getting goals with filters');
     const goals = await goalManager.getGoals({
       ownerType: 'entity',
       ownerId: 'test-entity-123',
-      isCompleted: true
+      isCompleted: true,
     });
-    
+
     if (goals.length !== 1) {
       throw new Error(`Expected 1 goal, got ${goals.length}`);
     }
     logger.info('✅ Goal filtering works correctly');
-    
+
     logger.info('🗑️ Test 5: Deleting the goal');
     await goalManager.deleteGoal(goalId);
-    
+
     const deletedGoal = await goalManager.getGoal(goalId);
     if (deletedGoal) {
       throw new Error('Goal should have been deleted');
     }
     logger.info('✅ Goal deleted successfully');
-    
+
     logger.info('🎉 All Goals Plugin tests passed!');
     return true;
-    
   } catch (error) {
     logger.error('❌ Goals Plugin test failed:', error);
     return false;

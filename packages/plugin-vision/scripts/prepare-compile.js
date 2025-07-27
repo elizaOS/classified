@@ -210,18 +210,18 @@ try {
   const platform = process.platform;
   const arch = process.arch;
   console.log(`Platform: ${platform}, Architecture: ${arch}`);
-  
+
   // Install sharp with platform binaries
   execSync(`npm install --force --platform=${platform} --arch=${arch} sharp@0.34.3`, {
     cwd: packageRoot,
-    stdio: 'inherit'
+    stdio: 'inherit',
   });
-  
+
   // Try to install canvas alternatives
   try {
     execSync(`npm install --force @napi-rs/canvas`, {
       cwd: packageRoot,
-      stdio: 'inherit'
+      stdio: 'inherit',
     });
   } catch (e) {
     console.warn('⚠️  @napi-rs/canvas installation failed, vision features may be limited');
@@ -237,4 +237,4 @@ console.log('1. Update your imports to use the wrappers:');
 console.log('   - Replace: import sharp from "sharp"');
 console.log('   - With:    import sharp from "./utils/sharp-wrapper"');
 console.log('2. Run your build/compile command');
-console.log('3. Native modules will gracefully fallback if not available'); 
+console.log('3. Native modules will gracefully fallback if not available');

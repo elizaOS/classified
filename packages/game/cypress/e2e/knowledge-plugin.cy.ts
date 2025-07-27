@@ -3,8 +3,6 @@
  * Tests the complete knowledge management workflow in the game interface
  */
 
-import path from 'path';
-
 describe('Knowledge Plugin E2E Tests', () => {
   beforeEach(() => {
     // Set skip boot to bypass the boot sequence
@@ -200,7 +198,7 @@ describe('Knowledge Plugin E2E Tests', () => {
       cy.request({
         method: 'GET',
         url: 'http://localhost:7777/knowledge/documents',
-        failOnStatusCode: false
+        failOnStatusCode: false,
       }).then((response) => {
         // Should get a response (200 or error, but not connection failure)
         expect(response.status).to.be.oneOf([200, 404, 500]);
@@ -213,9 +211,9 @@ describe('Knowledge Plugin E2E Tests', () => {
         body: {
           query: 'test',
           agentId: 'test-agent',
-          count: 5
+          count: 5,
         },
-        failOnStatusCode: false
+        failOnStatusCode: false,
       }).then((response) => {
         // Should get a response
         expect(response.status).to.be.oneOf([200, 400, 404, 500]);
@@ -229,16 +227,18 @@ describe('Knowledge Plugin E2E Tests', () => {
       cy.get('button').contains('FILES').click();
 
       // Get initial file count
-      cy.get('.status-header').invoke('text').then((initialHeader) => {
-        // Wait for refresh cycle (5 seconds)
-        cy.wait(6000);
+      cy.get('.status-header')
+        .invoke('text')
+        .then((_initialHeader) => {
+          // Wait for refresh cycle (5 seconds)
+          cy.wait(6000);
 
-        // Check that the interface is still responsive
-        cy.get('.status-header').should('contain', '◎ KNOWLEDGE BASE');
+          // Check that the interface is still responsive
+          cy.get('.status-header').should('contain', '◎ KNOWLEDGE BASE');
 
-        // Header should still be present (may have same or different count)
-        cy.get('.status-header').invoke('text').should('include', '◎ KNOWLEDGE BASE');
-      });
+          // Header should still be present (may have same or different count)
+          cy.get('.status-header').invoke('text').should('include', '◎ KNOWLEDGE BASE');
+        });
 
       cy.screenshot('knowledge-refresh-cycle');
     });
@@ -268,7 +268,8 @@ describe('Knowledge Plugin E2E Tests', () => {
   describe('Agent Knowledge Actions Integration', () => {
     it('should allow agent to process knowledge through chat commands', () => {
       // Type a message that should trigger knowledge processing
-      const knowledgeCommand = 'Please add this to your knowledge: The sky is blue and water is wet.';
+      const knowledgeCommand =
+        'Please add this to your knowledge: The sky is blue and water is wet.';
 
       cy.get('.chat-input').type(knowledgeCommand);
       cy.get('.send-btn').click();
@@ -334,7 +335,7 @@ describe('Knowledge Plugin E2E Tests', () => {
       cy.request({
         method: 'GET',
         url: 'http://localhost:7777/knowledge/documents',
-        failOnStatusCode: false
+        failOnStatusCode: false,
       }).then((response) => {
         cy.log(`Knowledge API status: ${response.status}`);
       });

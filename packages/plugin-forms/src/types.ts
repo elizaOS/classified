@@ -162,3 +162,15 @@ export interface FormUpdateResult {
   /** Optional message */
   message?: string;
 }
+
+// Extend the core service types with forms service
+declare module '@elizaos/core' {
+  interface ServiceTypeRegistry {
+    FORMS: 'FORMS';
+  }
+}
+
+// Export service type constant
+export const FormsServiceType = {
+  FORMS: 'FORMS' as const,
+} satisfies Partial<import('@elizaos/core').ServiceTypeRegistry>;

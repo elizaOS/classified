@@ -3,7 +3,7 @@
  * This is a Bun-friendly alternative that doesn't require native modules
  */
 
-// @ts-ignore - jimp is an optional alternative processor
+// @ts-expect-error - jimp is an optional alternative processor
 import Jimp from 'jimp';
 
 export interface ImageProcessor {
@@ -38,7 +38,7 @@ class JimpProcessor implements ImageProcessor {
     return {
       width: this.jimp.bitmap.width,
       height: this.jimp.bitmap.height,
-      format: this.jimp.getMIME()
+      format: this.jimp.getMIME(),
     };
   }
 }
@@ -88,7 +88,7 @@ export const createJimpSharp = () => {
       async metadata() {
         const proc = await this._load();
         return proc.metadata();
-      }
+      },
     };
 
     return processor;
@@ -104,4 +104,4 @@ export const createJimpSharp = () => {
 /**
  * Export a singleton instance
  */
-export const jimpSharp = createJimpSharp(); 
+export const jimpSharp = createJimpSharp();

@@ -378,7 +378,7 @@ function createMockRuntime(overrides?: Partial<IAgentRuntime>): IAgentRuntime {
     async useModel(modelType: any, params: any) {
       if (modelType === ModelType.TEXT_EMBEDDING) {
         // Return mock embedding
-        return new Array(1536).fill(0).map(() => Math.random()) as any;
+        return new Array(768).fill(0).map(() => Math.random()) as any;
       }
       if (modelType === ModelType.TEXT_LARGE || modelType === ModelType.TEXT_SMALL) {
         // Return mock text generation

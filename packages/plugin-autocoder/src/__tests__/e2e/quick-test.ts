@@ -64,7 +64,10 @@ async function quickTest() {
     // Test E2B service basic functionality
     console.log('\n🧪 Testing E2B service...');
     try {
-      const testResult = await (e2bService as any).executeCode('print("Hello from E2B!")', 'python');
+      const testResult = await (e2bService as any).executeCode(
+        'print("Hello from E2B!")',
+        'python'
+      );
       console.log('✅ E2B execution successful:', testResult.text?.substring(0, 100));
     } catch (error) {
       console.log(

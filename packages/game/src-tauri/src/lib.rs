@@ -11,12 +11,7 @@ mod backend;
 mod container;
 mod ipc;
 mod server;
-// mod agent; // Deprecated - functionality moved to ContainerManager
-mod native_websocket;
 mod startup;
-mod websocket_manager;
-// Removed: Socket.IO replaced with native WebSocket
-
 // Export types for external use (tests, etc.)
 pub use backend::{
     AgentConfig, BackendConfig, BackendError, BackendResult, ContainerConfig, ContainerRuntimeType,
@@ -25,11 +20,10 @@ pub use backend::{
 pub use container::{ContainerManager, HealthMonitor, RuntimeDetectionStatus};
 pub use ipc::commands::*;
 pub use server::{HttpServer, WebSocketHub};
+// pub use server::websocket::{AgentMessage, ConnectionState, NativeWebSocketClient}; // Commented out until websocket.rs is fixed
 // pub use agent::{AgentManager, AgentStatus}; // Deprecated - use ContainerManager instead
-pub use native_websocket::{AgentMessage, ConnectionState, NativeWebSocketClient};
 pub use startup::{AiProvider, StartupManager, StartupStage, StartupStatus, UserConfig};
-pub use websocket_manager::{WebSocketManager, WsMessage};
-// Removed: Socket.IO replaced with native WebSocket
+// pub use websocket_manager::{WebSocketManager, WsMessage}; // Removed - using native_websocket instead
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -191,7 +185,7 @@ async fn route_message_to_agent(message: &str) -> Result<String, Box<dyn std::er
                 "type": "user_message"
             },
             "metadata": {
-                "source": "eliza_game",
+                "source": "eliza",
                 "userName": "Admin"
             }
         }))
@@ -231,7 +225,7 @@ async fn get_startup_status(
     startup_manager: State<'_, Arc<Mutex<StartupManager>>>,
 ) -> Result<StartupStatus, String> {
     let manager = startup_manager.lock().await;
-    Ok(manager.get_current_status())
+    Ok(manager.get_status())
 }
 
 #[tauri::command]
@@ -253,7 +247,7 @@ async fn submit_user_config(
 #[tauri::command]
 async fn send_message_to_agent(
     startup_manager: State<'_, Arc<Mutex<StartupManager>>>,
-    native_ws_client: State<'_, Arc<NativeWebSocketClient>>,
+    native_ws_client: State<'_, Arc<server::websocket::WebSocketClient>>,
     message: String,
 ) -> Result<String, String> {
     info!("💬 Received message from frontend: {}", message);
@@ -302,7 +296,7 @@ async fn start_game_environment(
     info!("🎮 Starting game environment");
 
     let manager = startup_manager.lock().await;
-    let status = manager.get_current_status();
+    let status = manager.get_status();
 
     match status.stage {
         crate::startup::StartupStage::Ready => Ok("Game environment already ready".to_string()),
@@ -417,7 +411,7 @@ async fn get_available_providers() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 async fn connect_native_websocket(
-    native_ws_client: tauri::State<'_, Arc<NativeWebSocketClient>>,
+    native_ws_client: tauri::State<'_, Arc<server::websocket::WebSocketClient>>,
     url: String,
 ) -> Result<(), String> {
     info!("🔌 Connecting to WebSocket server: {}", url);
@@ -430,7 +424,7 @@ async fn connect_native_websocket(
 
 #[tauri::command]
 async fn disconnect_native_websocket(
-    native_ws_client: tauri::State<'_, Arc<NativeWebSocketClient>>,
+    native_ws_client: tauri::State<'_, Arc<server::websocket::WebSocketClient>>,
 ) -> Result<(), String> {
     info!("🔌 Disconnecting from WebSocket server");
     native_ws_client.disconnect().await;
@@ -439,7 +433,7 @@ async fn disconnect_native_websocket(
 
 #[tauri::command]
 async fn reconnect_native_websocket(
-    native_ws_client: tauri::State<'_, Arc<NativeWebSocketClient>>,
+    native_ws_client: tauri::State<'_, Arc<server::websocket::WebSocketClient>>,
     url: String,
 ) -> Result<(), String> {
     info!("🔄 Reconnecting to WebSocket server: {}", url);
@@ -449,7 +443,7 @@ async fn reconnect_native_websocket(
 
 #[tauri::command]
 async fn send_native_websocket_message(
-    native_ws_client: tauri::State<'_, Arc<NativeWebSocketClient>>,
+    native_ws_client: tauri::State<'_, Arc<server::websocket::WebSocketClient>>,
     message: String,
 ) -> Result<(), String> {
     info!("📤 Sending WebSocket message: {}", message);
@@ -462,14 +456,14 @@ async fn send_native_websocket_message(
 
 #[tauri::command]
 async fn is_native_websocket_connected(
-    native_ws_client: tauri::State<'_, Arc<NativeWebSocketClient>>,
+    native_ws_client: tauri::State<'_, Arc<server::websocket::WebSocketClient>>,
 ) -> Result<bool, String> {
     Ok(native_ws_client.is_connected().await)
 }
 
 #[tauri::command]
 async fn get_native_websocket_state(
-    native_ws_client: tauri::State<'_, Arc<NativeWebSocketClient>>,
+    native_ws_client: tauri::State<'_, Arc<server::websocket::WebSocketClient>>,
 ) -> Result<String, String> {
     let state = native_ws_client.get_connection_state().await;
     Ok(format!("{:?}", state))
@@ -480,7 +474,7 @@ async fn get_native_websocket_state(
 // Test native WebSocket connection
 #[tauri::command]
 async fn test_native_websocket(
-    native_ws: tauri::State<'_, Arc<NativeWebSocketClient>>,
+    native_ws: tauri::State<'_, Arc<server::websocket::WebSocketClient>>,
 ) -> Result<String, String> {
     info!("🧪 Testing native WebSocket connection");
 
@@ -505,7 +499,7 @@ async fn test_native_websocket(
 #[tauri::command]
 async fn run_startup_hello_world_test(
     startup_manager: State<'_, Arc<Mutex<StartupManager>>>,
-    native_ws_client: State<'_, Arc<NativeWebSocketClient>>,
+    native_ws_client: State<'_, Arc<server::websocket::WebSocketClient>>,
 ) -> Result<String, String> {
     info!("🧪 Running comprehensive startup hello world test");
 
@@ -514,7 +508,7 @@ async fn run_startup_hello_world_test(
     // Step 1: Check if startup manager is ready
     {
         let manager = startup_manager.lock().await;
-        let status = manager.get_current_status();
+        let status = manager.get_status();
         if !manager.is_ready() {
             return Err(format!(
                 "Startup manager not ready. Current stage: {:?}",
@@ -711,11 +705,11 @@ pub fn run() {
             send_native_websocket_message,
             is_native_websocket_connected,
             get_native_websocket_state,
-            // WebSocket commands (legacy)
-            connect_websocket,
-            disconnect_websocket,
-            websocket_join_channel,
-            is_websocket_connected,
+            // WebSocket commands (legacy) - REMOVED
+            // connect_websocket,
+            // disconnect_websocket,
+            // websocket_join_channel,
+            // is_websocket_connected,
             // Socket.IO commands removed - using native WebSocket instead
             // Test commands
             test_native_websocket,
@@ -767,24 +761,12 @@ pub fn run() {
                 };
             app.manage(initial_container_manager.clone());
 
-            // Initialize WebSocket manager (legacy)
-            let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f".to_string(); // Default agent ID
-            let ws_manager = Arc::new(Mutex::new(WebSocketManager::new(
-                app.handle().clone(),
-                agent_id.clone(),
-            )));
-            app.manage(ws_manager.clone());
-
-            // Socket.IO manager removed - using native WebSocket instead
-
             // Initialize Native WebSocket client (App Store friendly)
-            let native_ws_client = Arc::new(NativeWebSocketClient::new(
+            let native_ws_client = Arc::new(server::websocket::WebSocketClient::new(
                 app.handle().clone(),
-                agent_id.clone(),
+                "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f".to_string(), // Default agent ID
             ));
             app.manage(native_ws_client.clone());
-
-            // Socket.IO client removed - using native WebSocket instead
 
             // Start the callback server for receiving real-time updates on available port
             tauri::async_runtime::spawn(async move {
@@ -827,7 +809,6 @@ pub fn run() {
             // Start the initialization sequence in background
             let resource_dir_clone = resource_dir.clone();
             let startup_manager_clone = startup_manager_arc.clone();
-            let _ws_manager_clone = ws_manager.clone();
             let native_ws_clone = native_ws_client.clone();
 
             tauri::async_runtime::spawn(async move {
@@ -843,11 +824,51 @@ pub fn run() {
                 // Use native WebSocket client for real-time communication with agent server
                 info!("🔌 Attempting native WebSocket connection to agent server...");
 
-                if let Err(e) = native_ws_clone.connect("ws://localhost:7777/ws").await {
-                    error!("Failed to connect WebSocket: {}", e);
+                // Helper function to connect with retry logic
+                async fn connect_with_retry(
+                    ws_client: Arc<server::websocket::WebSocketClient>,
+                    url: &str,
+                    max_attempts: u32,
+                ) -> Result<(), Box<dyn std::error::Error>> {
+                    use tokio::time::{sleep, Duration};
+                    
+                    let mut attempts = 0;
+                    let mut delay = Duration::from_millis(500);
+                    
+                    while attempts < max_attempts {
+                        info!("🔌 WebSocket connection attempt {} of {}", attempts + 1, max_attempts);
+                        
+                        match ws_client.connect(url).await {
+                            Ok(_) => {
+                                info!("✅ WebSocket connected successfully");
+                                return Ok(());
+                            }
+                            Err(e) => {
+                                attempts += 1;
+                                if attempts >= max_attempts {
+                                    return Err(e);
+                                }
+                                
+                                warn!("WebSocket connection failed: {}. Retrying in {:?}...", e, delay);
+                                sleep(delay).await;
+                                
+                                // Exponential backoff with max delay of 5 seconds
+                                delay = std::cmp::min(delay * 2, Duration::from_secs(5));
+                            }
+                        }
+                    }
+                    
+                    Err("Max connection attempts reached".into())
+                }
+
+                // Wait a bit for the agent server to be ready
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+                // Try to connect with retries
+                if let Err(e) = connect_with_retry(native_ws_clone, "ws://localhost:7777/ws", 5).await {
+                    error!("Failed to connect WebSocket after retries: {}", e);
                     info!("💡 Agent server may not be running - messages will fallback to HTTP");
                 } else {
-                    info!("✅ Native WebSocket connected successfully");
                     info!("📡 Real-time communication with agent server established");
                 }
             });

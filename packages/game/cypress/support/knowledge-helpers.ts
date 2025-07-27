@@ -51,125 +51,146 @@ export class KnowledgeTestHelper {
   /**
    * Upload a file to the knowledge base
    */
-  uploadFile(fileName: string, content: string, fileType: string = 'text/plain'): Cypress.Chainable<UploadResponse> {
+  uploadFile(
+    fileName: string,
+    content: string,
+    fileType: string = 'text/plain'
+  ): Cypress.Chainable<UploadResponse> {
     const file = new File([content], fileName, { type: fileType });
     const formData = new FormData();
     formData.append('file', file);
     formData.append('agentId', this.agentId);
 
-    return cy.request({
-      method: 'POST',
-      url: `${this.baseUrl}/documents`,
-      body: formData,
-      headers: {
-        'Accept': 'application/json'
-      }
-    }).then((response) => {
-      expect(response.status).to.eq(200);
-      return response.body as UploadResponse;
-    });
+    return cy
+      .request({
+        method: 'POST',
+        url: `${this.baseUrl}/documents`,
+        body: formData,
+        headers: {
+          Accept: 'application/json',
+        },
+      })
+      .then((response) => {
+        expect(response.status).to.eq(200);
+        return response.body as UploadResponse;
+      });
   }
 
   /**
    * Upload a document from URL
    */
   uploadFromUrl(url: string): Cypress.Chainable<UploadResponse> {
-    return cy.request({
-      method: 'POST',
-      url: `${this.baseUrl}/import`,
-      body: {
-        url,
-        agentId: this.agentId
-      },
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }).then((response) => {
-      expect(response.status).to.eq(200);
-      return response.body as UploadResponse;
-    });
+    return cy
+      .request({
+        method: 'POST',
+        url: `${this.baseUrl}/import`,
+        body: {
+          url,
+          agentId: this.agentId,
+        },
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      .then((response) => {
+        expect(response.status).to.eq(200);
+        return response.body as UploadResponse;
+      });
   }
 
   /**
    * Get all knowledge documents
    */
   getDocuments(): Cypress.Chainable<KnowledgeDocument[]> {
-    return cy.request({
-      method: 'GET',
-      url: `${this.baseUrl}/documents?agentId=${this.agentId}`
-    }).then((response) => {
-      expect(response.status).to.eq(200);
-      expect(response.body.success).to.be.true;
-      return response.body.data as KnowledgeDocument[];
-    });
+    return cy
+      .request({
+        method: 'GET',
+        url: `${this.baseUrl}/documents?agentId=${this.agentId}`,
+      })
+      .then((response) => {
+        expect(response.status).to.eq(200);
+        expect(response.body.success).to.be.true;
+        return response.body.data as KnowledgeDocument[];
+      });
   }
 
   /**
    * Get chunks for a specific document
    */
   getDocumentChunks(documentId: string): Cypress.Chainable<KnowledgeChunk[]> {
-    return cy.request({
-      method: 'GET',
-      url: `${this.baseUrl}/chunks/${documentId}?agentId=${this.agentId}`
-    }).then((response) => {
-      expect(response.status).to.eq(200);
-      expect(response.body.success).to.be.true;
-      return response.body.data as KnowledgeChunk[];
-    });
+    return cy
+      .request({
+        method: 'GET',
+        url: `${this.baseUrl}/chunks/${documentId}?agentId=${this.agentId}`,
+      })
+      .then((response) => {
+        expect(response.status).to.eq(200);
+        expect(response.body.success).to.be.true;
+        return response.body.data as KnowledgeChunk[];
+      });
   }
 
   /**
    * Search the knowledge base
    */
   search(query: string, count: number = 10): Cypress.Chainable<KnowledgeSearchResult[]> {
-    return cy.request({
-      method: 'GET',
-      url: `${this.baseUrl}/search?query=${encodeURIComponent(query)}&agentId=${this.agentId}&count=${count}`
-    }).then((response) => {
-      expect(response.status).to.eq(200);
-      expect(response.body.success).to.be.true;
-      return response.body.data as KnowledgeSearchResult[];
-    });
+    return cy
+      .request({
+        method: 'GET',
+        url: `${this.baseUrl}/search?query=${encodeURIComponent(query)}&agentId=${this.agentId}&count=${count}`,
+      })
+      .then((response) => {
+        expect(response.status).to.eq(200);
+        expect(response.body.success).to.be.true;
+        return response.body.data as KnowledgeSearchResult[];
+      });
   }
 
   /**
    * Delete a knowledge document
    */
   deleteDocument(documentId: string): Cypress.Chainable<void> {
-    return cy.request({
-      method: 'DELETE',
-      url: `${this.baseUrl}/documents/${documentId}?agentId=${this.agentId}`
-    }).then((response) => {
-      expect(response.status).to.eq(204);
-    });
+    return cy
+      .request({
+        method: 'DELETE',
+        url: `${this.baseUrl}/documents/${documentId}?agentId=${this.agentId}`,
+      })
+      .then((response) => {
+        expect(response.status).to.eq(204);
+      });
   }
 
   /**
    * Wait for document to be processed (embedded and chunked)
    */
-  waitForDocumentProcessing(documentId: string, maxWaitTime: number = 30000): Cypress.Chainable<void> {
+  waitForDocumentProcessing(
+    documentId: string,
+    maxWaitTime: number = 30000
+  ): Cypress.Chainable<void> {
     const startTime = Date.now();
 
     const checkProcessing = (): Cypress.Chainable<void> => {
-      return this.getDocumentChunks(documentId).then((chunks) => {
-        if (chunks.length > 0) {
-          cy.log(`Document ${documentId} processed with ${chunks.length} chunks`);
-          return;
-        }
+      return this.getDocumentChunks(documentId)
+        .then((chunks) => {
+          if (chunks.length > 0) {
+            cy.log(`Document ${documentId} processed with ${chunks.length} chunks`);
+            return;
+          }
 
-        if (Date.now() - startTime > maxWaitTime) {
-          throw new Error(`Document ${documentId} processing timeout after ${maxWaitTime}ms`);
-        }
+          if (Date.now() - startTime > maxWaitTime) {
+            throw new Error(`Document ${documentId} processing timeout after ${maxWaitTime}ms`);
+          }
 
-        cy.wait(1000);
-        return checkProcessing();
-      }).catch((error) => {
-        if (Date.now() - startTime > maxWaitTime) {
-          throw new Error(`Document ${documentId} processing timeout: ${error.message}`);
-        }
-        cy.wait(1000);
-        return checkProcessing();
-      });
+          cy.wait(1000);
+          return checkProcessing();
+        })
+        .catch((error) => {
+          if (Date.now() - startTime > maxWaitTime) {
+            throw new Error(`Document ${documentId} processing timeout: ${error.message}`);
+          }
+          cy.wait(1000);
+          return checkProcessing();
+        });
     };
 
     return checkProcessing();
@@ -179,50 +200,56 @@ export class KnowledgeTestHelper {
    * Verify document exists and has content
    */
   verifyDocumentExists(documentId: string): Cypress.Chainable<boolean> {
-    return this.getDocumentChunks(documentId).then((chunks) => {
-      return chunks.length > 0;
-    }).catch(() => {
-      return false;
-    });
+    return this.getDocumentChunks(documentId)
+      .then((chunks) => {
+        return chunks.length > 0;
+      })
+      .catch(() => {
+        return false;
+      });
   }
 
   /**
    * Clean up - delete all test documents
    */
   cleanupTestDocuments(testFileNames: string[] = []): Cypress.Chainable<void> {
-    return this.getDocuments().then((documents) => {
-      const testDocs = documents.filter(doc =>
-        testFileNames.some(name => doc.title?.includes(name)) ||
-        doc.title?.includes('test-') ||
-        doc.title?.includes('cypress-')
-      );
+    return this.getDocuments()
+      .then((documents) => {
+        const testDocs = documents.filter(
+          (doc) =>
+            testFileNames.some((name) => doc.title?.includes(name)) ||
+            doc.title?.includes('test-') ||
+            doc.title?.includes('cypress-')
+        );
 
-      const deletePromises = testDocs.map(doc =>
-        this.deleteDocument(doc.id).catch(() => {
-          cy.log(`Failed to delete document ${doc.id}, continuing...`);
-        })
-      );
+        const deletePromises = testDocs.map((doc) =>
+          this.deleteDocument(doc.id).catch(() => {
+            cy.log(`Failed to delete document ${doc.id}, continuing...`);
+          })
+        );
 
-      return cy.wrap(Promise.all(deletePromises)).then(() => {
-        cy.log(`Cleaned up ${testDocs.length} test documents`);
+        return cy.wrap(Promise.all(deletePromises)).then(() => {
+          cy.log(`Cleaned up ${testDocs.length} test documents`);
+        });
+      })
+      .catch(() => {
+        cy.log('Failed to retrieve documents for cleanup, continuing...');
       });
-    }).catch(() => {
-      cy.log('Failed to retrieve documents for cleanup, continuing...');
-    });
   }
 
   /**
    * Create test documents with specific content for testing
    */
   createTestDocuments(): Cypress.Chainable<{ textDocId: string; urlDocId: string }> {
-    const testTextContent = 'This is a comprehensive test document for knowledge base testing. It contains information about artificial intelligence, machine learning, and natural language processing.';
+    const testTextContent =
+      'This is a comprehensive test document for knowledge base testing. It contains information about artificial intelligence, machine learning, and natural language processing.';
     const testUrl = 'https://raw.githubusercontent.com/ai16z/eliza/main/README.md';
 
     return this.uploadFile('cypress-test-document.txt', testTextContent).then((textResponse) => {
       return this.uploadFromUrl(testUrl).then((urlResponse) => {
         return {
           textDocId: textResponse.data.id,
-          urlDocId: urlResponse.data.id
+          urlDocId: urlResponse.data.id,
         };
       });
     });
@@ -248,12 +275,16 @@ export class KnowledgeTestHelper {
   testFileTypes(): Cypress.Chainable<string[]> {
     const testFiles = [
       { name: 'test.txt', content: 'Plain text content', type: 'text/plain' },
-      { name: 'test.md', content: '# Markdown Content\n\nThis is a test markdown file.', type: 'text/markdown' },
-      { name: 'test.json', content: '{"key": "value", "test": true}', type: 'application/json' }
+      {
+        name: 'test.md',
+        content: '# Markdown Content\n\nThis is a test markdown file.',
+        type: 'text/markdown',
+      },
+      { name: 'test.json', content: '{"key": "value", "test": true}', type: 'application/json' },
     ];
 
-    const uploadPromises = testFiles.map(file =>
-      this.uploadFile(file.name, file.content, file.type).then(response => response.data.id)
+    const uploadPromises = testFiles.map((file) =>
+      this.uploadFile(file.name, file.content, file.type).then((response) => response.data.id)
     );
 
     return cy.wrap(Promise.all(uploadPromises));
@@ -265,7 +296,11 @@ declare global {
   namespace Cypress {
     interface Chainable {
       knowledgeHelper(agentId?: string): Cypress.Chainable<KnowledgeTestHelper>;
-      uploadKnowledgeFile(fileName: string, content: string, fileType?: string): Cypress.Chainable<UploadResponse>;
+      uploadKnowledgeFile(
+        fileName: string,
+        content: string,
+        fileType?: string
+      ): Cypress.Chainable<UploadResponse>;
       searchKnowledge(query: string, count?: number): Cypress.Chainable<KnowledgeSearchResult[]>;
       deleteKnowledgeDocument(documentId: string): Cypress.Chainable<void>;
       cleanupKnowledgeTests(): Cypress.Chainable<void>;
@@ -278,10 +313,13 @@ Cypress.Commands.add('knowledgeHelper', (agentId?: string) => {
   return cy.wrap(new KnowledgeTestHelper(agentId));
 });
 
-Cypress.Commands.add('uploadKnowledgeFile', (fileName: string, content: string, fileType?: string) => {
-  const helper = new KnowledgeTestHelper();
-  return helper.uploadFile(fileName, content, fileType);
-});
+Cypress.Commands.add(
+  'uploadKnowledgeFile',
+  (fileName: string, content: string, fileType?: string) => {
+    const helper = new KnowledgeTestHelper();
+    return helper.uploadFile(fileName, content, fileType);
+  }
+);
 
 Cypress.Commands.add('searchKnowledge', (query: string, count?: number) => {
   const helper = new KnowledgeTestHelper();

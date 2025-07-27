@@ -151,7 +151,7 @@ export class HardwareBridge {
     audioStream.getTracks().forEach((track) => track.stop());
 
     // Check screen capture
-    // @ts-ignore - getDisplayMedia is supported
+    // @ts-expect-error - getDisplayMedia is supported
     const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
     this.capabilities.screen = true;
     screenStream.getTracks().forEach((track) => track.stop());
@@ -264,7 +264,7 @@ export class HardwareBridge {
       return false;
     }
 
-    // @ts-ignore - getDisplayMedia is supported
+    // @ts-expect-error - getDisplayMedia is supported
     const displayStream = await navigator.mediaDevices.getDisplayMedia({
       video: {
         width: 1920,

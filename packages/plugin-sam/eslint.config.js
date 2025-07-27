@@ -12,10 +12,9 @@ export default [
     // Plugin-starter specific overrides
     files: ['**/*.{js,jsx,ts,tsx}'],
     rules: {
-      // Allow more flexibility in starter template
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': 'warn',
-      'no-console': 'off', // Allow console in template examples
+      // Sam plugin specific overrides
+      '@typescript-eslint/no-explicit-any': 'off', // Aligned with project-wide settings
+      'no-console': 'off', // Allow console for development
     },
   },
 ];

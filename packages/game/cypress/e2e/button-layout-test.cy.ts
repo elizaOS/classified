@@ -19,10 +19,10 @@ describe('Button Layout Test', () => {
     cy.get('[data-testid="camera-toggle"]').should('be.visible');
 
     // Verify they're in a row
-    cy.get('[data-testid="autonomy-toggle"]').then($first => {
+    cy.get('[data-testid="autonomy-toggle"]').then(($first) => {
       const firstRect = $first[0].getBoundingClientRect();
 
-      cy.get('[data-testid="camera-toggle"]').then($second => {
+      cy.get('[data-testid="camera-toggle"]').then(($second) => {
         const secondRect = $second[0].getBoundingClientRect();
 
         // Should be on same line (similar Y position)

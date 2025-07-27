@@ -21,7 +21,7 @@ import {
   processFragmentsSynchronously,
 } from './document-processor.ts';
 import { validateModelConfig } from './config';
-import { AddKnowledgeOptions } from './types.ts';
+import { AddKnowledgeOptions, KnowledgeServiceType } from './types.ts';
 import type { KnowledgeConfig, LoadResult } from './types';
 import { loadDocsFromPath } from './docs-loader';
 import { isBinaryContentType, looksLikeBase64, generateContentBasedId } from './utils.ts';
@@ -36,7 +36,7 @@ const parseBooleanEnv = (value: any): boolean => {
  * Knowledge Service - Provides retrieval augmented generation capabilities
  */
 export class KnowledgeService extends Service {
-  static readonly serviceType = 'knowledge';
+  static readonly serviceType = KnowledgeServiceType.KNOWLEDGE;
   public override config: Metadata = {};
   private knowledgeConfig: KnowledgeConfig = {} as KnowledgeConfig;
   capabilityDescription =

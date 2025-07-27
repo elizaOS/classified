@@ -440,7 +440,7 @@ describe('AgentRuntime (Non-Instrumented Baseline)', () => {
       responseMemory.content.actions = ['TestAction']; // Specify action to run
 
       // Mock the internal _runtime's composeState method
-      // @ts-ignore - accessing private property for testing
+      // @ts-expect-error - accessing private property for testing
       const composeStateSpy = spyOn(runtime._runtime, 'composeState');
       (composeStateSpy as any).mockImplementation(async () =>
         createMockState('composed state text')

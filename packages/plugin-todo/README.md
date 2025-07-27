@@ -62,14 +62,6 @@ of concerns:
 - **Integration with notification and cross-platform services**
 - **Performance monitoring** with metrics collection
 
-#### TodoIntegrationBridge (Integration Hub)
-
-- **Central service discovery** for rolodex and plugin-task
-- **Entity synchronization** between todo users and rolodex contacts
-- **Cross-platform message routing** with platform preference handling
-- **Confirmation task lifecycle management** with timeout handling
-- **Caching layer** for improved performance
-
 #### TodoConfirmationService (User Interaction)
 
 - **Workflow orchestration** for user confirmations
@@ -194,14 +186,6 @@ console.log(
   `Optimal time: ${recommendation.optimalTime}, confidence: ${recommendation.confidence}`
 );
 
-// Cross-platform messaging
-const bridge = runtime.getService('TODO_INTEGRATION_BRIDGE');
-const success = await bridge.sendCrossPlatformReminder(
-  todo,
-  'Custom message',
-  'high'
-);
-
 // Confirmation workflows
 const confirmService = runtime.getService('TODO_CONFIRMATION');
 const taskId = await confirmService.createReminderConfirmation(todo, 'overdue');
@@ -227,7 +211,7 @@ const alerts = await monitoring.getActiveAlerts();
 ```typescript
 // Service health dashboard data
 const healthReports = await monitoring.checkServiceHealth();
-// Returns status for: TODO_REMINDER, TODO_INTEGRATION_BRIDGE,
+// Returns status for: TODO_REMINDER,
 //                     TODO_CONFIRMATION, SMART_REMINDER, NOTIFICATION
 
 // Performance analytics

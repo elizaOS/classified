@@ -54,19 +54,42 @@ export class RequirementParser {
     }
 
     // Fallback: extract from common keywords
-    if (text.includes('weather')) return 'Weather';
-    if (text.includes('todo') || text.includes('task')) return 'Todo';
-    if (text.includes('crypto') || text.includes('bitcoin') || text.includes('ethereum'))
+    if (text.includes('weather')) {
+      return 'Weather';
+    }
+    if (text.includes('todo') || text.includes('task')) {
+      return 'Todo';
+    }
+    if (text.includes('crypto') || text.includes('bitcoin') || text.includes('ethereum')) {
       return 'Crypto';
-    if (text.includes('email') || text.includes('mail')) return 'Email';
-    if (text.includes('calendar') || text.includes('schedule')) return 'Calendar';
-    if (text.includes('news')) return 'News';
-    if (text.includes('translate') || text.includes('translation')) return 'Translator';
-    if (text.includes('image') || text.includes('photo')) return 'Image';
-    if (text.includes('music') || text.includes('song')) return 'Music';
-    if (text.includes('database') || text.includes('db')) return 'Database';
-    if (text.includes('web') || text.includes('browser')) return 'Web';
-    if (text.includes('file') || text.includes('document')) return 'File';
+    }
+    if (text.includes('email') || text.includes('mail')) {
+      return 'Email';
+    }
+    if (text.includes('calendar') || text.includes('schedule')) {
+      return 'Calendar';
+    }
+    if (text.includes('news')) {
+      return 'News';
+    }
+    if (text.includes('translate') || text.includes('translation')) {
+      return 'Translator';
+    }
+    if (text.includes('image') || text.includes('photo')) {
+      return 'Image';
+    }
+    if (text.includes('music') || text.includes('song')) {
+      return 'Music';
+    }
+    if (text.includes('database') || text.includes('db')) {
+      return 'Database';
+    }
+    if (text.includes('web') || text.includes('browser')) {
+      return 'Web';
+    }
+    if (text.includes('file') || text.includes('document')) {
+      return 'File';
+    }
 
     return 'Custom';
   }
@@ -91,7 +114,7 @@ export class RequirementParser {
   /**
    * Extract action capabilities
    */
-  private static extractActions(text: string, description: string): ActionCapability[] {
+  private static extractActions(text: string, _description: string): ActionCapability[] {
     const actions: ActionCapability[] = [];
 
     // Common action patterns
@@ -184,7 +207,7 @@ export class RequirementParser {
   /**
    * Extract provider capabilities
    */
-  private static extractProviders(text: string, description: string): ProviderCapability[] {
+  private static extractProviders(text: string, _description: string): ProviderCapability[] {
     const providers: ProviderCapability[] = [];
 
     // Common provider patterns
@@ -244,7 +267,7 @@ export class RequirementParser {
   /**
    * Extract service capabilities
    */
-  private static extractServices(text: string, description: string): ServiceCapability[] {
+  private static extractServices(text: string, _description: string): ServiceCapability[] {
     const services: ServiceCapability[] = [];
 
     // Common service patterns
@@ -291,7 +314,7 @@ export class RequirementParser {
   /**
    * Extract evaluator capabilities
    */
-  private static extractEvaluators(text: string, description: string): EvaluatorCapability[] {
+  private static extractEvaluators(text: string, _description: string): EvaluatorCapability[] {
     const evaluators: EvaluatorCapability[] = [];
 
     // Common evaluator patterns
@@ -318,7 +341,7 @@ export class RequirementParser {
   /**
    * Extract API integration requirements
    */
-  private static extractAPIIntegrations(text: string, description: string): APIIntegration[] {
+  private static extractAPIIntegrations(text: string, _description: string): APIIntegration[] {
     const integrations: APIIntegration[] = [];
 
     // Common API patterns
@@ -382,7 +405,7 @@ export class RequirementParser {
    */
   private static extractEnvironmentVariables(
     text: string,
-    description: string
+    _description: string
   ): EnvironmentVariable[] {
     const envVars: EnvironmentVariable[] = [];
 
@@ -464,8 +487,12 @@ export class RequirementParser {
     complexityScore += capabilities.apiIntegrations.length * 4;
     complexityScore += capabilities.envVars.length * 1;
 
-    if (complexityScore <= 5) return 'simple';
-    if (complexityScore <= 15) return 'medium';
+    if (complexityScore <= 5) {
+      return 'simple';
+    }
+    if (complexityScore <= 15) {
+      return 'medium';
+    }
     return 'complex';
   }
 

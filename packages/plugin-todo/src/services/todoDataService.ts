@@ -1,7 +1,9 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
-import { logger, Service } from '@elizaos/core';
-import { and, desc, eq, isNull, or, not, sql } from 'drizzle-orm';
+import { logger, Service, ServiceTypeName } from '@elizaos/core';
+import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import { todosTable, todoTagsTable } from '../schema';
+import type { TodoMetadata } from '../types';
+import { TodoServiceType } from '../types';
 
 /**
  * Core todo data structure
@@ -22,7 +24,7 @@ export interface TodoData {
   completedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  metadata: any;
+  metadata: TodoMetadata;
   tags?: string[];
 }
 
@@ -50,7 +52,7 @@ export class TodoDataService {
     priority?: number;
     isUrgent?: boolean;
     dueDate?: Date;
-    metadata?: any;
+    metadata?: TodoMetadata;
     tags?: string[];
   }): Promise<UUID> {
     try {
@@ -128,7 +130,7 @@ export class TodoDataService {
 
       return {
         ...todo,
-        tags: tags.map((t: any) => t.tag),
+        tags: tags.map((t: { tag: string }) => t.tag),
       } as TodoData;
     } catch (error) {
       logger.error('Error getting todo:', error);
@@ -161,7 +163,7 @@ export class TodoDataService {
       let query = db.select().from(todosTable);
 
       // Apply filters
-      const conditions: any[] = [];
+      const conditions: Array<ReturnType<typeof eq>> = [];
       if (filters?.agentId) {
         conditions.push(eq(todosTable.agentId, filters.agentId));
       }
@@ -197,7 +199,7 @@ export class TodoDataService {
 
       // Fetch tags for each todo
       const todosWithTags = await Promise.all(
-        todos.map(async (todo: any) => {
+        todos.map(async (todo: (typeof todos)[0]) => {
           const tags = await db
             .select({ tag: todoTagsTable.tag })
             .from(todoTagsTable)
@@ -205,7 +207,7 @@ export class TodoDataService {
 
           return {
             ...todo,
-            tags: tags.map((t: any) => t.tag),
+            tags: tags.map((t: { tag: string }) => t.tag),
           } as TodoData;
         })
       );
@@ -237,7 +239,7 @@ export class TodoDataService {
       isCompleted?: boolean;
       dueDate?: Date;
       completedAt?: Date;
-      metadata?: any;
+      metadata?: TodoMetadata;
     }
   ): Promise<boolean> {
     try {
@@ -249,10 +251,34 @@ export class TodoDataService {
 
       const { db } = this.runtime;
 
-      const updateData: any = {
-        ...updates,
+      const updateData: Record<string, unknown> = {
         updatedAt: new Date(),
       };
+
+      if (updates.name !== undefined) {
+        updateData.name = updates.name;
+      }
+      if (updates.description !== undefined) {
+        updateData.description = updates.description;
+      }
+      if (updates.priority !== undefined) {
+        updateData.priority = updates.priority;
+      }
+      if (updates.isUrgent !== undefined) {
+        updateData.isUrgent = updates.isUrgent;
+      }
+      if (updates.isCompleted !== undefined) {
+        updateData.isCompleted = updates.isCompleted;
+      }
+      if (updates.dueDate !== undefined) {
+        updateData.dueDate = updates.dueDate;
+      }
+      if (updates.completedAt !== undefined) {
+        updateData.completedAt = updates.completedAt;
+      }
+      if (updates.metadata !== undefined) {
+        updateData.metadata = updates.metadata;
+      }
 
       await db.update(todosTable).set(updateData).where(eq(todosTable.id, todoId));
 
@@ -305,7 +331,7 @@ export class TodoDataService {
         .from(todoTagsTable)
         .where(eq(todoTagsTable.todoId, todoId));
 
-      const existingTagSet = new Set(existingTags.map((t: any) => t.tag));
+      const existingTagSet = new Set(existingTags.map((t: { tag: string }) => t.tag));
       const newTags = tags.filter((tag) => !existingTagSet.has(tag));
 
       if (newTags.length > 0) {
@@ -371,9 +397,9 @@ export class TodoDataService {
 
       const { db } = this.runtime;
 
-      const conditions: any[] = [
+      const conditions: Array<ReturnType<typeof eq>> = [
         eq(todosTable.isCompleted, false),
-        not(isNull(todosTable.dueDate)),
+        isNull(todosTable.completedAt),
       ];
 
       if (filters?.agentId) {
@@ -397,11 +423,13 @@ export class TodoDataService {
 
       // Filter overdue tasks in memory since SQL date comparison is complex
       const now = new Date();
-      const overdueTodos = todos.filter((todo: any) => todo.dueDate && todo.dueDate < now);
+      const overdueTodos = todos.filter(
+        (todo: (typeof todos)[0]) => todo.dueDate && todo.dueDate < now
+      );
 
       // Fetch tags
       const todosWithTags = await Promise.all(
-        overdueTodos.map(async (todo: any) => {
+        overdueTodos.map(async (todo: (typeof todos)[0]) => {
           const tags = await db
             .select({ tag: todoTagsTable.tag })
             .from(todoTagsTable)
@@ -409,7 +437,7 @@ export class TodoDataService {
 
           return {
             ...todo,
-            tags: tags.map((t: any) => t.tag),
+            tags: tags.map((t: { tag: string }) => t.tag),
           } as TodoData;
         })
       );
@@ -439,7 +467,10 @@ export class TodoDataService {
 
       const { db } = this.runtime;
 
-      const conditions: any[] = [eq(todosTable.type, 'daily'), eq(todosTable.isCompleted, true)];
+      const conditions: Array<ReturnType<typeof eq>> = [
+        eq(todosTable.type, 'daily'),
+        eq(todosTable.isCompleted, true),
+      ];
 
       if (filters?.agentId) {
         conditions.push(eq(todosTable.agentId, filters.agentId));
@@ -486,10 +517,11 @@ export function createTodoDataService(runtime: IAgentRuntime): TodoDataService {
 }
 
 /**
- * Service wrapper for TodoDataService to be registered with the plugin
+ * Service wrapper for database operations
  */
 export class TodoDataServiceWrapper extends Service {
-  static serviceType = 'todo' as any;
+  static readonly serviceType: ServiceTypeName = 'TODO' as ServiceTypeName;
+  static readonly serviceName = 'Todo'; // Explicit name since class name is too long
 
   private todoDataService: TodoDataService | null = null;
 
@@ -532,7 +564,7 @@ export class TodoDataServiceWrapper extends Service {
     priority?: number;
     isUrgent?: boolean;
     dueDate?: Date;
-    metadata?: any;
+    metadata?: TodoMetadata;
     tags?: string[];
   }): Promise<UUID | null> {
     if (!this.todoDataService) {
@@ -575,7 +607,7 @@ export class TodoDataServiceWrapper extends Service {
       isCompleted?: boolean;
       dueDate?: Date;
       completedAt?: Date;
-      metadata?: any;
+      metadata?: TodoMetadata;
       tags?: string[];
     }
   ): Promise<boolean> {
@@ -593,5 +625,65 @@ export class TodoDataServiceWrapper extends Service {
       throw new Error('TodoDataService not available');
     }
     return this.todoDataService.deleteTodo(todoId);
+  }
+
+  /**
+   * Get a single todo by ID (delegated to service)
+   */
+  async getTodo(todoId: UUID): Promise<TodoData | null> {
+    if (!this.todoDataService) {
+      return null;
+    }
+    return this.todoDataService.getTodo(todoId);
+  }
+
+  /**
+   * Add tags to a todo (delegated to service)
+   */
+  async addTags(todoId: UUID, tags: string[]): Promise<boolean> {
+    if (!this.todoDataService) {
+      throw new Error('TodoDataService not available');
+    }
+    return this.todoDataService.addTags(todoId, tags);
+  }
+
+  /**
+   * Remove tags from a todo (delegated to service)
+   */
+  async removeTags(todoId: UUID, tags: string[]): Promise<boolean> {
+    if (!this.todoDataService) {
+      throw new Error('TodoDataService not available');
+    }
+    return this.todoDataService.removeTags(todoId, tags);
+  }
+
+  /**
+   * Get overdue todos (delegated to service)
+   */
+  async getOverdueTodos(filters?: {
+    agentId?: UUID;
+    worldId?: UUID;
+    roomId?: UUID;
+    entityId?: UUID;
+  }): Promise<TodoData[]> {
+    if (!this.todoDataService) {
+      return [];
+    }
+    return this.todoDataService.getOverdueTodos(filters);
+  }
+
+  /**
+   * Reset daily todos (delegated to service)
+   */
+  async resetDailyTodos(filters?: {
+    agentId?: UUID;
+    worldId?: UUID;
+    roomId?: UUID;
+    entityId?: UUID;
+  }): Promise<number> {
+    if (!this.todoDataService) {
+      return 0;
+    }
+    return this.todoDataService.resetDailyTodos(filters);
   }
 }

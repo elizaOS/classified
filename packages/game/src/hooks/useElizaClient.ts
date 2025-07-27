@@ -32,7 +32,7 @@ export function useElizaClient({
   const [messages, setMessages] = useState<ElizaMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const serviceRef = useRef<ElizaService | null>(null);
   const socketManagerRef = useRef<WebSocketManager | null>(null);
   const userIdRef = useRef<string>(userId || uuidv4());
@@ -67,7 +67,7 @@ export function useElizaClient({
     const socket = socketManagerRef.current;
 
     console.log('[ElizaClient] Initializing WebSocket connection');
-    
+
     // Initialize the WebSocket connection
     socket.initialize(userIdRef.current);
 
@@ -108,7 +108,7 @@ export function useElizaClient({
       console.log('[ElizaClient] Cleaning up socket connection');
       connectionStateRef.current = 'disconnected';
       hasInitializedSocket.current = false;
-      
+
       // Remove event listeners
       if (socketManagerRef.current) {
         socketManagerRef.current.off('connect', handleConnect);
@@ -121,7 +121,9 @@ export function useElizaClient({
 
   // Get or create DM channel
   useEffect(() => {
-    if (!serviceRef.current || !isConnected) return;
+    if (!serviceRef.current || !isConnected) {
+      return;
+    }
 
     const setupChannel = async () => {
       try {
@@ -129,10 +131,10 @@ export function useElizaClient({
         setError(null);
 
         const service = serviceRef.current!;
-        
+
         // Add a delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
         // Get or create DM channel
         const channel = await service.getOrCreateDmChannel();
 
@@ -142,7 +144,7 @@ export function useElizaClient({
         // Join the WebSocket room for real-time updates
         if (socketManagerRef.current) {
           console.log('[ElizaClient] Joining WebSocket channel:', channel.id);
-          
+
           // Use the WebSocketManager's joinChannel method
           await socketManagerRef.current.joinChannel(channel.id);
 
@@ -175,24 +177,26 @@ export function useElizaClient({
 
   // Set up message broadcast listener
   useEffect(() => {
-    if (!socketManagerRef.current || !dmChannel) return;
+    if (!socketManagerRef.current || !dmChannel) {
+      return;
+    }
 
     const handleMessageBroadcast = (data: any) => {
       console.log('[ElizaClient] Received messageBroadcast:', data);
       console.log('[ElizaClient] Current channel ID:', dmChannel.id);
       console.log('[ElizaClient] Message channel ID:', data.channelId || data.roomId);
-      
+
       // Only process messages for our channel
       const messageChannelId = data.channelId || data.roomId;
       if (messageChannelId === dmChannel.id) {
         const messageAuthorId = data.senderId || data.authorId || data.author_id;
-        
+
         // Skip our own messages - we already add them when sending
         if (messageAuthorId === userIdRef.current) {
           console.log('[ElizaClient] Skipping our own message that came back via broadcast');
           return;
         }
-        
+
         const message: ElizaMessage = {
           id: data.id || data.messageId,
           authorId: messageAuthorId,
@@ -207,19 +211,19 @@ export function useElizaClient({
             actions: data.actions,
           },
         };
-        
+
         console.log('[ElizaClient] Adding message to state:', message);
-        
+
         // Add to messages list - check for duplicates by ID
         setMessages((prev) => {
           // Check if message already exists
-          if (prev.some(m => m.id === message.id)) {
+          if (prev.some((m) => m.id === message.id)) {
             console.log('[ElizaClient] Message already exists, skipping duplicate:', message.id);
             return prev;
           }
           return [...prev, message];
         });
-        
+
         // Call the onMessage callback
         onMessage?.(message);
       } else {
@@ -237,37 +241,43 @@ export function useElizaClient({
   }, [dmChannel, onMessage]);
 
   // Send message
-  const sendMessage = useCallback(async (content: string) => {
-    if (!serviceRef.current || !dmChannel) {
-      throw new Error('Not connected or no channel available');
-    }
+  const sendMessage = useCallback(
+    async (content: string) => {
+      if (!serviceRef.current || !dmChannel) {
+        throw new Error('Not connected or no channel available');
+      }
 
-    try {
-      setError(null);
-      
-      // Send via service
-      const message = await serviceRef.current.sendMessage(dmChannel.id, content);
+      try {
+        setError(null);
 
-      // Add to local messages immediately - check for duplicates
-      setMessages((prev) => {
-        // Check if message already exists
-        if (prev.some(m => m.id === message.id)) {
-          console.log('[ElizaClient] Message already exists in sendMessage, skipping duplicate:', message.id);
-          return prev;
-        }
-        return [...prev, message];
-      });
-      
-      console.log('[ElizaClient] Message sent:', message);
+        // Send via service
+        const message = await serviceRef.current.sendMessage(dmChannel.id, content);
 
-      // The WebSocket broadcast will handle adding the agent's response
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
-      console.error('[ElizaClient] Failed to send message:', errorMessage);
-      setError(errorMessage);
-      throw err;
-    }
-  }, [dmChannel]);
+        // Add to local messages immediately - check for duplicates
+        setMessages((prev) => {
+          // Check if message already exists
+          if (prev.some((m) => m.id === message.id)) {
+            console.log(
+              '[ElizaClient] Message already exists in sendMessage, skipping duplicate:',
+              message.id
+            );
+            return prev;
+          }
+          return [...prev, message];
+        });
+
+        console.log('[ElizaClient] Message sent:', message);
+
+        // The WebSocket broadcast will handle adding the agent's response
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
+        console.error('[ElizaClient] Failed to send message:', errorMessage);
+        setError(errorMessage);
+        throw err;
+      }
+    },
+    [dmChannel]
+  );
 
   return {
     isConnected,

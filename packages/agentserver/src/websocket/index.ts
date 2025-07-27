@@ -1,16 +1,12 @@
 import type { IAgentRuntime } from '@elizaos/core';
-import {
-  logger,
-  validateUuid,
-  type UUID,
-} from '@elizaos/core';
+import { logger, validateUuid, type UUID } from '@elizaos/core';
 import type { IncomingMessage } from 'http';
 import type { WebSocket, WebSocketServer } from 'ws';
 import type { AgentServer } from '../index';
 
 export class WebSocketRouter {
   private agents: Map<UUID, IAgentRuntime>;
-  private connections: Map<WebSocket, { agentId?: UUID; channelId?: string }>; 
+  private connections: Map<WebSocket, { agentId?: UUID; channelId?: string }>;
   private serverInstance: AgentServer;
 
   constructor(agents: Map<UUID, IAgentRuntime>, serverInstance: AgentServer) {
@@ -21,8 +17,8 @@ export class WebSocketRouter {
   }
 
   setupServer(wss: WebSocketServer) {
-    logger.info(`[WebSocket] Setting up native WebSocket server`);
-    
+    logger.info('[WebSocket] Setting up native WebSocket server');
+
     wss.on('connection', (ws: WebSocket, request: IncomingMessage) => {
       this.handleNewConnection(ws, request);
     });
@@ -31,7 +27,7 @@ export class WebSocketRouter {
   private handleNewConnection(ws: WebSocket, request: IncomingMessage) {
     const clientIP = request.socket.remoteAddress;
     logger.info(`[WebSocket] New connection from ${clientIP}`);
-    
+
     // Initialize connection metadata
     this.connections.set(ws, {});
 
@@ -39,7 +35,7 @@ export class WebSocketRouter {
     this.sendMessage(ws, {
       type: 'connection_established',
       message: 'Connected to Eliza WebSocket server',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     ws.on('message', (data: Buffer) => {
@@ -96,7 +92,7 @@ export class WebSocketRouter {
 
   private async handleConnect(ws: WebSocket, message: any) {
     const { agent_id, channel_id } = message;
-    
+
     if (agent_id && !validateUuid(agent_id)) {
       this.sendError(ws, 'Invalid agent ID format');
       return;
@@ -109,19 +105,19 @@ export class WebSocketRouter {
     this.connections.set(ws, connectionData);
 
     logger.info(`[WebSocket] Client connected to agent ${agent_id}, channel ${channel_id}`);
-    
+
     this.sendMessage(ws, {
-      type: 'connect_ack',
+      type: 'connection_ack',
       agent_id,
       channel_id,
       message: 'Successfully connected to agent',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
   private async handleChannelJoining(ws: WebSocket, message: any) {
     const { roomId, agentId } = message;
-    
+
     if (agentId && !validateUuid(agentId)) {
       this.sendError(ws, 'Invalid agent ID format');
       return;
@@ -134,13 +130,13 @@ export class WebSocketRouter {
     this.connections.set(ws, connectionData);
 
     logger.info(`[WebSocket] Client joined channel ${roomId} for agent ${agentId}`);
-    
+
     this.sendMessage(ws, {
       type: 'channel_joined',
       roomId,
       agentId,
       message: 'Successfully joined channel',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -150,7 +146,7 @@ export class WebSocketRouter {
       author: message.author || 'User',
       channel_id: message.channel_id,
       agent_id: message.agent_id,
-      timestamp: message.timestamp || Date.now()
+      timestamp: message.timestamp || Date.now(),
     });
   }
 
@@ -160,13 +156,13 @@ export class WebSocketRouter {
       author: message.senderName || message.author || 'User',
       channel_id: message.roomId || message.channelId,
       agent_id: message.agentId,
-      timestamp: message.timestamp || Date.now()
+      timestamp: message.timestamp || Date.now(),
     });
   }
 
   private async processAgentMessage(ws: WebSocket, messageData: any) {
     const { content, author, channel_id, agent_id, timestamp } = messageData;
-    
+
     if (!content || !author) {
       this.sendError(ws, 'Message content and author are required');
       return;
@@ -187,47 +183,81 @@ export class WebSocketRouter {
       return;
     }
 
-    const runtime = this.agents.get(targetAgentId);
-    if (!runtime) {
-      this.sendError(ws, `Agent ${targetAgentId} not found`);
-      return;
-    }
-
+    // Instead of processing directly through agent, use the message bus system
     try {
-      logger.info(`[WebSocket] Processing message for agent ${targetAgentId}: "${content.substring(0, 100)}..."`);
-      
-      // Create a proper message object for the agent
-      const agentMessage = {
-        id: crypto.randomUUID(),
-        content: { text: content },
-        userId: 'websocket-user',
-        agentId: targetAgentId,
-        roomId: targetChannelId || crypto.randomUUID(),
-        createdAt: timestamp,
-      };
-
-      // Process the message through the agent
-      const response = await runtime.processActions(
-        agentMessage,
-        [], // empty state
-        async (responseContent: any) => {
-          // Send response back to WebSocket client
-          this.sendMessage(ws, {
-            type: 'agent_response',
-            id: crypto.randomUUID(),
-            content: responseContent.text || responseContent,
-            author: runtime.character?.name || 'Agent',
-            agent_id: targetAgentId,
-            channel_id: targetChannelId,
-            timestamp: Date.now()
-          });
-        }
+      logger.info(
+        `[WebSocket] Routing message through message bus for agent ${targetAgentId}: "${content.substring(0, 100)}..."`
       );
 
-      logger.info(`[WebSocket] Agent processed message successfully`);
+      // Create a message to route through the server's message ingestion system
+      const messageId = crypto.randomUUID() as UUID;
+      const authorId = crypto.randomUUID() as UUID; // Generate a unique ID for WebSocket users
 
+      // Create message in the database first
+      const messageToCreate = {
+        id: messageId,
+        channelId: (targetChannelId || crypto.randomUUID()) as UUID,
+        authorId,
+        content,
+        rawMessage: { content },
+        sourceId: 'websocket',
+        source_type: 'websocket',
+        metadata: {
+          agentId: targetAgentId,
+          author,
+          client_type: 'websocket',
+          timestamp: timestamp || Date.now(),
+        },
+      };
+
+      const createdMessage = await this.serverInstance.createMessage(messageToCreate);
+
+      // Emit to the internal message bus for agent processing
+      const messageForBus = {
+        id: createdMessage.id!,
+        channelId: createdMessage.channelId,
+        serverId: '00000000-0000-0000-0000-000000000000' as UUID, // Default server ID
+        authorId: createdMessage.authorId,
+        authorDisplayName: author,
+        content: createdMessage.content,
+        rawMessage: createdMessage.rawMessage,
+        sourceId: createdMessage.sourceId,
+        source_type: createdMessage.source_type,
+        inReplyToMessageId: undefined,
+        createdAt: new Date(createdMessage.createdAt).getTime(),
+        metadata: createdMessage.metadata,
+      };
+
+      // Import the message bus
+      const internalMessageBus = (await import('../bus')).default;
+      internalMessageBus.emit('new_message', messageForBus);
+
+      logger.info(`[WebSocket] Message published to internal message bus: ${messageId}`);
+
+      // Send acknowledgment back to WebSocket client
+      this.sendMessage(ws, {
+        type: 'message_received',
+        id: messageId,
+        status: 'queued',
+        message: 'Message received and queued for agent processing',
+        timestamp: Date.now(),
+      });
+
+      // Also broadcast to other WebSocket clients watching this channel
+      if (this.serverInstance.websocket) {
+        this.serverInstance.websocket.to(targetChannelId).emit('messageBroadcast', {
+          senderId: authorId,
+          senderName: author,
+          text: content,
+          roomId: targetChannelId,
+          serverId: '00000000-0000-0000-0000-000000000000',
+          createdAt: Date.now(),
+          source: 'websocket',
+          id: messageId,
+        });
+      }
     } catch (error) {
-      logger.error(`[WebSocket] Error processing agent message: ${error}`);
+      logger.error(`[WebSocket] Error routing message through message bus: ${error}`);
       this.sendError(ws, 'Failed to process message');
     }
   }
@@ -242,7 +272,7 @@ export class WebSocketRouter {
     this.sendMessage(ws, {
       type: 'error',
       message: error,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -253,12 +283,14 @@ export class WebSocketRouter {
       ...message,
       agent_id: agentId,
       channel_id: channelId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     this.connections.forEach((connectionData, ws) => {
-      if (connectionData.agentId === agentId && 
-          (!channelId || connectionData.channelId === channelId)) {
+      if (
+        connectionData.agentId === agentId &&
+        (!channelId || connectionData.channelId === channelId)
+      ) {
         this.sendMessage(ws, messageToSend);
       }
     });

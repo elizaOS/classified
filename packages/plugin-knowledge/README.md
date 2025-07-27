@@ -171,7 +171,7 @@ KNOWLEDGE_PATH=/custom/path        # Custom document path (default: ./docs)
 # Only needed if you're not using a standard AI plugin
 EMBEDDING_PROVIDER=openai          # openai | google | ollama
 TEXT_EMBEDDING_MODEL=text-embedding-3-small
-EMBEDDING_DIMENSION=1536           # Vector dimension
+EMBEDDING_DIMENSION=768           # Vector dimension
 ```
 
 ### Text Generation (for Contextual Mode)

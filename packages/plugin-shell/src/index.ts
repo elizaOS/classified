@@ -1,10 +1,6 @@
 // Shell plugin -- give an agent shell access
 import { type Plugin } from '@elizaos/core';
-import {
-  runShellCommandAction,
-  clearShellHistoryAction,
-  killAutonomousAction,
-} from './action';
+import { runShellCommandAction, clearShellHistoryAction } from './action';
 import { shellProvider } from './provider';
 import { ShellService } from './service';
 import './types'; // Ensure module augmentation is loaded
@@ -21,7 +17,6 @@ export const shellPlugin: Plugin = {
     'Provides shell access to the agent, allowing it to run commands and view history.',
   actions: [
     runShellCommandAction, // Has enabled: false property
-    killAutonomousAction, // Has enabled: false property
     clearShellHistoryAction, // Has enabled: false property
   ],
   providers: [shellProvider],

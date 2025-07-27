@@ -97,35 +97,35 @@ export const replyAction = {
       template: replyTemplate,
     });
 
-      const response = await runtime.useModel(ModelType.OBJECT_LARGE, {
-        prompt,
-      });
+    const response = await runtime.useModel(ModelType.OBJECT_LARGE, {
+      prompt,
+    });
 
-      const responseContent = {
-        thought: response.thought,
-        text: (response.message as string) || '',
-        actions: ['REPLY'],
-      };
+    const responseContent = {
+      thought: response.thought,
+      text: (response.message as string) || '',
+      actions: ['REPLY'],
+    };
 
-      await callback(responseContent);
+    await callback(responseContent);
 
-      return {
-        text: `Generated reply: ${responseContent.text}`,
-        values: {
-          success: true,
-          responded: true,
-          lastReply: responseContent.text,
-          lastReplyTime: Date.now(),
-          thoughtProcess: response.thought,
-        },
-        data: {
-          actionName: 'REPLY',
-          response: responseContent,
-          thought: response.thought,
-          messageGenerated: true,
-        },
+    return {
+      text: `Generated reply: ${responseContent.text}`,
+      values: {
         success: true,
-      };
+        responded: true,
+        lastReply: responseContent.text,
+        lastReplyTime: Date.now(),
+        thoughtProcess: response.thought,
+      },
+      data: {
+        actionName: 'REPLY',
+        response: responseContent,
+        thought: response.thought,
+        messageGenerated: true,
+      },
+      success: true,
+    };
   },
   examples: [
     [

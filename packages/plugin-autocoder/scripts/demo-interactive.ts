@@ -11,11 +11,11 @@ async function runDemo() {
 
   // Check environment
   const requiredKeys = ['ANTHROPIC_API_KEY'];
-  const missingKeys = requiredKeys.filter(key => !process.env[key]);
-  
+  const missingKeys = requiredKeys.filter((key) => !process.env[key]);
+
   if (missingKeys.length > 0) {
     console.error('❌ Missing required environment variables for demo:');
-    missingKeys.forEach(key => console.error(`   - ${key}`));
+    missingKeys.forEach((key) => console.error(`   - ${key}`));
     console.log('\nTo run the demo:');
     console.log('1. Set your Anthropic API key:');
     console.log('   export ANTHROPIC_API_KEY="your_api_key_here"');
@@ -54,7 +54,7 @@ async function runDemo() {
   console.log('   - List directory contents');
   console.log('   - Example: write src/index.ts console.log("hello")');
   console.log('');
-  
+
   console.log('📚 Available Commands:');
   console.log('   help                     - Show help message');
   console.log('   status                   - Show session status');
@@ -67,7 +67,7 @@ async function runDemo() {
   console.log('   clear                    - Clear terminal');
   console.log('   exit                     - Exit test session');
   console.log('');
-  
+
   console.log('🎯 Example Session Flow:');
   console.log('1. Start: bun run test:interactive');
   console.log('2. Generate: generate A calculator plugin');
@@ -76,12 +76,12 @@ async function runDemo() {
   console.log('5. Test: run npm test');
   console.log('6. Exit: exit');
   console.log('');
-  
+
   console.log('🚀 Ready to start? Run one of these commands:');
   console.log('   bun run test:interactive');
   console.log('   ./scripts/test-interactive.sh');
   console.log('');
-  
+
   console.log('💡 Pro Tips:');
   console.log('   - Use Ctrl+C to exit gracefully');
   console.log('   - The sandbox persists during the session');

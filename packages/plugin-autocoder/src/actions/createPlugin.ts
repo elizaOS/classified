@@ -59,10 +59,12 @@ export const createPluginAction: Action = {
   validate: async (
     runtime: IAgentRuntime,
     message: Memory,
-    state: State | undefined
+    _state: State | undefined
   ): Promise<boolean> => {
     const text = message.content.text?.toLowerCase();
-    if (!text) return false;
+    if (!text) {
+      return false;
+    }
 
     // Check for plugin creation trigger phrases
     const triggers = ['create', 'build', 'make', 'generate'];

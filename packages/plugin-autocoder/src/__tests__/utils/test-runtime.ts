@@ -1,11 +1,11 @@
-import { 
-  AgentRuntime, 
-  type IAgentRuntime, 
+import {
+  AgentRuntime,
+  type IAgentRuntime,
   type UUID,
   type Character,
   type Plugin,
   elizaLogger,
-  type IDatabaseAdapter
+  type IDatabaseAdapter,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
@@ -35,7 +35,7 @@ export async function createRealTestRuntime(
     character = {},
     plugins = [],
     environment = {},
-    databasePath = `.test-db-${Date.now()}`
+    databasePath = `.test-db-${Date.now()}`,
   } = options;
 
   // Set up environment
@@ -62,7 +62,7 @@ export async function createRealTestRuntime(
     settings: {
       model: 'gpt-4o-mini',
       modelVendor: 'openai',
-      ...(character.settings || {})
+      ...(character.settings || {}),
     },
     secrets: character.secrets || {},
     plugins: character.plugins || [],
@@ -71,14 +71,14 @@ export async function createRealTestRuntime(
     style: character.style || {},
     topics: character.topics || [],
     adjectives: character.adjectives || [],
-    ...character
+    ...character,
   };
 
   // Create runtime
   const runtime = new AgentRuntime({
     agentId: uuidv4() as UUID,
     character: testCharacter,
-    plugins: [sqlPlugin, formsPlugin, ...plugins]
+    plugins: [sqlPlugin, formsPlugin, ...plugins],
   });
 
   // Override getSetting to use test environment
@@ -106,17 +106,17 @@ export async function createRealTestRuntime(
   // Set up cleanup function
   const cleanup = async () => {
     elizaLogger.info('Cleaning up test runtime...');
-    
+
     // Stop runtime
     await runtime.stop();
-    
+
     // Clean up test database
     if (existsSync(dbDir)) {
       rmSync(dbDir, { recursive: true, force: true });
     }
-    
+
     // Clean up environment
-    Object.keys(environment).forEach(key => {
+    Object.keys(environment).forEach((key) => {
       delete process.env[key];
     });
     delete process.env.ELIZA_TEST_MODE;
@@ -124,6 +124,6 @@ export async function createRealTestRuntime(
 
   return {
     runtime,
-    cleanup
+    cleanup,
   };
-} 
+}

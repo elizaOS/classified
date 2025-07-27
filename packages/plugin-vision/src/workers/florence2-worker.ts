@@ -206,9 +206,7 @@ class Florence2Worker {
     }
 
     // Convert raw RGBA to PNG for Florence-2
-    const pngBuffer = await sharp(tileData)
-      .png()
-      .toBuffer();
+    const pngBuffer = await sharp(tileData).png().toBuffer();
 
     return pngBuffer;
   }

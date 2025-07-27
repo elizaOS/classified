@@ -26,7 +26,7 @@ export const DiagnosticPanel: React.FC = () => {
 
       // Check localStorage for any old data
       const keys = Object.keys(localStorage);
-      const socketKeys = keys.filter(k => k.includes('socket') || k.includes('terminal'));
+      const socketKeys = keys.filter((k) => k.includes('socket') || k.includes('terminal'));
       info.push({ type: 'LocalStorage keys', keys: socketKeys });
 
       // Get current user ID
@@ -35,7 +35,7 @@ export const DiagnosticPanel: React.FC = () => {
 
       // Check for service workers
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
           setHasServiceWorker(registrations.length > 0);
           if (registrations.length > 0) {
             info.push({ type: 'Service Workers', count: registrations.length });
@@ -59,33 +59,35 @@ export const DiagnosticPanel: React.FC = () => {
   };
 
   return (
-    <Box sx={{
-      position: 'fixed',
-      bottom: 10,
-      right: 10,
-      background: 'rgba(0,0,0,0.9)',
-      padding: 2,
-      border: '1px solid green',
-      maxWidth: 350,
-      borderRadius: 1,
-    }}>
+    <Box
+      sx={{
+        position: 'fixed',
+        bottom: 10,
+        right: 10,
+        background: 'rgba(0,0,0,0.9)',
+        padding: 2,
+        border: '1px solid green',
+        maxWidth: 350,
+        borderRadius: 1,
+      }}
+    >
       <Typography variant="h6" color="green" gutterBottom>
-                🔍 Diagnostics
+        🔍 Diagnostics
       </Typography>
 
       <Typography variant="body2" color="green" sx={{ fontSize: '0.8rem', mb: 1 }}>
-                User ID: {currentUserId.substring(0, 8)}...
+        User ID: {currentUserId.substring(0, 8)}...
       </Typography>
 
       {currentUserId === '84334750-4d3e-4305-be52-4bc981256181' && (
         <Typography variant="body2" color="red" sx={{ fontSize: '0.8rem', mb: 1 }}>
-                    ⚠️ PROBLEMATIC USER ID DETECTED!
+          ⚠️ PROBLEMATIC USER ID DETECTED!
         </Typography>
       )}
 
       {hasServiceWorker && (
         <Typography variant="body2" color="orange" sx={{ mb: 1 }}>
-                    ⚠️ Service Workers detected!
+          ⚠️ Service Workers detected!
         </Typography>
       )}
 
@@ -112,7 +114,7 @@ export const DiagnosticPanel: React.FC = () => {
             onClick={handleChangeUserId}
             fullWidth
           >
-                        Change User ID
+            Change User ID
           </Button>
         </Box>
       )}
@@ -136,11 +138,11 @@ export const DiagnosticPanel: React.FC = () => {
         fullWidth
         sx={{ mt: 1 }}
       >
-                🧹 CLEAR ALL & RELOAD
+        🧹 CLEAR ALL & RELOAD
       </Button>
 
       <Typography variant="caption" color="grey" sx={{ display: 'block', mt: 1 }}>
-                This will clear ALL browser storage and reload
+        This will clear ALL browser storage and reload
       </Typography>
     </Box>
   );

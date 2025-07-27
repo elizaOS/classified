@@ -29,7 +29,7 @@ interface TaskMetadata {
   completedToday?: boolean;
   lastReminderSent?: string; // ISO string
   completedAt?: string; // ISO string
-  [key: string]: any; // Allow other metadata properties
+  [key: string]: string | number | boolean | null | undefined; // More specific than 'any'
 }
 
 interface Task {
@@ -40,6 +40,21 @@ interface Task {
   metadata?: TaskMetadata;
   roomId: string; // Added roomId as it's crucial
   // Add other relevant fields like createdAt, updatedAt if needed
+}
+
+// API Response types
+interface TaskResponse {
+  message: string;
+  task?: Task;
+}
+
+interface DeleteResponse {
+  message: string;
+}
+
+interface RoomResponse {
+  id: string;
+  name: string;
 }
 
 interface RoomWithTasks {
@@ -160,7 +175,7 @@ const useAddTask = () => {
 const useCompleteTask = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<any, Error, { taskId: string }>({
+  return useMutation<TaskResponse, Error, { taskId: string }>({
     mutationFn: async ({ taskId }) => {
       const response = await fetch(`/api/todos/${taskId}/complete`, {
         method: 'PUT',
@@ -187,7 +202,7 @@ const useCompleteTask = () => {
 
 const useUncompleteTask = () => {
   const queryClient = useQueryClient();
-  return useMutation<any, Error, string>({
+  return useMutation<TaskResponse, Error, string>({
     mutationFn: async (taskId) => {
       const response = await fetch(`/api/todos/${taskId}/uncomplete`, {
         method: 'PUT',
@@ -211,7 +226,7 @@ const useUncompleteTask = () => {
 
 const useDeleteTask = () => {
   const queryClient = useQueryClient();
-  return useMutation<any, Error, string>({
+  return useMutation<DeleteResponse, Error, string>({
     mutationFn: async (taskId) => {
       const response = await fetch(`/api/todos/${taskId}`, {
         method: 'DELETE',
@@ -242,7 +257,7 @@ const useDeleteTask = () => {
 
 const useCreateRoom = () => {
   const queryClient = useQueryClient();
-  return useMutation<any, Error, { worldId: string; name: string }>({
+  return useMutation<RoomResponse, Error, { worldId: string; name: string }>({
     mutationFn: async ({ worldId, name }) => {
       const response = await fetch(`/api/worlds/${worldId}/rooms`, {
         method: 'POST',
@@ -270,9 +285,18 @@ const useCreateRoom = () => {
 
 // --- Components ---
 
-const AddTaskForm = ({ worlds }: { worlds: WorldWithRooms[] }) => {
+interface CreateTaskData {
+  name: string;
+  type: string;
+  roomId: string;
+  priority?: number;
+  dueDate?: string;
+  isUrgent?: boolean;
+}
+
+function AddTaskForm({ worlds }: { worlds: WorldWithRooms[] }) {
   const [name, setName] = useState('');
-  const [type, setType] = useState('one-off');
+  const [type, setType] = useState<'one-off' | 'daily'>('one-off');
   const [priority, setPriority] = useState('4');
   const [dueDate, setDueDate] = useState('');
   const [isUrgent, setIsUrgent] = useState(false);
@@ -292,7 +316,7 @@ const AddTaskForm = ({ worlds }: { worlds: WorldWithRooms[] }) => {
       alert('Please enter a task name and select a world/room.');
       return;
     }
-    const taskData: any = { name: name.trim(), type, roomId: selectedRoomId };
+    const taskData: CreateTaskData = { name: name.trim(), type, roomId: selectedRoomId };
     if (type === 'one-off') {
       taskData.priority = parseInt(priority, 10);
       if (dueDate) {
@@ -387,7 +411,11 @@ const AddTaskForm = ({ worlds }: { worlds: WorldWithRooms[] }) => {
 
           <div className="space-y-2">
             <Label htmlFor="task-type">Type</Label>
-            <Select value={type} onValueChange={setType} disabled={!selectedRoomId}>
+            <Select
+              value={type}
+              onValueChange={(value) => setType(value as 'one-off' | 'daily')}
+              disabled={!selectedRoomId}
+            >
               <SelectTrigger id="task-type" data-testid="task-type">
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
@@ -460,7 +488,7 @@ const AddTaskForm = ({ worlds }: { worlds: WorldWithRooms[] }) => {
       </CardContent>
     </Card>
   );
-};
+}
 
 const TaskItem = ({ task }: { task: Task }) => {
   const completeTaskMutation = useCompleteTask();

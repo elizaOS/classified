@@ -1,6 +1,6 @@
 import type { IAgentRuntime } from '@elizaos/core';
 import { logger, Service } from '@elizaos/core';
-import type { PluginRequirements, GeneratedPluginResult } from '../types/index';
+import type { GeneratedPluginResult } from '../types/index';
 import {
   PLUGIN_CREATION_ORCHESTRATOR,
   PLUGIN_TEMPLATE_SERVICE,

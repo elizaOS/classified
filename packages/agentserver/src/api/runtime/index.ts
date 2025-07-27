@@ -1,6 +1,6 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import { createHealthRouter } from './health';
 import { createLoggingRouter } from './logging';
 import { createDebugRouter } from './debug';

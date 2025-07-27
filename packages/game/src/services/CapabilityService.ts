@@ -111,14 +111,14 @@ export class CapabilityService {
       this.getAutonomyStatus(),
       this.getCapabilityStatus('shell'),
       this.getCapabilityStatus('browser'),
-      this.getVisionSettings()
+      this.getVisionSettings(),
     ]);
 
     return {
       autonomy,
       shell,
       browser,
-      vision
+      vision,
     };
   }
 
@@ -254,7 +254,9 @@ export class CapabilityService {
    */
   async fetchMemories(roomId: string, count?: number): Promise<ApiResponse<any>> {
     const params = new URLSearchParams({ roomId });
-    if (count) {params.append('count', count.toString());}
+    if (count) {
+      params.append('count', count.toString());
+    }
 
     const response = await fetch(`/api/memories?${params}`, {
       method: 'GET',

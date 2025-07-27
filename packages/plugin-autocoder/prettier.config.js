@@ -1,4 +1,4 @@
-import prettierConfig from '../core/configs/prettier/prettier.config.js';
+import prettierConfig from '../config/src/prettier/prettier.config.js';
 
 /**
  * Prettier configuration for @elizaos/plugin-autocoder

@@ -7,8 +7,10 @@ describe('Final Tab Verification - User Requirements', () => {
       method: 'GET',
       url: 'http://localhost:7777/api/server/health',
       failOnStatusCode: false,
-      timeout: 5000
-    }).its('status').should('eq', 200);
+      timeout: 5000,
+    })
+      .its('status')
+      .should('eq', 200);
 
     // Load app with testing configuration
     cy.visit('/', {
@@ -16,7 +18,7 @@ describe('Final Tab Verification - User Requirements', () => {
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');
         win.localStorage.setItem('disableWebSocket', 'true');
-      }
+      },
     });
 
     cy.wait(3000); // Wait for React to render
@@ -53,7 +55,16 @@ describe('Final Tab Verification - User Requirements', () => {
     cy.log('🔍 TESTING: Capability toggles (shell, browser, vision, autonomy)');
 
     // Expected capabilities from user requirements
-    const expectedCapabilities = ['shell', 'browser', 'vision', 'autonomy', 'camera', 'screen', 'microphone', 'speakers'];
+    const expectedCapabilities = [
+      'shell',
+      'browser',
+      'vision',
+      'autonomy',
+      'camera',
+      'screen',
+      'microphone',
+      'speakers',
+    ];
     const foundCapabilities = [];
 
     cy.get('body').within(() => {
@@ -61,9 +72,12 @@ describe('Final Tab Verification - User Requirements', () => {
       cy.get('input[type="checkbox"], [role="switch"], button[aria-checked]')
         .should('have.length.at.least', 1)
         .each(($toggle) => {
-          const toggleText = $toggle.parent().text().toLowerCase() || $toggle.attr('aria-label')?.toLowerCase() || '';
+          const toggleText =
+            $toggle.parent().text().toLowerCase() ||
+            $toggle.attr('aria-label')?.toLowerCase() ||
+            '';
 
-          expectedCapabilities.forEach(cap => {
+          expectedCapabilities.forEach((cap) => {
             if (toggleText.includes(cap)) {
               foundCapabilities.push(cap);
               cy.log(`✅ Found ${cap} capability toggle`);
@@ -87,8 +101,10 @@ describe('Final Tab Verification - User Requirements', () => {
     });
 
     cy.then(() => {
-      cy.log(`📊 Capability Toggles: Found ${foundCapabilities.length}/${expectedCapabilities.length}`);
-      foundCapabilities.forEach(cap => cy.log(`  ✅ ${cap}`));
+      cy.log(
+        `📊 Capability Toggles: Found ${foundCapabilities.length}/${expectedCapabilities.length}`
+      );
+      foundCapabilities.forEach((cap) => cy.log(`  ✅ ${cap}`));
     });
 
     cy.screenshot('capability-toggles');
@@ -107,7 +123,9 @@ describe('Final Tab Verification - User Requirements', () => {
 
     // Look for Goals tab
     cy.get('body').then(($body) => {
-      const goalsTab = $body.find('button:contains("Goals"), div:contains("Goals"), [data-tab="goals"]');
+      const goalsTab = $body.find(
+        'button:contains("Goals"), div:contains("Goals"), [data-tab="goals"]'
+      );
       if (goalsTab.length > 0) {
         cy.log('✅ Goals tab found in UI');
 
@@ -149,7 +167,9 @@ describe('Final Tab Verification - User Requirements', () => {
 
     // Look for Todos tab
     cy.get('body').then(($body) => {
-      const todosTab = $body.find('button:contains("Todos"), button:contains("Todo"), div:contains("Todos")');
+      const todosTab = $body.find(
+        'button:contains("Todos"), button:contains("Todo"), div:contains("Todos")'
+      );
       if (todosTab.length > 0) {
         cy.log('✅ Todos tab found in UI');
 
@@ -180,7 +200,9 @@ describe('Final Tab Verification - User Requirements', () => {
     cy.log('🔍 TESTING: Monologue tab - agent autonomous room');
 
     cy.get('body').then(($body) => {
-      const monologueTab = $body.find('button:contains("Monologue"), div:contains("Monologue"), [data-tab="monologue"]');
+      const monologueTab = $body.find(
+        'button:contains("Monologue"), div:contains("Monologue"), [data-tab="monologue"]'
+      );
       if (monologueTab.length > 0) {
         cy.log('✅ Monologue tab found in UI');
 
@@ -217,7 +239,9 @@ describe('Final Tab Verification - User Requirements', () => {
     });
 
     cy.get('body').then(($body) => {
-      const filesTab = $body.find('button:contains("Files"), button:contains("Knowledge"), div:contains("Files")');
+      const filesTab = $body.find(
+        'button:contains("Files"), button:contains("Knowledge"), div:contains("Files")'
+      );
       if (filesTab.length > 0) {
         cy.log('✅ Files tab found in UI');
 
@@ -226,7 +250,9 @@ describe('Final Tab Verification - User Requirements', () => {
 
         cy.get('body').then(($content) => {
           // Look for upload functionality
-          const uploadElements = $content.find('input[type="file"], button:contains("Upload"), [class*="upload"]');
+          const uploadElements = $content.find(
+            'input[type="file"], button:contains("Upload"), [class*="upload"]'
+          );
           if (uploadElements.length > 0) {
             cy.log(`✅ Found ${uploadElements.length} upload elements`);
           } else {
@@ -234,7 +260,9 @@ describe('Final Tab Verification - User Requirements', () => {
           }
 
           // Look for file list/delete functionality
-          const fileElements = $content.find('.file, .document, button:contains("Delete"), [class*="delete"]');
+          const fileElements = $content.find(
+            '.file, .document, button:contains("Delete"), [class*="delete"]'
+          );
           if (fileElements.length > 0) {
             cy.log(`✅ Found ${fileElements.length} file management elements`);
           } else {
@@ -253,7 +281,9 @@ describe('Final Tab Verification - User Requirements', () => {
     cy.log('🔍 TESTING: Config tab - agent settings');
 
     cy.get('body').then(($body) => {
-      const configTab = $body.find('button:contains("Config"), button:contains("Settings"), div:contains("Config")');
+      const configTab = $body.find(
+        'button:contains("Config"), button:contains("Settings"), div:contains("Config")'
+      );
       if (configTab.length > 0) {
         cy.log('✅ Config tab found in UI');
 
@@ -262,7 +292,9 @@ describe('Final Tab Verification - User Requirements', () => {
 
         cy.get('body').then(($content) => {
           // Look for settings controls
-          const settingsElements = $content.find('input, select, textarea, button, [class*="setting"]');
+          const settingsElements = $content.find(
+            'input, select, textarea, button, [class*="setting"]'
+          );
           if (settingsElements.length > 0) {
             cy.log(`✅ Found ${settingsElements.length} settings controls`);
           } else {
@@ -302,7 +334,7 @@ describe('Final Tab Verification - User Requirements', () => {
       'Monologue Tab': false,
       'Files Tab': false,
       'Config Tab': false,
-      'Backend APIs': false
+      'Backend APIs': false,
     };
 
     // Check chat interface
@@ -319,25 +351,30 @@ describe('Final Tab Verification - User Requirements', () => {
 
     // Check tabs existence
     cy.get('body').then(($body) => {
-      requirements['Goals Tab'] = $body.find('button:contains("Goals"), div:contains("Goals")').length > 0;
-      requirements['Todos Tab'] = $body.find('button:contains("Todos"), div:contains("Todos")').length > 0;
-      requirements['Monologue Tab'] = $body.find('button:contains("Monologue"), div:contains("Monologue")').length > 0;
-      requirements['Files Tab'] = $body.find('button:contains("Files"), div:contains("Files")').length > 0;
-      requirements['Config Tab'] = $body.find('button:contains("Config"), div:contains("Config")').length > 0;
+      requirements['Goals Tab'] =
+        $body.find('button:contains("Goals"), div:contains("Goals")').length > 0;
+      requirements['Todos Tab'] =
+        $body.find('button:contains("Todos"), div:contains("Todos")').length > 0;
+      requirements['Monologue Tab'] =
+        $body.find('button:contains("Monologue"), div:contains("Monologue")').length > 0;
+      requirements['Files Tab'] =
+        $body.find('button:contains("Files"), div:contains("Files")').length > 0;
+      requirements['Config Tab'] =
+        $body.find('button:contains("Config"), div:contains("Config")').length > 0;
     });
 
     // Check backend APIs (simplified to avoid connection issues)
     cy.request({
       method: 'GET',
       url: 'http://localhost:7777/api/server/health',
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       requirements['Backend APIs'] = response.status === 200;
     });
 
     // Generate final report
     cy.then(() => {
-      const working = Object.values(requirements).filter(v => v).length;
+      const working = Object.values(requirements).filter((v) => v).length;
       const total = Object.keys(requirements).length;
       const percentage = Math.round((working / total) * 100);
 
@@ -368,7 +405,7 @@ describe('Final Tab Verification - User Requirements', () => {
       cy.log('  • Capabilities: Toggles for shell, browser, vision, autonomy');
       cy.log('  • Goals: Tab showing goals working from backend');
       cy.log('  • Todos: Tab showing todos working from backend');
-      cy.log('  • Monologue: Agent\'s autonomous room where it talks to itself');
+      cy.log("  • Monologue: Agent's autonomous room where it talks to itself");
       cy.log('  • Files: Knowledge upload and delete functionality');
       cy.log('  • Config: Agent settings management');
       cy.log('');

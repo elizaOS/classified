@@ -19,7 +19,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["../dist-backend/**/*"]
+    "resources": ["../dist/**/*"]
   },
   "app": {
     "windows": [

@@ -1,10 +1,10 @@
-import { pgTable, text, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, jsonb, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { channelTable } from './channel';
 
 export const messageTable = pgTable('central_messages', {
   id: text('id').primaryKey(), // UUID stored as text
-  channelId: text('channel_id')
+  channelId: uuid('channel_id')
     .notNull()
     .references(() => channelTable.id, { onDelete: 'cascade' }),
   authorId: text('author_id').notNull(),
@@ -22,4 +22,4 @@ export const messageTable = pgTable('central_messages', {
   updatedAt: timestamp('updated_at', { mode: 'date' })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
-}); 
+});

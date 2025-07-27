@@ -538,7 +538,10 @@ print(f"\\n🎉 Complete Tesla News Discord Bot created with {len(files_created)
 
     try {
       if (e2bService && 'executeCode' in e2bService) {
-        const fileCreationResult = await (e2bService as any).executeCode(createProjectCode, 'python');
+        const fileCreationResult = await (e2bService as any).executeCode(
+          createProjectCode,
+          'python'
+        );
         console.log('✅ Real file creation result:');
         console.log(fileCreationResult.text);
       } else {

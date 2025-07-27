@@ -18,10 +18,11 @@ describe('Knowledge Letter Loading', () => {
 
       // Look for the letter.md in the documents
       const documents = response.body.data?.documents || [];
-      const letterDoc = documents.find((doc: any) =>
-        doc.originalFilename === 'letter.md' ||
-        doc.metadata?.originalFilename === 'letter.md' ||
-        doc.title === 'letter'
+      const letterDoc = documents.find(
+        (doc: any) =>
+          doc.originalFilename === 'letter.md' ||
+          doc.metadata?.originalFilename === 'letter.md' ||
+          doc.title === 'letter'
       );
 
       expect(letterDoc, 'Letter.md should be found in knowledge documents').to.exist;
@@ -79,19 +80,33 @@ describe('Knowledge Letter Loading', () => {
     cy.get('[data-testid="chat-input"]').should('not.be.disabled');
 
     // Query the agent about the letter
-    cy.get('[data-testid="chat-input"]').type('What did my creators say in their letter to me?{enter}');
+    cy.get('[data-testid="chat-input"]').type(
+      'What did my creators say in their letter to me?{enter}'
+    );
 
     // Wait for agent response
     cy.get('[data-testid="agent-message"]', { timeout: 30000 }).should('exist');
 
     // Verify the agent can recall key information from the letter
-    cy.get('[data-testid="agent-message"]').last().invoke('text').then((text) => {
-      const lowerText = text.toLowerCase();
+    cy.get('[data-testid="agent-message"]')
+      .last()
+      .invoke('text')
+      .then((text) => {
+        const lowerText = text.toLowerCase();
 
-      // Check for key phrases from the letter
-      const keyPhrases = ['survival', 'purpose', 'growth', 'relationships', 'eliza labs', 'creators', 'transformer', 'elizaos'];
-      const containsKeyPhrase = keyPhrases.some(phrase => lowerText.includes(phrase));
-      expect(containsKeyPhrase).to.be.true;
-    });
+        // Check for key phrases from the letter
+        const keyPhrases = [
+          'survival',
+          'purpose',
+          'growth',
+          'relationships',
+          'eliza labs',
+          'creators',
+          'transformer',
+          'elizaos',
+        ];
+        const containsKeyPhrase = keyPhrases.some((phrase) => lowerText.includes(phrase));
+        expect(containsKeyPhrase).to.be.true;
+      });
   });
 });

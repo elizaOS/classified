@@ -71,7 +71,6 @@ class InteractiveClaudeCodeTester {
 
     // Ensure data directory exists
     const fs = await import('fs/promises');
-    const path = await import('path');
     await fs.mkdir(process.env.DATABASE_PATH, { recursive: true });
 
     // Create runtime without plugins initially
@@ -120,9 +119,9 @@ class InteractiveClaudeCodeTester {
     }
 
     console.log('\n📋 Available services:');
-    console.log(`   ✅ code-generation`);
+    console.log('   ✅ code-generation');
     console.log(`   ${e2bService ? '✅' : '❌'} e2b`);
-    console.log(`   ✅ forms`);
+    console.log('   ✅ forms');
   }
 
   private showHelp() {
@@ -259,7 +258,7 @@ class InteractiveClaudeCodeTester {
     let fullResponse = '';
 
     for await (const message of query({
-      prompt: prompt,
+      prompt,
       options: {
         maxTurns: 1,
         customSystemPrompt: 'You are Claude Code, an expert code generation assistant.',
@@ -299,7 +298,7 @@ class InteractiveClaudeCodeTester {
 
     const request = {
       projectName: `generated-project-${Date.now()}`,
-      description: description,
+      description,
       requirements: [description],
       apis: [],
       targetType: 'plugin' as const,

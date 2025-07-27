@@ -36,7 +36,7 @@ export class Florence2Local {
 
     try {
       logger.info('[Florence2Local] Initializing local Florence-2 model...');
-      
+
       // Initialize TensorFlow.js WASM backend
       await tf.setBackend('wasm');
       await tf.ready();
@@ -98,11 +98,7 @@ export class Florence2Local {
 
     // Convert to tensor and normalize (compatible with WASM backend)
     // Create tensor from raw buffer data
-    const tensor = tf.tensor3d(
-      new Uint8Array(resized), 
-      [224, 224, 3], 
-      'int32'
-    ).cast('float32');
+    const tensor = tf.tensor3d(new Uint8Array(resized), [224, 224, 3], 'int32').cast('float32');
     const normalized = tf.div(tensor, 255.0);
 
     return normalized as tf.Tensor3D;

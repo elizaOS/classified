@@ -9,7 +9,7 @@ import { CapabilityService } from '../CapabilityService';
 // Mock Tauri invoke function
 const mockInvoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: mockInvoke
+  invoke: mockInvoke,
 }));
 
 // Mock fetch for fallback HTTP requests
@@ -33,7 +33,7 @@ describe('CapabilityService', () => {
       // Mock Tauri environment
       Object.defineProperty(window, '__TAURI_INTERNALS__', {
         value: {},
-        configurable: true
+        configurable: true,
       });
 
       expect(service['isTauri']()).toBe(true);
@@ -52,7 +52,7 @@ describe('CapabilityService', () => {
       beforeEach(() => {
         Object.defineProperty(window, '__TAURI_INTERNALS__', {
           value: {},
-          configurable: true
+          configurable: true,
         });
       });
 
@@ -92,14 +92,14 @@ describe('CapabilityService', () => {
       it('should toggle autonomy via HTTP fallback', async () => {
         const mockResponse = { success: true, data: { enabled: true } };
         mockFetch.mockResolvedValue({
-          json: () => Promise.resolve(mockResponse)
+          json: () => Promise.resolve(mockResponse),
         });
 
         const result = await service.toggleAutonomy(true);
 
         expect(mockFetch).toHaveBeenCalledWith('http://localhost:7777/autonomy/enable', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
         });
         expect(result).toEqual(mockResponse);
       });
@@ -107,7 +107,7 @@ describe('CapabilityService', () => {
       it('should get autonomy status via HTTP fallback', async () => {
         const mockResponse = { success: true, data: { enabled: false } };
         mockFetch.mockResolvedValue({
-          json: () => Promise.resolve(mockResponse)
+          json: () => Promise.resolve(mockResponse),
         });
 
         const result = await service.getAutonomyStatus();
@@ -123,7 +123,7 @@ describe('CapabilityService', () => {
       beforeEach(() => {
         Object.defineProperty(window, '__TAURI_INTERNALS__', {
           value: {},
-          configurable: true
+          configurable: true,
         });
       });
 
@@ -156,7 +156,7 @@ describe('CapabilityService', () => {
       it('should toggle capability via HTTP fallback', async () => {
         const mockResponse = { success: true, data: { enabled: true } };
         mockFetch.mockResolvedValue({
-          json: () => Promise.resolve(mockResponse)
+          json: () => Promise.resolve(mockResponse),
         });
 
         const result = await service.toggleCapability('shell');
@@ -165,7 +165,7 @@ describe('CapabilityService', () => {
           'http://localhost:7777/api/agents/default/capabilities/shell/toggle',
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
           }
         );
         expect(result).toEqual(mockResponse);
@@ -178,7 +178,7 @@ describe('CapabilityService', () => {
       beforeEach(() => {
         Object.defineProperty(window, '__TAURI_INTERNALS__', {
           value: {},
-          configurable: true
+          configurable: true,
         });
       });
 
@@ -194,7 +194,7 @@ describe('CapabilityService', () => {
 
         expect(mockInvoke).toHaveBeenCalledWith('update_agent_setting', {
           key: 'ENABLE_CAMERA',
-          value: true
+          value: true,
         });
         expect(result).toEqual(mockResponse);
       });
@@ -204,8 +204,8 @@ describe('CapabilityService', () => {
           success: true,
           data: {
             ENABLE_CAMERA: 'true',
-            ENABLE_SCREEN_CAPTURE: 'false'
-          }
+            ENABLE_SCREEN_CAPTURE: 'false',
+          },
         };
         mockInvoke.mockResolvedValue(mockResponse);
 
@@ -231,7 +231,7 @@ describe('CapabilityService', () => {
     beforeEach(() => {
       Object.defineProperty(window, '__TAURI_INTERNALS__', {
         value: {},
-        configurable: true
+        configurable: true,
       });
     });
 
@@ -246,11 +246,11 @@ describe('CapabilityService', () => {
 
       expect(mockInvoke).toHaveBeenCalledWith('update_agent_setting', {
         key: 'ENABLE_CAMERA',
-        value: true
+        value: true,
       });
       expect(mockInvoke).toHaveBeenCalledWith('update_agent_setting', {
         key: 'VISION_CAMERA_ENABLED',
-        value: true
+        value: true,
       });
       expect(mockInvoke).toHaveBeenCalledWith('refresh_vision_service');
     });
@@ -262,11 +262,11 @@ describe('CapabilityService', () => {
 
       expect(mockInvoke).toHaveBeenCalledWith('update_agent_setting', {
         key: 'ENABLE_SCREEN_CAPTURE',
-        value: false
+        value: false,
       });
       expect(mockInvoke).toHaveBeenCalledWith('update_agent_setting', {
         key: 'VISION_SCREEN_ENABLED',
-        value: false
+        value: false,
       });
       expect(mockInvoke).toHaveBeenCalledWith('refresh_vision_service');
     });
@@ -278,11 +278,11 @@ describe('CapabilityService', () => {
 
       expect(mockInvoke).toHaveBeenCalledWith('update_agent_setting', {
         key: 'ENABLE_MICROPHONE',
-        value: true
+        value: true,
       });
       expect(mockInvoke).toHaveBeenCalledWith('update_agent_setting', {
         key: 'VISION_MICROPHONE_ENABLED',
-        value: true
+        value: true,
       });
       expect(mockInvoke).toHaveBeenCalledWith('refresh_vision_service');
     });
@@ -294,11 +294,11 @@ describe('CapabilityService', () => {
 
       expect(mockInvoke).toHaveBeenCalledWith('update_agent_setting', {
         key: 'ENABLE_SPEAKER',
-        value: false
+        value: false,
       });
       expect(mockInvoke).toHaveBeenCalledWith('update_agent_setting', {
         key: 'VISION_SPEAKER_ENABLED',
-        value: false
+        value: false,
       });
       expect(mockInvoke).toHaveBeenCalledWith('refresh_vision_service');
     });
@@ -308,7 +308,7 @@ describe('CapabilityService', () => {
     beforeEach(() => {
       Object.defineProperty(window, '__TAURI_INTERNALS__', {
         value: {},
-        configurable: true
+        configurable: true,
       });
     });
 
@@ -318,10 +318,10 @@ describe('CapabilityService', () => {
 
     it('should fetch all capability statuses in parallel', async () => {
       const mockResponses = [
-        { success: true, data: { enabled: true, running: true } },  // autonomy
-        { success: true, data: { enabled: false } },                // shell
-        { success: true, data: { enabled: true } },                 // browser
-        { success: true, data: { ENABLE_CAMERA: 'true' } }          // vision
+        { success: true, data: { enabled: true, running: true } }, // autonomy
+        { success: true, data: { enabled: false } }, // shell
+        { success: true, data: { enabled: true } }, // browser
+        { success: true, data: { ENABLE_CAMERA: 'true' } }, // vision
       ];
 
       mockInvoke
@@ -341,7 +341,7 @@ describe('CapabilityService', () => {
         autonomy: mockResponses[0],
         shell: mockResponses[1],
         browser: mockResponses[2],
-        vision: mockResponses[3]
+        vision: mockResponses[3],
       });
     });
 

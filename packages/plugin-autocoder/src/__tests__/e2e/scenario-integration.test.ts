@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { 
-  AgentRuntime, 
-  elizaLogger, 
-  type IAgentRuntime, 
-  type UUID 
-} from '@elizaos/core';
+import { AgentRuntime, elizaLogger, type IAgentRuntime, type UUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import sqlPlugin from '@elizaos/plugin-sql';
 import formsPlugin from '../../../../plugin-forms/src';
@@ -80,10 +75,7 @@ describe('AutoCoder Scenario Integration', () => {
         await migrationService.initializeWithDatabase(databaseAdapter.db);
 
         // Register schemas from all loaded plugins
-        migrationService.discoverAndRegisterPluginSchemas([
-          sqlPlugin as any,
-          formsPlugin,
-        ]);
+        migrationService.discoverAndRegisterPluginSchemas([sqlPlugin as any, formsPlugin]);
 
         // Run all migrations
         await migrationService.runAllPluginMigrations();
@@ -124,7 +116,7 @@ describe('AutoCoder Scenario Integration', () => {
 
   afterAll(async () => {
     console.log('🧹 Cleaning up AutoCoder scenario integration tests...');
-    
+
     try {
       // Stop any services that were started
       const formsService = runtime.getService('forms');

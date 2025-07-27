@@ -1,12 +1,10 @@
 import { pgTable, text, jsonb, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { messageServerTable } from './messageServer';
 
 export const channelTable = pgTable('channels', {
   id: text('id').primaryKey(), // UUID stored as text
-  messageServerId: uuid('server_id')
-    .notNull()
-    .references(() => messageServerTable.id, { onDelete: 'cascade' }),
+  serverId: uuid('server_id').notNull(),
+  // Note: References message_servers table which is managed by agentserver
   name: text('name').notNull(),
   type: text('type').notNull(), // Store ChannelType enum values as text
   sourceType: text('source_type'),

@@ -1,7 +1,7 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { validateUuid, logger } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import { sendError, sendSuccess } from '../shared/response-utils';
 
 /**
@@ -9,7 +9,7 @@ import { sendError, sendSuccess } from '../shared/response-utils';
  */
 export function createAgentCapabilitiesRouter(
   agents: Map<UUID, IAgentRuntime>,
-  serverInstance: AgentServer
+  _serverInstance: AgentServer
 ): express.Router {
   const router = express.Router();
 
@@ -30,12 +30,18 @@ export function createAgentCapabilitiesRouter(
       // This is a basic implementation - extend as needed
       const capabilities = {
         autonomy: true, // Most agents have basic autonomy
-        shell: runtime.plugins?.some(p => p.name?.includes('shell')) || false,
-        browser: runtime.plugins?.some(p => p.name?.includes('browser')) || false,
-        camera: runtime.plugins?.some(p => p.name?.includes('camera') || p.name?.includes('vision')) || false,
-        screen: runtime.plugins?.some(p => p.name?.includes('screen')) || false,
-        microphone: runtime.plugins?.some(p => p.name?.includes('mic') || p.name?.includes('audio')) || false,
-        speakers: runtime.plugins?.some(p => p.name?.includes('speak') || p.name?.includes('tts')) || false,
+        shell: runtime.plugins?.some((p) => p.name?.includes('shell')) || false,
+        browser: runtime.plugins?.some((p) => p.name?.includes('browser')) || false,
+        camera:
+          runtime.plugins?.some((p) => p.name?.includes('camera') || p.name?.includes('vision')) ||
+          false,
+        screen: runtime.plugins?.some((p) => p.name?.includes('screen')) || false,
+        microphone:
+          runtime.plugins?.some((p) => p.name?.includes('mic') || p.name?.includes('audio')) ||
+          false,
+        speakers:
+          runtime.plugins?.some((p) => p.name?.includes('speak') || p.name?.includes('tts')) ||
+          false,
       };
 
       sendSuccess(res, { capabilities });
@@ -66,38 +72,45 @@ export function createAgentCapabilitiesRouter(
 
     try {
       let enabled = false;
-      
+
       // Check if the capability is enabled based on plugins or configuration
       switch (capability) {
         case 'autonomy':
           enabled = true; // Most agents have autonomy
           break;
         case 'shell':
-          enabled = runtime.plugins?.some(p => p.name?.includes('shell')) || false;
+          enabled = runtime.plugins?.some((p) => p.name?.includes('shell')) || false;
           break;
         case 'browser':
-          enabled = runtime.plugins?.some(p => p.name?.includes('browser')) || false;
+          enabled = runtime.plugins?.some((p) => p.name?.includes('browser')) || false;
           break;
         case 'camera':
-          enabled = runtime.plugins?.some(p => p.name?.includes('camera') || p.name?.includes('vision')) || false;
+          enabled =
+            runtime.plugins?.some(
+              (p) => p.name?.includes('camera') || p.name?.includes('vision')
+            ) || false;
           break;
         case 'screen':
-          enabled = runtime.plugins?.some(p => p.name?.includes('screen')) || false;
+          enabled = runtime.plugins?.some((p) => p.name?.includes('screen')) || false;
           break;
         case 'microphone':
-          enabled = runtime.plugins?.some(p => p.name?.includes('mic') || p.name?.includes('audio')) || false;
+          enabled =
+            runtime.plugins?.some((p) => p.name?.includes('mic') || p.name?.includes('audio')) ||
+            false;
           break;
         case 'speakers':
-          enabled = runtime.plugins?.some(p => p.name?.includes('speak') || p.name?.includes('tts')) || false;
+          enabled =
+            runtime.plugins?.some((p) => p.name?.includes('speak') || p.name?.includes('tts')) ||
+            false;
           break;
         default:
           return sendError(res, 400, 'INVALID_CAPABILITY', `Unknown capability: ${capability}`);
       }
 
-      sendSuccess(res, { 
+      sendSuccess(res, {
         capability,
         enabled,
-        status: enabled ? 'active' : 'inactive'
+        status: enabled ? 'active' : 'inactive',
       });
     } catch (error) {
       logger.error(`[CAPABILITY GET] Error getting ${capability} status:`, error);
@@ -120,21 +133,25 @@ export function createAgentCapabilitiesRouter(
 
     const capability = req.params.capability;
     const { enabled } = req.body;
-    
+
     const runtime = agents.get(agentId);
     if (!runtime) {
       return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
     }
 
     try {
-      logger.info(`[CAPABILITY TOGGLE] ${enabled ? 'Enabling' : 'Disabling'} ${capability} for agent ${agentId}`);
+      logger.info(
+        `[CAPABILITY TOGGLE] ${enabled ? 'Enabling' : 'Disabling'} ${capability} for agent ${agentId}`
+      );
 
       // For now, we'll just log the capability toggle
       // In a full implementation, this would actually enable/disable plugins or features
       switch (capability) {
         case 'autonomy':
           // Toggle autonomy - this would affect the agent's autonomous behavior
-          logger.info(`Autonomy ${enabled ? 'enabled' : 'disabled'} for agent ${runtime.character.name}`);
+          logger.info(
+            `Autonomy ${enabled ? 'enabled' : 'disabled'} for agent ${runtime.character.name}`
+          );
           break;
         case 'shell':
         case 'browser':
@@ -143,7 +160,9 @@ export function createAgentCapabilitiesRouter(
         case 'microphone':
         case 'speakers':
           // These would typically involve loading/unloading plugins
-          logger.info(`${capability} capability ${enabled ? 'enabled' : 'disabled'} for agent ${runtime.character.name}`);
+          logger.info(
+            `${capability} capability ${enabled ? 'enabled' : 'disabled'} for agent ${runtime.character.name}`
+          );
           break;
         default:
           return sendError(res, 400, 'INVALID_CAPABILITY', `Unknown capability: ${capability}`);
@@ -155,9 +174,8 @@ export function createAgentCapabilitiesRouter(
         capability,
         enabled,
         message: `${capability} ${enabled ? 'enabled' : 'disabled'} successfully`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-
     } catch (error) {
       logger.error(`[CAPABILITY TOGGLE] Error toggling ${capability}:`, error);
       sendError(
@@ -175,18 +193,18 @@ export function createAgentCapabilitiesRouter(
     try {
       const agentId = validateUuid(req.params.agentId);
       const runtime = agents.get(agentId);
-      
+
       if (!runtime) {
         return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
       }
 
       const autonomyEnabled = runtime.character.settings?.AUTONOMY_ENABLED || false;
-      
+
       sendSuccess(res, {
         enabled: autonomyEnabled,
         status: autonomyEnabled ? 'active' : 'inactive',
         agent: runtime.character.name,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error('[AUTONOMY STATUS API] Error getting autonomy status:', error);

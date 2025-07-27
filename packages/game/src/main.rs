@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "type": "user_message"
         },
         "metadata": {
-            "source": "eliza_game",
+            "source": "eliza",
             "userName": "Admin"
         }
     });

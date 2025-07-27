@@ -36,4 +36,4 @@ export function debugWebSockets() {
   };
 
   console.log('✅ WebSocket debugging enabled');
-};
+}

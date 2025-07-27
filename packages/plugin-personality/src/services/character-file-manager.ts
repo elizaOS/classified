@@ -2,6 +2,7 @@ import { Service, type IAgentRuntime, logger, type MessageExample } from '@eliza
 import fs from 'fs-extra';
 import path from 'path';
 import { z } from 'zod';
+import { PersonalityServiceType } from '../types';
 
 // Validation schema for character modifications
 const CharacterModificationSchema = z.object({
@@ -42,7 +43,7 @@ type CharacterModification = z.infer<typeof CharacterModificationSchema>;
  * Handles backup, validation, and atomic updates of character files
  */
 export class CharacterFileManager extends Service {
-  static serviceType = 'character_management' as const;
+  static serviceType = PersonalityServiceType.CHARACTER_MANAGEMENT;
 
   capabilityDescription = 'Manages safe character file modifications with backup and validation';
 

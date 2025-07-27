@@ -22,7 +22,11 @@ export function tryLoadFile(filePath: string): string | null {
   try {
     return fs.readFileSync(filePath, 'utf8');
   } catch (e) {
-    throw new Error(`Error loading file ${filePath}: ${e}`);
+    // Only catch file not found errors, let other errors propagate
+    if (e.code === 'ENOENT') {
+      return null;
+    }
+    throw e;
   }
 }
 
@@ -32,44 +36,22 @@ export function tryLoadFile(filePath: string): string | null {
  * @returns {Promise<Character[]>} - A promise that resolves with an array of Character objects.
  */
 export async function loadCharactersFromUrl(url: string): Promise<Character[]> {
-  try {
-    const response = await fetch(url);
+  const response = await fetch(url);
 
-    if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
-    }
-
-    const responseJson = await response.json();
-
-    let characters: Character[] = [];
-    if (Array.isArray(responseJson)) {
-      characters = await Promise.all(responseJson.map((character) => jsonToCharacter(character)));
-    } else {
-      const character = await jsonToCharacter(responseJson);
-      characters.push(character);
-    }
-    return characters;
-  } catch (e) {
-    const errorMsg = e instanceof Error ? e.message : String(e);
-    logger.error(`Error loading character(s) from ${url}: ${errorMsg}`);
-
-    // Enhanced error handling for validation errors
-    if (errorMsg.includes('Character validation failed') || errorMsg.includes('validation')) {
-      throw new Error(
-        `Invalid character data from URL '${url}'. The character data does not match the required schema: ${errorMsg}`
-      );
-    } else if (errorMsg.includes('JSON')) {
-      throw new Error(
-        `Invalid JSON response from URL '${url}'. The resource may not contain valid character data.`
-      );
-    } else if (e instanceof TypeError) {
-      throw new Error(
-        `Failed to fetch character from URL '${url}'. The URL may be incorrect or unavailable.`
-      );
-    } else {
-      throw new Error(`Failed to load character from URL '${url}': ${errorMsg}`);
-    }
+  if (!response.ok) {
+    throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
   }
+
+  const responseJson = await response.json();
+
+  let characters: Character[] = [];
+  if (Array.isArray(responseJson)) {
+    characters = await Promise.all(responseJson.map((character) => jsonToCharacter(character)));
+  } else {
+    const character = await jsonToCharacter(responseJson);
+    characters.push(character);
+  }
+  return characters;
 }
 
 /**
@@ -137,15 +119,11 @@ export async function jsonToCharacter(character: unknown): Promise<Character> {
     // Re-validate the updated character to ensure it's still valid
     const revalidationResult = validateCharacter(updatedCharacter);
     if (!revalidationResult.success) {
-      logger.warn(
-        'Character became invalid after adding environment settings, using original validated character'
-      );
-      return validatedCharacter;
+      throw new Error('Character became invalid after adding environment settings');
     }
 
     if (!revalidationResult.data) {
-      logger.warn('Revalidation succeeded but no data returned, using original character');
-      return validatedCharacter;
+      throw new Error('Revalidation succeeded but no data returned');
     }
 
     return revalidationResult.data;
@@ -179,55 +157,6 @@ export async function loadCharacter(filePath: string): Promise<Character> {
 }
 
 /**
- * Handles errors when loading a character from a specific path.
- *
- * @param {string} path - The path from which the character is being loaded.
- * @param {unknown} error - The error that occurred during the loading process.
- * @returns {never}
- */
-function handleCharacterLoadError(path: string, error: unknown): never {
-  const errorMsg = error instanceof Error ? error.message : String(error);
-
-  // Check for different types of errors and provide appropriate messages
-  if (errorMsg.includes('ENOENT') || errorMsg.includes('no such file')) {
-    logger.error(`Character file not found: ${path}`);
-    throw new Error(
-      `Character '${path}' not found. Please check if the file exists and the path is correct.`
-    );
-  } else if (errorMsg.includes('Character validation failed')) {
-    logger.error(`Character validation failed for: ${path}`);
-    throw new Error(`Character file '${path}' contains invalid character data. ${errorMsg}`);
-  } else if (errorMsg.includes('JSON')) {
-    logger.error(`JSON parsing error in character file: ${path}`);
-    throw new Error(`Character file '${path}' has malformed JSON. Please check the file content.`);
-  } else if (errorMsg.includes('Invalid JSON')) {
-    logger.error(`Invalid JSON in character file: ${path}`);
-    throw new Error(
-      `Character file '${path}' has invalid JSON format. Please check the file content.`
-    );
-  } else {
-    logger.error(`Error loading character from ${path}: ${errorMsg}`);
-    throw new Error(`Failed to load character '${path}': ${errorMsg}`);
-  }
-}
-
-/**
- * Asynchronously loads a character from the specified path while handling any potential errors.
- *
- * @param {string} path - The path to load the character from.
- * @returns {Promise<Character>} A promise that resolves to the loaded character.
- */
-async function safeLoadCharacter(path: string): Promise<Character> {
-  try {
-    const character = await loadCharacter(path);
-    logger.info(`Successfully loaded character from: ${path}`);
-    return character;
-  } catch (e) {
-    return handleCharacterLoadError(path, e);
-  }
-}
-
-/**
  * Asynchronously loads a character from the specified path.
  * If the path is a URL, it loads the character from the URL.
  * If the path is a local file path, it tries multiple possible locations and
@@ -238,16 +167,11 @@ async function safeLoadCharacter(path: string): Promise<Character> {
  */
 export async function loadCharacterTryPath(characterPath: string): Promise<Character> {
   if (characterPath.startsWith('http')) {
-    try {
-      const characters = await loadCharactersFromUrl(characterPath);
-      if (!characters || characters.length === 0) {
-        throw new Error('No characters found in the URL response');
-      }
-      return characters[0];
-    } catch (error) {
-      // The error is already formatted by loadCharactersFromUrl, so just re-throw it
-      throw error;
+    const characters = await loadCharactersFromUrl(characterPath);
+    if (!characters || characters.length === 0) {
+      throw new Error('No characters found in the URL response');
     }
+    return characters[0];
   }
 
   // Create path variants with and without .json extension
@@ -286,28 +210,23 @@ export async function loadCharacterTryPath(characterPath: string): Promise<Chara
   // Combine the paths to try both variants
   const pathsToTry = Array.from(new Set([...basePathsToTry, ...jsonPathsToTry]));
 
-  let lastError: unknown = null;
-
   for (const tryPath of pathsToTry) {
-    try {
-      const content = tryLoadFile(tryPath);
-      if (content !== null) {
-        return safeLoadCharacter(tryPath);
+    const content = tryLoadFile(tryPath);
+    if (content !== null) {
+      try {
+        return await loadCharacter(tryPath);
+      } catch (e) {
+        // If it's a validation/parsing error, throw immediately (fail fast)
+        // Only continue if it's a file not found error
+        if (e.code !== 'ENOENT') {
+          throw e;
+        }
       }
-    } catch (e) {
-      lastError = e;
-      // Continue trying other paths
     }
   }
 
   // If we get here, all paths failed
-  const errorMessage = lastError
-    ? `${lastError}`
-    : 'File not found in any of the expected locations';
-  return handleCharacterLoadError(
-    characterPath,
-    `Character not found. Tried ${pathsToTry.length} locations. ${errorMessage}`
-  );
+  throw new Error(`Character not found at ${characterPath}. Tried ${pathsToTry.length} locations.`);
 }
 
 /**
@@ -326,15 +245,23 @@ function commaSeparatedStringToArray(commaSeparated: string): string[] {
  * @returns {Promise<string[]>} - A promise that resolves with an updated array of characterPaths.
  */
 async function readCharactersFromStorage(characterPaths: string[]): Promise<string[]> {
+  const uploadDir = path.join(process.cwd(), '.eliza', 'data', 'characters');
+
   try {
-    const uploadDir = path.join(process.cwd(), '.eliza', 'data', 'characters');
     await fs.promises.mkdir(uploadDir, { recursive: true });
     const fileNames = await fs.promises.readdir(uploadDir);
     for (const fileName of fileNames) {
       characterPaths.push(path.join(uploadDir, fileName));
     }
   } catch (err) {
-    logger.error(`Error reading directory: ${(err as Error).message}`);
+    // Only catch expected errors like directory not existing
+    if (err.code === 'ENOENT' || err.code === 'EACCES') {
+      logger.error(`Cannot access character storage directory: ${err.message}`);
+      // Return original characterPaths, don't fail the whole process
+      return characterPaths;
+    }
+    // Unexpected errors should propagate
+    throw err;
   }
 
   return characterPaths;
@@ -360,15 +287,8 @@ export async function loadCharacters(charactersArg: string): Promise<Character[]
 
   if (characterPaths?.length > 0) {
     for (const characterPath of characterPaths) {
-      try {
-        const character = await loadCharacterTryPath(characterPath);
-        loadedCharacters.push(character);
-      } catch (error) {
-        // Log error but continue loading other characters
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to load character from '${characterPath}': ${errorMsg}`);
-        // Continue to next character
-      }
+      const character = await loadCharacterTryPath(characterPath);
+      loadedCharacters.push(character);
     }
   }
 

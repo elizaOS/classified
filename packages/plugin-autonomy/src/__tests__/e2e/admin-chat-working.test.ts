@@ -7,7 +7,7 @@
 export {}; // Keep file as module while tests are disabled
 
 // Test file temporarily disabled - uncomment when test-utils is available
-/* 
+/*
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import type { IAgentRuntime, Memory, UUID, Character, State, Content } from '@elizaos/core';
 import { createTestRuntime } from '@elizaos/core/test-utils';

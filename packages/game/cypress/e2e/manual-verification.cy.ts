@@ -4,7 +4,7 @@ describe('Manual Verification - Check What Actually Works', () => {
       timeout: 30000,
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');
-      }
+      },
     });
   });
 
@@ -52,7 +52,7 @@ describe('Manual Verification - Check What Actually Works', () => {
     cy.screenshot('03-final-state');
 
     // Check network activity - see if APIs were called
-    cy.window().then((win) => {
+    cy.window().then((_win) => {
       // We don't have direct access to network requests here, but we can check console
       // The APIs should have been called by now
     });

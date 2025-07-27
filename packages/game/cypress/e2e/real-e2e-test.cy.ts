@@ -27,15 +27,15 @@ describe('Real End-to-End Integration Test', () => {
       { name: 'Goals API', url: '/api/goals' },
       { name: 'Todos API', url: '/api/todos' },
       { name: 'Autonomy Status', url: '/autonomy/status' },
-      { name: 'Vision Settings', url: '/api/agents/default/settings/vision' }
+      { name: 'Vision Settings', url: '/api/agents/default/settings/vision' },
     ];
 
-    apiTests.forEach(test => {
+    apiTests.forEach((test) => {
       cy.request({
         method: 'GET',
         url: `${BACKEND_URL}${test.url}`,
         timeout: 10000,
-        failOnStatusCode: false
+        failOnStatusCode: false,
       }).then((response) => {
         expect(response.status).to.be.oneOf([200, 404, 503]); // Allow some APIs to not exist yet
         cy.log(`✅ ${test.name}: ${response.status}`);
@@ -71,7 +71,9 @@ describe('Real End-to-End Integration Test', () => {
 
         // Log the API calls for debugging
         interceptions.forEach((call, index) => {
-          cy.log(`API Call ${index + 1}: ${call.request.method} ${call.request.url} -> ${call.response?.statusCode}`);
+          cy.log(
+            `API Call ${index + 1}: ${call.request.method} ${call.request.url} -> ${call.response?.statusCode}`
+          );
         });
       } else {
         cy.log('⚠️ No API calls detected from frontend');
@@ -95,7 +97,7 @@ describe('Real End-to-End Integration Test', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/goals`,
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       // Goals API might return empty array or error - both are acceptable for testing
       expect(response.status).to.be.oneOf([200, 404, 500]);
@@ -111,7 +113,7 @@ describe('Real End-to-End Integration Test', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/autonomy/status`,
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       expect(response.status).to.be.oneOf([200, 404, 503]);
       cy.log(`✅ Autonomy API responded with ${response.status}`);
@@ -138,12 +140,16 @@ describe('Real End-to-End Integration Test', () => {
     cy.get('body').then(($body) => {
       const bodyText = $body.text();
 
-      if (bodyText.includes('AGENT CAPABILITIES') || bodyText.includes('GOALS') || bodyText.includes('TODOS')) {
+      if (
+        bodyText.includes('AGENT CAPABILITIES') ||
+        bodyText.includes('goals') ||
+        bodyText.includes('TODOS')
+      ) {
         cy.log('✅ Main game interface is visible');
 
         // Try to interact with tabs if they exist
-        if (bodyText.includes('GOALS')) {
-          cy.contains('GOALS').click();
+        if (bodyText.includes('goals')) {
+          cy.contains('goals').click();
           cy.log('✅ Goals tab is clickable');
         }
 
@@ -151,14 +157,12 @@ describe('Real End-to-End Integration Test', () => {
           cy.contains('TODOS').click();
           cy.log('✅ Todos tab is clickable');
         }
-
       } else if (bodyText.includes('Runtime Environment') || bodyText.includes('Loading')) {
         cy.log('⚠️ Interface is still in boot sequence');
 
         // Verify boot sequence is progressing
         cy.contains('ELIZA').should('be.visible');
         cy.log('✅ Boot sequence is displaying');
-
       } else {
         cy.log('❓ Interface state unclear - taking screenshot');
         cy.screenshot('interface-state');
@@ -173,7 +177,7 @@ describe('Real End-to-End Integration Test', () => {
     cy.request({
       method: 'GET',
       url: `${BACKEND_URL}/api/nonexistent`,
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       expect(response.status).to.eq(404);
       cy.log('✅ Backend properly returns 404 for invalid endpoints');

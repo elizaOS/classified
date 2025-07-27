@@ -9,7 +9,7 @@ import type { PostgresConnectionManager } from './manager';
  * Extends BaseDrizzleAdapter.
  */
 export class PgDatabaseAdapter extends BaseDrizzleAdapter {
-  protected embeddingDimension: EmbeddingDimensionColumn = DIMENSION_MAP[384];
+  protected embeddingDimension: EmbeddingDimensionColumn = DIMENSION_MAP[768];
   private manager: PostgresConnectionManager;
 
   constructor(agentId: UUID, manager: PostgresConnectionManager, _schema?: any) {

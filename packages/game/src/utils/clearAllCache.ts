@@ -22,9 +22,7 @@ export async function clearAllCache() {
 
   // Clear IndexedDB
   const databases = await indexedDB.databases();
-  await Promise.all(
-    databases.map((db) => db.name && indexedDB.deleteDatabase(db.name))
-  );
+  await Promise.all(databases.map((db) => db.name && indexedDB.deleteDatabase(db.name)));
   console.log('✅ IndexedDB cleared');
 
   // Clear cache storage
@@ -33,9 +31,9 @@ export async function clearAllCache() {
   console.log('✅ Cache storage cleared');
 
   // Clear WebSQL (deprecated but might still exist)
-  // @ts-ignore - WebSQL is deprecated
+  // @ts-expect-error - WebSQL is deprecated
   if (window.openDatabase) {
-    // @ts-ignore
+    // @ts-expect-error - WebSQL is deprecated
     const db = window.openDatabase('', '', '', '');
     db.transaction((tx: any) => {
       tx.executeSql(

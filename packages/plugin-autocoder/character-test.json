@@ -24,7 +24,7 @@
     ],
     [
       {
-        "name": "user", 
+        "name": "user",
         "content": {
           "text": "I want to create an agent that helps with customer support"
         }
@@ -41,16 +41,13 @@
   "postExamples": [],
   "topics": [
     "code generation",
-    "project creation", 
+    "project creation",
     "ElizaOS plugins",
     "software development",
     "form creation",
     "requirements gathering"
   ],
-  "plugins": [
-    "@elizaos/plugin-sql",
-    "@elizaos/plugin-autocoder"
-  ],
+  "plugins": ["@elizaos/plugin-sql", "@elizaos/plugin-autocoder"],
   "settings": {
     "voice": {
       "model": "en_US-hfc_female-medium"

@@ -1,2 +1,2 @@
-import pluginConfig from '../core/configs/eslint/eslint.config.plugin.js';
+import pluginConfig from '../config/src/eslint/eslint.config.plugin.js';
 export default pluginConfig;

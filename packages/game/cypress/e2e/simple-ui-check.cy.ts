@@ -7,7 +7,7 @@ describe('Simple UI Check - Demo TODOs and Goals', () => {
       timeout: 30000,
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');
-      }
+      },
     });
 
     // Wait for the interface to load
@@ -25,7 +25,7 @@ describe('Simple UI Check - Demo TODOs and Goals', () => {
     cy.get('[data-testid="goals-content"]', { timeout: 10000 }).should('be.visible');
 
     // Log what we see in the goals tab
-    cy.get('[data-testid="goals-content"]').then($content => {
+    cy.get('[data-testid="goals-content"]').then(($content) => {
       const text = $content.text();
       cy.log('Goals content:', text);
 
@@ -55,7 +55,7 @@ describe('Simple UI Check - Demo TODOs and Goals', () => {
     cy.get('[data-testid="todos-content"]', { timeout: 10000 }).should('be.visible');
 
     // Log what we see in the todos tab
-    cy.get('[data-testid="todos-content"]').then($content => {
+    cy.get('[data-testid="todos-content"]').then(($content) => {
       const text = $content.text();
       cy.log('TODOs content:', text);
 
@@ -78,7 +78,7 @@ describe('Simple UI Check - Demo TODOs and Goals', () => {
 
     // Also check if we can see any debug messages in the terminal area
     // The terminal output should show our debug messages
-    cy.get('.terminal-container', { timeout: 5000 }).then($terminal => {
+    cy.get('.terminal-container', { timeout: 5000 }).then(($terminal) => {
       if ($terminal.length > 0) {
         const terminalText = $terminal.text();
         if (terminalText.includes('Goals loaded') || terminalText.includes('TODOs loaded')) {

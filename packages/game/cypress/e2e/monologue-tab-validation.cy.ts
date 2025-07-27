@@ -23,7 +23,7 @@ describe('Monologue Tab Validation', () => {
     cy.request({
       method: 'GET',
       url: 'http://127.0.0.1:7777/autonomy/status',
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       expect(response.status).to.equal(200);
       expect(response.body).to.have.property('success', true);
@@ -37,7 +37,7 @@ describe('Monologue Tab Validation', () => {
       cy.request({
         method: 'GET',
         url: `http://127.0.0.1:7777/api/memories?roomId=${autonomousRoomId}&count=20`,
-        failOnStatusCode: false
+        failOnStatusCode: false,
       }).then((memoryResponse) => {
         expect(memoryResponse.status).to.equal(200);
         expect(memoryResponse.body).to.have.property('success', true);
@@ -79,11 +79,11 @@ describe('Monologue Tab Validation', () => {
         'Autonomy system not available...',
         'Unable to load agent thoughts...',
         'Error loading monologue...',
-        'THOUGHTS' // The header should be visible
+        'THOUGHTS', // The header should be visible
       ];
 
       let foundValidState = false;
-      possibleStates.forEach(state => {
+      possibleStates.forEach((state) => {
         if (bodyText.includes(state)) {
           cy.log(`✅ Found monologue state: "${state}"`);
           foundValidState = true;
@@ -92,11 +92,9 @@ describe('Monologue Tab Validation', () => {
 
       if (!foundValidState) {
         // Check if we have actual autonomy messages
-        const autonomyIndicators = [
-          'goal', 'explore', 'resource', 'management', 'philosophy'
-        ];
+        const autonomyIndicators = ['goal', 'explore', 'resource', 'management', 'philosophy'];
 
-        autonomyIndicators.forEach(indicator => {
+        autonomyIndicators.forEach((indicator) => {
           if (bodyText.toLowerCase().includes(indicator)) {
             cy.log(`✅ Found autonomy content with: "${indicator}"`);
             foundValidState = true;
@@ -119,9 +117,7 @@ describe('Monologue Tab Validation', () => {
     });
 
     // Click monologue tab to trigger data fetching
-    cy.get('[data-testid="monologue-tab"]', { timeout: 10000 })
-      .should('exist')
-      .click();
+    cy.get('[data-testid="monologue-tab"]', { timeout: 10000 }).should('exist').click();
 
     // Wait for fetch operations
     cy.wait(5000);
@@ -139,16 +135,13 @@ describe('Monologue Tab Validation', () => {
     // Test switching between tabs
     const tabs = ['goals', 'todos', 'monologue', 'files', 'config'];
 
-    tabs.forEach(tab => {
-      cy.get(`[data-testid="${tab}-tab"]`, { timeout: 5000 })
-        .should('exist')
-        .click();
+    tabs.forEach((tab) => {
+      cy.get(`[data-testid="${tab}-tab"]`, { timeout: 5000 }).should('exist').click();
 
       cy.wait(1000);
 
       // Check that the tab appears active
-      cy.get(`[data-testid="${tab}-tab"]`)
-        .should('have.class', 'active');
+      cy.get(`[data-testid="${tab}-tab"]`).should('have.class', 'active');
 
       cy.log(`✅ ${tab.toUpperCase()} tab activated`);
     });
@@ -168,9 +161,7 @@ describe('Monologue Tab Validation', () => {
     cy.intercept('GET', '**/api/memories?roomId=*').as('memoriesWithRoomId');
 
     // Click monologue tab to trigger the fixed API calls
-    cy.get('[data-testid="monologue-tab"]', { timeout: 10000 })
-      .should('exist')
-      .click();
+    cy.get('[data-testid="monologue-tab"]', { timeout: 10000 }).should('exist').click();
 
     // Wait for the autonomy status call
     cy.wait('@autonomyStatus', { timeout: 10000 }).then((interception) => {

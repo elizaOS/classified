@@ -23,8 +23,10 @@ describe('Chat UI Improvements - Frontend Only', () => {
     });
 
     // But the ELIZA terminal welcome message should still be there
-    cy.get('[data-testid="chat-output"]')
-      .should('contain.text', '◉ ELIZA TERMINAL v2.0 - Agent Connection Established');
+    cy.get('[data-testid="chat-output"]').should(
+      'contain.text',
+      '◉ ELIZA TERMINAL v2.0 - Agent Connection Established'
+    );
   });
 
   it('should have the chat input form and basic UI elements present', () => {

@@ -9,7 +9,6 @@ import {
 import { exec } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import sharp from './utils/sharp-wrapper';
 import { promisify } from 'util';
 import { AudioCaptureService, type AudioConfig } from './audio-capture';
 import { StreamingAudioCaptureService, type StreamingAudioConfig } from './audio-capture-stream';
@@ -32,6 +31,7 @@ import {
   type VisionConfig,
   type VisionFrame,
 } from './types';
+import sharp from './utils/sharp-wrapper';
 import { VisionModels } from './vision-models';
 import { VisionWorkerManager } from './vision-worker-manager';
 
@@ -44,7 +44,7 @@ interface CameraDevice {
 }
 
 export class VisionService extends Service {
-  static override serviceType: ServiceTypeName = 'VISION' as ServiceTypeName;
+  static override serviceType: ServiceTypeName = VisionServiceType.VISION;
   override capabilityDescription =
     'Provides visual perception through camera integration and scene analysis.';
 
@@ -125,9 +125,13 @@ export class VisionService extends Service {
 
   private parseConfig(runtime: IAgentRuntime): VisionConfig {
     // Check if individual components are enabled
-    const cameraEnabled = runtime.getSetting('ENABLE_CAMERA') === 'true' || runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
-    const screenEnabled = runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' || runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
-    
+    const cameraEnabled =
+      runtime.getSetting('ENABLE_CAMERA') === 'true' ||
+      runtime.getSetting('VISION_CAMERA_ENABLED') === 'true';
+    const screenEnabled =
+      runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true' ||
+      runtime.getSetting('VISION_SCREEN_ENABLED') === 'true';
+
     // Determine vision mode based on enabled components
     let visionMode: VisionMode;
     if (cameraEnabled && screenEnabled) {
@@ -174,7 +178,7 @@ export class VisionService extends Service {
           runtime.getSetting('VLM_CHANGE_THRESHOLD') ||
             runtime.getSetting('VISION_VLM_CHANGE_THRESHOLD')
         ) || this.DEFAULT_CONFIG.vlmChangeThreshold,
-      visionMode: visionMode,  // Use calculated vision mode
+      visionMode, // Use calculated vision mode
       screenCaptureInterval:
         Number(
           runtime.getSetting('SCREEN_CAPTURE_INTERVAL') ||

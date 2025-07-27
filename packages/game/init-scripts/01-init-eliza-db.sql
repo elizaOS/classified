@@ -9,11 +9,11 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 -- Ensure we can create ivfflat indexes (requires sufficient data)
 -- Note: ivfflat indexes will be created after data insertion
 
--- Create schema for ElizaOS
-CREATE SCHEMA IF NOT EXISTS eliza;
+-- Use the default public schema for ElizaOS
+-- No need to create a separate schema
 
--- Set default search path
-ALTER DATABASE eliza_game SET search_path TO eliza, public;
+-- Set default search path to public
+ALTER DATABASE eliza SET search_path TO public;
 
 -- Create user for application if not exists
 DO $$ 
@@ -25,13 +25,13 @@ END
 $$;
 
 -- Grant permissions
-GRANT USAGE ON SCHEMA eliza TO eliza_app;
-GRANT CREATE ON SCHEMA eliza TO eliza_app;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA eliza TO eliza_app;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA eliza TO eliza_app;
+GRANT USAGE ON SCHEMA public TO eliza_app;
+GRANT CREATE ON SCHEMA public TO eliza_app;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO eliza_app;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO eliza_app;
 
 -- Create core tables that ElizaOS expects
-SET search_path TO eliza, public;
+SET search_path TO public;
 
 -- Agents table
 CREATE TABLE IF NOT EXISTS agents (
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS memories (
     world_id UUID,
     "unique" BOOLEAN DEFAULT true NOT NULL,
     metadata JSONB DEFAULT '{}' NOT NULL,
-    embedding vector(1536)
+    embedding vector(768)
 );
 
 -- Relationships table
@@ -178,16 +178,25 @@ CREATE TABLE IF NOT EXISTS logs (
 -- Goals table (for goals plugin)
 CREATE TABLE IF NOT EXISTS goals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    agent_id UUID REFERENCES agents(id) ON DELETE CASCADE,
-    room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
-    entity_id UUID REFERENCES entities(id) ON DELETE CASCADE,
+    agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    owner_type TEXT NOT NULL,
+    owner_id UUID NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    status VARCHAR(50) DEFAULT 'active',
-    objectives JSONB DEFAULT '[]',
-    metadata JSONB DEFAULT '{}',
+    is_completed BOOLEAN DEFAULT false,
+    completed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    metadata JSONB DEFAULT '{}'
+);
+
+-- Goal tags table (for goals plugin)
+CREATE TABLE IF NOT EXISTS goal_tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    goal_id UUID NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+    tag TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(goal_id, tag)
 );
 
 -- Todos table (for todo plugin)
@@ -215,7 +224,7 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
     file_path VARCHAR(500),
     mime_type VARCHAR(100),
     file_size INTEGER,
-    embedding vector(1536),
+    embedding vector(768),
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -235,7 +244,7 @@ CREATE TABLE IF NOT EXISTS message_servers (
 -- Channels table (for messaging system)
 CREATE TABLE IF NOT EXISTS channels (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    message_server_id UUID NOT NULL REFERENCES message_servers(id) ON DELETE CASCADE,
+    server_id UUID NOT NULL REFERENCES message_servers(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     source_type TEXT,
@@ -291,8 +300,10 @@ CREATE INDEX IF NOT EXISTS idx_participants_agent_id ON participants(agent_id);
 CREATE INDEX IF NOT EXISTS idx_relationships_users ON relationships(source_entity_id, target_entity_id);
 
 CREATE INDEX IF NOT EXISTS idx_goals_agent_id ON goals(agent_id);
-CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
-CREATE INDEX IF NOT EXISTS idx_goals_room_id ON goals(room_id);
+CREATE INDEX IF NOT EXISTS idx_goals_owner_type ON goals(owner_type);
+CREATE INDEX IF NOT EXISTS idx_goals_owner_id ON goals(owner_id);
+CREATE INDEX IF NOT EXISTS idx_goals_completed ON goals(is_completed);
+CREATE INDEX IF NOT EXISTS idx_goals_created_at ON goals(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_todos_agent_id ON todos(agent_id);
 CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
@@ -302,7 +313,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_agent_id ON knowledge_documents(agent_i
 
 -- Indexes for messaging system tables
 CREATE INDEX IF NOT EXISTS idx_message_servers_source_type ON message_servers(source_type);
-CREATE INDEX IF NOT EXISTS idx_channels_message_server_id ON channels(message_server_id);
+CREATE INDEX IF NOT EXISTS idx_channels_server_id ON channels(server_id);
 CREATE INDEX IF NOT EXISTS idx_channels_type ON channels(type);
 CREATE INDEX IF NOT EXISTS idx_central_messages_channel_id ON central_messages(channel_id);
 CREATE INDEX IF NOT EXISTS idx_central_messages_author_id ON central_messages(author_id);
@@ -358,8 +369,8 @@ INSERT INTO agents (id, name)
 VALUES ('00000000-0000-0000-0000-000000000002', 'DefaultServerAgent')
 ON CONFLICT (id) DO NOTHING;
 
-COMMENT ON DATABASE eliza_game IS 'ElizaOS Game Database with pgvector for embeddings';
-COMMENT ON SCHEMA eliza IS 'Main schema for ElizaOS agent data';
+COMMENT ON DATABASE eliza IS 'ElizaOS Game Database with pgvector for embeddings';
+-- All tables are now in the public schema
 COMMENT ON TABLE memories IS 'Core memory storage with vector embeddings for semantic search';
 COMMENT ON TABLE entities IS 'Entities (users, agents, concepts) that can participate in conversations';
 COMMENT ON TABLE goals IS 'Agent goals and objectives tracking';

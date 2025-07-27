@@ -24,11 +24,13 @@ wss.on('connection', (ws) => {
   logger.info(`New client connected: ${clientId}`);
 
   // Send welcome message
-  ws.send(JSON.stringify({
-    type: 'connected',
-    clientId,
-    version: '1.0.0'
-  }));
+  ws.send(
+    JSON.stringify({
+      type: 'connected',
+      clientId,
+      version: '1.0.0',
+    })
+  );
 
   // Handle messages from client
   ws.on('message', async (data) => {
@@ -37,15 +39,17 @@ wss.on('connection', (ws) => {
       logger.debug(`Received message from ${clientId}:`, message);
 
       const response = await messageHandler.handleMessage(message, clientId);
-      
+
       ws.send(JSON.stringify(response));
     } catch (error) {
       logger.error(`Error handling message from ${clientId}:`, error);
-      ws.send(JSON.stringify({
-        type: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        requestId: null
-      }));
+      ws.send(
+        JSON.stringify({
+          type: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          requestId: null,
+        })
+      );
     }
   });
 
@@ -75,4 +79,4 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-logger.info(`Stagehand server listening on port ${PORT}`); 
+logger.info(`Stagehand server listening on port ${PORT}`);

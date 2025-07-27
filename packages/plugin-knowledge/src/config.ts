@@ -55,13 +55,14 @@ export function validateModelConfig(runtime?: IAgentRuntime): ModelConfig {
     const finalEmbeddingProvider = embeddingProvider;
 
     // For Ollama, use OLLAMA_EMBEDDING_MODEL, otherwise use TEXT_EMBEDDING_MODEL
-    const textEmbeddingModel = embeddingProvider === 'ollama' 
-      ? (getSetting('OLLAMA_EMBEDDING_MODEL') || 'nomic-embed-text')
-      : (getSetting('TEXT_EMBEDDING_MODEL') ||
-         getSetting('OPENAI_EMBEDDING_MODEL') ||
-         'text-embedding-3-small');
+    const textEmbeddingModel =
+      embeddingProvider === 'ollama'
+        ? getSetting('OLLAMA_EMBEDDING_MODEL') || 'nomic-embed-text'
+        : getSetting('TEXT_EMBEDDING_MODEL') ||
+          getSetting('OPENAI_EMBEDDING_MODEL') ||
+          'text-embedding-3-small';
     const embeddingDimension =
-      getSetting('EMBEDDING_DIMENSION') || getSetting('OPENAI_EMBEDDING_DIMENSIONS') || '1536';
+      getSetting('EMBEDDING_DIMENSION') || getSetting('OPENAI_EMBEDDING_DIMENSIONS') || '768';
 
     // Use OpenAI API key from runtime settings
     const openaiApiKey = getSetting('OPENAI_API_KEY');
@@ -80,7 +81,10 @@ export function validateModelConfig(runtime?: IAgentRuntime): ModelConfig {
       ANTHROPIC_BASE_URL: getSetting('ANTHROPIC_BASE_URL'),
       OPENROUTER_BASE_URL: getSetting('OPENROUTER_BASE_URL'),
       GOOGLE_BASE_URL: getSetting('GOOGLE_BASE_URL'),
-      OLLAMA_BASE_URL: getSetting('OLLAMA_BASE_URL') || getSetting('OLLAMA_API_ENDPOINT')?.replace('/api', '') || 'http://localhost:11434',
+      OLLAMA_BASE_URL:
+        getSetting('OLLAMA_BASE_URL') ||
+        getSetting('OLLAMA_API_ENDPOINT')?.replace('/api', '') ||
+        'http://localhost:11434',
 
       TEXT_EMBEDDING_MODEL: textEmbeddingModel,
       TEXT_MODEL: getSetting('TEXT_MODEL'),
@@ -130,7 +134,9 @@ function validateConfigRequirements(config: ModelConfig, assumePluginOpenAI: boo
       logger.warn('OLLAMA_API_KEY not provided - using dummy key (this is often fine for Ollama)');
     }
     // Ollama uses model names from @elizaos/plugin-ollama
-    logger.info('Ollama embedding uses model names (OLLAMA_EMBEDDING_MODEL) from @elizaos/plugin-ollama');
+    logger.info(
+      'Ollama embedding uses model names (OLLAMA_EMBEDDING_MODEL) from @elizaos/plugin-ollama'
+    );
   }
 
   // If no embedding provider is set, skip validation - let runtime handle it
@@ -168,7 +174,9 @@ function validateConfigRequirements(config: ModelConfig, assumePluginOpenAI: boo
     if (config.TEXT_PROVIDER === 'ollama') {
       // Ollama often doesn't require a real API key, so we'll just log a warning
       if (!config.OLLAMA_API_KEY) {
-        logger.warn('OLLAMA_API_KEY not provided - using dummy key (this is often fine for Ollama)');
+        logger.warn(
+          'OLLAMA_API_KEY not provided - using dummy key (this is often fine for Ollama)'
+        );
       }
       // Check for existing Ollama configuration
       if (config.OLLAMA_BASE_URL && config.OLLAMA_BASE_URL !== 'http://localhost:11434') {

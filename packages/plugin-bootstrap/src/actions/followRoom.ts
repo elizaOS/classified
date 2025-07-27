@@ -162,38 +162,38 @@ export const followRoomAction: Action = {
     const room = state.data.room ?? (await runtime.getRoom(message.roomId));
 
     if (shouldFollow) {
-        await runtime.setParticipantUserState(message.roomId, runtime.agentId, 'FOLLOWED');
+      await runtime.setParticipantUserState(message.roomId, runtime.agentId, 'FOLLOWED');
 
-        await runtime.createMemory(
-          {
-            entityId: message.entityId,
-            agentId: message.agentId,
-            roomId: message.roomId,
-            content: {
-              thought: `I followed the room ${room.name}`,
-              actions: ['FOLLOW_ROOM_START'],
-            },
+      await runtime.createMemory(
+        {
+          entityId: message.entityId,
+          agentId: message.agentId,
+          roomId: message.roomId,
+          content: {
+            thought: `I followed the room ${room.name}`,
+            actions: ['FOLLOW_ROOM_START'],
           },
-          'messages'
-        );
+        },
+        'messages'
+      );
 
-        return {
-          text: `Now following room: ${room.name}`,
-          values: {
-            success: true,
-            roomFollowed: true,
-            roomId: message.roomId,
-            roomName: room.name,
-            newState: 'FOLLOWED',
-          },
-          data: {
-            actionName: 'FOLLOW_ROOM',
-            roomId: message.roomId,
-            roomName: room.name,
-            followed: true,
-          },
+      return {
+        text: `Now following room: ${room.name}`,
+        values: {
           success: true,
-        };
+          roomFollowed: true,
+          roomId: message.roomId,
+          roomName: room.name,
+          newState: 'FOLLOWED',
+        },
+        data: {
+          actionName: 'FOLLOW_ROOM',
+          roomId: message.roomId,
+          roomName: room.name,
+          followed: true,
+        },
+        success: true,
+      };
     } else {
       return {
         text: `Decided not to follow room: ${room.name}`,

@@ -99,7 +99,8 @@ export class ProjectTestSuite implements TestSuite {
 export default new ProjectTestSuite();
 ```
 
-The test utilities in `__tests__/utils/` provide helper functions to simplify writing tests.
+The test utilities in `__tests__/utils/` provide helper functions to simplify
+writing tests.
 
 ## Configuration
 

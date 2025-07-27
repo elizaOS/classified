@@ -16,7 +16,7 @@ describe('PostgreSQL Container Integration', () => {
     // Mock Tauri environment for container testing
     cy.window().then((win) => {
       (win as any).__TAURI__ = {
-        invoke: cy.stub().as('tauriInvoke')
+        invoke: cy.stub().as('tauriInvoke'),
       };
     });
   });
@@ -33,7 +33,7 @@ describe('PostgreSQL Container Integration', () => {
       const tauriInvoke = (win as any).__TAURI__.invoke;
 
       // Configure responses for different commands
-      tauriInvoke.callsFake((command: string, ...args: any[]) => {
+      tauriInvoke.callsFake((command: string, ..._args: any[]) => {
         switch (command) {
           case 'start_postgres_container':
             return Promise.resolve({
@@ -44,26 +44,28 @@ describe('PostgreSQL Container Integration', () => {
               ports: [{ host_port: 7771, container_port: 5432 }],
               started_at: Date.now() / 1000,
               uptime_seconds: 0,
-              restart_count: 0
+              restart_count: 0,
             });
           case 'get_container_status_new':
-            return Promise.resolve([{
-              id: 'test-postgres-container-id',
-              name: 'eliza-postgres',
-              state: 'Running',
-              health: 'Healthy',
-              ports: [{ host_port: 7771, container_port: 5432 }],
-              started_at: Date.now() / 1000,
-              uptime_seconds: 30,
-              restart_count: 0
-            }]);
+            return Promise.resolve([
+              {
+                id: 'test-postgres-container-id',
+                name: 'eliza-postgres',
+                state: 'Running',
+                health: 'Healthy',
+                ports: [{ host_port: 7771, container_port: 5432 }],
+                started_at: Date.now() / 1000,
+                uptime_seconds: 30,
+                restart_count: 0,
+              },
+            ]);
           case 'get_setup_progress_new':
             return Promise.resolve({
               stage: 'starting',
               progress: 50,
               message: 'Starting PostgreSQL...',
               details: 'Initializing database container',
-              can_retry: false
+              can_retry: false,
             });
           default:
             return Promise.reject(new Error(`Unknown command: ${command}`));
@@ -72,25 +74,29 @@ describe('PostgreSQL Container Integration', () => {
     });
 
     // Test direct Tauri command invocation
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('start_postgres_container');
-    }).then((result) => {
-      // Verify the container status response
-      expect(result).to.have.property('name', 'eliza-postgres');
-      expect(result).to.have.property('state', 'Starting');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('start_postgres_container');
+      })
+      .then((result) => {
+        // Verify the container status response
+        expect(result).to.have.property('name', 'eliza-postgres');
+        expect(result).to.have.property('state', 'Starting');
+      });
 
     cy.screenshot('postgres-02-container-started');
 
     // Verify container status can be retrieved
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('get_container_status_new');
-    }).then((statuses) => {
-      expect(statuses).to.be.an('array');
-      expect(statuses[0]).to.have.property('name', 'eliza-postgres');
-      expect(statuses[0]).to.have.property('state', 'Running');
-      expect(statuses[0]).to.have.property('health', 'Healthy');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('get_container_status_new');
+      })
+      .then((statuses) => {
+        expect(statuses).to.be.an('array');
+        expect(statuses[0]).to.have.property('name', 'eliza-postgres');
+        expect(statuses[0]).to.have.property('state', 'Running');
+        expect(statuses[0]).to.have.property('health', 'Healthy');
+      });
 
     cy.screenshot('postgres-03-status-verified');
   });
@@ -103,7 +109,7 @@ describe('PostgreSQL Container Integration', () => {
     cy.window().then((win) => {
       const tauriInvoke = (win as any).__TAURI__.invoke;
 
-      tauriInvoke.callsFake((command: string, ...args: any[]) => {
+      tauriInvoke.callsFake((command: string, ..._args: any[]) => {
         if (command === 'start_postgres_container') {
           return Promise.reject(new Error('Failed to start PostgreSQL container: Image not found'));
         }
@@ -112,15 +118,17 @@ describe('PostgreSQL Container Integration', () => {
     });
 
     // Test error handling
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('start_postgres_container').catch((error) => {
-        expect(error.message).to.include('Failed to start PostgreSQL container');
-        return { error: error.message };
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('start_postgres_container').catch((error) => {
+          expect(error.message).to.include('Failed to start PostgreSQL container');
+          return { error: error.message };
+        });
+      })
+      .then((result) => {
+        expect(result).to.have.property('error');
+        expect(result.error).to.include('Image not found');
       });
-    }).then((result) => {
-      expect(result).to.have.property('error');
-      expect(result.error).to.include('Image not found');
-    });
 
     cy.screenshot('postgres-04-error-handling');
   });
@@ -134,7 +142,7 @@ describe('PostgreSQL Container Integration', () => {
     cy.window().then((win) => {
       const tauriInvoke = (win as any).__TAURI__.invoke;
 
-      tauriInvoke.callsFake((command: string, ...args: any[]) => {
+      tauriInvoke.callsFake((command: string, ..._args: any[]) => {
         switch (command) {
           case 'start_postgres_container':
             return Promise.resolve({
@@ -145,21 +153,23 @@ describe('PostgreSQL Container Integration', () => {
               ports: [{ host_port: 7771, container_port: 5432 }],
               started_at: Date.now() / 1000,
               uptime_seconds: 5,
-              restart_count: 0
+              restart_count: 0,
             });
           case 'get_container_status_new':
             healthCallCount++;
             const health = healthCallCount < 3 ? 'Unhealthy' : 'Healthy';
-            return Promise.resolve([{
-              id: 'test-postgres-unhealthy',
-              name: 'eliza-postgres',
-              state: 'Running',
-              health,
-              ports: [{ host_port: 7771, container_port: 5432 }],
-              started_at: Date.now() / 1000,
-              uptime_seconds: healthCallCount * 10,
-              restart_count: 0
-            }]);
+            return Promise.resolve([
+              {
+                id: 'test-postgres-unhealthy',
+                name: 'eliza-postgres',
+                state: 'Running',
+                health,
+                ports: [{ host_port: 7771, container_port: 5432 }],
+                started_at: Date.now() / 1000,
+                uptime_seconds: healthCallCount * 10,
+                restart_count: 0,
+              },
+            ]);
           default:
             return Promise.resolve({});
         }
@@ -167,35 +177,43 @@ describe('PostgreSQL Container Integration', () => {
     });
 
     // Test health monitoring progression
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('start_postgres_container');
-    }).then((result) => {
-      expect(result.health).to.equal('Unhealthy');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('start_postgres_container');
+      })
+      .then((result) => {
+        expect(result.health).to.equal('Unhealthy');
+      });
 
     // Check status multiple times to simulate health monitoring
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('get_container_status_new');
-    }).then((statuses) => {
-      expect(statuses[0].health).to.equal('Unhealthy');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('get_container_status_new');
+      })
+      .then((statuses) => {
+        expect(statuses[0].health).to.equal('Unhealthy');
+      });
 
     cy.wait(1000);
 
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('get_container_status_new');
-    }).then((statuses) => {
-      expect(statuses[0].health).to.equal('Unhealthy');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('get_container_status_new');
+      })
+      .then((statuses) => {
+        expect(statuses[0].health).to.equal('Unhealthy');
+      });
 
     cy.wait(1000);
 
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('get_container_status_new');
-    }).then((statuses) => {
-      expect(statuses[0].health).to.equal('Healthy');
-      expect(statuses[0].uptime_seconds).to.be.greaterThan(0);
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('get_container_status_new');
+      })
+      .then((statuses) => {
+        expect(statuses[0].health).to.equal('Healthy');
+        expect(statuses[0].uptime_seconds).to.be.greaterThan(0);
+      });
 
     cy.screenshot('postgres-05-health-monitoring');
   });
@@ -211,16 +229,18 @@ describe('PostgreSQL Container Integration', () => {
       tauriInvoke.callsFake((command: string, ...args: any[]) => {
         switch (command) {
           case 'get_container_status_new':
-            return Promise.resolve([{
-              id: 'test-postgres-restart',
-              name: 'eliza-postgres',
-              state: 'Running',
-              health: 'Healthy',
-              ports: [{ host_port: 7771, container_port: 5432 }],
-              started_at: Date.now() / 1000,
-              uptime_seconds: 120,
-              restart_count: 0
-            }]);
+            return Promise.resolve([
+              {
+                id: 'test-postgres-restart',
+                name: 'eliza-postgres',
+                state: 'Running',
+                health: 'Healthy',
+                ports: [{ host_port: 7771, container_port: 5432 }],
+                started_at: Date.now() / 1000,
+                uptime_seconds: 120,
+                restart_count: 0,
+              },
+            ]);
           case 'restart_container_new':
             if (args[0] === 'eliza-postgres') {
               return Promise.resolve({
@@ -231,7 +251,7 @@ describe('PostgreSQL Container Integration', () => {
                 ports: [{ host_port: 7771, container_port: 5432 }],
                 started_at: Date.now() / 1000,
                 uptime_seconds: 0,
-                restart_count: 1
+                restart_count: 1,
               });
             }
             return Promise.reject(new Error('Unknown container'));
@@ -242,14 +262,16 @@ describe('PostgreSQL Container Integration', () => {
     });
 
     // Test restart functionality
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('restart_container_new', 'eliza-postgres');
-    }).then((result) => {
-      expect(result.name).to.equal('eliza-postgres');
-      expect(result.state).to.equal('Starting');
-      expect(result.restart_count).to.equal(1);
-      expect(result.uptime_seconds).to.equal(0);
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('restart_container_new', 'eliza-postgres');
+      })
+      .then((result) => {
+        expect(result.name).to.equal('eliza-postgres');
+        expect(result.state).to.equal('Starting');
+        expect(result.restart_count).to.equal(1);
+        expect(result.uptime_seconds).to.equal(0);
+      });
 
     cy.screenshot('postgres-06-restart-functionality');
   });
@@ -270,16 +292,18 @@ describe('PostgreSQL Container Integration', () => {
             }
             return Promise.reject(new Error('Unknown container'));
           case 'get_container_status_new':
-            return Promise.resolve([{
-              id: 'test-postgres-stopped',
-              name: 'eliza-postgres',
-              state: 'Stopped',
-              health: 'Unknown',
-              ports: [{ host_port: 7771, container_port: 5432 }],
-              started_at: Date.now() / 1000,
-              uptime_seconds: 0,
-              restart_count: 0
-            }]);
+            return Promise.resolve([
+              {
+                id: 'test-postgres-stopped',
+                name: 'eliza-postgres',
+                state: 'Stopped',
+                health: 'Unknown',
+                ports: [{ host_port: 7771, container_port: 5432 }],
+                started_at: Date.now() / 1000,
+                uptime_seconds: 0,
+                restart_count: 0,
+              },
+            ]);
           default:
             return Promise.resolve({});
         }
@@ -287,20 +311,24 @@ describe('PostgreSQL Container Integration', () => {
     });
 
     // Test stop functionality
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('stop_container_new', 'eliza-postgres');
-    }).then((result) => {
-      // Stop command should return void/undefined
-      expect(result).to.be.undefined;
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('stop_container_new', 'eliza-postgres');
+      })
+      .then((result) => {
+        // Stop command should return void/undefined
+        expect(result).to.be.undefined;
+      });
 
     // Verify container is stopped
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('get_container_status_new');
-    }).then((statuses) => {
-      expect(statuses[0].state).to.equal('Stopped');
-      expect(statuses[0].health).to.equal('Unknown');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('get_container_status_new');
+      })
+      .then((statuses) => {
+        expect(statuses[0].state).to.equal('Stopped');
+        expect(statuses[0].health).to.equal('Unknown');
+      });
 
     cy.screenshot('postgres-07-stop-functionality');
   });
@@ -314,24 +342,49 @@ describe('PostgreSQL Container Integration', () => {
     cy.window().then((win) => {
       const tauriInvoke = (win as any).__TAURI__.invoke;
 
-      tauriInvoke.callsFake((command: string, ...args: any[]) => {
+      tauriInvoke.callsFake((command: string, ..._args: any[]) => {
         switch (command) {
           case 'setup_complete_environment_new':
             return Promise.resolve('Environment setup completed successfully');
           case 'get_setup_progress_new':
             progressCalls++;
             const stages = [
-              { stage: 'checking', progress: 0, message: 'Checking container runtime...', details: 'Verifying runtime availability' },
-              { stage: 'installing', progress: 20, message: 'Loading container images...', details: 'Loading PostgreSQL and Ollama images' },
-              { stage: 'starting', progress: 50, message: 'Starting PostgreSQL...', details: 'Initializing database container' },
-              { stage: 'starting', progress: 80, message: 'Starting ElizaOS Agent...', details: 'Initializing conversational AI agent' },
-              { stage: 'complete', progress: 100, message: 'Setup complete!', details: 'All containers are running' }
+              {
+                stage: 'checking',
+                progress: 0,
+                message: 'Checking container runtime...',
+                details: 'Verifying runtime availability',
+              },
+              {
+                stage: 'installing',
+                progress: 20,
+                message: 'Loading container images...',
+                details: 'Loading PostgreSQL and Ollama images',
+              },
+              {
+                stage: 'starting',
+                progress: 50,
+                message: 'Starting PostgreSQL...',
+                details: 'Initializing database container',
+              },
+              {
+                stage: 'starting',
+                progress: 80,
+                message: 'Starting ElizaOS Agent...',
+                details: 'Initializing conversational AI agent',
+              },
+              {
+                stage: 'complete',
+                progress: 100,
+                message: 'Setup complete!',
+                details: 'All containers are running',
+              },
             ];
 
             const stageIndex = Math.min(progressCalls - 1, stages.length - 1);
             return Promise.resolve({
               ...stages[stageIndex],
-              can_retry: false
+              can_retry: false,
             });
           default:
             return Promise.resolve({});
@@ -340,21 +393,25 @@ describe('PostgreSQL Container Integration', () => {
     });
 
     // Test complete environment setup
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('setup_complete_environment_new');
-    }).then((result) => {
-      expect(result).to.equal('Environment setup completed successfully');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('setup_complete_environment_new');
+      })
+      .then((result) => {
+        expect(result).to.equal('Environment setup completed successfully');
+      });
 
     // Check setup progress
-    cy.window().then((win) => {
-      return (win as any).__TAURI__.invoke('get_setup_progress_new');
-    }).then((progress) => {
-      expect(progress).to.have.property('stage');
-      expect(progress).to.have.property('progress');
-      expect(progress).to.have.property('message');
-      expect(progress).to.have.property('details');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI__.invoke('get_setup_progress_new');
+      })
+      .then((progress) => {
+        expect(progress).to.have.property('stage');
+        expect(progress).to.have.property('progress');
+        expect(progress).to.have.property('message');
+        expect(progress).to.have.property('details');
+      });
 
     cy.screenshot('postgres-08-complete-environment-setup');
   });
@@ -374,7 +431,7 @@ describe('PostgreSQL Container Edge Cases', () => {
   beforeEach(() => {
     cy.window().then((win) => {
       (win as any).__TAURI__ = {
-        invoke: cy.stub().as('tauriInvoke')
+        invoke: cy.stub().as('tauriInvoke'),
       };
     });
   });
@@ -387,7 +444,7 @@ describe('PostgreSQL Container Edge Cases', () => {
     cy.window().then((win) => {
       const tauriInvoke = (win as any).__TAURI__.invoke;
 
-      tauriInvoke.callsFake((command: string, ...args: any[]) => {
+      tauriInvoke.callsFake((command: string, ..._args: any[]) => {
         if (command === 'start_postgres_container') {
           return Promise.reject(new Error('Container with name eliza-postgres already exists'));
         }
@@ -413,7 +470,7 @@ describe('PostgreSQL Container Edge Cases', () => {
     cy.window().then((win) => {
       const tauriInvoke = (win as any).__TAURI__.invoke;
 
-      tauriInvoke.callsFake((command: string, ...args: any[]) => {
+      tauriInvoke.callsFake((command: string, ..._args: any[]) => {
         if (command === 'start_postgres_container') {
           return Promise.reject(new Error('Port 7771 is already in use'));
         }
@@ -439,9 +496,11 @@ describe('PostgreSQL Container Edge Cases', () => {
     cy.window().then((win) => {
       const tauriInvoke = (win as any).__TAURI__.invoke;
 
-      tauriInvoke.callsFake((command: string, ...args: any[]) => {
+      tauriInvoke.callsFake((command: string, ..._args: any[]) => {
         if (command === 'start_postgres_container') {
-          return Promise.reject(new Error('Container runtime not available: No Podman or Docker found'));
+          return Promise.reject(
+            new Error('Container runtime not available: No Podman or Docker found')
+          );
         }
         return Promise.resolve({});
       });

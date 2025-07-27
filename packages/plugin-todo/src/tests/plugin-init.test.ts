@@ -8,7 +8,7 @@ describe('TodoPlugin Initialization', () => {
   let mockRuntime: IAgentRuntime;
 
   const setupMocks = () => {
-    // @ts-ignore - test mock
+    // @ts-expect-error - test mock
     mockRuntime = createMockRuntime({
       db: null, // No database available
       getService: () => null, // No services available in test
@@ -26,9 +26,9 @@ describe('TodoPlugin Initialization', () => {
 
   it('should have the correct number of services', () => {
     expect(TodoPlugin.services).toHaveLength(3);
-    expect((TodoPlugin.services![0] as any).serviceType).toBe('todo');
-    expect((TodoPlugin.services![1] as any).serviceType).toBe('TODO_REMINDER');
-    expect((TodoPlugin.services![2] as any).serviceType).toBe('TODO_INTEGRATION_BRIDGE');
+    const services = TodoPlugin.services as Array<{ serviceType: string }>;
+    expect(services[0].serviceType).toBe('todo');
+    expect(services[1].serviceType).toBe('TODO_REMINDER');
   });
 
   it('should have all required actions', () => {

@@ -3,7 +3,7 @@ import { experiencePlugin, ExperienceService } from '../src';
 
 export class ExperiencePluginTestSuite implements TestSuite {
   name = 'plugin_experience_test_suite';
-  
+
   tests = [
     {
       name: 'experience_service_initialization',
@@ -13,12 +13,12 @@ export class ExperiencePluginTestSuite implements TestSuite {
         if (!experienceService) {
           throw new Error('Experience service not found');
         }
-        
+
         // Verify service has required methods
         if (!experienceService.recordExperience || !experienceService.getExperiences) {
           throw new Error('Experience service missing required methods');
         }
-        
+
         console.log('[TEST] Experience service initialized successfully');
       },
     },
@@ -29,27 +29,27 @@ export class ExperiencePluginTestSuite implements TestSuite {
         if (!experienceService) {
           throw new Error('Experience service not found');
         }
-        
+
         // Record a test experience
         const testExperience = 'I learned that tests should use unique ports to avoid conflicts';
         const roomId = 'test-room' as any;
-        
+
         await experienceService.recordExperience(testExperience, roomId);
         console.log('[TEST] Experience recorded successfully');
-        
+
         // Verify the experience was recorded
         const experiences = await experienceService.getExperiences({
           count: 10,
         });
-        
-        const recordedExperience = experiences.find(
-          exp => exp.content.text?.includes('tests should use unique ports')
+
+        const recordedExperience = experiences.find((exp) =>
+          exp.content.text?.includes('tests should use unique ports')
         );
-        
+
         if (!recordedExperience) {
           throw new Error('Recorded experience not found');
         }
-        
+
         console.log('[TEST] Experience retrieval verified');
       },
     },
@@ -64,49 +64,47 @@ export class ExperiencePluginTestSuite implements TestSuite {
           },
           roomId: 'test-room',
         };
-        
+
         const evaluator = experiencePlugin.evaluators?.find(
-          e => e.name === 'EXPERIENCE_EVALUATOR'
+          (e) => e.name === 'EXPERIENCE_EVALUATOR'
         );
-        
+
         if (!evaluator) {
           throw new Error('Experience evaluator not found');
         }
-        
+
         const shouldTrigger = await evaluator.validate(runtime, testMessage as any);
         if (!shouldTrigger) {
           throw new Error('Evaluator should trigger on learning keywords');
         }
-        
+
         console.log('[TEST] Experience evaluator validation passed');
       },
     },
     {
       name: 'experience_provider_output',
       fn: async (runtime: IAgentRuntime) => {
-        const provider = experiencePlugin.providers?.find(
-          p => p.name === 'EXPERIENCES'
-        );
-        
+        const provider = experiencePlugin.providers?.find((p) => p.name === 'EXPERIENCES');
+
         if (!provider) {
           throw new Error('Experience provider not found');
         }
-        
+
         const state = {
           entityId: runtime.agentId,
           roomId: 'test-room',
         };
-        
+
         const result = await provider.get(runtime, null as any, state as any);
-        
+
         if (!result || (!result.text && !result.values)) {
           throw new Error('Provider should return experience data');
         }
-        
+
         console.log('[TEST] Experience provider output verified');
       },
     },
   ];
 }
 
-export default new ExperiencePluginTestSuite(); 
+export default new ExperiencePluginTestSuite();

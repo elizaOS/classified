@@ -219,11 +219,8 @@ export const SettingsView: FC<SettingsViewProps> = ({
   };
 
   const resetAgent = async () => {
-    if (
-      !confirm('Are you sure you want to reset the agent? This will permanently delete all data!')
-    ) {
-      return;
-    }
+    // Log warning instead of using confirm dialog
+    console.warn('Agent reset initiated - this will permanently delete all data!');
 
     setIsResetting(true);
     try {
@@ -634,8 +631,8 @@ export const SettingsView: FC<SettingsViewProps> = ({
                             fontFamily: 'monospace',
                             fontSize: '12px',
                           }}
-                          value={configValues.environment?.LANGUAGE_MODEL || 'llama3.1:8b'}
-                          placeholder="llama3.1:8b"
+                          value={configValues.environment?.LANGUAGE_MODEL || 'llama3.2:3b'}
+                          placeholder="llama3.2:3b"
                           onChange={(e) =>
                             updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
                           }

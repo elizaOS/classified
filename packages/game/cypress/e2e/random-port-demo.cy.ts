@@ -19,8 +19,12 @@ describe('Random Port Demo - Dynamic Configuration', () => {
   });
 
   it('should demonstrate random port configuration working', () => {
-    const backendUrl = Cypress.env('BACKEND_URL') || Cypress.env('CYPRESS_BACKEND_URL') || 'http://localhost:7777';
-    const frontendUrl = Cypress.env('FRONTEND_URL') || Cypress.env('CYPRESS_FRONTEND_URL') || Cypress.config('baseUrl');
+    const backendUrl =
+      Cypress.env('BACKEND_URL') || Cypress.env('CYPRESS_BACKEND_URL') || 'http://localhost:7777';
+    const frontendUrl =
+      Cypress.env('FRONTEND_URL') ||
+      Cypress.env('CYPRESS_FRONTEND_URL') ||
+      Cypress.config('baseUrl');
 
     cy.log('🎲 RANDOM PORT DEMO');
     cy.log(`Frontend URL: ${frontendUrl}`);
@@ -37,7 +41,9 @@ describe('Random Port Demo - Dynamic Configuration', () => {
     // Test that the chat interface is functional
     cy.get('[data-testid="chat-input"]')
       .should('be.visible')
-      .type(`Testing with random ports: backend on ${backendUrl.split(':').pop()}`, { force: true });
+      .type(`Testing with random ports: backend on ${backendUrl.split(':').pop()}`, {
+        force: true,
+      });
 
     cy.get('[data-testid="chat-send-button"]').click();
     cy.log('✅ Chat functionality works with random ports');
@@ -61,7 +67,8 @@ describe('Random Port Demo - Dynamic Configuration', () => {
   });
 
   it('should verify all backend APIs are accessible', () => {
-    const backendUrl = Cypress.env('BACKEND_URL') || Cypress.env('CYPRESS_BACKEND_URL') || 'http://localhost:7777';
+    const backendUrl =
+      Cypress.env('BACKEND_URL') || Cypress.env('CYPRESS_BACKEND_URL') || 'http://localhost:7777';
 
     cy.log(`🔍 Testing backend APIs at: ${backendUrl}`);
 
@@ -71,14 +78,14 @@ describe('Random Port Demo - Dynamic Configuration', () => {
       '/api/goals',
       '/api/todos',
       '/autonomy/status',
-      '/knowledge/documents'
+      '/knowledge/documents',
     ];
 
-    endpoints.forEach(endpoint => {
+    endpoints.forEach((endpoint) => {
       cy.request({
         method: 'GET',
         url: `${backendUrl}${endpoint}`,
-        failOnStatusCode: false
+        failOnStatusCode: false,
       }).then((response) => {
         expect(response.status).to.be.oneOf([200, 404, 500]); // Any response means endpoint is reachable
         cy.log(`✅ ${endpoint}: Status ${response.status}`);
@@ -90,7 +97,13 @@ describe('Random Port Demo - Dynamic Configuration', () => {
 
   it('should demonstrate port isolation between test runs', () => {
     const frontendPort = Cypress.config('baseUrl')?.split(':').pop();
-    const backendPort = (Cypress.env('BACKEND_URL') || Cypress.env('CYPRESS_BACKEND_URL') || 'http://localhost:7777').split(':').pop();
+    const backendPort = (
+      Cypress.env('BACKEND_URL') ||
+      Cypress.env('CYPRESS_BACKEND_URL') ||
+      'http://localhost:7777'
+    )
+      .split(':')
+      .pop();
 
     cy.log('🔒 DEMONSTRATING PORT ISOLATION');
     cy.log(`This test run using Frontend Port: ${frontendPort}`);
@@ -102,14 +115,18 @@ describe('Random Port Demo - Dynamic Configuration', () => {
     // Store test run info in the interface
     cy.get('[data-testid="chat-input"]')
       .clear()
-      .type(`Test Run ID: ${testRunId} | Frontend: ${frontendPort} | Backend: ${backendPort}`, { force: true });
+      .type(`Test Run ID: ${testRunId} | Frontend: ${frontendPort} | Backend: ${backendPort}`, {
+        force: true,
+      });
 
     cy.get('[data-testid="chat-send-button"]').click();
 
     // Verify the message appears in chat
     cy.get('[data-testid="user-message"]').last().should('contain.text', testRunId);
 
-    cy.log(`✅ Test run ${testRunId} successfully isolated on ports F:${frontendPort} B:${backendPort}`);
+    cy.log(
+      `✅ Test run ${testRunId} successfully isolated on ports F:${frontendPort} B:${backendPort}`
+    );
     cy.log('🎉 PORT ISOLATION DEMONSTRATED!');
 
     cy.screenshot(`port-isolation-${testRunId}`);

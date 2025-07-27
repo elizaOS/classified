@@ -130,8 +130,8 @@ export class ClaudeCodeStressTestSuite implements TestSuite {
             description:
               'Comprehensive ElizaOS plugin for an e-commerce platform with extensive features',
             targetType: 'plugin',
-            requirements: requirements,
-            apis: apis,
+            requirements,
+            apis,
             testScenarios: ['Test basic functionality', 'Test API integrations'],
           });
 
@@ -525,7 +525,9 @@ export class ClaudeCodeStressTestSuite implements TestSuite {
               projectName: `load-test-${requestCount}`,
               description: `Create a simple function called "loadTest${requestCount}" that returns "Load test ${requestCount}".`,
               targetType: 'plugin',
-              requirements: [`Function loadTest${requestCount} returning "Load test ${requestCount}"`],
+              requirements: [
+                `Function loadTest${requestCount} returning "Load test ${requestCount}"`,
+              ],
               apis: [],
             });
 

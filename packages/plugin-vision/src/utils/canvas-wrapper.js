@@ -1,4 +1,3 @@
-
 // Canvas wrapper for graceful fallback
 let canvasModule;
 let canvasAvailable = false;
@@ -8,15 +7,16 @@ try {
   canvasModule = require('@napi-rs/canvas');
   canvasAvailable = true;
   console.log('[CANVAS] @napi-rs/canvas loaded successfully');
-} catch (error1) {
+} catch (_error1) {
+  // @ts-expect-error - _error1 is an error
   try {
     // Fallback to regular canvas
     canvasModule = require('canvas');
     canvasAvailable = true;
     console.log('[CANVAS] canvas module loaded successfully');
-  } catch (error2) {
+  } catch (_error2) {
     console.warn('[CANVAS] No canvas module available');
-    
+
     // Create mock canvas
     canvasModule = {
       createCanvas: (width, height) => {
@@ -36,10 +36,10 @@ try {
             fillStyle: '',
             strokeStyle: '',
             lineWidth: 1,
-            font: '10px sans-serif'
+            font: '10px sans-serif',
           }),
           toBuffer: () => Promise.resolve(Buffer.from('')),
-          toDataURL: () => 'data:image/png;base64,'
+          toDataURL: () => 'data:image/png;base64,',
         };
       },
       loadImage: () => Promise.reject(new Error('Canvas not available')),
@@ -49,7 +49,7 @@ try {
           this.height = 0;
           this.src = '';
         }
-      }
+      },
     };
   }
 }

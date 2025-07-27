@@ -12,7 +12,8 @@ import {
   type State,
   formatMessages,
 } from '@elizaos/core';
-import { createGoalDataService, type GoalData } from '../services/goalDataService';
+import type { GoalService } from '../services/goalService';
+import type { GoalData } from '../types';
 
 // Interface for task cancellation properties
 interface TaskCancellation {
@@ -118,7 +119,7 @@ export const cancelGoalAction: Action = {
       if (!message.roomId) {
         return false;
       }
-      const dataService = createGoalDataService(runtime);
+      const dataService = runtime.getService('goals') as GoalService;
       const goals = await dataService.getGoals({
         ownerType: 'entity',
         ownerId: message.entityId,
@@ -179,7 +180,7 @@ export const cancelGoalAction: Action = {
           success: false,
         };
       }
-      const dataService = createGoalDataService(runtime);
+      const dataService = runtime.getService('goals') as GoalService;
 
       // Get active goals for the entity
       const activeGoals = await dataService.getGoals({

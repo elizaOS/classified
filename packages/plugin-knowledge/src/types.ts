@@ -42,12 +42,12 @@ export const ModelConfigSchema = z.object({
 
   // Embedding dimension
   // For OpenAI: Only applies to text-embedding-3-small and text-embedding-3-large models
-  // Default: 1536 dimensions
+  // Default: 768 dimensions
   EMBEDDING_DIMENSION: z
     .string()
     .or(z.number())
     .optional()
-    .transform((val) => (val ? (typeof val === 'string' ? parseInt(val, 10) : val) : 1536)),
+    .transform((val) => (val ? (typeof val === 'string' ? parseInt(val, 10) : val) : 768)),
 
   // config setting
   LOAD_DOCS_ON_STARTUP: z.boolean().default(false),

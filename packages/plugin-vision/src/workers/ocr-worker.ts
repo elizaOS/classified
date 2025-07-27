@@ -177,9 +177,7 @@ class OCRWorker {
     }
 
     // Convert to PNG for OCR
-    const pngBuffer = await sharp(screenData)
-      .png()
-      .toBuffer();
+    const pngBuffer = await sharp(screenData).png().toBuffer();
 
     return pngBuffer;
   }
@@ -212,9 +210,7 @@ class OCRWorker {
     }
 
     // Convert to PNG for OCR
-    const pngBuffer = await sharp(regionData)
-      .png()
-      .toBuffer();
+    const pngBuffer = await sharp(regionData).png().toBuffer();
 
     return pngBuffer;
   }

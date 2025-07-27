@@ -4,7 +4,10 @@ describe('Configuration Validation System', () => {
 
     // Wait for the game interface to load
     cy.get('[data-testid="game-interface"]', { timeout: 10000 }).should('exist');
-    cy.get('[data-testid="connection-status"]', { timeout: 10000 }).should('contain.text', 'ONLINE');
+    cy.get('[data-testid="connection-status"]', { timeout: 10000 }).should(
+      'contain.text',
+      'ONLINE'
+    );
 
     // Navigate to CONFIG tab
     cy.get('[data-testid="config-tab"]').click();
@@ -68,29 +71,29 @@ describe('Configuration Validation System', () => {
                 openai: {
                   status: 'unhealthy',
                   message: 'OpenAI API key missing',
-                  apiKey: 'missing'
-                }
+                  apiKey: 'missing',
+                },
               },
               environment: {
                 MODEL_PROVIDER: {
                   value: 'openai',
                   status: 'healthy',
-                  message: 'Provider set to: openai'
-                }
+                  message: 'Provider set to: openai',
+                },
               },
               services: {
                 openai: {
                   loaded: false,
-                  status: 'not_loaded'
-                }
-              }
+                  status: 'not_loaded',
+                },
+              },
             },
             recommendations: [
               '⚠️ Warning: Some issues detected with model provider configuration.',
-              '🔑 Configure openai API key to enable openai provider.'
-            ]
-          }
-        }
+              '🔑 Configure openai API key to enable openai provider.',
+            ],
+          },
+        },
       }).as('validateConfig');
 
       // Click validation button
@@ -129,29 +132,29 @@ describe('Configuration Validation System', () => {
                   connectionTest: {
                     status: 'success',
                     modelAvailable: true,
-                    message: 'Connection successful and model available'
-                  }
-                }
+                    message: 'Connection successful and model available',
+                  },
+                },
               },
               environment: {
                 MODEL_PROVIDER: {
                   value: 'openai',
-                  status: 'healthy'
-                }
+                  status: 'healthy',
+                },
               },
               services: {
                 openai: {
                   loaded: true,
-                  status: 'healthy'
-                }
-              }
+                  status: 'healthy',
+                },
+              },
             },
             recommendations: [
               '✅ openai configuration is working correctly.',
-              '✅ All configurations appear to be working correctly.'
-            ]
-          }
-        }
+              '✅ All configurations appear to be working correctly.',
+            ],
+          },
+        },
       }).as('validateConfigSuccess');
 
       cy.get('[data-testid="validate-config-button"]').click();
@@ -183,30 +186,30 @@ describe('Configuration Validation System', () => {
                   request: "Respond with exactly: 'Configuration test successful'",
                   response: 'Configuration test successful',
                   match: true,
-                  message: 'LLM completion test passed'
+                  message: 'LLM completion test passed',
                 },
                 embedding: {
                   status: 'success',
                   textLength: 39,
-                  embeddingDimensions: 1536,
-                  message: 'Generated 1536-dimensional embedding'
+                  embeddingDimensions: 768,
+                  message: 'Generated 768-dimensional embedding',
                 },
                 memory: {
                   status: 'success',
                   memoryId: 'test-memory-123',
                   retrieved: true,
-                  message: 'Memory operations working correctly'
-                }
-              }
+                  message: 'Memory operations working correctly',
+                },
+              },
             },
             summary: {
               total: 3,
               passed: 3,
               failed: 0,
-              partial: 0
-            }
-          }
-        }
+              partial: 0,
+            },
+          },
+        },
       }).as('testConfig');
 
       // Click test button
@@ -222,7 +225,7 @@ describe('Configuration Validation System', () => {
         .should('contain.text', 'Test Status: SUCCESS')
         .should('contain.text', 'Results: 3/3 tests passed, 0 failed')
         .should('contain.text', '✅ llmCompletion: LLM completion test passed')
-        .should('contain.text', '✅ embedding: Generated 1536-dimensional embedding')
+        .should('contain.text', '✅ embedding: Generated 768-dimensional embedding')
         .should('contain.text', '✅ memory: Memory operations working correctly');
     });
 
@@ -241,27 +244,27 @@ describe('Configuration Validation System', () => {
                 llmCompletion: {
                   status: 'failed',
                   error: 'API key invalid',
-                  message: 'Failed to generate LLM completion'
+                  message: 'Failed to generate LLM completion',
                 },
                 embedding: {
                   status: 'failed',
                   error: 'No API key provided',
-                  message: 'Failed to generate embedding'
+                  message: 'Failed to generate embedding',
                 },
                 memory: {
                   status: 'success',
-                  message: 'Memory operations working correctly'
-                }
-              }
+                  message: 'Memory operations working correctly',
+                },
+              },
             },
             summary: {
               total: 3,
               passed: 1,
               failed: 2,
-              partial: 0
-            }
-          }
-        }
+              partial: 0,
+            },
+          },
+        },
       }).as('testConfigFailed');
 
       cy.get('[data-testid="test-config-button"]').click();
@@ -286,29 +289,35 @@ describe('Configuration Validation System', () => {
           success: false,
           error: {
             code: 'VALIDATION_FAILED',
-            message: 'Internal server error during validation'
-          }
-        }
+            message: 'Internal server error during validation',
+          },
+        },
       }).as('validateConfigError');
 
       cy.get('[data-testid="validate-config-button"]').click();
       cy.wait('@validateConfigError');
 
       // Check error message appears
-      cy.get('[data-testid="chat-messages"]')
-        .should('contain.text', 'Validation failed: Internal server error during validation');
+      cy.get('[data-testid="chat-messages"]').should(
+        'contain.text',
+        'Validation failed: Internal server error during validation'
+      );
     });
 
     it('should handle network errors during testing', () => {
       // Mock network failure
-      cy.intercept('POST', '**/api/config/test', { forceNetworkError: true }).as('testConfigNetworkError');
+      cy.intercept('POST', '**/api/config/test', { forceNetworkError: true }).as(
+        'testConfigNetworkError'
+      );
 
       cy.get('[data-testid="test-config-button"]').click();
       cy.wait('@testConfigNetworkError');
 
       // Check network error message
-      cy.get('[data-testid="chat-messages"]')
-        .should('contain.text', 'Configuration test failed: Network error');
+      cy.get('[data-testid="chat-messages"]').should(
+        'contain.text',
+        'Configuration test failed: Network error'
+      );
     });
   });
 
@@ -335,21 +344,23 @@ describe('Configuration Validation System', () => {
                 anthropic: {
                   status: 'healthy',
                   message: 'Anthropic configured with model: claude-3-5-sonnet-20241022',
-                  apiKey: 'present'
-                }
-              }
+                  apiKey: 'present',
+                },
+              },
             },
-            recommendations: ['✅ anthropic configuration is working correctly.']
-          }
-        }
+            recommendations: ['✅ anthropic configuration is working correctly.'],
+          },
+        },
       }).as('validateAnthropic');
 
       // Validate the new configuration
       cy.get('[data-testid="validate-config-button"]').click();
       cy.wait('@validateAnthropic');
 
-      cy.get('[data-testid="chat-messages"]')
-        .should('contain.text', 'anthropic: Anthropic configured with model');
+      cy.get('[data-testid="chat-messages"]').should(
+        'contain.text',
+        'anthropic: Anthropic configured with model'
+      );
     });
 
     it('should test Ollama local configuration', () => {
@@ -375,14 +386,16 @@ describe('Configuration Validation System', () => {
                   connectionTest: {
                     status: 'failed',
                     error: 'Connection refused',
-                    message: 'Failed to connect to Ollama at http://localhost:11434'
-                  }
-                }
-              }
+                    message: 'Failed to connect to Ollama at http://localhost:11434',
+                  },
+                },
+              },
             },
-            recommendations: ['🔗 ollama API key present but connection failed: Failed to connect to Ollama at http://localhost:11434']
-          }
-        }
+            recommendations: [
+              '🔗 ollama API key present but connection failed: Failed to connect to Ollama at http://localhost:11434',
+            ],
+          },
+        },
       }).as('validateOllama');
 
       cy.get('[data-testid="validate-config-button"]').click();
@@ -398,20 +411,28 @@ describe('Configuration Validation System', () => {
     it('should provide clear feedback during validation process', () => {
       // Mock delayed response to test loading state
       cy.intercept('POST', '**/api/config/validate', (req) => {
-        req.reply({ delay: 2000, statusCode: 200, body: { success: true, data: { validation: { overall: 'healthy' }, recommendations: [] } } });
+        req.reply({
+          delay: 2000,
+          statusCode: 200,
+          body: {
+            success: true,
+            data: { validation: { overall: 'healthy' }, recommendations: [] },
+          },
+        });
       }).as('validateConfigSlow');
 
       cy.get('[data-testid="validate-config-button"]').click();
 
       // Should show immediate feedback
-      cy.get('[data-testid="chat-messages"]')
-        .should('contain.text', 'Validating configuration...');
+      cy.get('[data-testid="chat-messages"]').should('contain.text', 'Validating configuration...');
 
       cy.wait('@validateConfigSlow');
 
       // Should show completion
-      cy.get('[data-testid="chat-messages"]')
-        .should('contain.text', 'Configuration Validation Complete');
+      cy.get('[data-testid="chat-messages"]').should(
+        'contain.text',
+        'Configuration Validation Complete'
+      );
     });
 
     it('should provide helpful guidance in validation messages', () => {
@@ -424,15 +445,15 @@ describe('Configuration Validation System', () => {
               overall: 'unhealthy',
               providers: {},
               environment: {},
-              services: {}
+              services: {},
             },
             recommendations: [
               '❌ Critical: No working model provider configured. Please configure at least one provider.',
               '🔑 Configure openai API key to enable openai provider.',
-              '📋 openai connected but model "invalid-model" not available. Check model name or permissions.'
-            ]
-          }
-        }
+              '📋 openai connected but model "invalid-model" not available. Check model name or permissions.',
+            ],
+          },
+        },
       }).as('validateConfigGuidance');
 
       cy.get('[data-testid="validate-config-button"]').click();
@@ -450,7 +471,7 @@ describe('Configuration Validation System', () => {
     // Take screenshot after each test for debugging
     cy.screenshot(`config-validation-${Cypress.currentTest.title}`, {
       capture: 'viewport',
-      overwrite: true
+      overwrite: true,
     });
   });
 });

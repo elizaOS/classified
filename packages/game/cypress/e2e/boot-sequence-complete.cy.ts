@@ -42,7 +42,8 @@ describe('Complete Boot Sequence Testing', () => {
     cy.contains('API Key Configuration').should('be.visible');
 
     // Test API key input
-    cy.get('[data-testid="openai-api-key-input"]').should('be.visible')
+    cy.get('[data-testid="openai-api-key-input"]')
+      .should('be.visible')
       .type(Cypress.env('OPENAI_API_KEY') || 'test-key-placeholder');
 
     cy.get('[data-testid="validate-api-key-button"]').click();
@@ -62,7 +63,7 @@ describe('Complete Boot Sequence Testing', () => {
       { testId: 'screen-toggle', label: 'Screen Capture' },
       { testId: 'shell-toggle', label: 'Shell Access' },
       { testId: 'browser-toggle', label: 'Browser Access' },
-      { testId: 'coding-toggle', label: 'Autonomous Coding' }
+      { testId: 'coding-toggle', label: 'Autonomous Coding' },
     ];
 
     capabilities.forEach((capability, index) => {
@@ -73,7 +74,8 @@ describe('Complete Boot Sequence Testing', () => {
       cy.get(`[data-testid="${capability.testId}"]`).click();
       cy.get(`[data-testid="${capability.testId}"]`).should('have.attr', 'aria-checked', 'true');
 
-      if (index === 2) { // Take screenshot after a few toggles
+      if (index === 2) {
+        // Take screenshot after a few toggles
         cy.screenshot('boot-06-capabilities-configured');
       }
     });
@@ -97,7 +99,7 @@ describe('Complete Boot Sequence Testing', () => {
     cy.get('[data-testid="config-tab"]').should('be.visible');
 
     // Verify agent initialization message
-    cy.get('[data-testid="chat-messages"]').should('contain', 'Hello! I\'m ready to assist you');
+    cy.get('[data-testid="chat-messages"]').should('contain', "Hello! I'm ready to assist you");
   });
 
   it('should handle boot sequence errors gracefully', () => {
@@ -134,7 +136,9 @@ describe('Complete Boot Sequence Testing', () => {
     cy.get('[data-testid="proceed-button"]').click();
 
     cy.get('[data-testid="api-key-setup"]', { timeout: 10000 }).should('be.visible');
-    cy.get('[data-testid="openai-api-key-input"]').type(Cypress.env('OPENAI_API_KEY') || 'test-key');
+    cy.get('[data-testid="openai-api-key-input"]').type(
+      Cypress.env('OPENAI_API_KEY') || 'test-key'
+    );
     cy.get('[data-testid="validate-api-key-button"]').click();
 
     // Enable some capabilities
@@ -175,7 +179,10 @@ describe('Complete Boot Sequence Testing', () => {
     cy.get('[data-testid="capability-permissions"]', { timeout: 15000 }).should('be.visible');
 
     // Verify each capability shows detection status
-    cy.get('[data-testid="microphone-status"]').should('contain.oneOf', ['Detected', 'Not Available']);
+    cy.get('[data-testid="microphone-status"]').should('contain.oneOf', [
+      'Detected',
+      'Not Available',
+    ]);
     cy.get('[data-testid="camera-status"]').should('contain.oneOf', ['Detected', 'Not Available']);
     cy.get('[data-testid="gpu-status"]').should('contain.oneOf', ['CUDA Available', 'CPU Only']);
   });

@@ -1,6 +1,11 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { TodoPlugin } from '../index';
-import type { IAgentRuntime } from '@elizaos/core';
+import type { IAgentRuntime, Service, ServiceTypeName } from '@elizaos/core';
+
+interface ServiceClass {
+  serviceType: ServiceTypeName | string;
+  new (...args: unknown[]): Service;
+}
 
 describe('TodoPlugin', () => {
   it('should export TodoPlugin with correct structure', () => {
@@ -11,7 +16,7 @@ describe('TodoPlugin', () => {
     );
     expect(TodoPlugin.providers).toHaveLength(1);
     expect(TodoPlugin.actions).toHaveLength(5); // Now includes confirmTodoAction
-    expect(TodoPlugin.services).toHaveLength(3); // TodoDataServiceWrapper, TodoReminderService and TodoIntegrationBridge
+    expect(TodoPlugin.services).toHaveLength(2); // TodoDataServiceWrapper, TodoReminderService
     expect(TodoPlugin.routes).toBeDefined();
     expect(TodoPlugin.init).toBeInstanceOf(Function);
   });
@@ -26,15 +31,11 @@ describe('TodoPlugin', () => {
   });
 
   it('should have all required services', () => {
-    expect(TodoPlugin.services?.some((s) => (s as any).serviceType === 'todo')).toBe(true);
-    expect(TodoPlugin.services?.some((s) => (s as any).serviceType === 'TODO_REMINDER')).toBe(true);
-    expect(
-      TodoPlugin.services?.some((s) => (s as any).serviceType === 'TODO_INTEGRATION_BRIDGE')
-    ).toBe(true);
+    const services = TodoPlugin.services as ServiceClass[] | undefined;
+    expect(services?.some((s) => s.serviceType === 'todo')).toBe(true);
+    expect(services?.some((s) => s.serviceType === 'TODO_REMINDER')).toBe(true);
 
     // Other functionality is provided as internal managers within these services:
     // - NotificationManager (within TodoReminderService)
-    // - CacheManager (within TodoReminderService)
-    // - ConfirmationManager (within TodoIntegrationBridge)
   });
 });

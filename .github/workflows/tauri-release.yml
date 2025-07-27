@@ -100,12 +100,12 @@ jobs:
           security create-keychain -p "${{ secrets.MACOS_KEYCHAIN_PASSWORD }}" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "${{ secrets.MACOS_KEYCHAIN_PASSWORD }}" build.keychain
-          
+
           # Import certificates
           echo "${{ secrets.MACOS_CERTIFICATE }}" | base64 -d > certificate.p12
           security import certificate.p12 -k build.keychain -P "${{ secrets.MACOS_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.MACOS_KEYCHAIN_PASSWORD }}" build.keychain
-          
+
           # Set signing identity
           echo "APPLE_SIGNING_IDENTITY=${{ secrets.APPLE_SIGNING_IDENTITY }}" >> $GITHUB_ENV
           echo "APPLE_PROVIDER_SHORT_NAME=${{ secrets.APPLE_PROVIDER_SHORT_NAME }}" >> $GITHUB_ENV
@@ -161,7 +161,7 @@ jobs:
         run: |
           # Find the built app
           APP_PATH=$(find packages/game/src-tauri/target/${{ matrix.bundle_path }}/release/bundle/macos -name "*.app" | head -1)
-          
+
           if [ -n "$APP_PATH" ]; then
             echo "Notarizing $APP_PATH"
             

@@ -5,15 +5,15 @@ import { v4 as uuidv4 } from 'uuid';
 // Create a test runtime with the necessary configuration
 const createTestRuntime = async (): Promise<IAgentRuntime> => {
   const agentId = uuidv4();
-  
+
   // Create a simple runtime-like object
   const runtime = {
     agentId,
     databaseAdapter: undefined,
-    registerDatabaseAdapter: function(adapter: any) {
+    registerDatabaseAdapter: function (adapter: any) {
       this.databaseAdapter = adapter;
     },
-    getSetting: function(key: string) {
+    getSetting: function (key: string) {
       // Use PGLite for testing
       if (key === 'POSTGRES_URL') return undefined;
       if (key === 'PGLITE_PATH') return './.test-db';
@@ -21,7 +21,7 @@ const createTestRuntime = async (): Promise<IAgentRuntime> => {
       return undefined;
     },
     getService: getService,
-    registerService: async function(serviceClass: any) {
+    registerService: async function (serviceClass: any) {
       console.log('Registering service:', serviceClass.name || serviceClass.constructor.name);
     },
     character: {
@@ -36,16 +36,19 @@ const createTestRuntime = async (): Promise<IAgentRuntime> => {
 
 const testMigration = async () => {
   console.log('🔧 Setting up test migration...');
-  
+
   try {
     const runtime = await createTestRuntime();
     console.log('Runtime created with agent ID:', runtime.agentId);
 
     // Create database adapter
-    const adapter = await createDatabaseAdapter({
-      dataDir: './.test-db',
-      forcePglite: true,
-    }, runtime.agentId);
+    const adapter = await createDatabaseAdapter(
+      {
+        dataDir: './.test-db',
+        forcePglite: true,
+      },
+      runtime.agentId
+    );
 
     await adapter.init();
     runtime.registerDatabaseAdapter(adapter);

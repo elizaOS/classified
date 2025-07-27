@@ -12,7 +12,8 @@ import {
   formatMessages,
   type UUID,
 } from '@elizaos/core';
-import { createTodoDataService, type TodoData } from '../services/todoDataService';
+import type { Action } from '@elizaos/core';
+import type { TodoDataServiceWrapper, TodoData } from '../services/todoDataService';
 
 // Interface for task cancellation properties
 interface TaskCancellation {
@@ -111,61 +112,36 @@ export const cancelTodoAction: Action = {
   similes: ['DELETE_TODO', 'REMOVE_TASK', 'DELETE_TASK', 'REMOVE_TODO'],
   description: "Cancels and deletes a todo item from the user's task list immediately.",
 
-  validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    // Check if *any* active TODOs exist
-    try {
-      if (!message.roomId) {
-        return false;
-      }
-      const dataService = createTodoDataService(runtime);
-      const todos = await dataService.getTodos({
-        roomId: message.roomId,
-        isCompleted: false,
-      });
-      return todos.length > 0;
-    } catch (error) {
-      logger.error('Error validating CANCEL_TODO action:', error);
-      return false;
-    }
+  validate: async (_runtime: IAgentRuntime, _message: Memory): Promise<boolean> => {
+    return true;
   },
 
-  handler: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    state: State | undefined,
-    options: any,
-    callback?: HandlerCallback
-  ): Promise<void> => {
-    try {
-      if (!state) {
-        if (callback) {
-          await callback({
-            text: 'Unable to process request without state context.',
-            actions: ['CANCEL_TODO_ERROR'],
-            source: message.content.source,
-          });
-        }
-        return;
-      }
-      if (!message.roomId) {
-        if (callback) {
-          await callback({
-            text: 'I cannot manage todos without a room context.',
-            actions: ['CANCEL_TODO_ERROR'],
-            source: message.content.source,
-          });
-        }
-        return;
-      }
-      const dataService = createTodoDataService(runtime);
+  handler: async (runtime: IAgentRuntime, message: Memory, state: State, callback: any) => {
+    logger.info('[cancelTodo] Handler invoked', { messageContent: message.content.text });
 
-      // Get all active todos for this room
-      const availableTasks = await dataService.getTodos({
+    const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+    if (!dataService) {
+      logger.error('[cancelTodo] Todo service not available');
+      await callback({
+        text: 'Sorry, the todo service is not available right now. Please try again later.',
+        error: true,
+      });
+      return {
+        success: false,
+        values: {
+          error: 'Todo service not available',
+        },
+      };
+    }
+
+    try {
+      // Get all todos for this room
+      const allTodos = await dataService.getTodos({
+        entityId: message.entityId,
         roomId: message.roomId,
-        isCompleted: false,
       });
 
-      if (availableTasks.length === 0) {
+      if (allTodos.length === 0) {
         if (callback) {
           await callback({
             text: "You don't have any active tasks to cancel. Would you like to create a new task?",
@@ -180,14 +156,14 @@ export const cancelTodoAction: Action = {
       const taskCancellation = await extractTaskCancellation(
         runtime,
         message,
-        availableTasks,
+        allTodos,
         state
       );
 
       if (!taskCancellation.isFound) {
         if (callback) {
           await callback({
-            text: `I couldn't determine which task you want to cancel. Could you be more specific? Here are your current tasks:\n\n${availableTasks
+            text: `I couldn't determine which task you want to cancel. Could you be more specific? Here are your current tasks:\n\n${allTodos
               .map((task) => `- ${task.name}`)
               .join('\n')}`,
             actions: ['CANCEL_TODO_NOT_FOUND'],
@@ -198,7 +174,7 @@ export const cancelTodoAction: Action = {
       }
 
       // Find the task in the available tasks
-      const task = availableTasks.find((t) => t.id === taskCancellation.taskId);
+      const task = allTodos.find((t) => t.id === taskCancellation.taskId);
 
       if (!task) {
         if (callback) {

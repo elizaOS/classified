@@ -84,11 +84,7 @@ const shellPlugin = {
   name: 'shell',
   description: 'Shell command execution with state management',
   services: [new ShellService()],
-  actions: [
-    runShellCommandAction,
-    clearShellHistoryAction,
-    killAutonomousAction,
-  ],
+  actions: [runShellCommandAction, clearShellHistoryAction],
   providers: [shellProvider],
 };
 ```

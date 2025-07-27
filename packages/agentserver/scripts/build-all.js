@@ -22,7 +22,7 @@ const __dirname = path.dirname(__filename);
 
 async function cleanContainerCache() {
   console.log('🧹 Cleaning container cache and removing old agent images...');
-  
+
   try {
     // Check if podman is available
     try {
@@ -36,7 +36,7 @@ async function cleanContainerCache() {
     const agentImages = [
       'eliza-agent-server:latest',
       'eliza-agent:latest',
-      'eliza-agent-working:latest'
+      'eliza-agent-working:latest',
     ];
 
     for (const image of agentImages) {
@@ -94,16 +94,38 @@ async function buildEverything() {
       console.log('💨 Skipping cache cleanup (use CLEAN_CACHE=true to force cleanup)\n');
     }
 
+    // Step 0.5: Always clean build artifacts to ensure fresh builds
+    console.log('🔄 Ensuring fresh build artifacts...');
+
+    // Remove existing backend build to force rebuild
+    const distBackendDir = path.join(__dirname, '..', 'dist');
+    if (existsSync(distBackendDir)) {
+      console.log('  🗑️  Removing old backend build...');
+      await $`rm -rf ${distBackendDir}`;
+    }
+
+    // Remove existing binaries to force rebuild
+    const distBinariesDir = path.join(__dirname, '..', 'dist-binaries');
+    if (existsSync(distBinariesDir)) {
+      console.log('  🗑️  Removing old binaries...');
+      await $`rm -rf ${distBinariesDir}`;
+    }
+
+    console.log('  ✅ Clean slate for fresh builds\n');
+
     // Step 1: Build the backend
     console.log('📦 Step 1/4: Building backend...');
     await $`bun ${path.join(__dirname, 'build.js')}`;
 
     // Verify backend build
-    const backendPath = path.join(__dirname, '..', 'dist-backend', 'server.js');
+    const backendPath = path.join(__dirname, '..', 'dist', 'server.js');
     if (!existsSync(backendPath)) {
       throw new Error('Backend build failed - server.js not found');
     }
-    console.log('✅ Backend built successfully\n');
+
+    // Get file info to confirm it's fresh
+    const backendStats = await $`ls -la ${backendPath}`.text();
+    console.log(`✅ Backend built successfully\n   ${backendStats.trim()}\n`);
 
     // Step 2: Build Linux binary
     console.log('🔨 Step 2/4: Building Linux binary...');
@@ -113,11 +135,11 @@ async function buildEverything() {
     await $`mkdir -p ${binariesDir}`;
 
     const backendFile = backendPath;
-    
+
     // Build both Linux architectures for containers
     const targets = [
       { target: 'bun-linux-x64', output: path.join(binariesDir, 'server-linux-amd64') },
-      { target: 'bun-linux-arm64', output: path.join(binariesDir, 'server-linux-arm64') }
+      { target: 'bun-linux-arm64', output: path.join(binariesDir, 'server-linux-arm64') },
     ];
 
     for (const { target, output } of targets) {
@@ -144,28 +166,69 @@ async function buildEverything() {
     // Step 3: Build Podman image
     console.log('🐳 Step 3/4: Building Podman image...');
 
-    // Verify podman is available
+    // Verify podman is available and ensure machine is running
     try {
       await $`podman --version`.quiet();
+
+      // Check if we can connect to Podman
+      try {
+        await $`podman system connection list`.quiet();
+      } catch (connectionError) {
+        console.log('⚠️ Cannot connect to Podman, attempting to start machine...');
+
+        // Try to start the default Podman machine
+        try {
+          // Check if machine exists
+          const machineList = await $`podman machine list --format json`.quiet();
+          const machines = JSON.parse(machineList.stdout);
+
+          if (machines && machines.length > 0) {
+            // Start the first available machine (usually 'podman-machine-default')
+            const machineName = machines[0].Name || 'podman-machine-default';
+            console.log(`🔧 Starting Podman machine: ${machineName}`);
+            await $`podman machine start ${machineName}`.quiet();
+            console.log('✅ Podman machine started successfully');
+
+            // Wait a moment for the machine to be fully ready
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          } else {
+            // No machine exists, create one
+            console.log('🔧 No Podman machine found, initializing a new one...');
+            await $`podman machine init`.quiet();
+            await $`podman machine start`.quiet();
+            console.log('✅ Podman machine initialized and started');
+
+            // Wait a bit longer for first-time init
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+          }
+        } catch (machineError) {
+          console.warn('⚠️ Could not automatically start Podman machine:', machineError.message);
+          console.log('Please run "podman machine start" manually and try again.');
+          throw new Error('Podman machine not running');
+        }
+      }
     } catch {
       throw new Error('Podman not found. Please install Podman.');
     }
 
     // Build the image for the native platform architecture
     const imageName = 'eliza-agent-server:latest';
-    
+
     // Build for native architecture to avoid Rosetta issues
     const arch = process.arch;
     const platform = arch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
-    
+
     // Allow disabling cache for production builds
     const noCache = process.env.NO_CACHE === 'true';
     const cacheFlag = noCache ? '--no-cache' : '';
     const cacheMsg = noCache ? ' (no cache)' : ' (with cache)';
-    
+
     console.log(`📦 Building container for platform: ${platform}${cacheMsg}`);
     const dockerfileDir = path.join(__dirname, '..');
-    await $`cd ${dockerfileDir} && podman build ${cacheFlag} --platform ${platform} -t ${imageName} -f Dockerfile .`;
+
+    // Add cache-busting build arg to ensure fresh COPY of binaries
+    const buildTimestamp = Date.now();
+    await $`cd ${dockerfileDir} && podman build ${cacheFlag} --build-arg CACHE_BUST=${buildTimestamp} --platform ${platform} -t ${imageName} -f Dockerfile .`;
 
     // Tag for Rust compatibility
     await $`podman tag ${imageName} eliza-agent:latest`;
@@ -175,12 +238,15 @@ async function buildEverything() {
     // Show final summary
     console.log('🎉 Build completed successfully!\n');
     console.log('📋 Artifacts created:');
-    console.log(`   - Backend: ${path.relative(process.cwd(), path.join(__dirname, '..', 'dist-backend', 'server.js'))}`);
-    console.log(`   - Binaries: ${path.relative(process.cwd(), path.join(__dirname, '..', 'dist-binaries'))}/server-linux-amd64, server-linux-arm64`);
+    console.log(
+      `   - Backend: ${path.relative(process.cwd(), path.join(__dirname, '..', 'dist', 'server.js'))}`
+    );
+    console.log(
+      `   - Binaries: ${path.relative(process.cwd(), path.join(__dirname, '..', 'dist-binaries'))}/server-linux-amd64, server-linux-arm64`
+    );
     console.log('   - Image:   eliza-agent-server:latest');
     console.log('\n🚀 The Rust container manager can now start the agent using:');
     console.log('   podman run -p 7777:7777 eliza-agent-server:latest');
-
   } catch (error) {
     console.error('\n❌ Build failed:', error.message);
     process.exit(1);

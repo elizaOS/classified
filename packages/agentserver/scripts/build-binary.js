@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 const TARGETS = {
   local: null, // Use local platform
   'linux-x64': 'bun-linux-x64',
-  'linux-arm64': 'bun-linux-arm64'
+  'linux-arm64': 'bun-linux-arm64',
 };
 
 async function buildBinary(target = 'local', outputDir = null) {
@@ -24,7 +24,7 @@ async function buildBinary(target = 'local', outputDir = null) {
   }
 
   // Ensure backend is built first
-  const backendFile = path.join(__dirname, '..', 'dist-backend', 'server.js');
+  const backendFile = path.join(__dirname, '..', 'dist', 'server.js');
   if (!existsSync(backendFile)) {
     console.log('📦 Building backend first...');
     await $`bun run build`;
@@ -49,7 +49,9 @@ async function buildBinary(target = 'local', outputDir = null) {
       console.log(`📦 Cross-compiling for ${target} (${bunTarget})...`);
       await $`bun build --compile --target=${bunTarget} ${backendFile} --outfile ${outputFile}`;
     } else {
-      throw new Error(`Unknown target: ${target}. Available targets: ${Object.keys(TARGETS).join(', ')}`);
+      throw new Error(
+        `Unknown target: ${target}. Available targets: ${Object.keys(TARGETS).join(', ')}`
+      );
     }
 
     // Verify the binary was created
@@ -64,7 +66,9 @@ async function buildBinary(target = 'local', outputDir = null) {
 
     // Get file info
     const stats = await $`ls -la ${outputFile}`.text();
-    const fileInfo = await $`file ${outputFile}`.text().catch(() => 'File type detection unavailable');
+    const fileInfo = await $`file ${outputFile}`
+      .text()
+      .catch(() => 'File type detection unavailable');
 
     console.log('✅ Binary created successfully:');
     console.log(`   File: ${outputFile}`);
@@ -72,7 +76,6 @@ async function buildBinary(target = 'local', outputDir = null) {
     console.log(`   Type: ${fileInfo.trim()}`);
 
     return outputFile;
-
   } catch (error) {
     console.error(`❌ Build failed for ${target}:`, error.message);
     throw error;
@@ -117,7 +120,7 @@ if (command === 'all') {
   console.log('Usage: bun build-binary.js [target]');
   console.log('');
   console.log('Available targets:');
-  Object.keys(TARGETS).forEach(target => {
+  Object.keys(TARGETS).forEach((target) => {
     console.log(`  ${target}`);
   });
   console.log('  all (build all targets)');

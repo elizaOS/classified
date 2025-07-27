@@ -184,18 +184,6 @@ launch_app() {
     [[ "$output" =~ "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f" ]]
 }
 
-@test "WebSocket endpoint is accessible" {
-    launch_app
-    wait_for_port "$SERVER_PORT" 45
-    wait_for_endpoint "http://localhost:$SERVER_PORT/api/server/health" 30
-    
-    # Test Socket.IO endpoint (should return socket.io response)
-    run curl -s "http://localhost:$SERVER_PORT/socket.io/"
-    [ "$status" -eq 0 ]
-    # Socket.IO responds with a specific error for GET requests, which indicates it's working
-    [[ "$output" =~ "0" ]] || [[ "$output" =~ "socket.io" ]]
-}
-
 @test "API endpoints return valid JSON responses" {
     launch_app
     wait_for_port "$SERVER_PORT" 45

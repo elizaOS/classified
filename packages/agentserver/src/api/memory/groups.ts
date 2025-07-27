@@ -1,7 +1,7 @@
 import type { IAgentRuntime, Room, UUID } from '@elizaos/core';
 import { validateUuid, logger, createUniqueUuid, ChannelType } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import { sendError, getRuntime } from '../shared';
 
 /**
@@ -23,8 +23,8 @@ export function createGroupMemoryRouter(
       return sendError(res, 400, 'BAD_REQUEST', 'agentIds must be a non-empty array');
     }
 
-    let results: Room[] = [];
-    let errors: {
+    const results: Room[] = [];
+    const errors: {
       agentId: UUID;
       code: string;
       message: string;

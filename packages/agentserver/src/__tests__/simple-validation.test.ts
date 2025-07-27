@@ -37,7 +37,7 @@ mock.module('@elizaos/core', () => ({
     AGENT_UPDATE: 'agent_update',
     CONNECTION: 'connection',
   },
-  VECTOR_DIMS: 1536,
+  VECTOR_DIMS: 768,
   DatabaseAdapter: class MockDatabaseAdapter {
     constructor() {}
     async init() {}

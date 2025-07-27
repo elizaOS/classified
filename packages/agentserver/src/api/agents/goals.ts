@@ -1,7 +1,7 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { validateUuid, logger } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import { sendError, sendSuccess } from '../shared/response-utils';
 
 interface Goal {
@@ -20,7 +20,7 @@ interface Goal {
  */
 export function createAgentGoalsRouter(
   agents: Map<UUID, IAgentRuntime>,
-  serverInstance: AgentServer
+  _serverInstance: AgentServer
 ): express.Router {
   const router = express.Router();
 
@@ -48,18 +48,18 @@ export function createAgentGoalsRouter(
           progress: 65,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          metadata: { priority: 'high' }
+          metadata: { priority: 'high' },
         },
         {
-          id: '2', 
+          id: '2',
           name: 'Improve conversation skills',
           description: 'Develop better natural language understanding and generation',
           status: 'active',
           progress: 40,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          metadata: { priority: 'medium' }
-        }
+          metadata: { priority: 'medium' },
+        },
       ];
 
       sendSuccess(res, { goals });
@@ -102,11 +102,11 @@ export function createAgentGoalsRouter(
         progress: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        metadata: metadata || {}
+        metadata: metadata || {},
       };
 
       logger.info(`[GOALS CREATE] Created goal "${name}" for agent ${runtime.character.name}`);
-      
+
       // In a full implementation, this would save to database
       sendSuccess(res, { goal: newGoal }, 201);
     } catch (error) {
@@ -146,7 +146,7 @@ export function createAgentGoalsRouter(
         progress: updates.progress || 0,
         createdAt: updates.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        metadata: updates.metadata || {}
+        metadata: updates.metadata || {},
       };
 
       logger.info(`[GOALS UPDATE] Updated goal ${goalId} for agent ${runtime.character.name}`);

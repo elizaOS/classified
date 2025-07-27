@@ -30,11 +30,14 @@ export class StagehandClient extends EventEmitter {
   private maxReconnectAttempts: number;
   private reconnectAttempts = 0;
   private isConnected = false;
-  private pendingRequests = new Map<string, {
-    resolve: (value: ResponseMessage) => void;
-    reject: (error: Error) => void;
-    timeout: NodeJS.Timeout;
-  }>();
+  private pendingRequests = new Map<
+    string,
+    {
+      resolve: (value: ResponseMessage) => void;
+      reject: (error: Error) => void;
+      timeout: NodeJS.Timeout;
+    }
+  >();
   private clientId: string | null = null;
 
   constructor(config: StagehandClientConfig = {}) {
@@ -60,7 +63,7 @@ export class StagehandClient extends EventEmitter {
         this.ws.on('message', (data) => {
           try {
             const message = JSON.parse(data.toString()) as ResponseMessage;
-            
+
             // Handle connection message
             if (message.type === 'connected') {
               this.clientId = (message as any).clientId;
@@ -72,7 +75,7 @@ export class StagehandClient extends EventEmitter {
             if (pending) {
               clearTimeout(pending.timeout);
               this.pendingRequests.delete(message.requestId);
-              
+
               if (message.success) {
                 pending.resolve(message);
               } else {
@@ -111,7 +114,9 @@ export class StagehandClient extends EventEmitter {
     }
 
     this.reconnectAttempts++;
-    logger.info(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+    logger.info(
+      `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`
+    );
 
     setTimeout(() => {
       this.connect().catch((error) => {
@@ -264,7 +269,7 @@ export class StagehandClient extends EventEmitter {
   disconnect(): void {
     if (this.ws) {
       // Clear pending requests
-      for (const [requestId, pending] of this.pendingRequests) {
+      for (const [_requestId, pending] of this.pendingRequests) {
         clearTimeout(pending.timeout);
         pending.reject(new Error('Client disconnected'));
       }
@@ -275,4 +280,4 @@ export class StagehandClient extends EventEmitter {
       this.isConnected = false;
     }
   }
-} 
+}

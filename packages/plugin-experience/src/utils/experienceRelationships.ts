@@ -1,5 +1,5 @@
-import { Experience, ExperienceType } from "../types";
-import { type UUID } from "@elizaos/core";
+import { Experience, ExperienceType } from '../types';
+import { type UUID } from '@elizaos/core';
 
 export interface ExperienceChain {
   rootExperience: string; // UUID of the root experience
@@ -11,7 +11,7 @@ export interface ExperienceChain {
 export interface ExperienceRelationship {
   fromId: string;
   toId: string;
-  type: "causes" | "contradicts" | "supports" | "supersedes" | "related";
+  type: 'causes' | 'contradicts' | 'supports' | 'supersedes' | 'related';
   strength: number; // 0-1
   metadata?: Record<string, any>;
 }
@@ -28,10 +28,7 @@ export class ExperienceRelationshipManager {
     this.relationships.get(fromId)!.push(relationship);
   }
 
-  findRelationships(
-    experienceId: string,
-    type?: string,
-  ): ExperienceRelationship[] {
+  findRelationships(experienceId: string, type?: string): ExperienceRelationship[] {
     const rels = this.relationships.get(experienceId) || [];
     if (type) {
       return rels.filter((r) => r.type === type);
@@ -58,10 +55,7 @@ export class ExperienceRelationshipManager {
           const next = sorted[j];
 
           // Check if next experience validates or contradicts the hypothesis
-          if (
-            next.relatedExperiences?.includes(current.id) ||
-            this.isRelated(current, next)
-          ) {
+          if (next.relatedExperiences?.includes(current.id) || this.isRelated(current, next)) {
             chain.push(next.id);
 
             // If we found a validation, create a chain
@@ -70,7 +64,7 @@ export class ExperienceRelationshipManager {
                 rootExperience: current.id,
                 chain,
                 strength: next.confidence,
-                validated: next.outcome === "positive",
+                validated: next.outcome === 'positive',
               });
               break;
             }
@@ -109,10 +103,7 @@ export class ExperienceRelationshipManager {
     return intersection.size / union.size;
   }
 
-  findContradictions(
-    experience: Experience,
-    allExperiences: Experience[],
-  ): Experience[] {
+  findContradictions(experience: Experience, allExperiences: Experience[]): Experience[] {
     const contradictions: Experience[] = [];
 
     for (const other of allExperiences) {
@@ -128,7 +119,7 @@ export class ExperienceRelationshipManager {
       }
 
       // Explicit contradiction relationship
-      const rels = this.findRelationships(experience.id, "contradicts");
+      const rels = this.findRelationships(experience.id, 'contradicts');
       if (rels.some((r) => r.toId === other.id)) {
         contradictions.push(other);
       }
@@ -137,10 +128,7 @@ export class ExperienceRelationshipManager {
     return contradictions;
   }
 
-  getExperienceImpact(
-    experienceId: string,
-    allExperiences: Experience[],
-  ): number {
+  getExperienceImpact(experienceId: string, allExperiences: Experience[]): number {
     let impact = 0;
 
     for (const exp of allExperiences) {
@@ -152,7 +140,7 @@ export class ExperienceRelationshipManager {
     // Add impact from relationships
     const relationships = this.findRelationships(experienceId);
     for (const rel of relationships) {
-      if (rel.type === "causes") {
+      if (rel.type === 'causes') {
         impact += rel.strength;
       }
     }

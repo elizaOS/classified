@@ -4,9 +4,5 @@
  */
 
 // E2E Test Suites
-export { TodoPluginSimpleE2ETestSuite as TodoPluginE2ETestSuite } from './__tests__/e2e/todo-plugin-simple';
+export { TodoPluginE2ETestSuite } from './__tests__/e2e/todo-plugin';
 export { ReminderDeliveryE2ETestSuite } from './__tests__/e2e/reminder-delivery';
-
-// Unit and Integration Test Suites
-// Note: These are vitest test files, not traditional test suites
-// They should be run via vitest command line tool

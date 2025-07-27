@@ -11,7 +11,7 @@ describe('Startup Flow Fix Validation', () => {
     cy.request({
       url: `${baseUrl}/api/server/health`,
       retryOnStatusCodeFailure: true,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       expect(response.status).to.eq(200);
       expect(response.body.success).to.be.true;
@@ -114,7 +114,9 @@ describe('Startup Scenarios After Fix', () => {
 
   it('should handle the case when server starts after page load', () => {
     // Simulate server not immediately available
-    cy.intercept('GET', `${baseUrl}/api/server/health`, { forceNetworkError: true }).as('healthCheck');
+    cy.intercept('GET', `${baseUrl}/api/server/health`, { forceNetworkError: true }).as(
+      'healthCheck'
+    );
 
     cy.visit('/');
 
@@ -122,7 +124,9 @@ describe('Startup Scenarios After Fix', () => {
     cy.get('[data-testid="startup-progress"]').should('be.visible');
 
     // Remove intercept to allow server detection
-    cy.intercept('GET', `${baseUrl}/api/server/health`, { fixture: 'server-health.json' }).as('healthCheckSuccess');
+    cy.intercept('GET', `${baseUrl}/api/server/health`, { fixture: 'server-health.json' }).as(
+      'healthCheckSuccess'
+    );
 
     // Trigger retry or refresh
     cy.get('[data-testid="retry-button"]', { timeout: 10000 }).click();
@@ -137,12 +141,14 @@ describe('Startup Scenarios After Fix', () => {
     cy.visit('/');
 
     // Should show properly formatted stage names
-    cy.get('.progress-stage').should('be.visible').and(($stage) => {
-      const text = $stage.text();
-      // Should be uppercase and properly formatted
-      expect(text).to.match(/^[A-Z\s]+$/);
-      expect(text).not.to.contain('_');
-    });
+    cy.get('.progress-stage')
+      .should('be.visible')
+      .and(($stage) => {
+        const text = $stage.text();
+        // Should be uppercase and properly formatted
+        expect(text).to.match(/^[A-Z\s]+$/);
+        expect(text).not.to.contain('_');
+      });
 
     cy.log('✅ Stage names are properly formatted');
   });

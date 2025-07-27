@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import typescript from '@typescript-eslint/eslint-plugin';
 import typescriptParser from '@typescript-eslint/parser';
+import prettierConfig from 'eslint-config-prettier';
 
 /**
  * Base ESLint configuration for ElizaOS packages
@@ -80,31 +81,27 @@ export const baseConfig = [
       'no-var': 'error',
       'prefer-const': 'warn',
       'prefer-arrow-callback': 'error',
-      'arrow-spacing': 'error',
       'object-shorthand': 'error',
       'prefer-template': 'error',
-      'template-curly-spacing': 'error',
-      'no-multiple-empty-lines': ['error', { max: 2, maxEOF: 1 }],
-      'eol-last': 'error',
-      'comma-dangle': ['error', 'only-multiline'],
-      semi: ['error', 'always'],
-      quotes: ['error', 'single', { avoidEscape: true }],
-      indent: ['error', 2, { SwitchCase: 1 }],
-      'no-trailing-spaces': 'error',
-      'keyword-spacing': 'error',
-      'space-before-blocks': 'error',
-      'object-curly-spacing': ['error', 'always'],
-      'array-bracket-spacing': ['error', 'never'],
-      'computed-property-spacing': ['error', 'never'],
-      'space-in-parens': ['error', 'never'],
-      'space-before-function-paren': [
-        'error',
-        {
-          anonymous: 'always',
-          named: 'never',
-          asyncArrow: 'always',
-        },
-      ],
+
+      // Remove all formatting-related rules that conflict with Prettier
+      // These are now handled by Prettier:
+      // - arrow-spacing
+      // - template-curly-spacing
+      // - no-multiple-empty-lines
+      // - eol-last
+      // - comma-dangle
+      // - semi
+      // - quotes
+      // - indent
+      // - no-trailing-spaces
+      // - keyword-spacing
+      // - space-before-blocks
+      // - object-curly-spacing
+      // - array-bracket-spacing
+      // - computed-property-spacing
+      // - space-in-parens
+      // - space-before-function-paren
 
       // Best practices
       eqeqeq: ['error', 'always'],
@@ -137,6 +134,8 @@ export const baseConfig = [
       'no-undef': 'off', // TypeScript handles this
     },
   },
+  // Apply prettier config last to override any formatting rules
+  prettierConfig,
 ];
 
 export const testOverrides = {

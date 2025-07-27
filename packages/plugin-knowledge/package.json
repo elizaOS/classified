@@ -115,7 +115,7 @@
         "type": "number",
         "description": "Custom embedding dimension size.",
         "required": false,
-        "default": 1536,
+        "default": 768,
         "sensitive": false
       },
       "OPENAI_EMBEDDING_DIMENSIONS": {

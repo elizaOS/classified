@@ -10,10 +10,10 @@ export const autonomyRoutes: Route[] = [
     handler: async (req: any, res: any, runtime: any) => {
       try {
         const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
-        
+
         if (!autonomyService) {
           return res.status(503).json({
-            error: 'Autonomy service not available'
+            error: 'Autonomy service not available',
           });
         }
 
@@ -28,14 +28,14 @@ export const autonomyRoutes: Route[] = [
             intervalSeconds: Math.round(status.interval / 1000),
             autonomousRoomId: status.autonomousRoomId,
             agentId: runtime.agentId,
-            characterName: runtime.character?.name || 'Agent'
-          }
+            characterName: runtime.character?.name || 'Agent',
+          },
         });
       } catch (error) {
         console.error('[AutonomyAPI] Status error:', error);
         return res.status(500).json({
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     },
@@ -47,11 +47,11 @@ export const autonomyRoutes: Route[] = [
     handler: async (req: any, res: any, runtime: any) => {
       try {
         const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
-        
+
         if (!autonomyService) {
           return res.status(503).json({
             success: false,
-            error: 'Autonomy service not available'
+            error: 'Autonomy service not available',
           });
         }
 
@@ -64,14 +64,14 @@ export const autonomyRoutes: Route[] = [
           data: {
             enabled: status.enabled,
             running: status.running,
-            interval: status.interval
-          }
+            interval: status.interval,
+          },
         });
       } catch (error) {
         console.error('[AutonomyAPI] Enable error:', error);
         return res.status(500).json({
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     },
@@ -83,11 +83,11 @@ export const autonomyRoutes: Route[] = [
     handler: async (req: any, res: any, runtime: any) => {
       try {
         const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
-        
+
         if (!autonomyService) {
           return res.status(503).json({
             success: false,
-            error: 'Autonomy service not available'
+            error: 'Autonomy service not available',
           });
         }
 
@@ -100,14 +100,14 @@ export const autonomyRoutes: Route[] = [
           data: {
             enabled: status.enabled,
             running: status.running,
-            interval: status.interval
-          }
+            interval: status.interval,
+          },
         });
       } catch (error) {
         console.error('[AutonomyAPI] Disable error:', error);
         return res.status(500).json({
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     },
@@ -119,16 +119,16 @@ export const autonomyRoutes: Route[] = [
     handler: async (req: any, res: any, runtime: any) => {
       try {
         const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
-        
+
         if (!autonomyService) {
           return res.status(503).json({
             success: false,
-            error: 'Autonomy service not available'
+            error: 'Autonomy service not available',
           });
         }
 
         const currentStatus = (autonomyService as any).getStatus();
-        
+
         if (currentStatus.enabled) {
           await (autonomyService as any).disableAutonomy();
         } else {
@@ -143,14 +143,14 @@ export const autonomyRoutes: Route[] = [
           data: {
             enabled: newStatus.enabled,
             running: newStatus.running,
-            interval: newStatus.interval
-          }
+            interval: newStatus.interval,
+          },
         });
       } catch (error) {
         console.error('[AutonomyAPI] Toggle error:', error);
         return res.status(500).json({
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     },
@@ -162,20 +162,20 @@ export const autonomyRoutes: Route[] = [
     handler: async (req: any, res: any, runtime: any) => {
       try {
         const autonomyService = runtime.getService('AUTONOMY') || runtime.getService('autonomy');
-        
+
         if (!autonomyService) {
           return res.status(503).json({
             success: false,
-            error: 'Autonomy service not available'
+            error: 'Autonomy service not available',
           });
         }
 
         const { interval } = req.body;
-        
+
         if (typeof interval !== 'number' || interval < 5000 || interval > 600000) {
           return res.status(400).json({
             success: false,
-            error: 'Interval must be a number between 5000ms (5s) and 600000ms (10m)'
+            error: 'Interval must be a number between 5000ms (5s) and 600000ms (10m)',
           });
         }
 
@@ -187,16 +187,16 @@ export const autonomyRoutes: Route[] = [
           message: 'Interval updated',
           data: {
             interval: status.interval,
-            intervalSeconds: Math.round(status.interval / 1000)
-          }
+            intervalSeconds: Math.round(status.interval / 1000),
+          },
         });
       } catch (error) {
         console.error('[AutonomyAPI] Interval error:', error);
         return res.status(500).json({
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     },
-  }
+  },
 ];

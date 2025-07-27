@@ -8,7 +8,7 @@ declare module './sharp-wrapper' {
     available: boolean;
     isEmbedded?: boolean;
   }
-  
+
   const sharpWrapper: SharpWrapper & typeof Sharp;
   export = sharpWrapper;
 }

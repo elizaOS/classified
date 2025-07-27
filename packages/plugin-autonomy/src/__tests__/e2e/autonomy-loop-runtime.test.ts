@@ -48,7 +48,7 @@ describe('Autonomy Loop Runtime Tests', () => {
         timestamp: Date.now(),
       });
       console.log(`✅ Autonomous loop execution ${messageCount} triggered`);
-      
+
       // Call the original method to ensure normal operation
       return originalExecute.call(this);
     };
@@ -72,7 +72,7 @@ describe('Autonomy Loop Runtime Tests', () => {
 
       // Set a short interval for testing (2 seconds)
       service.setLoopInterval(2000);
-      
+
       // Start the loop
       await service.startLoop();
       expect(service.isLoopRunning()).toBe(true);
@@ -109,7 +109,7 @@ describe('Autonomy Loop Runtime Tests', () => {
       // Start the loop
       service.setLoopInterval(1000); // 1 second for faster test
       await service.startLoop();
-      
+
       // Wait for first message
       await new Promise(resolve => setTimeout(resolve, 1500));
       const countAfterStart = messageCount;
@@ -119,10 +119,10 @@ describe('Autonomy Loop Runtime Tests', () => {
       // Stop the loop
       await service.stopLoop();
       const countAtStop = messageCount;
-      
+
       // Wait another 2 seconds
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       // Verify no new messages were processed
       expect(messageCount).toBe(countAtStop);
       console.log('✅ No messages processed after stopping loop');
@@ -217,17 +217,17 @@ describe('Autonomy Loop Runtime Tests', () => {
       await service.startLoop();
       service.setLoopInterval(1500);
       expect(runtime.getSetting('AUTONOMY_ENABLED')).toBe(true);
-      
+
       // Simulate service restart by creating new instance
       const newService = new AutonomousLoopService(runtime);
-      
+
       // Check that AUTONOMY_ENABLED setting exists
       const enabled = runtime.getSetting('AUTONOMY_ENABLED');
       expect(enabled).toBe(true);
-      
+
       // Initialize should pick up the enabled state
       await newService.initialize();
-      
+
       // Check state was restored (enabled state persists, interval doesn't)
       expect(newService.getStatus().enabled).toBe(true);
       // Interval resets to default since it's not persisted
@@ -240,4 +240,4 @@ describe('Autonomy Loop Runtime Tests', () => {
     });
   });
 });
-*/ 
+*/

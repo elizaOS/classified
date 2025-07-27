@@ -39,7 +39,7 @@ export function createMockRuntime(overrides: Partial<IAgentRuntime> = {}): IAgen
     deleteGoal: mock(() => Promise.resolve()),
     ...overrides,
   } as any; // Use 'as any' to bypass strict type checking for test mocks
-  
+
   return mockRuntime as IAgentRuntime;
 }
 
@@ -64,4 +64,4 @@ export function createMockState(overrides: Partial<State> = {}): State {
     text: '',
     ...overrides,
   };
-} 
+}

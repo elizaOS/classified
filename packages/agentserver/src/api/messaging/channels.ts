@@ -9,11 +9,11 @@ import {
 } from '@elizaos/core';
 import express from 'express';
 import internalMessageBus from '../../bus';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import type { MessageServiceStructure as MessageService } from '../../types';
 import { createUploadRateLimit, createFileSystemRateLimit } from '../shared/middleware';
 import { MAX_FILE_SIZE, ALLOWED_MEDIA_MIME_TYPES } from '../shared/constants';
-import { cleanupUploadedFile } from '../shared/file-utils';
+
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
@@ -144,7 +144,7 @@ export function createChannelsRouter(
 
             const channelData = {
               id: channelIdParam as UUID, // Use the specific channel ID from the URL
-              messageServerId: server_id as UUID,
+              serverId: server_id as UUID,
               name: isDmChannel
                 ? `DM ${channelIdParam.substring(0, 8)}`
                 : `Chat ${channelIdParam.substring(0, 8)}`,
@@ -372,7 +372,7 @@ export function createChannelsRouter(
     try {
       const channel = await serverInstance.createChannel({
         id,
-        messageServerId: serverId,
+        serverId,
         name,
         type,
         source_type,
@@ -475,7 +475,7 @@ export function createChannelsRouter(
 
     try {
       const channelData = {
-        messageServerId: serverIdValue as UUID,
+        serverId: serverIdValue as UUID,
         name,
         type: type as ChannelType,
         metadata: {
@@ -718,8 +718,8 @@ export function createChannelsRouter(
 
         // Then emit message_deleted event to internal bus for agent memory cleanup
         const deletedMessagePayload = {
-          messageId: messageId,
-          channelId: channelId,
+          messageId,
+          channelId,
         };
 
         internalMessageBus.emit('message_deleted', deletedMessagePayload);
@@ -730,8 +730,8 @@ export function createChannelsRouter(
         // Also, emit an event via Websocket to inform clients about the deletion
         if (serverInstance.websocket) {
           serverInstance.websocket.to(channelId).emit('messageDeleted', {
-            messageId: messageId,
-            channelId: channelId,
+            messageId,
+            channelId,
           });
         }
         res.status(204).send();
@@ -759,7 +759,7 @@ export function createChannelsRouter(
 
         // Emit to internal bus for agent memory cleanup
         const channelClearedPayload = {
-          channelId: channelId,
+          channelId,
         };
         internalMessageBus.emit('channel_cleared', channelClearedPayload);
         logger.info(
@@ -769,7 +769,7 @@ export function createChannelsRouter(
         // Also, emit an event via Websocket to inform clients about the channel clear
         if (serverInstance.websocket) {
           serverInstance.websocket.to(channelId).emit('channelCleared', {
-            channelId: channelId,
+            channelId,
           });
         }
         res.status(204).send();
@@ -798,7 +798,7 @@ export function createChannelsRouter(
         // Emit an event via Websocket to inform clients about the channel update
         if (serverInstance.websocket) {
           serverInstance.websocket.to(channelId).emit('channelUpdated', {
-            channelId: channelId,
+            channelId,
             updates: updatedChannel,
           });
         }
@@ -831,7 +831,7 @@ export function createChannelsRouter(
 
         // Emit to internal bus for agent memory cleanup (same as clear messages)
         const channelClearedPayload = {
-          channelId: channelId,
+          channelId,
         };
         internalMessageBus.emit('channel_cleared', channelClearedPayload);
         logger.info(
@@ -841,7 +841,7 @@ export function createChannelsRouter(
         // Emit an event via Websocket to inform clients about the channel deletion
         if (serverInstance.websocket) {
           serverInstance.websocket.to(channelId).emit('channelDeleted', {
-            channelId: channelId,
+            channelId,
           });
         }
         res.status(204).send();

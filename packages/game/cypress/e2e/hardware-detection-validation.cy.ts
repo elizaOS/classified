@@ -2,7 +2,6 @@
 
 describe('Hardware Detection and Model Selection', () => {
   let hardwareCapabilities: any;
-  let providerChoice: any;
 
   before(() => {
     // Clear any existing Ollama setup
@@ -43,8 +42,14 @@ describe('Hardware Detection and Model Selection', () => {
 
       // Verify model recommendations are valid
       const validModels = [
-        'gemma3:1b', 'gemma3:4b', 'gemma3:12b', 'gemma3:27b',
-        'deepseek-r1:1.5b', 'deepseek-r1:7b', 'deepseek-r1:14b', 'deepseek-r1:32b'
+        'gemma3:1b',
+        'gemma3:4b',
+        'gemma3:12b',
+        'gemma3:27b',
+        'deepseek-r1:1.5b',
+        'deepseek-r1:7b',
+        'deepseek-r1:14b',
+        'deepseek-r1:32b',
       ];
       expect(validModels).to.include(result.recommendedSmallModel);
       expect(validModels).to.include(result.recommendedLargeModel);
@@ -87,8 +92,6 @@ describe('Hardware Detection and Model Selection', () => {
 
   it('should integrate with ProviderSelectionService correctly', () => {
     cy.task('test-provider-selection').then((result: any) => {
-      providerChoice = result;
-
       // Verify provider selection works
       expect(result).to.have.property('provider');
       expect(result).to.have.property('textProvider');
@@ -103,7 +106,7 @@ describe('Hardware Detection and Model Selection', () => {
         // Should use one of the hardware-recommended models
         const validModels = [
           hardwareCapabilities.recommendedSmallModel,
-          hardwareCapabilities.recommendedLargeModel
+          hardwareCapabilities.recommendedLargeModel,
         ];
         expect(validModels).to.include(result.ollamaModel);
       }
@@ -134,7 +137,7 @@ describe('Hardware Detection and Model Selection', () => {
       // Verify the selected model matches hardware recommendations
       const validModels = [
         result.hardwareCapabilities.recommendedSmallModel,
-        result.hardwareCapabilities.recommendedLargeModel
+        result.hardwareCapabilities.recommendedLargeModel,
       ];
       expect(validModels).to.include(result.selectedModel);
 
@@ -151,9 +154,10 @@ describe('Hardware Detection and Model Selection', () => {
       expect(models.length).to.be.greaterThan(0);
 
       // Should include at least one of the recommended models
-      const hasRecommendedModel = models.some(model =>
-        model === hardwareCapabilities.recommendedSmallModel ||
-        model === hardwareCapabilities.recommendedLargeModel
+      const hasRecommendedModel = models.some(
+        (model) =>
+          model === hardwareCapabilities.recommendedSmallModel ||
+          model === hardwareCapabilities.recommendedLargeModel
       );
       expect(hasRecommendedModel).to.be.true;
 

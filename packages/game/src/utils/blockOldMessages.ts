@@ -4,15 +4,15 @@ export function blockOldMessages() {
 
   // Intercept WebSocket send method
   const originalSend = WebSocket.prototype.send;
-  
-  WebSocket.prototype.send = function(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+
+  WebSocket.prototype.send = function (data: string | ArrayBufferLike | Blob | ArrayBufferView) {
     // Try to parse and check the message
     try {
       let message: any;
       if (typeof data === 'string') {
         message = JSON.parse(data);
       }
-      
+
       // Block specific message types or content
       if (message && message.type === 'send_message') {
         const messageText = message.message?.text || '';
@@ -22,13 +22,13 @@ export function blockOldMessages() {
           return; // Don't send it
         }
       }
-    } catch (e) {
+    } catch (_e) {
       // Not JSON or couldn't parse, let it through
     }
-    
+
     // Allow other messages
     return originalSend.apply(this, [data]);
   };
-  
+
   console.log('✅ WebSocket message blocker installed');
 }

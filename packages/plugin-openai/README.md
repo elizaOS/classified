@@ -98,10 +98,7 @@ await runtime.useModel(ModelType.IMAGE, {
 ### Audio Transcription
 
 ```js
-const transcription = await runtime.useModel(
-  ModelType.TRANSCRIPTION,
-  audioBuffer
-);
+const transcription = await runtime.useModel(ModelType.TRANSCRIPTION, audioBuffer);
 ```
 
 ### Image Analysis
@@ -116,8 +113,5 @@ const { title, description } = await runtime.useModel(
 ### Text Embeddings
 
 ```js
-const embedding = await runtime.useModel(
-  ModelType.TEXT_EMBEDDING,
-  'text to embed'
-);
+const embedding = await runtime.useModel(ModelType.TEXT_EMBEDDING, 'text to embed');
 ```

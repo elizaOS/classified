@@ -41,7 +41,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'I want to create a new ElizaOS plugin called "weather-plugin" that fetches weather data from OpenWeatherMap API',
             type: 'text',
@@ -72,7 +72,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
         if (dbReady) {
           try {
             memories1 = await runtime.getMemories({
-              roomId: roomId,
+              roomId,
               count: 10,
               unique: true,
               tableName: 'messages',
@@ -105,7 +105,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'The plugin should have actions to get current weather and forecast. It needs a provider to show weather context. Include proper error handling and caching.',
             type: 'text',
@@ -121,7 +121,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'Use the OpenWeatherMap API for weather data',
             type: 'text',
@@ -156,7 +156,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'Create an ElizaOS agent called "support-bot" that helps users with technical support',
             type: 'text',
@@ -173,7 +173,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'The agent should be friendly, helpful, and knowledgeable about software issues. It should use the GitHub API to search for issues.',
             type: 'text',
@@ -208,7 +208,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'Create a plugin that uses OpenAI API for text generation',
             type: 'text',
@@ -224,7 +224,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'It should generate creative stories based on prompts',
             type: 'text',
@@ -242,7 +242,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'My OpenAI API key is sk-test12345',
             type: 'text',
@@ -277,7 +277,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'Create a simple calculator plugin with add and subtract actions',
             type: 'text',
@@ -293,7 +293,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'Just basic math operations with proper validation',
             type: 'text',
@@ -328,7 +328,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'Create a workflow that processes customer orders',
             type: 'text',
@@ -344,7 +344,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'The workflow should validate order, check inventory, process payment, and send confirmation email',
             type: 'text',
@@ -379,7 +379,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'Create a new plugin for data analysis',
             type: 'text',
@@ -395,7 +395,7 @@ export class CodeGenerationE2ETestSuite implements TestSuite {
           id: uuidv4() as UUID,
           entityId: userId,
           agentId: runtime.agentId,
-          roomId: roomId,
+          roomId,
           content: {
             text: 'Actually, cancel this project',
             type: 'text',

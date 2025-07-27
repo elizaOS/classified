@@ -29,7 +29,7 @@ export class ElizaService {
       id: 'default',
       name: 'Default Channel',
       type: 'DM',
-      serverId: '00000000-0000-0000-0000-000000000000'
+      serverId: '00000000-0000-0000-0000-000000000000',
     };
   }
 
@@ -44,7 +44,7 @@ export class ElizaService {
       authorId: 'user',
       authorName: 'User',
       timestamp: new Date(),
-      metadata: {}
+      metadata: {},
     };
   }
 }

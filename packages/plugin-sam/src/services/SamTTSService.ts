@@ -1,5 +1,6 @@
-import { Service, type IAgentRuntime } from '@elizaos/core';
+import { Service, ServiceType, type IAgentRuntime } from '@elizaos/core';
 import SamJs from 'sam-js';
+import { SAMServiceType } from '../types';
 
 export interface SamTTSOptions {
   speed?: number; // 0-255, default 72
@@ -15,7 +16,7 @@ export interface SamTTSOptions {
  * Generates 8-bit audio buffers that can be streamed through the hardware bridge.
  */
 export class SamTTSService extends Service {
-  public static serviceType = 'samTTS';
+  public static serviceType = SAMServiceType.SAM_TTS;
 
   private defaultOptions: SamTTSOptions;
 

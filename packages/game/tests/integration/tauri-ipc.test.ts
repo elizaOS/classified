@@ -131,7 +131,7 @@ describe('Tauri IPC Integration Tests', () => {
 
     const capabilities = ['browser', 'shell', 'screen', 'camera', 'microphone', 'speakers'];
 
-    capabilities.forEach(capability => {
+    capabilities.forEach((capability) => {
       it(`should get ${capability} capability status`, async () => {
         if (!serverReady) {
           console.log(`Skipping ${capability} status test - server not ready`);
@@ -175,7 +175,7 @@ describe('Tauri IPC Integration Tests', () => {
       { name: 'knowledge_files', command: 'fetch_knowledge_files' },
       { name: 'plugin_configs', command: 'fetch_plugin_configs' },
       { name: 'agent_settings', command: 'get_agent_settings' },
-      { name: 'vision_settings', command: 'get_vision_settings' }
+      { name: 'vision_settings', command: 'get_vision_settings' },
     ];
 
     dataEndpoints.forEach(({ name, command }) => {
@@ -188,7 +188,10 @@ describe('Tauri IPC Integration Tests', () => {
         try {
           const data = await invoke(command);
           expect(data).toBeDefined();
-          console.log(`${name} data:`, typeof data === 'object' ? `${JSON.stringify(data).substring(0, 100)}...` : data);
+          console.log(
+            `${name} data:`,
+            typeof data === 'object' ? `${JSON.stringify(data).substring(0, 100)}...` : data
+          );
         } catch (error) {
           console.error(`Failed to fetch ${name}:`, error);
           // Don't fail tests for data that might not exist yet
@@ -206,11 +209,16 @@ describe('Tauri IPC Integration Tests', () => {
       try {
         const params = {
           count: 10,
-          roomId: 'test-room'
+          roomId: 'test-room',
         };
         const memories = await invoke('fetch_memories', params);
         expect(memories).toBeDefined();
-        console.log('Memories data:', typeof memories === 'object' ? `${JSON.stringify(memories).substring(0, 100)}...` : memories);
+        console.log(
+          'Memories data:',
+          typeof memories === 'object'
+            ? `${JSON.stringify(memories).substring(0, 100)}...`
+            : memories
+        );
       } catch (error) {
         console.error('Failed to fetch memories:', error);
         expect(error).toBeDefined();

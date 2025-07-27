@@ -7,14 +7,17 @@
 import { tauriIPCService } from './TauriIPCService';
 
 // API configuration - use environment variable or default
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || `http://localhost:${import.meta.env.VITE_BACKEND_PORT || '7777'}`;
+const API_BASE_URL =
+  import.meta.env.VITE_BACKEND_URL ||
+  `http://localhost:${import.meta.env.VITE_BACKEND_PORT || '7777'}`;
 
 class APIServiceClass {
   private get isTauri(): boolean {
-    return typeof window !== 'undefined' &&
-           ((window as any).__TAURI_INTERNALS__ || (window as any).isTauri || (window as any).__TAURI__);
+    return (
+      typeof window !== 'undefined' &&
+      ((window as any).__TAURI_INTERNALS__ || (window as any).isTauri || (window as any).__TAURI__)
+    );
   }
-
 
   private async httpFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
     const url = `${API_BASE_URL}${endpoint}`;

@@ -1,4 +1,4 @@
-import type { Plugin } from '@elizaos/core';
+import type { Plugin, IAgentRuntime } from '@elizaos/core';
 
 import { routes } from './apis';
 
@@ -14,7 +14,6 @@ import { todosProvider } from './providers/todos';
 
 // Import services
 import { TodoReminderService } from './services/reminderService';
-import { TodoIntegrationBridge } from './services/integrationBridge';
 import { TodoDataServiceWrapper } from './services/todoDataService';
 
 // Import schema
@@ -44,11 +43,11 @@ export const TodoPlugin: Plugin = {
     updateTodoAction,
     cancelTodoAction,
   ],
-  services: [TodoDataServiceWrapper, TodoReminderService, TodoIntegrationBridge],
+  services: [TodoDataServiceWrapper, TodoReminderService],
   routes,
   schema: todoSchemaExport,
   tests: [TodoPluginE2ETestSuite, ...e2eTestSuites],
-  init: async (_config: Record<string, string>, _runtime: any) => {
+  init: async (_config: Record<string, string>, _runtime: IAgentRuntime) => {
     // Plugin initialization - services are automatically started by the runtime
   },
 };
@@ -57,18 +56,15 @@ export default TodoPlugin;
 
 // Export discoverable services for external use
 export { TodoReminderService } from './services/reminderService';
-export { TodoIntegrationBridge } from './services/integrationBridge';
 
 // Export internal managers for advanced usage
 export { NotificationManager } from './services/notificationManager';
-export { CacheManager } from './services/cacheManager';
 
 // Export data service utilities
 export { createTodoDataService } from './services/todoDataService';
 export type { TodoData } from './services/todoDataService';
 
 // Export types
-export type { CacheEntry, CacheStats } from './services/cacheManager';
 export type { NotificationData, NotificationPreferences } from './services/notificationManager';
 
 // Export schema

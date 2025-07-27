@@ -78,7 +78,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
   protected readonly baseDelay: number = 1000;
   protected readonly maxDelay: number = 10000;
   protected readonly jitterMax: number = 1000;
-  protected embeddingDimension: EmbeddingDimensionColumn = DIMENSION_MAP[384];
+  protected embeddingDimension: EmbeddingDimensionColumn = DIMENSION_MAP[768];
 
   protected abstract withDatabase<T>(operation: () => Promise<T>): Promise<T>;
   public abstract init(): Promise<void>;
@@ -257,7 +257,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
           agentId: agent.id,
           agentName: agent.name,
           existingCount: existing.length,
-          conditions: conditions.length
+          conditions: conditions.length,
         });
 
         if (existing.length > 0) {
@@ -270,7 +270,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
 
         logger.debug('[createAgent] Attempting to insert agent:', {
           agentId: agent.id,
-          agentName: agent.name
+          agentName: agent.name,
         });
 
         await this.db.transaction(async (tx) => {
@@ -283,7 +283,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
 
         logger.info('[createAgent] Agent created successfully:', {
           agentId: agent.id,
-          agentName: agent.name
+          agentName: agent.name,
         });
         return true;
       } catch (error) {
@@ -551,10 +551,10 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
       // Group components by entity
       const entities: Record<UUID, Entity> = {};
       const entityComponents: Record<UUID, Component[]> = {};
-      
+
       for (const row of result) {
         const entityId = row.entity_id as UUID;
-        
+
         if (!entities[entityId]) {
           entities[entityId] = {
             id: entityId,
@@ -564,7 +564,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
           };
           entityComponents[entityId] = [];
         }
-        
+
         // If component data exists in this row
         if (row.component_id) {
           const component: Component = {
@@ -581,7 +581,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
           entityComponents[entityId].push(component);
         }
       }
-      
+
       // Attach components to entities
       for (const entityId of Object.keys(entities)) {
         entities[entityId].components = entityComponents[entityId];
@@ -660,7 +660,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
         return await this.db.transaction(async (tx) => {
           // Map entities to include only the fields that should be inserted
           // Let the database handle defaults for createdAt and updatedAt
-          const entitiesToInsert = entities.map(entity => ({
+          const entitiesToInsert = entities.map((entity) => ({
             id: entity.id,
             agentId: entity.agentId || this.agentId,
             createdAt: new Date(),
@@ -668,10 +668,13 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
             names: Array.isArray(entity.names) ? entity.names : [entity.names].filter(Boolean),
             metadata: entity.metadata || {},
           }));
-          
+
           // DEBUG: Log what we're about to insert
-          logger.debug('DEBUG: About to insert entities:', JSON.stringify(entitiesToInsert, null, 2));
-          
+          logger.debug(
+            'DEBUG: About to insert entities:',
+            JSON.stringify(entitiesToInsert, null, 2)
+          );
+
           try {
             await tx.insert(entityTable).values(entitiesToInsert);
           } catch (insertError: any) {
@@ -681,7 +684,7 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
               detail: insertError.detail,
               hint: insertError.hint,
               where: insertError.where,
-              entities: entitiesToInsert
+              entities: entitiesToInsert,
             });
             throw insertError;
           }
@@ -2128,14 +2131,14 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
           roomId: roomId,
           agentId: this.agentId,
         }));
-        
+
         // Debug: Log the values being inserted
         logger.debug('addParticipantsRoom - values to insert:', JSON.stringify(values, null, 2));
-        
+
         // Log the SQL query that will be executed
         const query = this.db.insert(participantTable).values(values).onConflictDoNothing();
         logger.debug('addParticipantsRoom - SQL query:', query.toSQL());
-        
+
         await query.execute();
         logger.debug(entityIds.length, 'Entities linked successfully');
         return true;
@@ -2435,11 +2438,12 @@ export abstract class BaseDrizzleAdapter extends DatabaseAdapter<any> {
         agentId: (relationship.agentId || relationship.agent_id) as UUID,
         tags: relationship.tags ?? [],
         metadata: (relationship.metadata as { [key: string]: unknown }) ?? {},
-        createdAt: (relationship.createdAt || relationship.created_at)
-          ? (relationship.createdAt || relationship.created_at) instanceof Date
-            ? (relationship.createdAt || relationship.created_at).toISOString()
-            : new Date(relationship.createdAt || relationship.created_at).toISOString()
-          : new Date().toISOString(),
+        createdAt:
+          relationship.createdAt || relationship.created_at
+            ? (relationship.createdAt || relationship.created_at) instanceof Date
+              ? (relationship.createdAt || relationship.created_at).toISOString()
+              : new Date(relationship.createdAt || relationship.created_at).toISOString()
+            : new Date().toISOString(),
       }));
     });
   }

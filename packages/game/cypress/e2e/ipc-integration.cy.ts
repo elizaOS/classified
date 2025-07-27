@@ -47,7 +47,7 @@ describe('Tauri IPC Integration Tests', () => {
   });
 
   describe('Capability IPC Commands', () => {
-    ['shell', 'browser'].forEach(capability => {
+    ['shell', 'browser'].forEach((capability) => {
       it(`should get ${capability} capability status via IPC`, () => {
         cy.window().then(async (win) => {
           const { invoke } = (win as any).__TAURI__.core;
@@ -75,7 +75,7 @@ describe('Tauri IPC Integration Tests', () => {
 
         const result = await invoke('update_agent_setting', {
           key: 'TEST_SETTING',
-          value: 'test_value'
+          value: 'test_value',
         });
         expect(result).to.be.an('object');
       });
@@ -165,14 +165,14 @@ describe('Tauri IPC Integration Tests', () => {
         const promises = [
           invoke('get_autonomy_status'),
           invoke('get_capability_status', { capability: 'shell' }),
-          invoke('get_vision_settings')
+          invoke('get_vision_settings'),
         ];
 
         const results = await Promise.all(promises);
 
         // All should complete (successfully or with error)
         expect(results).to.have.length(3);
-        results.forEach(result => {
+        results.forEach((result) => {
           expect(result).to.exist;
         });
       });

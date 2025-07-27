@@ -12,7 +12,8 @@ import {
   type State,
   formatMessages,
 } from '@elizaos/core';
-import { createTodoDataService, type TodoData } from '../services/todoDataService';
+import type { Action } from '@elizaos/core';
+import type { TodoDataServiceWrapper, TodoData } from '../services/todoDataService';
 
 // Interface for task completion properties
 interface TaskCompletion {
@@ -103,84 +104,41 @@ async function extractTaskCompletion(
  */
 export const completeTodoAction: Action = {
   name: 'COMPLETE_TODO',
-  similes: ['MARK_COMPLETE', 'FINISH_TASK', 'DONE', 'TASK_DONE', 'TASK_COMPLETED'],
+  similes: ['FINISH_TODO', 'DONE_TODO', 'MARK_TODO_DONE', 'TODO_COMPLETE'],
   description:
-    'Marks a todo item as completed. Matches task by name from user message. Updates task status and completion metadata. Returns completed task details including ID, name, and type. Can be chained with LIST_TODOS or CREATE_TODO for workflow continuation.',
+    'Mark a todo item as completed, including tasks done in the real world. Works with task name or ID. Can be chained with LIST_TODOS to show remaining tasks.',
 
-  validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
-    // Only validate if there are active (non-completed) todos in the current room
+  validate: async (_runtime: IAgentRuntime, _message: Memory): Promise<boolean> => {
+    return true;
+  },
+
+  handler: async (runtime: IAgentRuntime, message: Memory, state: State, callback: any) => {
+    logger.info('[completeTodo] Handler invoked', { messageContent: message.content.text });
+
+    const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+    if (!dataService) {
+      logger.error('[completeTodo] Todo service not available');
+      await callback({
+        text: 'Sorry, the todo service is not available right now. Please try again later.',
+        error: true,
+      });
+      return {
+        success: false,
+        values: {
+          error: 'Todo service not available',
+        },
+      };
+    }
+
     try {
-      if (!message.roomId) {
-        return false;
-      }
-      const dataService = createTodoDataService(runtime);
-      const todos = await dataService.getTodos({
+      // Get available tasks
+      const availableTasks = await dataService.getTodos({
+        entityId: message.entityId,
         roomId: message.roomId,
         isCompleted: false,
       });
-      return todos.length > 0;
-    } catch (error) {
-      logger.error('Error validating COMPLETE_TODO action:', error);
-      return false;
-    }
-  },
 
-  handler: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    state: State | undefined,
-    options: any,
-    callback?: HandlerCallback
-  ): Promise<ActionResult> => {
-    try {
-      if (!state) {
-        if (callback) {
-          await callback({
-            text: 'Unable to process request without state context.',
-            actions: ['COMPLETE_TODO_ERROR'],
-            source: message.content.source,
-          });
-        }
-        return {
-          success: false,
-          data: {
-            actionName: 'COMPLETE_TODO',
-            error: 'Missing state context',
-          },
-          values: {
-            success: false,
-          },
-        };
-      }
-      if (!message.roomId || !message.entityId) {
-        if (callback) {
-          await callback({
-            text: 'I cannot complete a todo without a room and entity context.',
-            actions: ['COMPLETE_TODO_ERROR'],
-            source: message.content.source,
-          });
-        }
-        return {
-          success: false,
-          data: {
-            actionName: 'COMPLETE_TODO',
-            error: 'Missing room or entity context',
-          },
-          values: {
-            success: false,
-          },
-        };
-      }
-      const roomId = message.roomId;
-      const dataService = createTodoDataService(runtime);
-
-      // Get all incomplete todos for this room
-      const availableTodos = await dataService.getTodos({
-        roomId,
-        isCompleted: false,
-      });
-
-      if (availableTodos.length === 0) {
+      if (availableTasks.length === 0) {
         if (callback) {
           await callback({
             text: "You don't have any incomplete tasks to mark as done. Would you like to create a new task?",
@@ -204,12 +162,12 @@ export const completeTodoAction: Action = {
       // Extract which task the user wants to complete
       const taskCompletion = options?.taskId
         ? { taskId: options.taskId, taskName: options.taskName, isFound: true }
-        : await extractTaskCompletion(runtime, message, availableTodos, state);
+        : await extractTaskCompletion(runtime, message, availableTasks, state);
 
       if (!taskCompletion.isFound) {
         if (callback) {
           await callback({
-            text: `I couldn't determine which task you're marking as completed. Could you be more specific? Here are your current tasks:\n\n${availableTodos
+            text: `I couldn't determine which task you're marking as completed. Could you be more specific? Here are your current tasks:\n\n${availableTasks
               .map((task) => `- ${task.name}`)
               .join('\n')}`,
             actions: ['COMPLETE_TODO_NOT_FOUND'],
@@ -224,13 +182,13 @@ export const completeTodoAction: Action = {
           },
           values: {
             success: false,
-            availableTaskCount: availableTodos.length,
+            availableTaskCount: availableTasks.length,
           },
         };
       }
 
       // Find the task in the available tasks
-      const task = availableTodos.find((t) => t.id === taskCompletion.taskId);
+      const task = availableTasks.find((t) => t.id === taskCompletion.taskId);
 
       if (!task) {
         if (callback) {

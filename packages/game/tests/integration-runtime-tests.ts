@@ -49,7 +49,7 @@ class IntegrationTestRunner {
     this.serverProcess = spawn('bun', ['run', 'dev:backend'], {
       cwd: path.join(__dirname, '..'),
       env: { ...process.env, NODE_ENV: 'test' },
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     this.serverProcess.stdout?.on('data', (data) => {
@@ -92,7 +92,7 @@ class IntegrationTestRunner {
       }
 
       console.log(`⏳ Waiting for server... (${i + 1}/${maxAttempts})`);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
 
     throw new Error(`Server failed to become ready after ${maxAttempts} attempts`);
@@ -117,7 +117,7 @@ class IntegrationTestRunner {
       }
 
       console.log(`⏳ Waiting for agent... (${i + 1}/${maxAttempts})`);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
 
     throw new Error(`Agent failed to become ready after ${maxAttempts} attempts`);
@@ -137,7 +137,7 @@ class IntegrationTestRunner {
       name,
       passed: true,
       duration,
-      details: result
+      details: result,
     });
 
     console.log(`✅ PASSED: ${name} (${duration}ms)`);
@@ -171,7 +171,7 @@ class IntegrationTestRunner {
 
     return {
       agentId: actualAgentId,
-      runtime: runtimeData.data
+      runtime: runtimeData.data,
     };
   }
 
@@ -187,9 +187,12 @@ class IntegrationTestRunner {
     console.log(`   Initial shell status: ${initialStatus ? 'enabled' : 'disabled'}`);
 
     // Toggle to opposite state
-    const toggleResponse = await fetch(`${this.serverBaseUrl}/shell/${initialStatus ? 'disable' : 'enable'}`, {
-      method: 'POST'
-    });
+    const toggleResponse = await fetch(
+      `${this.serverBaseUrl}/shell/${initialStatus ? 'disable' : 'enable'}`,
+      {
+        method: 'POST',
+      }
+    );
     const toggleData = await toggleResponse.json();
 
     // Verify the change
@@ -201,14 +204,14 @@ class IntegrationTestRunner {
 
     // Toggle back to original state
     await fetch(`${this.serverBaseUrl}/shell/${initialStatus ? 'enable' : 'disable'}`, {
-      method: 'POST'
+      method: 'POST',
     });
 
     return {
       initialStatus,
       toggleResult: toggleData,
       newStatus,
-      toggleSuccessful: newStatus !== initialStatus
+      toggleSuccessful: newStatus !== initialStatus,
     };
   }
 
@@ -230,25 +233,31 @@ class IntegrationTestRunner {
       console.log(`   Testing ${capability}: currently ${initialState ? 'enabled' : 'disabled'}`);
 
       // Toggle the capability
-      const toggleResponse = await fetch(`${this.serverBaseUrl}/vision/${capability}/${initialState ? 'disable' : 'enable'}`, {
-        method: 'POST'
-      });
+      const toggleResponse = await fetch(
+        `${this.serverBaseUrl}/vision/${capability}/${initialState ? 'disable' : 'enable'}`,
+        {
+          method: 'POST',
+        }
+      );
       const toggleData = await toggleResponse.json();
 
       toggleResults[capability] = {
         initialState,
-        toggleResult: toggleData.success
+        toggleResult: toggleData.success,
       };
 
       // Toggle back
-      await fetch(`${this.serverBaseUrl}/vision/${capability}/${initialState ? 'enable' : 'disable'}`, {
-        method: 'POST'
-      });
+      await fetch(
+        `${this.serverBaseUrl}/vision/${capability}/${initialState ? 'enable' : 'disable'}`,
+        {
+          method: 'POST',
+        }
+      );
     }
 
     return {
       settings: settingsData.data,
-      toggleResults
+      toggleResults,
     };
   }
 
@@ -265,12 +274,12 @@ class IntegrationTestRunner {
 
     // Disable autonomy first (to ensure consistent state)
     await fetch(`${this.serverBaseUrl}/autonomy/disable`, {
-      method: 'POST'
+      method: 'POST',
     });
 
     // Enable autonomy
     const enableResponse = await fetch(`${this.serverBaseUrl}/autonomy/enable`, {
-      method: 'POST'
+      method: 'POST',
     });
     const enableData = await enableResponse.json();
 
@@ -280,7 +289,7 @@ class IntegrationTestRunner {
 
     // Disable autonomy
     const disableResponse = await fetch(`${this.serverBaseUrl}/autonomy/disable`, {
-      method: 'POST'
+      method: 'POST',
     });
     const disableData = await disableResponse.json();
 
@@ -291,7 +300,7 @@ class IntegrationTestRunner {
     // Restore original state
     if (initialStatus) {
       await fetch(`${this.serverBaseUrl}/autonomy/enable`, {
-        method: 'POST'
+        method: 'POST',
       });
     }
 
@@ -300,7 +309,7 @@ class IntegrationTestRunner {
       enableResult: enableData,
       statusAfterEnable: afterEnableData.data.enabled,
       disableResult: disableData,
-      statusAfterDisable: afterDisableData.data.enabled
+      statusAfterDisable: afterDisableData.data.enabled,
     };
   }
 
@@ -316,13 +325,13 @@ class IntegrationTestRunner {
     const submitResponse = await fetch(`${this.serverBaseUrl}/api/messaging/submit`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         channel_id: roomId,
         content: testMessage,
-        author_id: userId
-      })
+        author_id: userId,
+      }),
     });
 
     const submitData = await submitResponse.json();
@@ -330,10 +339,12 @@ class IntegrationTestRunner {
     console.log(`   Message submitted: ${submitData.success}`);
 
     // Wait a moment for processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Check memories
-    const memoriesResponse = await fetch(`${this.serverBaseUrl}/api/database/memories?roomId=${roomId}&count=10`);
+    const memoriesResponse = await fetch(
+      `${this.serverBaseUrl}/api/database/memories?roomId=${roomId}&count=10`
+    );
     const memoriesData = await memoriesResponse.json();
 
     const messageFound = memoriesData.data?.some((memory: any) =>
@@ -345,7 +356,7 @@ class IntegrationTestRunner {
     return {
       submitResult: submitData,
       messageFound,
-      memoriesCount: memoriesData.data?.length || 0
+      memoriesCount: memoriesData.data?.length || 0,
     };
   }
 
@@ -365,7 +376,7 @@ class IntegrationTestRunner {
       const message = {
         channel_id: roomId,
         content: `Concurrent message ${i} at ${Date.now()}`,
-        author_id: `user-${i}`
+        author_id: `user-${i}`,
       };
 
       messages.push(message);
@@ -374,29 +385,31 @@ class IntegrationTestRunner {
         fetch(`${this.serverBaseUrl}/api/messaging/submit`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify(message)
-        }).then(res => res.json())
+          body: JSON.stringify(message),
+        }).then((res) => res.json())
       );
     }
 
     const results = await Promise.all(promises);
-    const successCount = results.filter(r => r.success).length;
+    const successCount = results.filter((r) => r.success).length;
 
     console.log(`   Successfully submitted: ${successCount}/${messageCount}`);
 
     // Wait for processing
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     // Check if all messages were processed
-    const memoriesResponse = await fetch(`${this.serverBaseUrl}/api/database/memories?roomId=${roomId}&count=20`);
+    const memoriesResponse = await fetch(
+      `${this.serverBaseUrl}/api/database/memories?roomId=${roomId}&count=20`
+    );
     const memoriesData = await memoriesResponse.json();
 
     return {
       messagesSent: messageCount,
       successfulSubmissions: successCount,
-      memoriesFound: memoriesData.data?.length || 0
+      memoriesFound: memoriesData.data?.length || 0,
     };
   }
 
@@ -411,9 +424,9 @@ class IntegrationTestRunner {
     const setResponse = await fetch(`${this.serverBaseUrl}/api/settings/${testKey}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ value: testValue })
+      body: JSON.stringify({ value: testValue }),
     });
 
     const setData = await setResponse.json();
@@ -424,7 +437,7 @@ class IntegrationTestRunner {
 
     // Delete the setting
     const deleteResponse = await fetch(`${this.serverBaseUrl}/api/settings/${testKey}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     });
 
     const deleteData = await deleteResponse.json();
@@ -433,7 +446,7 @@ class IntegrationTestRunner {
       setResult: setData.success,
       getValue: getData.data?.value,
       deleteResult: deleteData.success,
-      valueMatches: JSON.stringify(getData.data?.value) === JSON.stringify(testValue)
+      valueMatches: JSON.stringify(getData.data?.value) === JSON.stringify(testValue),
     };
   }
 
@@ -445,7 +458,7 @@ class IntegrationTestRunner {
     await this.startBackendServer();
 
     // Wait a bit for everything to initialize
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // Run all tests
     await this.runTest('Server Health Check', () => this.testServerHealth());
@@ -472,7 +485,7 @@ class IntegrationTestRunner {
 
     if (this.serverProcess) {
       this.serverProcess.kill('SIGTERM');
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       if (!this.serverProcess.killed) {
         this.serverProcess.kill('SIGKILL');
@@ -493,11 +506,11 @@ class IntegrationTestRunner {
     console.log('\n📊 Test Results Summary');
     console.log('======================\n');
 
-    const passed = this.results.filter(r => r.passed).length;
-    const failed = this.results.filter(r => !r.passed).length;
+    const passed = this.results.filter((r) => r.passed).length;
+    const failed = this.results.filter((r) => !r.passed).length;
     const totalDuration = this.results.reduce((sum, r) => sum + r.duration, 0);
 
-    this.results.forEach(result => {
+    this.results.forEach((result) => {
       const status = result.passed ? '✅' : '❌';
       const time = `${result.duration}ms`;
       console.log(`${status} ${result.name.padEnd(30)} ${time}`);

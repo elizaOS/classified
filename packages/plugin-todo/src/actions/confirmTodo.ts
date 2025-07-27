@@ -13,7 +13,8 @@ import {
   type UUID,
   formatMessages,
 } from '@elizaos/core';
-import { createTodoDataService } from '../services/todoDataService';
+import type { TodoMetadata } from '../types';
+import type { TodoDataServiceWrapper } from '../services/todoDataService';
 
 // Interface for confirmation data stored in state
 interface PendingTodoData {
@@ -25,7 +26,7 @@ interface PendingTodoData {
   dueDate?: string;
   recurring?: 'daily' | 'weekly' | 'monthly';
   tags?: string[];
-  metadata?: Record<string, any>;
+  metadata?: TodoMetadata;
 }
 
 // Interface for confirmation response
@@ -151,7 +152,7 @@ export const confirmTodoAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     state: State | undefined,
-    options: any,
+    options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
     try {
@@ -271,7 +272,27 @@ export const confirmTodoAction: Action = {
       }
 
       // User confirmed - create the task
-      const dataService = createTodoDataService(runtime);
+      const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+      if (!dataService) {
+        logger.error('[confirmTodo] Todo service not available');
+        await callback?.(
+          {
+            text: 'Sorry, the todo service is not available right now. Please try again later.',
+            error: true,
+          },
+          []
+        );
+        return {
+          success: false,
+          data: {
+            actionName: 'CONFIRM_TODO',
+            error: 'Todo service not available',
+          },
+          values: {
+            error: 'Todo service not available',
+          },
+        };
+      }
 
       // Check for duplicates one more time
       const existingTodos = await dataService.getTodos({

@@ -76,8 +76,8 @@ export class ServerMigrationService {
 
       await this.db.execute(sql`
         CREATE TABLE IF NOT EXISTS ${sql.identifier(tableName)} (
-          id TEXT PRIMARY KEY,
-          message_server_id UUID NOT NULL REFERENCES message_servers(id) ON DELETE CASCADE,
+          id UUID PRIMARY KEY,
+          server_id UUID NOT NULL REFERENCES message_servers(id) ON DELETE CASCADE,
           name TEXT NOT NULL,
           type TEXT NOT NULL,
           source_type TEXT,
@@ -91,7 +91,7 @@ export class ServerMigrationService {
 
       // Create index on server_id for better query performance
       await this.db.execute(sql`
-        CREATE INDEX IF NOT EXISTS idx_channels_server_id ON ${sql.identifier(tableName)} (message_server_id)
+        CREATE INDEX IF NOT EXISTS idx_channels_server_id ON ${sql.identifier(tableName)} (server_id)
       `);
 
       logger.success(`[ServerMigrationService] Created/verified ${tableName} table`);
@@ -110,7 +110,7 @@ export class ServerMigrationService {
       await this.db.execute(sql`
         CREATE TABLE IF NOT EXISTS ${sql.identifier(tableName)} (
           id TEXT PRIMARY KEY,
-          channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+          channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
           author_id TEXT NOT NULL,
           content TEXT NOT NULL,
           raw_message JSONB,
@@ -149,7 +149,7 @@ export class ServerMigrationService {
 
       await this.db.execute(sql`
         CREATE TABLE IF NOT EXISTS ${sql.identifier(tableName)} (
-          channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+          channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
           user_id TEXT NOT NULL,
           joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
           role TEXT,
@@ -187,15 +187,29 @@ export class ServerMigrationService {
       // Add foreign key constraint to agents table separately
       // This assumes the agents table exists (created by plugin-sql)
       try {
-        await this.db.execute(sql`
-          ALTER TABLE ${sql.identifier(tableName)} 
-          ADD CONSTRAINT IF NOT EXISTS fk_server_agents_agent_id 
-          FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+        // First check if the constraint already exists
+        const constraintExists = await this.db.execute(sql`
+          SELECT 1 FROM information_schema.table_constraints 
+          WHERE constraint_name = 'fk_server_agents_agent_id' 
+          AND table_name = ${tableName}
+          LIMIT 1
         `);
-        logger.debug(`[ServerMigrationService] Added/verified foreign key constraint for agent_id`);
-      } catch (fkError) {
+
+        if (constraintExists.rows.length === 0) {
+          await this.db.execute(sql`
+            ALTER TABLE ${sql.identifier(tableName)} 
+            ADD CONSTRAINT fk_server_agents_agent_id 
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+          `);
+          logger.debug('[ServerMigrationService] Added foreign key constraint for agent_id');
+        } else {
+          logger.debug(
+            '[ServerMigrationService] Foreign key constraint for agent_id already exists'
+          );
+        }
+      } catch (_fkError) {
         logger.warn(
-          `[ServerMigrationService] Could not add foreign key for agent_id (agents table may not exist yet)`
+          '[ServerMigrationService] Could not add foreign key for agent_id (agents table may not exist yet)'
         );
       }
 

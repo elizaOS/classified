@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { generateCodeAction } from '../actions/generate-code';
 import { projectsProvider } from '../providers/projects-provider';
-import { AgentRuntime, elizaLogger, type IAgentRuntime, type UUID, type Memory, type State } from '@elizaos/core';
+import {
+  AgentRuntime,
+  elizaLogger,
+  type IAgentRuntime,
+  type UUID,
+  type Memory,
+  type State,
+} from '@elizaos/core';
 import { e2bPlugin } from '../../../plugin-e2b';
 import { formsPlugin } from '../../../plugin-forms/src';
 import { autocoderPlugin } from '../index';
@@ -16,7 +23,7 @@ const mockSqlPlugin = {
   services: [],
   init: async () => {
     elizaLogger.info('Mock SQL plugin initialized');
-  }
+  },
 };
 
 // Create real runtime
@@ -54,14 +61,14 @@ const createRealRuntime = async () => {
     getAgent: async (id: string) => ({ id, name: 'Test Agent' }),
     // Room methods
     getRooms: async () => [],
-    getRoomsByIds: async (ids: string[]) => ids.map(id => ({ id })),
+    getRoomsByIds: async (ids: string[]) => ids.map((id) => ({ id })),
     createRoom: async (room: any) => room,
     updateRoom: async (id: string, updates: any) => ({ id, ...updates }),
     deleteRoom: async (id: string) => {},
     getRoom: async (id: string) => ({ id }),
     // Participant methods
     getParticipants: async () => [],
-    getParticipantsByIds: async (ids: string[]) => ids.map(id => ({ id })),
+    getParticipantsByIds: async (ids: string[]) => ids.map((id) => ({ id })),
     getParticipantsForRoom: async (roomId: string) => [],
     addParticipantsToRoom: async (participantIds: string[], roomId: string) => true,
     createParticipant: async (participant: any) => participant,
@@ -70,19 +77,19 @@ const createRealRuntime = async () => {
     getParticipant: async (id: string) => ({ id }),
     // Memory methods
     getMemories: async () => [],
-    getMemoriesByIds: async (ids: string[]) => ids.map(id => ({ id })),
+    getMemoriesByIds: async (ids: string[]) => ids.map((id) => ({ id })),
     createMemory: async (memory: any) => memory,
     updateMemory: async (id: string, updates: any) => ({ id, ...updates }),
     deleteMemory: async (id: string) => {},
     getMemory: async (id: string) => ({ id }),
     // Entity methods
-    getEntitiesByIds: async (ids: string[]) => ids.map(id => ({ id })),
+    getEntitiesByIds: async (ids: string[]) => ids.map((id) => ({ id })),
     createEntity: async (entity: any) => entity,
     updateEntity: async (id: string, updates: any) => ({ id, ...updates }),
     deleteEntity: async (id: string) => {},
     getEntity: async (id: string) => ({ id }),
     // World methods
-    updateWorld: async (world: any) => world
+    updateWorld: async (world: any) => world,
   };
 
   // Register plugins in correct order
@@ -117,7 +124,7 @@ describe('Generate Code Action', () => {
       agentId: runtime.agentId,
       roomId: uuidv4() as UUID,
       content: { text: 'generate test-plugin' },
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
     const isValid = await generateCodeAction.validate(runtime, message);
     expect(isValid).toBe(true);
@@ -130,25 +137,19 @@ describe('Generate Code Action', () => {
       agentId: runtime.agentId,
       roomId: uuidv4() as UUID,
       content: { text: 'generate test-plugin for handling user authentication' },
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
     const state: State = {
       values: {},
       data: {},
-      text: ''
+      text: '',
     };
     const callback = async (response: any) => {
       console.log('Generation response:', response);
       return [];
     };
 
-    const result = await generateCodeAction.handler(
-      runtime,
-      message,
-      state,
-      {},
-      callback
-    );
+    const result = await generateCodeAction.handler(runtime, message, state, {}, callback);
 
     expect(result).toBeDefined();
   });
@@ -168,12 +169,12 @@ describe('Projects Provider', () => {
       agentId: runtime.agentId,
       roomId: uuidv4() as UUID,
       content: { text: 'test' },
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
     const state: State = {
       values: {},
       data: {},
-      text: ''
+      text: '',
     };
     const result = await projectsProvider.get(runtime, memory, state);
     expect(result).toBeDefined();
@@ -189,21 +190,21 @@ describe('Projects Provider', () => {
         bio: ['Test agent'],
       },
     });
-    
+
     const memory: Memory = {
       id: uuidv4() as UUID,
       entityId: uuidv4() as UUID,
       agentId: bareRuntime.agentId,
       roomId: uuidv4() as UUID,
       content: { text: 'test' },
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
     const state: State = {
       values: {},
       data: {},
-      text: ''
+      text: '',
     };
-    
+
     const result = await projectsProvider.get(bareRuntime, memory, state);
     expect(result).toBeDefined();
     // Provider returns specific message when service not available

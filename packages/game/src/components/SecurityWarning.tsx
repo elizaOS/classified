@@ -24,7 +24,7 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
   risks,
   onConfirm,
   onCancel,
-  isVisible
+  isVisible,
 }) => {
   const [acknowledged, setAcknowledged] = useState(false);
   const [warningsRead, setWarningsRead] = useState(false);
@@ -34,17 +34,17 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
   }
 
   const riskColors = {
-    low: '#4ade80',      // green
-    medium: '#facc15',   // yellow
-    high: '#f97316',     // orange
-    critical: '#ef4444'  // red
+    low: '#4ade80', // green
+    medium: '#facc15', // yellow
+    high: '#f97316', // orange
+    critical: '#ef4444', // red
   };
 
   const riskIcons = {
     low: '⚠️',
     medium: '⚠️',
     high: '🚨',
-    critical: '🔴'
+    critical: '🔴',
   };
 
   const handleConfirm = () => {
@@ -59,9 +59,7 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
       <div className="security-warning-modal">
         <div className="security-warning-header" style={{ borderColor: riskColors[riskLevel] }}>
           <span className="security-warning-icon">{riskIcons[riskLevel]}</span>
-          <h2 className="security-warning-title">
-            Security Warning: {capability}
-          </h2>
+          <h2 className="security-warning-title">Security Warning: {capability}</h2>
           <div
             className="security-warning-risk-level"
             style={{ backgroundColor: riskColors[riskLevel] }}
@@ -92,9 +90,9 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
             <div className="security-warning-critical">
               <h3>🔴 CRITICAL WARNING:</h3>
               <p>
-                This capability can completely compromise your system security.
-                It provides unrestricted access to your computer and should only
-                be enabled in isolated, non-production environments.
+                This capability can completely compromise your system security. It provides
+                unrestricted access to your computer and should only be enabled in isolated,
+                non-production environments.
               </p>
             </div>
           )}
@@ -108,8 +106,12 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
               <li>Disable immediately after use</li>
               {riskLevel === 'critical' && (
                 <>
-                  <li><strong>Do not use on production systems</strong></li>
-                  <li><strong>Ensure no sensitive data is accessible</strong></li>
+                  <li>
+                    <strong>Do not use on production systems</strong>
+                  </li>
+                  <li>
+                    <strong>Ensure no sensitive data is accessible</strong>
+                  </li>
                 </>
               )}
             </ul>
@@ -136,21 +138,15 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
 
             {riskLevel === 'critical' && (
               <label className="security-warning-checkbox critical">
-                <input
-                  type="checkbox"
-                  required
-                />
-                I understand this could completely compromise my system
+                <input type="checkbox" required />I understand this could completely compromise my
+                system
               </label>
             )}
           </div>
         </div>
 
         <div className="security-warning-actions">
-          <button
-            className="security-warning-button cancel"
-            onClick={onCancel}
-          >
+          <button className="security-warning-button cancel" onClick={onCancel}>
             Cancel
           </button>
           <button
@@ -158,7 +154,7 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
             onClick={handleConfirm}
             disabled={!acknowledged || !warningsRead}
             style={{
-              backgroundColor: acknowledged && warningsRead ? riskColors[riskLevel] : '#666'
+              backgroundColor: acknowledged && warningsRead ? riskColors[riskLevel] : '#666',
             }}
           >
             {riskLevel === 'critical' ? 'Enable Despite Risks' : 'Enable Capability'}
@@ -349,15 +345,16 @@ export const SECURITY_CAPABILITIES = {
   shell: {
     capability: 'Shell Command Execution',
     riskLevel: 'critical' as const,
-    description: 'Allows the AI agent to execute arbitrary shell commands on your system with full user privileges.',
+    description:
+      'Allows the AI agent to execute arbitrary shell commands on your system with full user privileges.',
     risks: [
       'Complete system compromise through arbitrary command execution',
       'File system access, modification, and deletion',
       'Network access and potential data exfiltration',
       'Installation of malicious software',
       'Privilege escalation attempts',
-      'Access to sensitive files and credentials'
-    ]
+      'Access to sensitive files and credentials',
+    ],
   },
   browser: {
     capability: 'Browser Automation',
@@ -368,30 +365,32 @@ export const SECURITY_CAPABILITIES = {
       'Automatic form submission with sensitive data',
       'Web-based social engineering attacks',
       'Interaction with malicious websites',
-      'Potential for spam or abuse of online services'
-    ]
+      'Potential for spam or abuse of online services',
+    ],
   },
   autocoder: {
     capability: 'Dynamic Code Generation',
     riskLevel: 'high' as const,
-    description: 'Allows the AI to generate and execute code dynamically, modifying its own behavior.',
+    description:
+      'Allows the AI to generate and execute code dynamically, modifying its own behavior.',
     risks: [
       'Injection of malicious code into the runtime',
       'Modification of security controls',
       'Creation of new attack vectors',
       'Bypass of existing safety measures',
-      'Unpredictable behavior changes'
-    ]
+      'Unpredictable behavior changes',
+    ],
   },
   vision: {
     capability: 'Camera and Screen Access',
     riskLevel: 'medium' as const,
-    description: 'Provides access to camera, screen capture, and microphone for environmental awareness.',
+    description:
+      'Provides access to camera, screen capture, and microphone for environmental awareness.',
     risks: [
       'Privacy violation through unauthorized recording',
       'Exposure of sensitive visual information',
       'Potential surveillance capabilities',
-      'Access to confidential documents on screen'
-    ]
-  }
+      'Access to confidential documents on screen',
+    ],
+  },
 };

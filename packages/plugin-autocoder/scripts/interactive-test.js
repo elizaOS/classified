@@ -14,10 +14,10 @@ exec(`bun run ${testPath}`, (error, stdout, stderr) => {
     console.error(`❌ Error: ${error}`);
     return;
   }
-  
+
   if (stderr) {
     console.error(`⚠️ Stderr: ${stderr}`);
   }
-  
+
   console.log(stdout);
 });

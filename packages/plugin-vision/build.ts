@@ -33,10 +33,12 @@ async function build() {
   const fs = await import('fs');
   const path = await import('path');
   const workersDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'src', 'workers');
-  
+
   try {
-    const workerFiles = fs.readdirSync(workersDir).filter(f => f.endsWith('.ts') && !f.includes('worker-logger'));
-    
+    const workerFiles = fs
+      .readdirSync(workersDir)
+      .filter((f) => f.endsWith('.ts') && !f.includes('worker-logger'));
+
     if (workerFiles.length > 0) {
       console.log('👷 Building workers...');
       const workersResult = await Bun.build(workersConfig);

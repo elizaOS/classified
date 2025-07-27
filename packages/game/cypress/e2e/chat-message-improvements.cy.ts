@@ -9,8 +9,10 @@ describe('Chat Message Improvements', () => {
     cy.get('[data-testid="game-interface"]', { timeout: 10000 }).should('be.visible');
 
     // Wait for connection status to show connected
-    cy.get('[data-testid="connection-status"]', { timeout: 15000 })
-      .should('contain.text', 'Connected');
+    cy.get('[data-testid="connection-status"]', { timeout: 15000 }).should(
+      'contain.text',
+      'Connected'
+    );
   });
 
   it('should not show system messages for goals and todos loading in chat', () => {
@@ -23,8 +25,10 @@ describe('Chat Message Improvements', () => {
       .should('not.contain.text', '✅ TODOs loaded:');
 
     // But the ELIZA terminal welcome message should still be there
-    cy.get('[data-testid="chat-output"]')
-      .should('contain.text', '◉ ELIZA TERMINAL v2.0 - Agent Connection Established');
+    cy.get('[data-testid="chat-output"]').should(
+      'contain.text',
+      '◉ ELIZA TERMINAL v2.0 - Agent Connection Established'
+    );
   });
 
   it('should immediately post user messages to chat without waiting for server', () => {
@@ -40,8 +44,7 @@ describe('Chat Message Improvements', () => {
     cy.get('[data-testid="chat-form"]').submit();
 
     // The user message should appear immediately (within a very short time)
-    cy.get('[data-testid="chat-output"]')
-      .should('contain.text', testMessage);
+    cy.get('[data-testid="chat-output"]').should('contain.text', testMessage);
 
     // Verify it appeared quickly (within 500ms)
     const afterCheck = Date.now();
@@ -79,8 +82,7 @@ describe('Chat Message Improvements', () => {
     cy.get('[data-testid="chat-form"]').submit();
 
     // User message should appear immediately
-    cy.get('[data-testid="chat-output"]')
-      .should('contain.text', userMessage);
+    cy.get('[data-testid="chat-output"]').should('contain.text', userMessage);
 
     // Wait for potential agent response
     cy.wait(5000);

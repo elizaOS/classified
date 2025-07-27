@@ -1,7 +1,7 @@
 import type { TestSuite, IAgentRuntime, Memory, State } from '@elizaos/core';
 import { createUniqueUuid } from '@elizaos/core';
 import { ShellService } from '../../service';
-import { runShellCommandAction, killAutonomousAction } from '../../action';
+import { runShellCommandAction } from '../../action';
 
 export class ShellSecurityE2ETestSuite implements TestSuite {
   name = 'plugin-shell-security-e2e';
@@ -259,46 +259,6 @@ export class ShellSecurityE2ETestSuite implements TestSuite {
           console.log('✓ Long-running command completed successfully');
           console.log(`  Execution time: ${elapsed}ms`);
         }
-      },
-    },
-
-    {
-      name: 'Should test kill autonomous action',
-      fn: async (runtime: IAgentRuntime) => {
-        console.log('Testing kill autonomous action...');
-
-        const roomId = createUniqueUuid(runtime, 'test-room');
-        const state: State = { values: {}, data: {}, text: '' };
-
-        const killMessage: Memory = {
-          id: createUniqueUuid(runtime, 'test-kill'),
-          entityId: runtime.agentId,
-          content: { text: 'kill the autonomous loop' },
-          agentId: runtime.agentId,
-          roomId,
-          createdAt: Date.now(),
-        };
-
-        let response: any = null;
-        await killAutonomousAction.handler(
-          runtime,
-          killMessage,
-          state,
-          {},
-          async (resp) => {
-            response = resp;
-            return [];
-          }
-        );
-
-        if (!response || !response.text) {
-          throw new Error(
-            'Kill autonomous action did not return expected response'
-          );
-        }
-
-        console.log('✓ Kill autonomous action executed');
-        console.log(`  Response: ${response.text}`);
       },
     },
   ];

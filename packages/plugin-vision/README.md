@@ -109,12 +109,6 @@ User: "Take a photo"
 Agent: "I've captured an image from the camera." [Image attached]
 ```
 
-### KILL_AUTONOMOUS
-
-Stops the autonomous agent loop (useful for debugging with autonomy plugin).
-
-**Similes**: `STOP_AUTONOMOUS`, `HALT_AUTONOMOUS`, `KILL_AUTO_LOOP`
-
 ## Vision Provider
 
 The vision provider is **non-dynamic** (always active) and provides:

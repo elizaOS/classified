@@ -12,7 +12,7 @@ export interface MessageServer {
 
 export interface MessageChannel {
   id: UUID; // global channelId
-  messageServerId: UUID; // FK to MessageServer.id
+  serverId: UUID; // FK to MessageServer.id
   name: string;
   type: ChannelType; // Use the enum from @elizaos/core
   sourceType?: string;
@@ -52,3 +52,15 @@ export interface MessageServiceStructure {
   created_at: number; // timestamp ms
   metadata?: any;
 }
+
+// Extend the core service types with message bus service
+declare module '@elizaos/core' {
+  interface ServiceTypeRegistry {
+    MESSAGE_BUS_SERVICE: 'MESSAGE_BUS_SERVICE';
+  }
+}
+
+// Export service type constant
+export const AgentServerServiceType = {
+  MESSAGE_BUS_SERVICE: 'MESSAGE_BUS_SERVICE' as const,
+} satisfies Partial<import('@elizaos/core').ServiceTypeRegistry>;

@@ -10,7 +10,7 @@ const plugin: Plugin = {
   config: {
     EXAMPLE_PLUGIN_VARIABLE: process.env.EXAMPLE_PLUGIN_VARIABLE,
   },
-  async init(config: Record<string, string>) {
+  async init(_config: Record<string, string>) {
     // init code goes here
   },
   services,

@@ -1,21 +1,27 @@
 # Stagehand Server
 
-This is a standalone WebSocket server that handles browser automation using Stagehand and Playwright. It's designed to run as a separate process from the main ElizaOS runtime to avoid dependency conflicts with Bun.
+This is a standalone WebSocket server that handles browser automation using
+Stagehand and Playwright. It's designed to run as a separate process from the
+main ElizaOS runtime to avoid dependency conflicts with Bun.
 
 ## Architecture
 
-The server runs as a separate Node.js process and communicates with the Stagehand plugin via WebSocket. This architecture allows:
+The server runs as a separate Node.js process and communicates with the
+Stagehand plugin via WebSocket. This architecture allows:
 
-1. **Dependency Isolation**: Playwright and Stagehand run in a Node.js environment while ElizaOS runs in Bun
+1. **Dependency Isolation**: Playwright and Stagehand run in a Node.js
+   environment while ElizaOS runs in Bun
 2. **Process Management**: The plugin can start/stop the server as needed
 3. **Scalability**: Multiple ElizaOS instances can connect to the same server
-4. **Flexibility**: The server can be deployed separately or bundled with the agent
+4. **Flexibility**: The server can be deployed separately or bundled with the
+   agent
 
 ## Components
 
 - `src/index.ts` - Main WebSocket server entry point
 - `src/session-manager.ts` - Manages browser sessions
-- `src/message-handler.ts` - Processes WebSocket messages and executes browser operations
+- `src/message-handler.ts` - Processes WebSocket messages and executes browser
+  operations
 - `src/logger.ts` - Simple logging utility
 
 ## Protocol
@@ -23,6 +29,7 @@ The server runs as a separate Node.js process and communicates with the Stagehan
 The server uses a request/response pattern over WebSocket:
 
 ### Request Format
+
 ```json
 {
   "type": "navigate",
@@ -35,6 +42,7 @@ The server uses a request/response pattern over WebSocket:
 ```
 
 ### Response Format
+
 ```json
 {
   "type": "navigated",
@@ -93,4 +101,5 @@ npm start
 
 ## Docker
 
-The server is included in the agentserver Docker image and runs alongside the main application. 
+The server is included in the agentserver Docker image and runs alongside the
+main application.

@@ -1,5 +1,5 @@
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 
 /**
  * Debug and diagnostic endpoints

@@ -3,8 +3,8 @@ import { sql } from 'drizzle-orm';
 import { messageServerTable } from './messageServer';
 
 export const channelTable = pgTable('channels', {
-  id: text('id').primaryKey(), // UUID stored as text
-  messageServerId: uuid('message_server_id')
+  id: uuid('id').primaryKey(),
+  serverId: uuid('server_id')
     .notNull()
     .references(() => messageServerTable.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
@@ -19,4 +19,4 @@ export const channelTable = pgTable('channels', {
   updatedAt: timestamp('updated_at', { mode: 'date' })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
-}); 
+});

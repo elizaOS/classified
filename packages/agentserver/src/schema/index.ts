@@ -5,4 +5,4 @@ export { messageServerTable } from './messageServer';
 export { channelTable } from './channel';
 export { messageTable } from './message';
 export { channelParticipantsTable } from './channelParticipant';
-export { serverAgentsTable } from './serverAgent'; 
+export { serverAgentsTable } from './serverAgent';

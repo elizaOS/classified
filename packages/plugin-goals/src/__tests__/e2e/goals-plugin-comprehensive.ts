@@ -1,6 +1,7 @@
 import { TestSuite, createMessageMemory, type UUID, asUUID } from '@elizaos/core';
 import type { IAgentRuntime } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
+import type { GoalService } from '../../services/goalService';
 
 /**
  * Comprehensive real runtime integration tests for the Goals Plugin
@@ -51,8 +52,11 @@ export const GoalsPluginComprehensiveE2ETestSuite: TestSuite = {
         }
         console.log('✓ Database adapter is available');
 
-        const { createGoalDataService } = await import('../../services/goalDataService');
-        const dataService = createGoalDataService(runtime);
+        // Get the goals service
+        const dataService = runtime.getService('goals') as GoalService;
+        if (!dataService) {
+          throw new Error('Goals service not available');
+        }
 
         // Generate unique test data
         const testEntityId = asUUID(uuidv4());
@@ -216,8 +220,11 @@ export const GoalsPluginComprehensiveE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         console.log('🧪 Testing GOALS provider with real data...');
 
-        const { createGoalDataService } = await import('../../services/goalDataService');
-        const dataService = createGoalDataService(runtime);
+        // Get the goals service
+        const dataService = runtime.getService('goals') as GoalService;
+        if (!dataService) {
+          throw new Error('Goals service not available');
+        }
 
         // Create test goals
         const testEntityId = asUUID(uuidv4());
@@ -298,8 +305,11 @@ export const GoalsPluginComprehensiveE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         console.log('🧪 Testing goal filtering and querying...');
 
-        const { createGoalDataService } = await import('../../services/goalDataService');
-        const dataService = createGoalDataService(runtime);
+        // Get the goals service
+        const dataService = runtime.getService('goals') as GoalService;
+        if (!dataService) {
+          throw new Error('Goals service not available');
+        }
 
         const testEntityId = asUUID(uuidv4());
         const testAgentId = asUUID(uuidv4());
@@ -557,8 +567,11 @@ export const GoalsPluginComprehensiveE2ETestSuite: TestSuite = {
         console.log('✓ Action executed and response created');
 
         // Step 5: Test that goal was actually created (if action succeeded)
-        const { createGoalDataService } = await import('../../services/goalDataService');
-        const dataService = createGoalDataService(runtime);
+        // Get the goals service
+        const dataService = runtime.getService('goals') as GoalService;
+        if (!dataService) {
+          throw new Error('Goals service not available');
+        }
 
         // Get goals for this user to verify creation
         const goals = await dataService.getGoals({
@@ -568,7 +581,7 @@ export const GoalsPluginComprehensiveE2ETestSuite: TestSuite = {
 
         // Find a goal that might have been created by our action
         const possibleGoal = goals.find(
-          (goal) =>
+          (goal: any) =>
             goal.name.toLowerCase().includes('marathon') ||
             goal.description?.toLowerCase().includes('marathon')
         );
@@ -620,8 +633,11 @@ export const GoalsPluginComprehensiveE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         console.log('🧪 Testing error handling scenarios...');
 
-        const { createGoalDataService } = await import('../../services/goalDataService');
-        const dataService = createGoalDataService(runtime);
+        // Get the goals service
+        const dataService = runtime.getService('goals') as GoalService;
+        if (!dataService) {
+          throw new Error('Goals service not available');
+        }
 
         // Test getting non-existent goal
         const nonExistentId = asUUID(uuidv4());

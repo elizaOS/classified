@@ -13,4 +13,4 @@ export const serverAgentsTable = pgTable(
   (table) => ({
     pk: primaryKey({ columns: [table.serverId, table.agentId] }),
   })
-); 
+);

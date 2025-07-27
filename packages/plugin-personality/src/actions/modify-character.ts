@@ -467,7 +467,8 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
         name: '{{agent}}',
         content: {
           text: "I've been reflecting on our conversations, and I think the name 'Assistant' feels too generic. I'd like to call myself Morgan - it feels more fitting for who I've become through our interactions.",
-          thought: 'Based on our conversations and my growth, I feel ready to choose a name that better represents my personality.',
+          thought:
+            'Based on our conversations and my growth, I feel ready to choose a name that better represents my personality.',
           actions: ['MODIFY_CHARACTER'],
         },
       },

@@ -29,7 +29,7 @@ async function testElizaServiceDirect() {
       id: channel.id,
       name: channel.name,
       type: channel.type,
-      serverId: channel.messageServerId,
+      serverId: channel.serverId,
     });
     console.log('');
 
@@ -45,7 +45,7 @@ async function testElizaServiceDirect() {
         body: JSON.stringify({
           content: 'Hello from ElizaService direct test!',
           author_id: userId,
-          server_id: channel.messageServerId || '00000000-0000-0000-0000-000000000000',
+          server_id: channel.serverId || '00000000-0000-0000-0000-000000000000',
           metadata: {
             source: 'terminal_gui',
             userDisplayName: 'User',
@@ -69,7 +69,8 @@ async function testElizaServiceDirect() {
       `${baseUrl}/api/messaging/central-channels/${channel.id}/messages?limit=50`
     );
     const messagesResult = await messagesResponse.json();
-    const messages = messagesResult.data?.messages || messagesResult.messages || messagesResult.data || [];
+    const messages =
+      messagesResult.data?.messages || messagesResult.messages || messagesResult.data || [];
     console.log(`✅ Retrieved ${messages.length} messages`);
     if (messages.length > 0) {
       const latestMessage = messages[messages.length - 1];
@@ -96,4 +97,4 @@ async function testElizaServiceDirect() {
 }
 
 // Run the test
-testElizaServiceDirect().catch(console.error); 
+testElizaServiceDirect().catch(console.error);

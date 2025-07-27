@@ -297,10 +297,10 @@ describe('Forms Plugin Integration Tests', () => {
     test('should handle form service not available', async () => {
       const runtimeWithoutService = createMockRuntime();
       // Don't register the forms service
-      
+
       const message = createMockMemory('Create a contact form');
       const state = createMockState();
-      
+
       // Validate should return false
       const isValid = await createFormAction.validate(runtimeWithoutService, message, state);
       expect(isValid).toBe(false);
@@ -367,7 +367,7 @@ describe('Forms Plugin Integration Tests', () => {
         {},
         callback
       );
-      
+
       expect(lastResponse).toContain('Personal Info');
       expect(lastResponse).toContain('completed');
       expect(lastResponse).toContain('Contact Info');
@@ -424,14 +424,14 @@ describe('Forms Plugin Integration Tests', () => {
       const surveyForm = await formsService.createForm('survey');
       expect(surveyForm.description).toBe('Customer satisfaction survey');
       expect(surveyForm.steps[0].fields).toHaveLength(2);
-      
+
       // Update with choice field
       mockRuntime.useModel.mockResolvedValueOnce('{"satisfaction": "Very satisfied"}');
       const result = await formsService.updateForm(
         surveyForm.id,
         createMockMemory('I am very satisfied')
       );
-      
+
       expect(result.success).toBe(true);
       expect(result.formCompleted).toBe(true);
     });

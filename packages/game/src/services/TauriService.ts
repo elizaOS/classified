@@ -12,133 +12,192 @@ export interface TauriMessage {
   authorId: string;
   authorName: string;
   timestamp: Date;
-  metadata?: Record<string, any>;
-}
-
-export interface TauriKnowledgeFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  uploadedAt: string;
-  content?: string;
-  status: 'processing' | 'ready' | 'error';
+  metadata?: any;
 }
 
 export interface TauriGoal {
   id: string;
-  name: string;
-  description: string;
-  status: 'active' | 'completed' | 'paused';
-  progress: number;
+  text: string;
+  completed: boolean;
   createdAt: string;
-  updatedAt: string;
-  metadata?: Record<string, any>;
 }
 
 export interface TauriTodo {
   id: string;
-  task: string;
+  title: string;
+  description?: string;
   completed: boolean;
-  priority: 'low' | 'medium' | 'high';
   dueDate?: string;
+  priority?: 'low' | 'medium' | 'high';
   createdAt: string;
-  completedAt?: string;
 }
 
-export interface TauriMemory {
-  id: string;
-  content: string;
-  timestamp: Date;
-  type: string;
-  tags?: string[];
-  embedding?: number[];
-}
-
-export interface TauriPlugin {
-  id: string;
+export interface TauriAgentStatus {
   name: string;
-  enabled: boolean;
-  config: Record<string, any>;
+  status: 'online' | 'offline' | 'thinking';
+  lastThought?: string;
+  lastAction?: string;
+  currentGoal?: string;
 }
 
-export interface AgentSettings {
-  autonomy: boolean;
-  capabilities: {
-    shellAccess: boolean;
-    webAccess: boolean;
-    visionAccess: boolean;
-    speechToText: boolean;
-    textToSpeech: boolean;
-  };
-  modelProvider: string;
-  apiKeys: Record<string, string>;
+export interface TauriKnowledgeFile {
+  id: string;
+  title: string;
+  type: string;
+  createdAt: string;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
 }
 
 export interface StartupStatus {
-  stage: string;
+  phase: string;
   message: string;
-  progress: number;
-  isLoading: boolean;
+  progress?: number;
+  isComplete?: boolean;
   error?: string;
 }
 
 export interface ContainerStatus {
-  name: string;
-  state: string;
-  health: string;
-  uptime: number;
-  restart_count: number;
+  containerRunning: boolean;
+  agentHealthy: boolean;
+  ollamaHealthy: boolean;
+  logs: string[];
 }
+
+export interface ContainerLog {
+  timestamp: Date;
+  service: string;
+  message: string;
+  level?: 'info' | 'warn' | 'error';
+}
+
+export interface CapabilityStatus {
+  enabled: boolean;
+  status?: 'active' | 'inactive' | 'error';
+  error?: string;
+  lastUsed?: string;
+  metadata?: any;
+}
+
+export interface MemoryQuery {
+  type?: 'knowledge' | 'conversation' | 'goal' | 'user' | 'relationship';
+  limit?: number;
+  offset?: number;
+  orderBy?: 'createdAt' | 'importance';
+  orderDirection?: 'asc' | 'desc';
+}
+
+export interface MemoryResult {
+  id: string;
+  type: string;
+  content: string;
+  createdAt: Date;
+  importance?: number;
+  metadata?: any;
+}
+
+type PluginConfig = {
+  [key: string]: any;
+};
 
 class TauriServiceClass {
   private tauriInvoke: any = null;
   private tauriListen: any = null;
-  private isTauri: boolean = true;
-  private userId: string;
-  private agentId: string = '2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f';
+  private isTauri: boolean = false;
   private messageListeners: Set<(message: TauriMessage) => void> = new Set();
   private statusListeners: Set<(status: StartupStatus) => void> = new Set();
+  private containerLogListeners: Set<(log: ContainerLog) => void> = new Set();
   private unlistenFns: Array<() => void> = [];
+  private userId: string;
+  private agentId: string = '2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f';
+  private isInitialized = false;
+  private processedMessageIds: Set<string> = new Set();
 
   constructor() {
     this.userId = localStorage.getItem('game-user-id') || uuidv4();
     localStorage.setItem('game-user-id', this.userId);
-    this.initialize();
+
+    // Try to initialize Tauri immediately
+    this.checkAndInitializeTauri();
+  }
+
+  private async checkAndInitializeTauri(): Promise<void> {
+    try {
+      // Try to import Tauri v2 APIs
+      const { invoke } = await import('@tauri-apps/api/core');
+      const { listen } = await import('@tauri-apps/api/event');
+
+      // If imports succeed, we're in Tauri environment
+      this.tauriInvoke = invoke;
+      this.tauriListen = listen;
+      this.isTauri = true;
+
+      // Set up event listeners
+      await this.setupEventListeners();
+      this.isInitialized = true;
+    } catch (error) {
+      // Import failed - not in Tauri environment
+      this.isTauri = false;
+      this.isInitialized = false;
+    }
   }
 
   public async initialize(): Promise<void> {
-    const { invoke } = await import('@tauri-apps/api/core');
-    const { listen } = await import('@tauri-apps/api/event');
+    // This method is now called by components to ensure initialization
+    if (this.isInitialized) return;
 
-    this.tauriInvoke = invoke;
-    this.tauriListen = listen;
-
-    console.log('[TauriService] Initialized');
-    await this.setupEventListeners();
+    // Try again in case it failed initially
+    await this.checkAndInitializeTauri();
   }
 
   private async setupEventListeners(): Promise<void> {
+    // Helper function to emit message with deduplication
+    const emitMessage = (message: TauriMessage, source: string) => {
+      // Ensure message has an ID
+      if (!message.id) {
+        message.id = uuidv4();
+      }
+
+      // Check if we've already processed this message
+      if (this.processedMessageIds.has(message.id)) {
+        return;
+      }
+
+      // Add to processed set
+      this.processedMessageIds.add(message.id);
+
+      // Clean up old message IDs to prevent memory leak (keep last 1000)
+      if (this.processedMessageIds.size > 1000) {
+        const idsArray = Array.from(this.processedMessageIds);
+        const toRemove = idsArray.slice(0, idsArray.length - 1000);
+        toRemove.forEach((id) => this.processedMessageIds.delete(id));
+      }
+
+      this.messageListeners.forEach((listener) => listener(message));
+    };
+
     // Listen for incoming messages from the agent
     const unlistenMessage = await this.tauriListen('agent-message', (event: any) => {
-      console.log('[TauriService] Received agent message:', event.payload);
       const message = event.payload as TauriMessage;
-      this.messageListeners.forEach(listener => listener(message));
+      // Ensure type is set to 'agent' for agent messages
+      message.type = 'agent';
+      emitMessage(message, 'agent-message');
     });
     this.unlistenFns.push(unlistenMessage);
 
     // Listen for startup status updates
     const unlistenStatus = await this.tauriListen('startup-status', (event: any) => {
-      console.log('[TauriService] Startup status update:', event.payload);
       const status = event.payload as StartupStatus;
-      this.statusListeners.forEach(listener => listener(status));
+      this.statusListeners.forEach((listener) => listener(status));
     });
     this.unlistenFns.push(unlistenStatus);
 
     // Listen for WebSocket events
     const unlistenWsEvent = await this.tauriListen('websocket-event', (event: any) => {
-      console.log('[TauriService] WebSocket event:', event.payload);
-
       if (event.payload.type === 'message') {
         const data = event.payload.data;
 
@@ -151,9 +210,9 @@ class TauriServiceClass {
             authorId: messageData.userId || messageData.author || this.agentId,
             authorName: messageData.name || 'Agent',
             timestamp: messageData.timestamp ? new Date(messageData.timestamp) : new Date(),
-            metadata: messageData.metadata || {}
+            metadata: messageData.metadata || {},
           };
-          this.messageListeners.forEach(listener => listener(message));
+          emitMessage(message, 'websocket-event');
         }
       }
     });
@@ -161,19 +220,20 @@ class TauriServiceClass {
 
     // Listen for real-time updates from the Rust WebSocket manager
     const unlistenRealtimeUpdate = await this.tauriListen('realtime-update', (event: any) => {
-      console.log('[TauriService] Realtime update:', event.payload);
       // Handle different types of realtime updates
       if (event.payload.type === 'message') {
         const message = event.payload.data as TauriMessage;
-        this.messageListeners.forEach(listener => listener(message));
+        // If type isn't set and it's from the agent, set it to 'agent'
+        if (!message.type && message.authorId === this.agentId) {
+          message.type = 'agent';
+        }
+        emitMessage(message, 'realtime-update');
       }
     });
     this.unlistenFns.push(unlistenRealtimeUpdate);
 
     // Listen for WebSocket errors
     const unlistenWsError = await this.tauriListen('websocket-error', (event: any) => {
-      console.log('[TauriService] WebSocket error:', event.payload);
-      
       // Create an error message to display in the chat
       const errorMessage: TauriMessage = {
         id: uuidv4(),
@@ -182,20 +242,61 @@ class TauriServiceClass {
         authorId: 'system',
         authorName: 'System',
         timestamp: event.payload.timestamp ? new Date(event.payload.timestamp) : new Date(),
-        metadata: event.payload
+        metadata: event.payload,
       };
-      
+
       // Only emit error messages that aren't related to user messages
       // (to avoid duplicating user messages as errors)
       if (!errorMessage.content.includes('Failed to process message')) {
-        this.messageListeners.forEach(listener => listener(errorMessage));
+        this.messageListeners.forEach((listener) => listener(errorMessage));
       }
     });
     this.unlistenFns.push(unlistenWsError);
+
+    // Listen for container logs
+    const unlistenContainerLog = await this.tauriListen('container-log', (event: any) => {
+      const log = event.payload as ContainerLog;
+      this.containerLogListeners.forEach((listener) => listener(log));
+    });
+    this.unlistenFns.push(unlistenContainerLog);
+  }
+
+  private async ensureInitializedAndInvoke(command: string, args?: any): Promise<any> {
+    // Ensure we're initialized before trying to invoke
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    if (!this.tauriInvoke) {
+      throw new Error(
+        'Tauri is not available. Please ensure you are running this application through Tauri.'
+      );
+    }
+
+    return this.tauriInvoke(command, args);
   }
 
   public isRunningInTauri(): boolean {
     return this.isTauri;
+  }
+
+  public getInitializationStatus(): { isTauri: boolean; isInitialized: boolean } {
+    return {
+      isTauri: this.isTauri,
+      isInitialized: this.isInitialized,
+    };
+  }
+
+  public async ensureInitialized(): Promise<boolean> {
+    if (this.isInitialized) return true;
+
+    // Try to detect and initialize again
+    await this.checkAndInitializeTauri();
+
+    // Wait a bit for initialization
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    return this.isInitialized;
   }
 
   public getUserId(): string {
@@ -217,36 +318,41 @@ class TauriServiceClass {
     return () => this.statusListeners.delete(listener);
   }
 
+  public onContainerLog(listener: (log: ContainerLog) => void): () => void {
+    this.containerLogListeners.add(listener);
+    return () => this.containerLogListeners.delete(listener);
+  }
+
   // Clean up event listeners
   public destroy(): void {
-    this.unlistenFns.forEach(fn => fn());
+    this.unlistenFns.forEach((fn) => fn());
     this.unlistenFns = [];
     this.messageListeners.clear();
     this.statusListeners.clear();
+    this.containerLogListeners.clear();
   }
 
   // WebSocket management
   public async connectWebSocket(url: string = 'ws://localhost:7777'): Promise<void> {
-    await this.tauriInvoke('connect_websocket', { url });
+    await this.ensureInitializedAndInvoke('connect_websocket', { url });
   }
 
   public async disconnectWebSocket(): Promise<void> {
-    await this.tauriInvoke('disconnect_websocket');
+    await this.ensureInitializedAndInvoke('disconnect_websocket');
   }
 
   public async joinChannel(channelId: string): Promise<void> {
-    await this.tauriInvoke('websocket_join_channel', { channel_id: channelId });
+    await this.ensureInitializedAndInvoke('websocket_join_channel', { channel_id: channelId });
   }
 
   public async isWebSocketConnected(): Promise<boolean> {
-    return await this.tauriInvoke('is_websocket_connected');
+    return await this.ensureInitializedAndInvoke('is_websocket_connected');
   }
 
   // Message handling
   public async sendMessage(content: string): Promise<string> {
-    console.log('[TauriService] Sending message via IPC:', content);
-    const response = await this.tauriInvoke('send_message_to_agent', {
-      message: content
+    const response = await this.ensureInitializedAndInvoke('send_message_to_agent', {
+      message: content,
     });
 
     // Create user message for immediate UI feedback
@@ -257,37 +363,37 @@ class TauriServiceClass {
       authorId: this.userId,
       authorName: 'User',
       timestamp: new Date(),
-      metadata: {}
+      metadata: {},
     };
 
     // Notify listeners of the user message
-    this.messageListeners.forEach(listener => listener(userMessage));
+    this.messageListeners.forEach((listener) => listener(userMessage));
 
     return response;
   }
 
   // Capability management
   public async getCapabilities(): Promise<any> {
-    return await this.tauriInvoke('get_capabilities');
+    return await this.ensureInitializedAndInvoke('get_capabilities');
   }
 
   public async updateCapability(capability: string, enabled: boolean): Promise<void> {
-    await this.tauriInvoke('update_capability', { capability, enabled });
+    await this.ensureInitializedAndInvoke('update_capability', { capability, enabled });
   }
 
   // Settings management
-  public async getSettings(): Promise<AgentSettings> {
-    return await this.tauriInvoke('get_settings');
+  public async getSettings(): Promise<any> {
+    return await this.ensureInitializedAndInvoke('get_settings');
   }
 
-  public async updateSettings(settings: Partial<AgentSettings>): Promise<void> {
-    await this.tauriInvoke('update_settings', { settings });
+  public async updateSettings(settings: Partial<any>): Promise<void> {
+    await this.ensureInitializedAndInvoke('update_settings', { settings });
   }
 
   // Health check
   public async checkAgentHealth(): Promise<any> {
     try {
-      return await this.tauriInvoke('health_check');
+      return await this.ensureInitializedAndInvoke('health_check');
     } catch (error) {
       console.warn('[TauriService] Health check failed:', error);
       return null;
@@ -296,31 +402,31 @@ class TauriServiceClass {
 
   // Container management
   public async getContainerStatus(): Promise<ContainerStatus[]> {
-    return await this.tauriInvoke('get_container_status');
+    return await this.ensureInitializedAndInvoke('get_container_status');
   }
 
   public async restartContainer(name: string): Promise<void> {
-    await this.tauriInvoke('restart_container', { name });
+    await this.ensureInitializedAndInvoke('restart_container', { name });
   }
 
   // Server operations
   public async checkServerStatus(): Promise<boolean> {
-    const status = await this.tauriInvoke('check_server_status');
+    const status = await this.ensureInitializedAndInvoke('check_server_status');
     return status === 'running';
   }
 
   public async startServer(): Promise<void> {
-    await this.tauriInvoke('start_server');
+    await this.ensureInitializedAndInvoke('start_server');
   }
 
   public async stopServer(): Promise<void> {
-    await this.tauriInvoke('stop_server');
+    await this.ensureInitializedAndInvoke('stop_server');
   }
 
   // Data fetching methods
 
   public async fetchGoals(): Promise<TauriGoal[]> {
-    const response = await this.tauriInvoke('fetch_goals');
+    const response = await this.ensureInitializedAndInvoke('fetch_goals');
     if (response.success && response.data) {
       return response.data.goals || [];
     }
@@ -328,7 +434,7 @@ class TauriServiceClass {
   }
 
   public async fetchTodos(): Promise<TauriTodo[]> {
-    const response = await this.tauriInvoke('fetch_todos');
+    const response = await this.ensureInitializedAndInvoke('fetch_todos');
     if (response.success && response.data) {
       return response.data.todos || [];
     }
@@ -336,7 +442,7 @@ class TauriServiceClass {
   }
 
   public async fetchKnowledgeFiles(): Promise<TauriKnowledgeFile[]> {
-    const response = await this.tauriInvoke('fetch_knowledge_files');
+    const response = await this.ensureInitializedAndInvoke('fetch_knowledge_files');
     if (response.success && response.data) {
       return response.data.files || [];
     }
@@ -356,19 +462,39 @@ class TauriServiceClass {
 
     const base64Content = await base64Promise;
 
-    await this.tauriInvoke('upload_knowledge_file', {
+    await this.ensureInitializedAndInvoke('upload_knowledge_file', {
       fileName: file.name,
       content: base64Content,
-      mimeType: file.type
+      mimeType: file.type,
     });
   }
 
   public async deleteKnowledgeFile(fileId: string): Promise<void> {
-    await this.tauriInvoke('delete_knowledge_file', { fileId });
+    await this.ensureInitializedAndInvoke('delete_knowledge_file', { fileId });
   }
 
   public async fetchMemories(limit: number = 50): Promise<TauriMessage[]> {
-    const memories = await this.tauriInvoke('fetch_memories', { params: { count: limit } });
+    const response = await this.ensureInitializedAndInvoke('fetch_memories', {
+      params: { count: limit },
+    });
+
+    // Handle different response formats
+    let memories = response;
+
+    // If response is wrapped in an object (e.g., { memories: [...] } or { data: [...] })
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      memories = response.memories || response.data || [];
+    }
+
+    // Ensure memories is an array
+    if (!Array.isArray(memories)) {
+      console.warn(
+        '[TauriService] fetchMemories: Expected array but got:',
+        typeof memories,
+        memories
+      );
+      return [];
+    }
 
     // Convert memories to TauriMessage format
     return memories.map((memory: any) => ({
@@ -377,13 +503,35 @@ class TauriServiceClass {
       type: memory.userId === this.userId ? 'user' : 'agent',
       authorId: memory.userId || memory.authorId || 'unknown',
       authorName: memory.userId === this.userId ? 'User' : 'Agent',
-      timestamp: memory.timestamp ? new Date(memory.timestamp) : new Date(memory.createdAt || Date.now()),
-      metadata: memory.metadata || {}
+      timestamp: memory.timestamp
+        ? new Date(memory.timestamp)
+        : new Date(memory.createdAt || Date.now()),
+      metadata: memory.metadata || {},
     }));
   }
 
   public async fetchMemoriesFromRoom(roomId: string, limit: number = 50): Promise<TauriMessage[]> {
-    const memories = await this.tauriInvoke('fetch_memories', { params: { roomId, count: limit } });
+    const response = await this.ensureInitializedAndInvoke('fetch_memories', {
+      params: { roomId, count: limit },
+    });
+
+    // Handle different response formats
+    let memories = response;
+
+    // If response is wrapped in an object (e.g., { memories: [...] } or { data: [...] })
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      memories = response.memories || response.data || [];
+    }
+
+    // Ensure memories is an array
+    if (!Array.isArray(memories)) {
+      console.warn(
+        '[TauriService] fetchMemoriesFromRoom: Expected array but got:',
+        typeof memories,
+        memories
+      );
+      return [];
+    }
 
     // Convert memories to TauriMessage format
     return memories.map((memory: any) => ({
@@ -392,13 +540,15 @@ class TauriServiceClass {
       type: memory.userId === this.userId ? 'user' : 'agent',
       authorId: memory.userId || memory.authorId || 'unknown',
       authorName: memory.userId === this.userId ? 'User' : 'Agent',
-      timestamp: memory.timestamp ? new Date(memory.timestamp) : new Date(memory.createdAt || Date.now()),
-      metadata: memory.metadata || {}
+      timestamp: memory.timestamp
+        ? new Date(memory.timestamp)
+        : new Date(memory.createdAt || Date.now()),
+      metadata: memory.metadata || {},
     }));
   }
 
-  public async fetchPlugins(): Promise<TauriPlugin[]> {
-    const response = await this.tauriInvoke('fetch_plugins');
+  public async fetchPlugins(): Promise<any[]> {
+    const response = await this.ensureInitializedAndInvoke('fetch_plugins');
     if (response.success && response.data) {
       return response.data.plugins || [];
     }
@@ -406,16 +556,16 @@ class TauriServiceClass {
   }
 
   public async updatePluginConfig(pluginId: string, config: Record<string, any>): Promise<void> {
-    await this.tauriInvoke('update_plugin_config', { pluginId, config });
+    await this.ensureInitializedAndInvoke('update_plugin_config', { pluginId, config });
   }
 
   public async togglePlugin(pluginId: string, enabled: boolean): Promise<void> {
-    await this.tauriInvoke('toggle_plugin', { pluginId, enabled });
+    await this.ensureInitializedAndInvoke('toggle_plugin', { pluginId, enabled });
   }
 
   // Additional plugin configuration methods
   public async fetchPluginConfigs(): Promise<any> {
-    const response = await this.tauriInvoke('fetch_plugin_configs');
+    const response = await this.ensureInitializedAndInvoke('fetch_plugin_configs');
     if (response.success && response.data) {
       return response.data;
     }
@@ -424,46 +574,48 @@ class TauriServiceClass {
 
   // Configuration operations
   public async validateConfiguration(): Promise<{ valid: boolean; errors: string[] }> {
-    return await this.tauriInvoke('validate_configuration');
+    return await this.ensureInitializedAndInvoke('validate_configuration');
   }
 
   public async testConfiguration(): Promise<{ success: boolean; results: any }> {
-    return await this.tauriInvoke('test_configuration');
+    return await this.ensureInitializedAndInvoke('test_configuration');
   }
 
   public async saveConfiguration(config: any): Promise<void> {
-    await this.tauriInvoke('save_configuration', { config });
+    await this.ensureInitializedAndInvoke('save_configuration', { config });
   }
 
   public async loadConfiguration(): Promise<any> {
-    return await this.tauriInvoke('load_configuration');
+    return await this.ensureInitializedAndInvoke('load_configuration');
   }
 
   // Dynamic Configuration Management
   public async getAgentConfiguration(): Promise<any> {
-    return await this.tauriInvoke('get_agent_configuration');
+    return await this.ensureInitializedAndInvoke('get_agent_configuration');
   }
 
   public async updateAgentConfiguration(updates: Record<string, any>): Promise<any> {
-    return await this.tauriInvoke('update_agent_configuration', { config_updates: updates });
+    return await this.ensureInitializedAndInvoke('update_agent_configuration', {
+      config_updates: updates,
+    });
   }
 
   public async getAvailableProviders(): Promise<any> {
-    return await this.tauriInvoke('get_available_providers');
+    return await this.ensureInitializedAndInvoke('get_available_providers');
   }
 
   // Autonomy management
   public async toggleAutonomy(enabled: boolean): Promise<void> {
-    await this.tauriInvoke('toggle_autonomy', { enabled });
+    await this.ensureInitializedAndInvoke('toggle_autonomy', { enabled });
   }
 
   public async getAutonomyStatus(): Promise<{ enabled: boolean; interval: number }> {
-    return await this.tauriInvoke('get_autonomy_status');
+    return await this.ensureInitializedAndInvoke('get_autonomy_status');
   }
 
   // Alias for compatibility with GameInterface
   public async fetchAutonomyStatus(): Promise<any> {
-    const response = await this.tauriInvoke('fetch_autonomy_status');
+    const response = await this.ensureInitializedAndInvoke('fetch_autonomy_status');
     if (response.success && response.data) {
       return response.data;
     }
@@ -472,54 +624,64 @@ class TauriServiceClass {
 
   // Shell/browser capability management
   public async toggleCapability(capability: string): Promise<void> {
-    await this.tauriInvoke('toggle_capability', { capability });
+    await this.ensureInitializedAndInvoke('toggle_capability', { capability });
   }
 
-  public async getCapabilityStatus(capability: string): Promise<{ enabled: boolean; service_available: boolean }> {
-    return await this.tauriInvoke('get_capability_status', { capability });
+  public async getCapabilityStatus(
+    capability: string
+  ): Promise<{ enabled: boolean; service_available: boolean }> {
+    return await this.ensureInitializedAndInvoke('get_capability_status', { capability });
   }
 
   // Vision settings management
   public async getVisionSettings(): Promise<any> {
-    return await this.tauriInvoke('get_vision_settings');
+    return await this.ensureInitializedAndInvoke('get_vision_settings');
   }
 
   public async updateVisionSettings(settings: any): Promise<void> {
-    await this.tauriInvoke('update_vision_settings', { settings });
+    await this.ensureInitializedAndInvoke('update_vision_settings', { settings });
   }
 
   public async updateAgentSetting(key: string, value: any): Promise<void> {
-    await this.tauriInvoke('update_agent_setting', { key, value });
+    await this.ensureInitializedAndInvoke('update_agent_setting', { key, value });
   }
 
   public async getAgentSettings(): Promise<any> {
-    return await this.tauriInvoke('get_agent_settings');
+    return await this.ensureInitializedAndInvoke('get_agent_settings');
   }
 
   public async refreshVisionService(): Promise<void> {
-    await this.tauriInvoke('refresh_vision_service');
+    await this.ensureInitializedAndInvoke('refresh_vision_service');
   }
 
   // Agent management
   public async resetAgent(): Promise<void> {
-    await this.tauriInvoke('reset_agent');
+    await this.ensureInitializedAndInvoke('reset_agent');
   }
 
   public async getAgentInfo(): Promise<{ id: string; name: string; version: string }> {
-    return await this.tauriInvoke('get_agent_info');
+    return await this.ensureInitializedAndInvoke('get_agent_info');
   }
 
   // Database operations
   public async fetchDatabaseTables(): Promise<string[]> {
-    const response = await this.tauriInvoke('fetch_db_tables');
+    const response = await this.ensureInitializedAndInvoke('fetch_db_tables');
     if (response.success && response.data) {
       return response.data.tables || [];
     }
     return [];
   }
 
-  public async fetchDatabaseTableData(table: string, page: number = 1, limit: number = 50): Promise<any> {
-    const response = await this.tauriInvoke('fetch_db_table_data', { table, page, limit });
+  public async fetchDatabaseTableData(
+    table: string,
+    page: number = 1,
+    limit: number = 50
+  ): Promise<any> {
+    const response = await this.ensureInitializedAndInvoke('fetch_db_table_data', {
+      table,
+      page,
+      limit,
+    });
     if (response.success && response.data) {
       return response.data;
     }
@@ -527,7 +689,7 @@ class TauriServiceClass {
   }
 
   public async fetchDatabaseStats(): Promise<any> {
-    const response = await this.tauriInvoke('fetch_db_stats');
+    const response = await this.ensureInitializedAndInvoke('fetch_db_stats');
     if (response.success && response.data) {
       return response.data;
     }
@@ -536,12 +698,14 @@ class TauriServiceClass {
 
   // Frontend helper methods for API proxy
   public async proxyApiRequest(method: string, path: string, body?: any): Promise<any> {
-    return await this.tauriInvoke('proxy_api_request', { method, path, body });
+    return await this.ensureInitializedAndInvoke('proxy_api_request', { method, path, body });
   }
 
   // Plugin HTTP routes
-  public async fetchPluginRoutes(): Promise<Array<{ name: string; path: string; display_name?: string }>> {
-    const response = await this.tauriInvoke('fetch_plugin_routes');
+  public async fetchPluginRoutes(): Promise<
+    Array<{ name: string; path: string; display_name?: string }>
+  > {
+    const response = await this.ensureInitializedAndInvoke('fetch_plugin_routes');
     if (response.success && response.data) {
       return response.data.routes || [];
     }
@@ -549,7 +713,7 @@ class TauriServiceClass {
   }
 
   public async fetchTabContent(route: string): Promise<string> {
-    const response = await this.tauriInvoke('fetch_tab_content', { route });
+    const response = await this.ensureInitializedAndInvoke('fetch_tab_content', { route });
     if (response.success && response.data) {
       return response.data.content || '';
     }

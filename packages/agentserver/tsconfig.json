@@ -11,10 +11,10 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "outDir": "./dist-backend",
+    "outDir": "./dist",
     "rootDir": "./src-backend",
     "types": ["node"]
   },
   "include": ["src-backend/**/*"],
-  "exclude": ["node_modules", "dist", "dist-backend"]
+  "exclude": ["node_modules", "dist", "dist"]
 }

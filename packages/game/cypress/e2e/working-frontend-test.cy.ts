@@ -15,7 +15,7 @@ describe('Working Frontend Test - Real UI Verification', () => {
       onBeforeLoad: (win) => {
         win.localStorage.setItem('skipBoot', 'true');
         win.localStorage.setItem('disableWebSocket', 'true');
-      }
+      },
     });
 
     // Wait for React to render
@@ -72,7 +72,7 @@ describe('Working Frontend Test - Real UI Verification', () => {
       '[placeholder*="input"]',
       '.terminal-input',
       '.chat-input',
-      '#terminal-input'
+      '#terminal-input',
     ];
 
     let foundInput = false;
@@ -84,25 +84,29 @@ describe('Working Frontend Test - Real UI Verification', () => {
           cy.log(`✅ Found input element: ${selector}`);
 
           // Test typing in the input
-          cy.get(selector).first().then(($input) => {
-            if ($input.is(':visible') && !$input.is(':disabled')) {
-              cy.wrap($input).clear().type('Hello agent, this is a UI test!', { force: true });
-              cy.log('✅ Successfully typed in input field');
+          cy.get(selector)
+            .first()
+            .then(($input) => {
+              if ($input.is(':visible') && !$input.is(':disabled')) {
+                cy.wrap($input).clear().type('Hello agent, this is a UI test!', { force: true });
+                cy.log('✅ Successfully typed in input field');
 
-              // Look for and click send button or press Enter
-              cy.get('body').then(($body2) => {
-                const sendButtons = $body2.find('button:contains("Send"), [type="submit"], .send-button');
-                if (sendButtons.length > 0) {
-                  cy.wrap(sendButtons.first()).click({ force: true });
-                  cy.log('✅ Clicked send button');
-                } else {
-                  // Try pressing Enter
-                  cy.wrap($input).type('{enter}', { force: true });
-                  cy.log('✅ Pressed Enter to send');
-                }
-              });
-            }
-          });
+                // Look for and click send button or press Enter
+                cy.get('body').then(($body2) => {
+                  const sendButtons = $body2.find(
+                    'button:contains("Send"), [type="submit"], .send-button'
+                  );
+                  if (sendButtons.length > 0) {
+                    cy.wrap(sendButtons.first()).click({ force: true });
+                    cy.log('✅ Clicked send button');
+                  } else {
+                    // Try pressing Enter
+                    cy.wrap($input).type('{enter}', { force: true });
+                    cy.log('✅ Pressed Enter to send');
+                  }
+                });
+              }
+            });
         }
       });
     });
@@ -131,7 +135,7 @@ describe('Working Frontend Test - Real UI Verification', () => {
       '[role="tab"]',
       '.tab',
       '.nav-item',
-      '[class*="tab"]'
+      '[class*="tab"]',
     ];
 
     const foundTabs = [];
@@ -144,20 +148,22 @@ describe('Working Frontend Test - Real UI Verification', () => {
           cy.log(`✅ Found ${elements.length} elements with: ${selector}`);
 
           // Click the first visible element
-          cy.get(selector).first().then(($tab) => {
-            if ($tab.is(':visible')) {
-              cy.wrap($tab).click({ force: true });
-              cy.wait(1000); // Wait for tab switch
-              cy.log(`✅ Clicked tab: ${$tab.text().substring(0, 30)}`);
-            }
-          });
+          cy.get(selector)
+            .first()
+            .then(($tab) => {
+              if ($tab.is(':visible')) {
+                cy.wrap($tab).click({ force: true });
+                cy.wait(1000); // Wait for tab switch
+                cy.log(`✅ Clicked tab: ${$tab.text().substring(0, 30)}`);
+              }
+            });
         }
       });
     });
 
     cy.then(() => {
       cy.log(`Found tabs with ${foundTabs.length} different selectors`);
-      foundTabs.forEach(tab => {
+      foundTabs.forEach((tab) => {
         cy.log(`  - ${tab.selector}: ${tab.count} elements`);
       });
     });
@@ -179,7 +185,7 @@ describe('Working Frontend Test - Real UI Verification', () => {
       '.toggle',
       '.switch',
       'button:contains("Enable")',
-      'button:contains("Disable")'
+      'button:contains("Disable")',
     ];
 
     let foundToggles = 0;
@@ -192,23 +198,27 @@ describe('Working Frontend Test - Real UI Verification', () => {
           cy.log(`✅ Found ${toggles.length} toggles with: ${selector}`);
 
           // Test clicking the first toggle
-          cy.get(selector).first().then(($toggle) => {
-            if ($toggle.is(':visible')) {
-              const initialState = $toggle.prop('checked') || $toggle.attr('aria-checked') || 'unknown';
-              cy.wrap($toggle).click({ force: true });
-              cy.wait(500);
+          cy.get(selector)
+            .first()
+            .then(($toggle) => {
+              if ($toggle.is(':visible')) {
+                const initialState =
+                  $toggle.prop('checked') || $toggle.attr('aria-checked') || 'unknown';
+                cy.wrap($toggle).click({ force: true });
+                cy.wait(500);
 
-              // Check if state changed
-              cy.wrap($toggle).then(($toggleAfter) => {
-                const newState = $toggleAfter.prop('checked') || $toggleAfter.attr('aria-checked') || 'unknown';
-                if (newState !== initialState) {
-                  cy.log(`✅ Toggle state changed: ${initialState} → ${newState}`);
-                } else {
-                  cy.log(`ℹ️ Toggle clicked (state: ${newState})`);
-                }
-              });
-            }
-          });
+                // Check if state changed
+                cy.wrap($toggle).then(($toggleAfter) => {
+                  const newState =
+                    $toggleAfter.prop('checked') || $toggleAfter.attr('aria-checked') || 'unknown';
+                  if (newState !== initialState) {
+                    cy.log(`✅ Toggle state changed: ${initialState} → ${newState}`);
+                  } else {
+                    cy.log(`ℹ️ Toggle clicked (state: ${newState})`);
+                  }
+                });
+              }
+            });
         }
       });
     });
@@ -222,23 +232,26 @@ describe('Working Frontend Test - Real UI Verification', () => {
     cy.log('🔍 Testing: Frontend-backend connectivity');
 
     // Test that frontend can make API calls to backend
-    cy.window().then((win) => {
-      // Use fetch from the window context
-      return cy.wrap(
-        win.fetch('http://localhost:7777/api/server/health')
-          .then(response => response.json())
-          .then(data => ({ status: 'success', data }))
-          .catch(error => ({ status: 'error', error: error.message }))
-      );
-    }).then((result) => {
-      if (result.status === 'success') {
-        cy.log('✅ Frontend can reach backend API');
-        cy.log(`Agent ID: ${result.data.data?.agentId || 'unknown'}`);
-      } else {
-        cy.log('❌ Frontend cannot reach backend API');
-        cy.log(`Error: ${result.error}`);
-      }
-    });
+    cy.window()
+      .then((win) => {
+        // Use fetch from the window context
+        return cy.wrap(
+          win
+            .fetch('http://localhost:7777/api/server/health')
+            .then((response) => response.json())
+            .then((data) => ({ status: 'success', data }))
+            .catch((error) => ({ status: 'error', error: error.message }))
+        );
+      })
+      .then((result) => {
+        if (result.status === 'success') {
+          cy.log('✅ Frontend can reach backend API');
+          cy.log(`Agent ID: ${result.data.data?.agentId || 'unknown'}`);
+        } else {
+          cy.log('❌ Frontend cannot reach backend API');
+          cy.log(`Error: ${result.error}`);
+        }
+      });
 
     cy.screenshot('backend-connectivity');
   });
@@ -252,18 +265,22 @@ describe('Working Frontend Test - Real UI Verification', () => {
       hasInputField: false,
       hasNavigation: false,
       hasToggles: false,
-      backendReachable: false
+      backendReachable: false,
     };
 
     // Test page loading
-    cy.get('body').should('exist').then(() => {
-      assessment.pageLoads = true;
-      cy.log('✅ Page loads successfully');
-    });
+    cy.get('body')
+      .should('exist')
+      .then(() => {
+        assessment.pageLoads = true;
+        cy.log('✅ Page loads successfully');
+      });
 
     // Test for interactive elements
     cy.get('body').then(($body) => {
-      const interactive = $body.find('button, input, select, textarea, [role="button"], [role="tab"], [role="switch"]');
+      const interactive = $body.find(
+        'button, input, select, textarea, [role="button"], [role="tab"], [role="switch"]'
+      );
       if (interactive.length > 0) {
         assessment.hasInteractiveElements = true;
         cy.log(`✅ Found ${interactive.length} interactive elements`);
@@ -277,7 +294,9 @@ describe('Working Frontend Test - Real UI Verification', () => {
       }
 
       // Test for navigation
-      const navElements = $body.find('button:contains("Goals"), button:contains("Config"), [role="tab"], .tab, .nav');
+      const navElements = $body.find(
+        'button:contains("Goals"), button:contains("Config"), [role="tab"], .tab, .nav'
+      );
       if (navElements.length > 0) {
         assessment.hasNavigation = true;
         cy.log(`✅ Found ${navElements.length} navigation elements`);
@@ -295,7 +314,7 @@ describe('Working Frontend Test - Real UI Verification', () => {
     cy.request({
       method: 'GET',
       url: 'http://localhost:7777/api/server/health',
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       if (response.status === 200) {
         assessment.backendReachable = true;
@@ -305,7 +324,7 @@ describe('Working Frontend Test - Real UI Verification', () => {
 
     // Final assessment
     cy.then(() => {
-      const workingFeatures = Object.values(assessment).filter(v => v).length;
+      const workingFeatures = Object.values(assessment).filter((v) => v).length;
       const totalFeatures = Object.keys(assessment).length;
 
       cy.log('');

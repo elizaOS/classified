@@ -12,13 +12,11 @@ import {
   type State,
 } from '@elizaos/core';
 import { z } from 'zod';
-import { StagehandService, BrowserSession } from './service.js';
+import { StagehandService } from './service.js';
 import {
-  BrowserActionError,
   BrowserNavigationError,
   BrowserSecurityError,
   BrowserServiceNotAvailableError,
-  BrowserSessionError,
   StagehandError,
   handleBrowserError,
 } from './errors.js';
@@ -72,9 +70,10 @@ const browserNavigateAction: Action = {
     'Navigate the browser to a specified URL. Can be chained with BROWSER_EXTRACT to get content or BROWSER_SCREENSHOT to capture the page',
 
   validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
-    const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
-                           runtime.getSetting('BROWSER_ENABLED') === 'true';
-    
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
     if (!browserEnabled) {
       logger.debug('Browser capability disabled in settings.');
       return false;
@@ -346,4 +345,4 @@ export const stagehandPlugin: Plugin = {
     // TODO: Add all other browser actions here
   ],
   providers: [browserStateProvider],
-}; 
+};

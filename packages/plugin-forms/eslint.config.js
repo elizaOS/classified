@@ -1,4 +1,4 @@
-import pluginConfig from '../core/configs/eslint/eslint.config.plugin.js';
+import pluginConfig from '../config/src/eslint/eslint.config.plugin.js';
 
 /**
  * ESLint configuration for @elizaos/plugin-starter
@@ -6,16 +6,4 @@ import pluginConfig from '../core/configs/eslint/eslint.config.plugin.js';
  *
  * This is a starter template plugin with both Node.js and React components.
  */
-export default [
-  ...pluginConfig,
-  {
-    // Plugin-starter specific overrides
-    files: ['**/*.{js,jsx,ts,tsx}'],
-    rules: {
-      // Allow more flexibility in starter template
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': 'warn',
-      'no-console': 'off', // Allow console in template examples
-    },
-  },
-];
+export default pluginConfig;

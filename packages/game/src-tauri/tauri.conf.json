@@ -19,7 +19,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [],
+    "resources": ["../init-scripts/*"],
     "category": "Utility",
     "shortDescription": "CLASSIFIED AUTONOMOUS INTELLIGENCE PROJECT",
     "longDescription": "[CLASSIFIED] ELIZA - Autonomous Intelligence Framework. WARNING: Use at your own risk. Entity behavior is unpredictable. Project status: RESTRICTED ACCESS.",
@@ -40,10 +40,14 @@
         "cmd": "signtool",
         "args": [
           "sign",
-          "/fd", "sha256",
-          "/t", "http://timestamp.sectigo.com",
-          "/f", "${WINDOWS_CERTIFICATE_PATH}",
-          "/p", "${WINDOWS_CERTIFICATE_PASSWORD}",
+          "/fd",
+          "sha256",
+          "/t",
+          "http://timestamp.sectigo.com",
+          "/f",
+          "${WINDOWS_CERTIFICATE_PATH}",
+          "/p",
+          "${WINDOWS_CERTIFICATE_PASSWORD}",
           "${pathToSign}"
         ]
       },

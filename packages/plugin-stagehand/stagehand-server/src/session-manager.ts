@@ -31,7 +31,7 @@ export class SessionManager {
 
     // Determine environment based on available API keys
     const env = process.env.BROWSERBASE_API_KEY ? 'BROWSERBASE' : 'LOCAL';
-    
+
     // Create Stagehand configuration
     const config: any = {
       env,
@@ -99,9 +99,7 @@ export class SessionManager {
   }
 
   getClientSessions(clientId: string): BrowserSession[] {
-    return Array.from(this.sessions.values()).filter(
-      session => session.clientId === clientId
-    );
+    return Array.from(this.sessions.values()).filter((session) => session.clientId === clientId);
   }
 
   async cleanupClientSessions(clientId: string): Promise<void> {
@@ -117,4 +115,4 @@ export class SessionManager {
       await this.destroySession(sessionId);
     }
   }
-} 
+}

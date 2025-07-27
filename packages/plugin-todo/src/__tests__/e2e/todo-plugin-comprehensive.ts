@@ -43,13 +43,6 @@ export const TodoPluginComprehensiveE2ETestSuite: TestSuite = {
           throw new Error('TodoReminderService not started');
         }
         console.log('✓ TodoReminderService is started');
-
-        const integrationService = runtime.getService('TODO_INTEGRATION_BRIDGE');
-        if (!integrationService) {
-          throw new Error('TodoIntegrationBridge not started');
-        }
-        console.log('✓ TodoIntegrationBridge is started');
-
         console.log('✅ Plugin initialization test passed');
       },
     },

@@ -1,7 +1,8 @@
 import type { IAgentRuntime } from '@elizaos/core';
 import { Service, logger } from '@elizaos/core';
-import { StagehandClient } from './websocket-client.js';
 import { StagehandProcessManager } from './process-manager.js';
+import { StagehandServiceType } from './types';
+import { StagehandClient } from './websocket-client.js';
 
 export class BrowserSession {
   constructor(
@@ -11,7 +12,7 @@ export class BrowserSession {
 }
 
 export class StagehandService extends Service {
-  static serviceType = 'stagehand';
+  static serviceType = StagehandServiceType.STAGEHAND;
   capabilityDescription = 'Browser automation service using Stagehand for web interactions';
 
   private sessions: Map<string, BrowserSession> = new Map();
@@ -22,7 +23,7 @@ export class StagehandService extends Service {
 
   constructor(protected runtime: IAgentRuntime) {
     super(runtime);
-    const port = parseInt(runtime.getSetting('STAGEHAND_SERVER_PORT') || '3456');
+    const port = parseInt(runtime.getSetting('STAGEHAND_SERVER_PORT') || '3456', 10);
     this.processManager = new StagehandProcessManager(port);
     this.client = new StagehandClient({ serverUrl: `ws://localhost:${port}` });
   }
@@ -51,8 +52,8 @@ export class StagehandService extends Service {
     try {
       logger.info('Starting Stagehand server process...');
       await this.processManager.start();
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       logger.info('Connecting to Stagehand server...');
       await this.client.connect();
 
@@ -66,7 +67,7 @@ export class StagehandService extends Service {
 
   async stop() {
     logger.info('Cleaning up browser sessions');
-    
+
     for (const sessionId of this.sessions.keys()) {
       await this.destroySession(sessionId);
     }
@@ -117,4 +118,4 @@ export class StagehandService extends Service {
     }
     return this.client;
   }
-} 
+}

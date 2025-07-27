@@ -1,7 +1,14 @@
-// Vision service types and interfaces
+// Extend the core service types with vision service
+declare module '@elizaos/core' {
+  interface ServiceTypeRegistry {
+    VISION: 'VISION';
+  }
+}
+
+// Export service type constant
 export const VisionServiceType = {
   VISION: 'VISION' as const,
-};
+} satisfies Partial<import('@elizaos/core').ServiceTypeRegistry>;
 
 // Vision-specific types
 export interface CameraInfo {

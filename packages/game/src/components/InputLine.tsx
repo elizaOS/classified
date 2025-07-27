@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 
 interface InputLineProps {
-    onSendMessage: (message: string) => void;
-    onHistoryNavigation: (direction: 'up' | 'down') => string;
-    disabled?: boolean;
+  onSendMessage: (message: string) => void;
+  onHistoryNavigation: (direction: 'up' | 'down') => string;
+  disabled?: boolean;
 }
 
-export function InputLine({ onSendMessage, onHistoryNavigation, disabled = false }: InputLineProps) {
+export function InputLine({
+  onSendMessage,
+  onHistoryNavigation,
+  disabled = false,
+}: InputLineProps) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 

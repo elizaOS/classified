@@ -61,11 +61,11 @@ export async function detectCaptchaType(page: Page): Promise<CaptchaInfo> {
 }
 
 export async function injectCaptchaSolution(
-  page: Page, 
-  captchaType: string, 
+  page: Page,
+  captchaType: string,
   solution: string
 ): Promise<void> {
   // This is a placeholder - actual implementation would depend on captcha type
   // For now, we'll just log that we would inject the solution
   console.log(`Would inject ${captchaType} solution:`, solution.substring(0, 20) + '...');
-} 
+}

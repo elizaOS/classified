@@ -12,7 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const platforms = [
   { name: 'linux', nodeUrl: 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-linux-x64.tar.gz' },
   { name: 'darwin', nodeUrl: 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-darwin-x64.tar.gz' },
-  { name: 'win32', nodeUrl: 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-win-x64.zip' }
+  { name: 'win32', nodeUrl: 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-win-x64.zip' },
 ];
 
 async function buildSEA() {
@@ -28,25 +28,22 @@ async function buildSEA() {
     output: './binaries/stagehand-server.blob',
     disableExperimentalSEAWarning: true,
     useSnapshot: false,
-    useCodeCache: true
+    useCodeCache: true,
   };
 
-  await writeFile(
-    join(__dirname, '../sea-config.json'),
-    JSON.stringify(seaConfig, null, 2)
-  );
+  await writeFile(join(__dirname, '../sea-config.json'), JSON.stringify(seaConfig, null, 2));
 
   try {
     // Step 1: Create the blob
     console.log('Creating SEA blob...');
     await execAsync('node --experimental-sea-config sea-config.json', {
-      cwd: join(__dirname, '..')
+      cwd: join(__dirname, '..'),
     });
 
     // Step 2: Create binaries for each platform
     for (const platform of platforms) {
       console.log(`Building for ${platform.name}...`);
-      
+
       const ext = platform.name === 'win32' ? '.exe' : '';
       const outputName = `stagehand-server-${platform.name}${ext}`;
       const outputPath = join(__dirname, '../binaries', outputName);
@@ -63,10 +60,10 @@ async function buildSEA() {
 
       // Step 3: Inject the blob
       const postjectCommand = `npx postject ${outputPath} NODE_SEA_BLOB ./binaries/stagehand-server.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`;
-      
+
       console.log('Running postject...');
       await execAsync(postjectCommand, {
-        cwd: join(__dirname, '..')
+        cwd: join(__dirname, '..'),
       });
 
       // Make executable on Unix systems
@@ -99,11 +96,7 @@ child.on('exit', (code) => {
 });
 `;
 
-    await writeFile(
-      join(__dirname, '../stagehand-server'),
-      wrapperScript,
-      { mode: 0o755 }
-    );
+    await writeFile(join(__dirname, '../stagehand-server'), wrapperScript, { mode: 0o755 });
 
     console.log('SEA build completed successfully!');
   } catch (error) {
@@ -113,4 +106,4 @@ child.on('exit', (code) => {
 }
 
 // Run the build
-buildSEA().catch(console.error); 
+buildSEA().catch(console.error);

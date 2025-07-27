@@ -21,7 +21,7 @@ export interface MessageServer {
 
 export interface Channel {
   id: string;
-  messageServerId: UUID;
+  serverId: UUID;
   name: string;
   type: string;
   sourceType?: string;
@@ -147,7 +147,7 @@ export class ServerDatabaseAdapter {
    */
   async createChannel(data: {
     id?: string;
-    messageServerId: UUID;
+    serverId: UUID;
     name: string;
     type: string;
     sourceType?: string;
@@ -159,7 +159,7 @@ export class ServerDatabaseAdapter {
 
     const channelToInsert = {
       id: channelId,
-      messageServerId: data.messageServerId,
+      serverId: data.serverId,
       name: data.name,
       type: data.type,
       sourceType: data.sourceType,
@@ -181,7 +181,7 @@ export class ServerDatabaseAdapter {
       if (existing.length > 0) {
         return {
           id: existing[0].id,
-          messageServerId: existing[0].messageServerId,
+          serverId: existing[0].serverId,
           name: existing[0].name,
           type: existing[0].type,
           sourceType: existing[0].sourceType || undefined,
@@ -203,10 +203,10 @@ export class ServerDatabaseAdapter {
     const results = await this.db
       .select()
       .from(channelTable)
-      .where(eq(channelTable.messageServerId, serverId));
+      .where(eq(channelTable.serverId, serverId));
     return results.map((r) => ({
       id: r.id,
-      messageServerId: r.messageServerId,
+      serverId: r.serverId,
       name: r.name,
       type: r.type,
       sourceType: r.sourceType || undefined,
@@ -377,7 +377,7 @@ export class ServerDatabaseAdapter {
 
     // Create new DM channel
     const channel = await this.createChannel({
-      messageServerId: serverId,
+      serverId,
       name: dmChannelName,
       type: 'DM',
       metadata: {
@@ -405,7 +405,7 @@ export class ServerDatabaseAdapter {
     return results.length > 0
       ? {
           id: results[0].id,
-          messageServerId: results[0].messageServerId,
+          serverId: results[0].serverId,
           name: results[0].name,
           type: results[0].type,
           sourceType: results[0].sourceType || undefined,
@@ -428,8 +428,12 @@ export class ServerDatabaseAdapter {
       updatedAt: new Date(),
     };
 
-    if (updates.name) updateData.name = updates.name;
-    if (updates.metadata) updateData.metadata = updates.metadata;
+    if (updates.name) {
+      updateData.name = updates.name;
+    }
+    if (updates.metadata) {
+      updateData.metadata = updates.metadata;
+    }
 
     await this.db.update(channelTable).set(updateData).where(eq(channelTable.id, channelId));
 

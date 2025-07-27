@@ -12,7 +12,7 @@ import {
   type State,
   formatMessages,
 } from '@elizaos/core';
-import { createGoalDataService } from '../services/goalDataService';
+import type { GoalService } from '../services/goalService';
 
 // Interface for confirmation data stored in state
 interface PendingGoalData {
@@ -278,7 +278,7 @@ export const confirmGoalAction: Action = {
       }
 
       // User confirmed - create the task
-      const dataService = createGoalDataService(runtime);
+      const dataService = runtime.getService('goals') as GoalService;
 
       // Check for duplicates one more time
       const existingGoals = await dataService.getGoals({

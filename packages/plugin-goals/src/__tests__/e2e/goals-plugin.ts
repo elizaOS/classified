@@ -15,8 +15,9 @@ export const GoalsPluginE2ETestSuite: TestSuite = {
         logger.info('Testing goal creation and completion flow...');
 
         // Use the custom test service if available, otherwise fall back to normal service
-        const createService = global.createTestGoalDataService || 
-          (await import('../../services/goalDataService')).createGoalDataService;
+        const createService =
+          global.createTestGoalDataService ||
+          (await import('../../services/goalService')).createGoalDataService;
         const dataService = createService(runtime);
 
         // Create test data
@@ -76,8 +77,9 @@ export const GoalsPluginE2ETestSuite: TestSuite = {
         logger.info('Testing uncompleted goals retrieval...');
 
         // Use the custom test service if available, otherwise fall back to normal service
-        const createService = global.createTestGoalDataService || 
-          (await import('../../services/goalDataService')).createGoalDataService;
+        const createService =
+          global.createTestGoalDataService ||
+          (await import('../../services/goalService')).createGoalDataService;
         const dataService = createService(runtime);
 
         // Create test data
@@ -141,8 +143,9 @@ export const GoalsPluginE2ETestSuite: TestSuite = {
         logger.info('Testing goal tag filtering...');
 
         // Use the custom test service if available, otherwise fall back to normal service
-        const createService = global.createTestGoalDataService || 
-          (await import('../../services/goalDataService')).createGoalDataService;
+        const createService =
+          global.createTestGoalDataService ||
+          (await import('../../services/goalService')).createGoalDataService;
         const dataService = createService(runtime);
 
         // Create test data

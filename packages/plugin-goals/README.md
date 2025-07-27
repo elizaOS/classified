@@ -190,10 +190,6 @@ console.log(
   `Optimal time: ${recommendation.optimalTime}, confidence: ${recommendation.confidence}`
 );
 
-// Cross-platform messaging
-const bridge = runtime.getService('GOAL_INTEGRATION_BRIDGE');
-const success = await bridge.sendCrossPlatformReminder(goal, 'Custom message', 'high');
-
 // Confirmation workflows
 const confirmService = runtime.getService('GOAL_CONFIRMATION');
 const taskId = await confirmService.createReminderConfirmation(goal, 'overdue');

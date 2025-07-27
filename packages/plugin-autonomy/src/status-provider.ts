@@ -1,9 +1,4 @@
-import {
-  type IAgentRuntime,
-  type Memory,
-  type Provider,
-  type State,
-} from '@elizaos/core';
+import { type IAgentRuntime, type Memory, type Provider, type State } from '@elizaos/core';
 
 /**
  * Autonomy Status Provider - shows autonomy status in regular conversations
@@ -13,7 +8,7 @@ export const autonomyStatusProvider: Provider = {
   name: 'AUTONOMY_STATUS',
   description: 'Provides current autonomy status for agent awareness in conversations',
 
-  get: async (runtime: IAgentRuntime, message: Memory, state?: State) => {
+  get: async (runtime: IAgentRuntime, message: Memory, _state?: State) => {
     try {
       // Get autonomy service
       const autonomyService = runtime.getService('autonomy');
@@ -31,11 +26,11 @@ export const autonomyStatusProvider: Provider = {
       const autonomyEnabled = runtime.getSetting('AUTONOMY_ENABLED');
       const serviceRunning = (autonomyService as any).isLoopRunning?.() || false;
       const interval = (autonomyService as any).getLoopInterval?.() || 30000;
-      
+
       // Determine status
       let status: string;
       let statusIcon: string;
-      
+
       if (serviceRunning) {
         status = 'running autonomously';
         statusIcon = '🤖';
@@ -48,17 +43,18 @@ export const autonomyStatusProvider: Provider = {
       }
 
       const intervalText = Math.round(interval / 1000);
-      const intervalUnit = intervalText < 60 ? 'seconds' : `${Math.round(intervalText / 60)} minutes`;
+      const intervalUnit =
+        intervalText < 60 ? 'seconds' : `${Math.round(intervalText / 60)} minutes`;
 
       return {
-        text: `[AUTONOMY_STATUS]\nCurrent status: ${statusIcon} ${status}\nThinking interval: ${intervalText < 60 ? intervalText + ' seconds' : intervalUnit}\n[/AUTONOMY_STATUS]`,
+        text: `[AUTONOMY_STATUS]\nCurrent status: ${statusIcon} ${status}\nThinking interval: ${intervalText < 60 ? `${intervalText} seconds` : intervalUnit}\n[/AUTONOMY_STATUS]`,
         data: {
           autonomyEnabled: !!autonomyEnabled,
           serviceRunning,
           interval,
           intervalSeconds: intervalText,
-          status: serviceRunning ? 'running' : autonomyEnabled ? 'enabled' : 'disabled'
-        }
+          status: serviceRunning ? 'running' : autonomyEnabled ? 'enabled' : 'disabled',
+        },
       };
     } catch (error) {
       console.error('[AutonomyStatusProvider] Error:', error);

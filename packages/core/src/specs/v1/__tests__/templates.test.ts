@@ -61,7 +61,7 @@ describe('Templates Module', () => {
       const template: TemplateType = ({ state }) => `Hello, ${state?.userName || 'Guest'}!`;
       const templateFunction = createTemplateFunction(template);
 
-      // @ts-ignore - Testing null state
+      // @ts-expect-error - Testing null state
       const result = templateFunction(null);
       expect(result).toBe('');
     });
@@ -99,7 +99,7 @@ describe('Templates Module', () => {
         values: {},
       };
 
-      // @ts-ignore - Testing null template
+      // @ts-expect-error - Testing null template
       const result = processTemplate(null, state);
       expect(result).toBe('');
     });
@@ -108,9 +108,9 @@ describe('Templates Module', () => {
       const stringTemplate: TemplateType = 'Static content';
       const fnTemplate: TemplateType = ({ state }) => `Hello, ${state?.userName || 'Guest'}!`;
 
-      // @ts-ignore - Testing null state
+      // @ts-expect-error - Testing null state
       const result1 = processTemplate(stringTemplate, null);
-      // @ts-ignore - Testing null state
+      // @ts-expect-error - Testing null state
       const result2 = processTemplate(fnTemplate, null);
 
       expect(result1).toBe('Static content');
@@ -158,7 +158,7 @@ describe('Templates Module', () => {
     });
 
     it('should handle null/undefined state', () => {
-      // @ts-ignore - Testing null state
+      // @ts-expect-error - Testing null state
       const values = getTemplateValues<UserTemplateValues>(null, {
         age: 0,
         location: 'Unknown',

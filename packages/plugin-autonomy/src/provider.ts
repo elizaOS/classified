@@ -1,10 +1,4 @@
-import {
-  type IAgentRuntime,
-  type Memory,
-  type Provider,
-  type State,
-  asUUID,
-} from '@elizaos/core';
+import { type IAgentRuntime, type Memory, type Provider, type State, asUUID } from '@elizaos/core';
 
 /**
  * Admin Chat Provider - provides conversation history with admin user
@@ -14,7 +8,7 @@ export const adminChatProvider: Provider = {
   name: 'ADMIN_CHAT_HISTORY',
   description: 'Provides recent conversation history with the admin user for autonomous context',
 
-  get: async (runtime: IAgentRuntime, message: Memory, state?: State) => {
+  get: async (runtime: IAgentRuntime, message: Memory, _state?: State) => {
     try {
       // Only provide admin chat context in autonomous room
       const autonomyService = runtime.getService('autonomy');
@@ -32,7 +26,7 @@ export const adminChatProvider: Provider = {
       if (!adminUserId) {
         return {
           text: '[ADMIN_CHAT_HISTORY]\nNo admin user configured. Set ADMIN_USER_ID in character settings.\n[/ADMIN_CHAT_HISTORY]',
-          data: { adminConfigured: false }
+          data: { adminConfigured: false },
         };
       }
 
@@ -49,11 +43,11 @@ export const adminChatProvider: Provider = {
       if (!adminMessages || adminMessages.length === 0) {
         return {
           text: '[ADMIN_CHAT_HISTORY]\nNo recent messages found with admin user.\n[/ADMIN_CHAT_HISTORY]',
-          data: { 
+          data: {
             adminConfigured: true,
             messageCount: 0,
-            adminUserId 
-          }
+            adminUserId,
+          },
         };
       }
 
@@ -64,24 +58,25 @@ export const adminChatProvider: Provider = {
         .map((msg) => {
           const isFromAdmin = msg.entityId === adminUUID;
           const isFromAgent = msg.entityId === runtime.agentId;
-          
+
           const sender = isFromAdmin ? 'Admin' : isFromAgent ? 'Agent' : 'Other';
           const text = msg.content.text || '[No text content]';
           const timestamp = new Date(msg.createdAt || 0).toLocaleTimeString();
-          
+
           return `${timestamp} ${sender}: ${text}`;
         })
         .join('\\n');
 
       // Get recent admin message summary
       const recentAdminMessages = adminMessages
-        .filter(msg => msg.entityId === adminUUID)
+        .filter((msg) => msg.entityId === adminUUID)
         .slice(-3);
 
       const lastAdminMessage = recentAdminMessages[recentAdminMessages.length - 1];
-      const adminMoodContext = recentAdminMessages.length > 0 
-        ? `Last admin message: "${lastAdminMessage?.content.text || 'N/A'}"` 
-        : 'No recent admin messages';
+      const adminMoodContext =
+        recentAdminMessages.length > 0
+          ? `Last admin message: "${lastAdminMessage?.content.text || 'N/A'}"`
+          : 'No recent admin messages';
 
       return {
         text: `[ADMIN_CHAT_HISTORY]\nRecent conversation with admin user (${adminMessages.length} total messages):\n\n${conversationHistory}\n\n${adminMoodContext}\n[/ADMIN_CHAT_HISTORY]`,
@@ -91,8 +86,8 @@ export const adminChatProvider: Provider = {
           adminUserId,
           recentMessageCount: recentAdminMessages.length,
           lastAdminMessage: lastAdminMessage?.content.text || '',
-          conversationActive: adminMessages.some(m => (Date.now() - (m.createdAt || 0)) < 3600000) // Active within last hour
-        }
+          conversationActive: adminMessages.some((m) => Date.now() - (m.createdAt || 0) < 3600000), // Active within last hour
+        },
       };
     } catch (error) {
       console.error('[AdminChatProvider] Error:', error);
@@ -100,8 +95,8 @@ export const adminChatProvider: Provider = {
         text: '[ADMIN_CHAT_HISTORY]\nError retrieving admin conversation history.\n[/ADMIN_CHAT_HISTORY]',
         data: {
           error: error instanceof Error ? error.message : 'Unknown error',
-          adminConfigured: false
-        }
+          adminConfigured: false,
+        },
       };
     }
   },

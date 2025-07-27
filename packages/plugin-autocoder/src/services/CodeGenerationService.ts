@@ -1,11 +1,4 @@
-import { elizaLogger } from '@elizaos/core';
-import {
-  Content,
-  IAgentRuntime,
-  Service,
-  ModelType,
-  Plugin,
-} from '@elizaos/core';
+import { elizaLogger, IAgentRuntime, ModelType, Service } from '@elizaos/core';
 import { FormsService } from '@elizaos/plugin-forms';
 
 // Define types that were imported before
@@ -227,10 +220,10 @@ API Research:
 ${research.apis
   .map(
     (api: APIResearch) => `
-${api.name}:
-${api.documentation}
-Examples: ${api.examples.join(', ')}
-`
+    ${api.name}:
+    ${api.documentation}
+    Examples: ${api.examples.join(', ')}
+    `
   )
   .join('\n')}
 
@@ -238,9 +231,9 @@ Similar Projects:
 ${research.similarProjects
   .map(
     (p: SimilarProject) => `
-${p.name}: ${p.description}
-Patterns: ${p.patterns.join(', ')}
-`
+    ${p.name}: ${p.description}
+    Patterns: ${p.patterns.join(', ')}
+    `
   )
   .join('\n')}
 
@@ -284,9 +277,9 @@ Generate a detailed PRD following ElizaOS best practices including:
       throw new Error('E2B service not available for QA');
     }
 
-      // Run lint
-      const lintResult = await (e2bService as any).executeCode(
-        `
+    // Run lint
+    const lintResult = await (e2bService as any).executeCode(
+      `
 import subprocess
 import os
 
@@ -312,23 +305,23 @@ except Exception as e:
     print("LINT_ERROR:", str(e))
     print("LINT_EXIT_CODE: 1")
 `,
-        'python'
-      );
+      'python'
+    );
 
-      if (lintResult.error) {
-        results.lintErrors = 1;
+    if (lintResult.error) {
+      results.lintErrors = 1;
+      results.details.push(`Lint errors: ${results.lintErrors}`);
+    } else {
+      const exitCode = lintResult.text?.match(/LINT_EXIT_CODE:\s*(\d+)/)?.[1];
+      if (exitCode && parseInt(exitCode, 10) !== 0) {
+        results.lintErrors = this.countErrors(lintResult.text || '', 'error');
         results.details.push(`Lint errors: ${results.lintErrors}`);
-      } else {
-        const exitCode = lintResult.text?.match(/LINT_EXIT_CODE:\s*(\d+)/)?.[1];
-        if (exitCode && parseInt(exitCode) !== 0) {
-          results.lintErrors = this.countErrors(lintResult.text || '', 'error');
-          results.details.push(`Lint errors: ${results.lintErrors}`);
-        }
       }
+    }
 
-      // Run type check
-      const typeResult = await (e2bService as any).executeCode(
-        `
+    // Run type check
+    const typeResult = await (e2bService as any).executeCode(
+      `
 import subprocess
 import os
 
@@ -345,23 +338,23 @@ except Exception as e:
     print("TYPE_ERROR:", str(e))
     print("TYPE_EXIT_CODE: 1")
 `,
-        'python'
-      );
+      'python'
+    );
 
-      if (typeResult.error) {
-        results.typeErrors = 1;
+    if (typeResult.error) {
+      results.typeErrors = 1;
+      results.details.push(`Type errors: ${results.typeErrors}`);
+    } else {
+      const exitCode = typeResult.text?.match(/TYPE_EXIT_CODE:\s*(\d+)/)?.[1];
+      if (exitCode && parseInt(exitCode, 10) !== 0) {
+        results.typeErrors = this.countErrors(typeResult.text || '', 'error');
         results.details.push(`Type errors: ${results.typeErrors}`);
-      } else {
-        const exitCode = typeResult.text?.match(/TYPE_EXIT_CODE:\s*(\d+)/)?.[1];
-        if (exitCode && parseInt(exitCode) !== 0) {
-          results.typeErrors = this.countErrors(typeResult.text || '', 'error');
-          results.details.push(`Type errors: ${results.typeErrors}`);
-        }
       }
+    }
 
-      // Run build
-      const buildResult = await (e2bService as any).executeCode(
-        `
+    // Run build
+    const buildResult = await (e2bService as any).executeCode(
+      `
 import subprocess
 import os
 
@@ -378,21 +371,21 @@ except Exception as e:
     print("BUILD_ERROR:", str(e))
     print("BUILD_EXIT_CODE: 1")
 `,
-        'python'
-      );
+      'python'
+    );
 
-      if (buildResult.error) {
-        results.buildSuccess = false;
-        results.details.push('Build: Failed (E2B error)');
-      } else {
-        const exitCode = buildResult.text?.match(/BUILD_EXIT_CODE:\s*(\d+)/)?.[1];
-        results.buildSuccess = exitCode ? parseInt(exitCode) === 0 : false;
-        results.details.push(`Build: ${results.buildSuccess ? 'Success' : 'Failed'}`);
-      }
+    if (buildResult.error) {
+      results.buildSuccess = false;
+      results.details.push('Build: Failed (E2B error)');
+    } else {
+      const exitCode = buildResult.text?.match(/BUILD_EXIT_CODE:\s*(\d+)/)?.[1];
+      results.buildSuccess = exitCode ? parseInt(exitCode, 10) === 0 : false;
+      results.details.push(`Build: ${results.buildSuccess ? 'Success' : 'Failed'}`);
+    }
 
-      // Run tests
-      const testResult = await (e2bService as any).executeCode(
-        `
+    // Run tests
+    const testResult = await (e2bService as any).executeCode(
+      `
 import subprocess
 import os
 
@@ -409,22 +402,22 @@ except Exception as e:
     print("TEST_ERROR:", str(e))
     print("TEST_EXIT_CODE: 1")
 `,
-        'python'
-      );
+      'python'
+    );
 
-      if (testResult.error) {
-        results.testsFailed = 1;
+    if (testResult.error) {
+      results.testsFailed = 1;
+      results.details.push(`Tests failed: ${results.testsFailed}`);
+    } else {
+      const exitCode = testResult.text?.match(/TEST_EXIT_CODE:\s*(\d+)/)?.[1];
+      if (exitCode && parseInt(exitCode, 10) !== 0) {
+        results.testsFailed = this.countErrors(testResult.text || '', 'failed');
         results.details.push(`Tests failed: ${results.testsFailed}`);
-      } else {
-        const exitCode = testResult.text?.match(/TEST_EXIT_CODE:\s*(\d+)/)?.[1];
-        if (exitCode && parseInt(exitCode) !== 0) {
-          results.testsFailed = this.countErrors(testResult.text || '', 'failed');
-          results.details.push(`Tests failed: ${results.testsFailed}`);
-        }
       }
+    }
 
-      // Security review using AI model
-      const securityPrompt = `Perform a security review of the project at ${projectPath}. 
+    // Security review using AI model
+    const securityPrompt = `Perform a security review of the project at ${projectPath}. 
         Check for:
         - Exposed secrets or API keys in code
         - Vulnerable dependencies
@@ -434,20 +427,20 @@ except Exception as e:
         
         Provide a list of specific security issues found.`;
 
-      const securityResponse = await this.generateCodeWithTimeout(securityPrompt, 1000, 30000); // 30 second timeout for security scan
+    const securityResponse = await this.generateCodeWithTimeout(securityPrompt, 1000, 30000); // 30 second timeout for security scan
 
-      if (securityResponse) {
-        results.securityIssues = this.extractSecurityIssues(securityResponse as string);
-        results.details.push(`Security issues: ${results.securityIssues.length}`);
-      }
+    if (securityResponse) {
+      results.securityIssues = this.extractSecurityIssues(securityResponse as string);
+      results.details.push(`Security issues: ${results.securityIssues.length}`);
+    }
 
-      // Determine if QA passed
-      results.passed =
-        results.lintErrors === 0 &&
-        results.typeErrors === 0 &&
-        results.testsFailed === 0 &&
-        results.buildSuccess &&
-        results.securityIssues.length === 0;
+    // Determine if QA passed
+    results.passed =
+      results.lintErrors === 0 &&
+      results.typeErrors === 0 &&
+      results.testsFailed === 0 &&
+      results.buildSuccess &&
+      results.securityIssues.length === 0;
 
     return results;
   }
@@ -693,25 +686,25 @@ print("✅ claude.md file created")
       // Build prompt for this iteration
       const prompt = this.buildIterativePrompt(request, iteration);
 
-        // Generate code with Claude Code in sandbox
-        const result = await this.runClaudeCodeInSandbox(prompt, projectPath, 1);
+      // Generate code with Claude Code in sandbox
+      const result = await this.runClaudeCodeInSandbox(prompt, projectPath, 1);
 
-        if (!result.success) {
-          elizaLogger.error(`Code generation failed in iteration ${iteration}`);
-          throw new Error('Code generation failed');
-        }
+      if (!result.success) {
+        elizaLogger.error(`Code generation failed in iteration ${iteration}`);
+        throw new Error('Code generation failed');
+      }
 
-        // Run validation after each iteration
-        const validationResult = await this.runValidationSuite(projectPath);
+      // Run validation after each iteration
+      const validationResult = await this.runValidationSuite(projectPath);
 
-        if (validationResult.passed) {
-          elizaLogger.info('All tests passed! Code generation complete.');
-          allTestsPassed = true;
-          break;
-        }
+      if (validationResult.passed) {
+        elizaLogger.info('All tests passed! Code generation complete.');
+        allTestsPassed = true;
+        break;
+      }
 
-        // Prepare feedback for next iteration
-        await this.prepareFeedbackForNextIteration(projectPath, validationResult);
+      // Prepare feedback for next iteration
+      await this.prepareFeedbackForNextIteration(projectPath, validationResult);
     }
 
     if (!allTestsPassed) {
@@ -802,8 +795,8 @@ except Exception as e:
     };
 
     // Run tests
-      const testResult = await this.e2bService!.executeCode(
-        `
+    const testResult = await this.e2bService!.executeCode(
+      `
 import subprocess
 import os
 
@@ -815,19 +808,19 @@ print("TEST_OUTPUT:", result.stdout)
 print("TEST_ERRORS:", result.stderr)
 print("TEST_EXIT_CODE:", result.returncode)
 `,
-        'python'
-      );
+      'python'
+    );
 
-      const testOutput = testResult.text || '';
-      result.testsFailed = this.countErrors(testOutput, 'failed');
-      result.testsPassed = testOutput.includes('TEST_EXIT_CODE: 0');
-      if (!result.testsPassed) {
-        result.details.push('Tests failed');
-      }
+    const testOutput = testResult.text || '';
+    result.testsFailed = this.countErrors(testOutput, 'failed');
+    result.testsPassed = testOutput.includes('TEST_EXIT_CODE: 0');
+    if (!result.testsPassed) {
+      result.details.push('Tests failed');
+    }
 
     // Run linting
-      const lintResult = await this.e2bService!.executeCode(
-        `
+    const lintResult = await this.e2bService!.executeCode(
+      `
 import subprocess
 import os
 
@@ -839,19 +832,19 @@ print("LINT_OUTPUT:", result.stdout)
 print("LINT_ERRORS:", result.stderr)
 print("LINT_EXIT_CODE:", result.returncode)
 `,
-        'python'
-      );
+      'python'
+    );
 
-      const lintOutput = lintResult.text || '';
-      result.lintErrors = this.countErrors(lintOutput, 'error');
-      result.lintPassed = lintOutput.includes('LINT_EXIT_CODE: 0');
-      if (!result.lintPassed) {
-        result.details.push('Linting failed');
-      }
+    const lintOutput = lintResult.text || '';
+    result.lintErrors = this.countErrors(lintOutput, 'error');
+    result.lintPassed = lintOutput.includes('LINT_EXIT_CODE: 0');
+    if (!result.lintPassed) {
+      result.details.push('Linting failed');
+    }
 
     // Run type checking
-      const typeResult = await this.e2bService!.executeCode(
-        `
+    const typeResult = await this.e2bService!.executeCode(
+      `
 import subprocess
 import os
 
@@ -863,19 +856,19 @@ print("TYPE_OUTPUT:", result.stdout)
 print("TYPE_ERRORS:", result.stderr)
 print("TYPE_EXIT_CODE:", result.returncode)
 `,
-        'python'
-      );
+      'python'
+    );
 
-      const typeOutput = typeResult.text || '';
-      result.typeErrors = this.countErrors(typeOutput, 'error');
-      result.typesPassed = typeOutput.includes('TYPE_EXIT_CODE: 0');
-      if (!result.typesPassed) {
-        result.details.push('Type checking failed');
-      }
+    const typeOutput = typeResult.text || '';
+    result.typeErrors = this.countErrors(typeOutput, 'error');
+    result.typesPassed = typeOutput.includes('TYPE_EXIT_CODE: 0');
+    if (!result.typesPassed) {
+      result.details.push('Type checking failed');
+    }
 
     // Run build
-      const buildResult = await this.e2bService!.executeCode(
-        `
+    const buildResult = await this.e2bService!.executeCode(
+      `
 import subprocess
 import os
 
@@ -887,15 +880,15 @@ print("BUILD_OUTPUT:", result.stdout)
 print("BUILD_ERRORS:", result.stderr)
 print("BUILD_EXIT_CODE:", result.returncode)
 `,
-        'python'
-      );
+      'python'
+    );
 
-      const buildOutput = buildResult.text || '';
-      result.buildSuccess = buildOutput.includes('BUILD_EXIT_CODE: 0');
-      result.buildPassed = result.buildSuccess;
-      if (!result.buildPassed) {
-        result.details.push('Build failed');
-      }
+    const buildOutput = buildResult.text || '';
+    result.buildSuccess = buildOutput.includes('BUILD_EXIT_CODE: 0');
+    result.buildPassed = result.buildSuccess;
+    if (!result.buildPassed) {
+      result.details.push('Build failed');
+    }
 
     result.passed =
       result.testsPassed && result.lintPassed && result.typesPassed && result.buildPassed;
@@ -988,51 +981,53 @@ print("✅ Validation feedback prepared")
       return this.generateCodeWithoutSandbox(request);
     }
 
-      // Use timeout configuration
-      const config = this.getTimeoutConfig();
+    // Use timeout configuration
+    const config = this.getTimeoutConfig();
 
-      const result = await Promise.race([
-        this.generateCodeInternal(request),
-        new Promise<GenerationResult>((_, reject) =>
-          setTimeout(() => reject(new Error('Generation timeout')), config.timeout)
-        ),
-      ]);
+    const result = await Promise.race([
+      this.generateCodeInternal(request),
+      new Promise<GenerationResult>((_, reject) =>
+        setTimeout(() => reject(new Error('Generation timeout')), config.timeout)
+      ),
+    ]);
 
-      return result;
+    return result;
   }
 
   /**
    * Generate code without sandbox (simplified approach for testing)
    */
-  private async generateCodeWithoutSandbox(request: CodeGenerationRequest): Promise<GenerationResult> {
+  private async generateCodeWithoutSandbox(
+    request: CodeGenerationRequest
+  ): Promise<GenerationResult> {
     elizaLogger.info('Generating code without sandbox environment');
-    
-      // Generate essential files using AI
-      const files = await this.generateEssentialFiles(request);
-      
-      // Add more files based on project type
-      if (request.targetType === 'plugin') {
-        files.push({
-          path: 'src/index.ts',
-          content: await this.generateWithTimeout(
-            `Generate the main entry point for an ElizaOS plugin named "${request.projectName}" that ${request.description}`,
-            4000,
-            15000
-          )
-        });
-        
-        files.push({
-          path: 'src/types.ts',
-          content: `// Type definitions for ${request.projectName}\nexport interface Config {\n  // Add configuration types\n}\n`
-        });
-      }
-      
-      return {
-        success: true,
-        projectPath: `/generated/${request.projectName}`,
-        files,
-        warnings: ['Generated without E2B sandbox environment. Some features may be limited.']
-      };
+
+    // Generate essential files using AI
+    const files = await this.generateEssentialFiles(request);
+
+    // Add more files based on project type
+    if (request.targetType === 'plugin') {
+      files.push({
+        path: 'src/index.ts',
+        content: await this.generateWithTimeout(
+          `Generate the main entry point for an ElizaOS plugin named "${request.projectName}" that ${request.description}`,
+          4000,
+          15000
+        ),
+      });
+
+      files.push({
+        path: 'src/types.ts',
+        content: `// Type definitions for ${request.projectName}\nexport interface Config {\n  // Add configuration types\n}\n`,
+      });
+    }
+
+    return {
+      success: true,
+      projectPath: `/generated/${request.projectName}`,
+      files,
+      warnings: ['Generated without E2B sandbox environment. Some features may be limited.'],
+    };
   }
 
   private isTimeoutError(error: Error): boolean {
@@ -1076,19 +1071,19 @@ print("✅ Validation feedback prepared")
     const config = this.getTimeoutConfig();
     const timeout = timeoutMs || config.requestTimeout;
 
-      // Use the runtime's text generation service with timeout
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Code generation timeout')), timeout);
-      });
+    // Use the runtime's text generation service with timeout
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Code generation timeout')), timeout);
+    });
 
-      const generationPromise = this.runtime.useModel(ModelType.TEXT_LARGE, {
-        prompt,
-        temperature: 0.7,
-        max_tokens: maxTokens,
-      });
+    const generationPromise = this.runtime.useModel(ModelType.TEXT_LARGE, {
+      prompt,
+      temperature: 0.7,
+      max_tokens: maxTokens,
+    });
 
-      const result = await Promise.race([generationPromise, timeoutPromise]);
-      return result;
+    const result = await Promise.race([generationPromise, timeoutPromise]);
+    return result;
   }
 
   /**
@@ -1096,16 +1091,17 @@ print("✅ Validation feedback prepared")
    */
   private async generateCodeInChunks(request: CodeGenerationRequest): Promise<GenerationResult> {
     elizaLogger.info('Attempting chunked code generation due to timeout...');
-    
-      // Generate in chunks to avoid context limits
-      const files = await this.generateEssentialFiles(request);
-      
-      // Add additional files based on project type
-      if (request.targetType === 'plugin') {
-        // Plugin-specific files
-        files.push({
-          path: 'tsconfig.json',
-          content: JSON.stringify({
+
+    // Generate in chunks to avoid context limits
+    const files = await this.generateEssentialFiles(request);
+
+    // Add additional files based on project type
+    if (request.targetType === 'plugin') {
+      // Plugin-specific files
+      files.push({
+        path: 'tsconfig.json',
+        content: JSON.stringify(
+          {
             compilerOptions: {
               target: 'ES2020',
               module: 'commonjs',
@@ -1115,51 +1111,59 @@ print("✅ Validation feedback prepared")
               strict: true,
               esModuleInterop: true,
               skipLibCheck: true,
-              forceConsistentCasingInFileNames: true
+              forceConsistentCasingInFileNames: true,
             },
             include: ['src/**/*'],
-            exclude: ['node_modules', 'dist']
-          }, null, 2)
-        });
-        
-        files.push({
-          path: 'src/types.ts',
-          content: '// Type definitions\nexport interface Config {\n  apiKey?: string;\n}\n'
-        });
-      }
-      
-      // Add environment file
-      files.push({
-        path: '.env.example',
-        content: request.apis.map(api => `${api.toUpperCase()}_API_KEY=`).join('\n') || 'API_KEY='
+            exclude: ['node_modules', 'dist'],
+          },
+          null,
+          2
+        ),
       });
-      
-      // Add basic test file
-      files.push({
-        path: 'src/__tests__/index.test.ts',
-        content: 'describe(\'Basic tests\', () => {\n  it(\'should work\', () => {\n    expect(true).toBe(true);\n  });\n});\n'
-      });
-      
-      // Add configuration file
-      files.push({
-        path: 'config.json',
-        content: JSON.stringify({
-          name: request.projectName,
-          version: '1.0.0',
-          environment: 'development'
-        }, null, 2)
-      });
-      
-      // Add Docker file for deployment
-      files.push({
-        path: 'Dockerfile',
-        content: 'FROM node:18-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install\nCMD ["npm", "start"]'
-      });
-      
-      // Add types.ts file for type definitions
+
       files.push({
         path: 'src/types.ts',
-        content: `// Type definitions for ${request.projectName}
+        content: '// Type definitions\nexport interface Config {\n  apiKey?: string;\n}\n',
+      });
+    }
+
+    // Add environment file
+    files.push({
+      path: '.env.example',
+      content: request.apis.map((api) => `${api.toUpperCase()}_API_KEY=`).join('\n') || 'API_KEY=',
+    });
+
+    // Add basic test file
+    files.push({
+      path: 'src/__tests__/index.test.ts',
+      content:
+        "describe('Basic tests', () => {\n  it('should work', () => {\n    expect(true).toBe(true);\n  });\n});\n",
+    });
+
+    // Add configuration file
+    files.push({
+      path: 'config.json',
+      content: JSON.stringify(
+        {
+          name: request.projectName,
+          version: '1.0.0',
+          environment: 'development',
+        },
+        null,
+        2
+      ),
+    });
+
+    // Add Docker file for deployment
+    files.push({
+      path: 'Dockerfile',
+      content: 'FROM node:18-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install\nCMD ["npm", "start"]',
+    });
+
+    // Add types.ts file for type definitions
+    files.push({
+      path: 'src/types.ts',
+      content: `// Type definitions for ${request.projectName}
 export interface ProjectConfig {
   name: string;
   version: string;
@@ -1167,66 +1171,74 @@ export interface ProjectConfig {
 }
 
 export interface ${request.description.toLowerCase().includes('weather') ? 'WeatherData' : 'ApiResponse'} {
-  ${request.description.toLowerCase().includes('weather') ? `
-  temperature: number;
-  weather: string;
-  humidity: number;
-  windSpeed: number;
-  location: string;` : `
-  data: any;
-  status: number;
-  message: string;`}
+${
+  request.description.toLowerCase().includes('weather')
+    ? `
+    temperature: number;
+    weather: string;
+    humidity: number;
+    windSpeed: number;
+    location: string;`
+    : `
+    data: any;
+    status: number;
+    message: string;`
+}
 }
 
 export type PluginAction = {
   name: string;
   description: string;
   handler: (context: any) => Promise<void>;
-};`
-      });
-      
-      return {
-        success: true,
-        projectPath: `/tmp/${request.projectName}`,
-        files,
-        errors: [],
-        warnings: [],
-      };
+};`,
+    });
+
+    return {
+      success: true,
+      projectPath: `/tmp/${request.projectName}`,
+      files,
+      errors: [],
+      warnings: [],
+    };
   }
-  
+
   private async generateEssentialFiles(request: CodeGenerationRequest): Promise<GenerationFile[]> {
     const files: GenerationFile[] = [];
 
     // Package.json
     const packagePrompt = `Generate a minimal package.json for an ElizaOS ${request.targetType} named "${request.projectName}". Include only essential dependencies.`;
-      const packageContent = await this.generateWithTimeout(packagePrompt, 1500, 30000);
-      files.push({ path: 'package.json', content: packageContent });
+    const packageContent = await this.generateWithTimeout(packagePrompt, 1500, 30000);
+    files.push({ path: 'package.json', content: packageContent });
 
     // Main source file - include weather/API keywords if relevant
     const mainPrompt = `Generate the main entry file (index.ts) for an ElizaOS ${request.targetType} that implements: ${request.description}. Keep it minimal but functional.`;
-      const mainContent = await this.generateWithTimeout(mainPrompt, 7777, 30000);
-      files.push({ path: 'src/index.ts', content: mainContent });
+    const mainContent = await this.generateWithTimeout(mainPrompt, 7777, 30000);
+    files.push({ path: 'src/index.ts', content: mainContent });
 
     // Character file for agents
     if (request.targetType === 'agent') {
       const characterPrompt = `Generate a character.json file for the ElizaOS agent: ${request.projectName}. Description: ${request.description}`;
-        const characterContent = await this.generateWithTimeout(characterPrompt, 2000, 30000);
-        files.push({ path: 'character.json', content: characterContent });
+      const characterContent = await this.generateWithTimeout(characterPrompt, 2000, 30000);
+      files.push({ path: 'character.json', content: characterContent });
     }
 
     // README
-      const readmeContent = await this.generateWithTimeout(
-        `Generate a brief README.md for ${request.projectName}: ${request.description}`, 
-        1000, 
-        30000
-      );
-      files.push({ path: 'README.md', content: readmeContent });
+    const readmeContent = await this.generateWithTimeout(
+      `Generate a brief README.md for ${request.projectName}: ${request.description}`,
+      1000,
+      30000
+    );
+    files.push({ path: 'README.md', content: readmeContent });
 
     return files;
   }
-  
-  private async generateWithTimeout(prompt: string, maxTokens: number, timeoutMs: number): Promise<string> {
-      return await this.generateCodeWithTimeout(prompt, maxTokens, timeoutMs);
+
+  private async generateWithTimeout(
+    prompt: string,
+    maxTokens: number,
+    timeoutMs: number
+  ): Promise<string> {
+    return await this.generateCodeWithTimeout(prompt, maxTokens, timeoutMs);
   }
 
   /**
@@ -1398,22 +1410,22 @@ except Exception as e:
     traceback.print_exc()
 `;
 
-      const result = await this.e2bService!.executeCode(claudeCodeScript, 'python');
+    const result = await this.e2bService!.executeCode(claudeCodeScript, 'python');
 
-      const output = result.text || '';
-      const success = output.includes('SUCCESS: True');
+    const output = result.text || '';
+    const success = output.includes('SUCCESS: True');
 
-      // Extract files count
-      const filesMatch = output.match(/FILES_COUNT: (\d+)/);
-      const filesCount = filesMatch ? parseInt(filesMatch[1]) : 0;
+    // Extract files count
+    const filesMatch = output.match(/FILES_COUNT: (\d+)/);
+    const filesCount = filesMatch ? parseInt(filesMatch[1], 10) : 0;
 
-      elizaLogger.info(`Claude Code generation completed. Success: ${success}, Files: ${filesCount}`);
+    elizaLogger.info(`Claude Code generation completed. Success: ${success}, Files: ${filesCount}`);
 
-      return {
-        success,
-        output,
-        files: [], // We'll get the actual files in a separate step
-      };
+    return {
+      success,
+      output,
+      files: [], // We'll get the actual files in a separate step
+    };
   }
 
   /**
@@ -1444,51 +1456,51 @@ except Exception as e:
     this.sandboxId = await this.e2bService!.createSandbox();
     const projectPath = `/workspace/${request.projectName}`;
 
-      // Step 1: Setup project structure
-      await this.setupProjectWithStarter(projectPath, request);
+    // Step 1: Setup project structure
+    await this.setupProjectWithStarter(projectPath, request);
 
-      // Step 2: Create claude.md
-      await this.createClaudeMd(projectPath, request);
+    // Step 2: Create claude.md
+    await this.createClaudeMd(projectPath, request);
 
-      // Step 3: Install dependencies
-      await this.installDependencies(projectPath);
+    // Step 3: Install dependencies
+    await this.installDependencies(projectPath);
 
-      // Step 4: Run iterative code generation
-      await this.iterativeCodeGeneration(projectPath, request);
+    // Step 4: Run iterative code generation
+    await this.iterativeCodeGeneration(projectPath, request);
 
-      // Step 5: Final validation
-      const finalValidation = await this.runValidationSuite(projectPath);
+    // Step 5: Final validation
+    const finalValidation = await this.runValidationSuite(projectPath);
 
-      // Step 6: Create GitHub repo if requested
-      let githubUrl: string | undefined;
-      if (request.githubRepo && this.githubService) {
-        const repo = await this.githubService.createRepository({
-          name: request.githubRepo,
-          description: request.description || `Generated by ElizaOS AutoCoder`,
-          private: false, // Make repository public
-          auto_init: true
-        });
-        githubUrl = repo.html_url;
-      }
+    // Step 6: Create GitHub repo if requested
+    let githubUrl: string | undefined;
+    if (request.githubRepo && this.githubService) {
+      const repo = await this.githubService.createRepository({
+        name: request.githubRepo,
+        description: request.description || 'Generated by ElizaOS AutoCoder',
+        private: false, // Make repository public
+        auto_init: true,
+      });
+      githubUrl = repo.html_url;
+    }
 
-      // Step 7: Get generated files
-      const files = await this.getGeneratedFiles(projectPath);
+    // Step 7: Get generated files
+    const files = await this.getGeneratedFiles(projectPath);
 
-      return {
-        success: true,
-        projectPath,
-        githubUrl,
-        files,
-        executionResults: {
-          testsPass: finalValidation.passed,
-          lintPass: finalValidation.lintPassed,
-          typesPass: finalValidation.typesPassed,
-          buildPass: finalValidation.buildPassed,
-          buildSuccess: finalValidation.buildPassed,
-          securityPass: finalValidation.securityIssues.length === 0,
-        },
-        warnings: finalValidation.details,
-      };
+    return {
+      success: true,
+      projectPath,
+      githubUrl,
+      files,
+      executionResults: {
+        testsPass: finalValidation.passed,
+        lintPass: finalValidation.lintPassed,
+        typesPass: finalValidation.typesPassed,
+        buildPass: finalValidation.buildPassed,
+        buildSuccess: finalValidation.buildPassed,
+        securityPass: finalValidation.securityIssues.length === 0,
+      },
+      warnings: finalValidation.details,
+    };
   }
 
   /**
@@ -1500,8 +1512,8 @@ except Exception as e:
       return [];
     }
 
-      // List all files in the project directory
-      const listFilesScript = `
+    // List all files in the project directory
+    const listFilesScript = `
 import os
 import json
 
@@ -1552,26 +1564,26 @@ except Exception as e:
     }))
       `;
 
-      const result = await this.e2bService.executeCode(listFilesScript, 'python');
-      
-      if (result.error) {
-        elizaLogger.error('Failed to list files:', result.error);
-        return [];
-      }
+    const result = await this.e2bService.executeCode(listFilesScript, 'python');
 
-      // Parse the JSON output
-        const output = result.text || '{}';
-        const data = JSON.parse(output);
-        
-        if (data.success && Array.isArray(data.files)) {
-          elizaLogger.info(`Retrieved ${data.files.length} files from ${projectPath}`);
-          return data.files.map((file: any) => ({
-            path: file.path,
-            content: file.content
-          }));
-        }
-        
-        return [];
+    if (result.error) {
+      elizaLogger.error('Failed to list files:', result.error);
+      return [];
+    }
+
+    // Parse the JSON output
+    const output = result.text || '{}';
+    const data = JSON.parse(output);
+
+    if (data.success && Array.isArray(data.files)) {
+      elizaLogger.info(`Retrieved ${data.files.length} files from ${projectPath}`);
+      return data.files.map((file: any) => ({
+        path: file.path,
+        content: file.content,
+      }));
+    }
+
+    return [];
   }
 
   /**
@@ -1607,8 +1619,8 @@ except Exception as e:
   }
 
   private async searchSimilarProjects(request: CodeGenerationRequest): Promise<SimilarProject[]> {
-      // Search for similar projects using runtime's text model
-      const searchPrompt = `List any existing ElizaOS ${request.targetType} projects similar to:
+    // Search for similar projects using runtime's text model
+    const searchPrompt = `List any existing ElizaOS ${request.targetType} projects similar to:
 Name: ${request.projectName}
 Description: ${request.description}
 Type: ${request.targetType}
@@ -1624,27 +1636,27 @@ Return JSON array with format:
 
 If no similar projects found, return empty array [].`;
 
-      const response = await this.runtime.useModel('text_large', {
-        prompt: searchPrompt,
-        temperature: 0.3,
-        max_tokens: 1000,
-      });
+    const response = await this.runtime.useModel('text_large', {
+      prompt: searchPrompt,
+      temperature: 0.3,
+      max_tokens: 1000,
+    });
 
-        // Extract JSON from response
-        let jsonText = response;
-        if (typeof response === 'string') {
-          jsonText = response.replace(/```json\s*|\s*```/g, '').trim();
-          const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            jsonText = jsonMatch[0];
-          }
-        }
+    // Extract JSON from response
+    let jsonText = response;
+    if (typeof response === 'string') {
+      jsonText = response.replace(/```json\s*|\s*```/g, '').trim();
+      const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[0];
+      }
+    }
 
-        const similarProjects = JSON.parse(jsonText);
-        return Array.isArray(similarProjects) ? similarProjects : [];
+    const similarProjects = JSON.parse(jsonText);
+    return Array.isArray(similarProjects) ? similarProjects : [];
   }
 
-  private async getElizaContext(targetType: string): Promise<ElizaContext> {
+  private async getElizaContext(_targetType: string): Promise<ElizaContext> {
     // In a real implementation, this would gather ElizaOS-specific context
     return {
       coreTypes: ['Plugin', 'Action', 'Provider', 'Service'],
@@ -1661,7 +1673,7 @@ If no similar projects found, return empty array [].`;
 
   parseGeneratedCode(
     generatedContent: string,
-    context: { projectName: string; description: string; targetType: string }
+    _context: { projectName: string; description: string; targetType: string }
   ): GenerationFile[] {
     const files: GenerationFile[] = [];
     const fileRegex = /File:\s*([^\n]+)\n```[\w]*\n([\s\S]*?)```/g;

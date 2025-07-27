@@ -12,7 +12,8 @@ import {
   type State,
   type UUID,
 } from '@elizaos/core';
-import { createGoalDataService, type GoalData } from '../services/goalDataService';
+import type { GoalService } from '../services/goalService';
+import type { GoalData } from '../types';
 
 // Interface for goal selection properties
 interface GoalSelection {
@@ -219,7 +220,7 @@ export const updateGoalAction: Action = {
   validate: async (runtime: IAgentRuntime, message: Memory): Promise<boolean> => {
     // Check if any active goals exist
     try {
-      const dataService = createGoalDataService(runtime);
+      const dataService = runtime.getService('goals') as GoalService;
 
       // Check both agent and entity goals
       const agentGoalCount = await dataService.countGoals('agent', runtime.agentId, false);
@@ -263,7 +264,7 @@ export const updateGoalAction: Action = {
         };
       }
 
-      const dataService = createGoalDataService(runtime);
+      const dataService = runtime.getService('goals') as GoalService;
 
       // Get all active goals (both agent and entity)
       const agentGoals = await dataService.getGoals({

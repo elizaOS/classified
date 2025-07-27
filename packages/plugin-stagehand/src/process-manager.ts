@@ -19,7 +19,7 @@ export class StagehandProcessManager {
   private findBinary(): string | null {
     // Get the directory where this module is located
     const moduleDir = dirname(fileURLToPath(import.meta.url));
-    
+
     // Possible locations for the binary
     const possiblePaths = [
       // When running from plugin directory
@@ -77,7 +77,7 @@ export class StagehandProcessManager {
 
       // Determine if we're running a binary or a JS file
       const isBinary = !this.binaryPath.endsWith('.js');
-      
+
       if (isBinary) {
         // Run the binary directly
         this.process = spawn(this.binaryPath, [], { env });
@@ -89,7 +89,7 @@ export class StagehandProcessManager {
       this.process.stdout?.on('data', (data) => {
         const message = data.toString().trim();
         logger.debug(`[StagehandServer] ${message}`);
-        
+
         // Check if server is ready
         if (message.includes('listening on port')) {
           this.isRunning = true;
@@ -151,4 +151,4 @@ export class StagehandProcessManager {
   getServerUrl(): string {
     return `ws://localhost:${this.serverPort}`;
   }
-} 
+}

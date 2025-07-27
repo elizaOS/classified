@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 /**
  * CodeGenerationService Form Interaction Test Suite
- * 
+ *
  * This test suite validates the form-based project configuration workflow
  * that powers the autocoder's interactive project setup process.
  */
@@ -132,11 +132,11 @@ export class CodeGenerationFormTestSuite implements TestSuite {
         // Update field value
         if (typeof formsService.updateField === 'function') {
           await formsService.updateField(form.id, 'projectName', 'my-awesome-plugin');
-          
+
           // Get updated form
           const updatedForm = await formsService.getForm(form.id);
           const field = updatedForm.steps[0].fields.find((f: any) => f.name === 'projectName');
-          
+
           if (!field) {
             throw new Error('Field not found after update');
           }
@@ -187,11 +187,11 @@ export class CodeGenerationFormTestSuite implements TestSuite {
         });
 
         // Try to complete form without required fields
-          if (typeof formsService.completeForm === 'function') {
-            await formsService.completeForm(form.id);
-          } else if (typeof formsService.submitForm === 'function') {
-            await formsService.submitForm(form.id);
-          }
+        if (typeof formsService.completeForm === 'function') {
+          await formsService.completeForm(form.id);
+        } else if (typeof formsService.submitForm === 'function') {
+          await formsService.submitForm(form.id);
+        }
 
         // Without try-catch, we can't detect validation errors
         console.log('⚠️  Form completed - validation behavior depends on implementation');
@@ -260,7 +260,7 @@ export class CodeGenerationFormTestSuite implements TestSuite {
           await formsService.completeStep(form.id, 'step1');
           await formsService.completeStep(form.id, 'step2');
           await formsService.completeStep(form.id, 'step3');
-          
+
           if (stepCompletionCount !== 3) {
             throw new Error(`Expected 3 steps completed, got ${stepCompletionCount}`);
           }
@@ -349,16 +349,22 @@ export class CodeGenerationFormTestSuite implements TestSuite {
 
         // Verify extracted data
         if (projectData.projectName !== 'test-weather-plugin') {
-          throw new Error(`Expected projectName 'test-weather-plugin', got '${projectData.projectName}'`);
+          throw new Error(
+            `Expected projectName 'test-weather-plugin', got '${projectData.projectName}'`
+          );
         }
         if (projectData.description !== 'A plugin that provides weather information') {
-          throw new Error(`Expected description 'A plugin that provides weather information', got '${projectData.description}'`);
+          throw new Error(
+            `Expected description 'A plugin that provides weather information', got '${projectData.description}'`
+          );
         }
         if (projectData.requirements.length !== 3) {
           throw new Error(`Expected 3 requirements, got ${projectData.requirements.length}`);
         }
         if (projectData.requirements[0] !== 'Get current weather') {
-          throw new Error(`Expected first requirement 'Get current weather', got '${projectData.requirements[0]}'`);
+          throw new Error(
+            `Expected first requirement 'Get current weather', got '${projectData.requirements[0]}'`
+          );
         }
         if (projectData.apis.length !== 2) {
           throw new Error(`Expected 2 APIs, got ${projectData.apis.length}`);
@@ -444,7 +450,7 @@ export class CodeGenerationFormTestSuite implements TestSuite {
         if (agentForm.steps.length !== 2) {
           throw new Error(`Expected 2 steps, got ${agentForm.steps.length}`);
         }
-        
+
         // Check for agent-specific fields
         const hasPersonalityField = agentForm.steps[0].fields.some(
           (f: any) => f.name === 'personality'
@@ -471,7 +477,7 @@ export class CodeGenerationFormTestSuite implements TestSuite {
 
         const formsService = runtime.getService('forms') as any;
         const codeGenService = runtime.getService('code-generation') as any;
-        
+
         if (!formsService || !codeGenService) {
           throw new Error('Required services not available');
         }
@@ -487,62 +493,64 @@ export class CodeGenerationFormTestSuite implements TestSuite {
           return { success: true, files: [] };
         };
 
-          // Create form with onComplete callback
-          const form = await formsService.createForm({
-            name: 'trigger-test-form',
-            description: 'Test code generation trigger',
-            steps: [
-              {
-                id: 'details',
-                name: 'Details',
-                fields: [
-                  {
-                    name: 'projectName',
-                    type: 'text',
-                    label: 'Project Name',
-                    value: 'trigger-test-project',
-                  },
-                  {
-                    name: 'description',
-                    type: 'text',
-                    label: 'Description',
-                    value: 'Test project to verify form triggers code generation',
-                  },
-                ],
-              },
-            ],
-            onComplete: async (completedForm: any) => {
-              // Extract data and trigger code generation
-              const projectData = {
-                projectName: 'trigger-test-project',
-                description: 'Test project',
-                targetType: 'plugin' as const,
-                requirements: ['Test requirement'],
-                apis: [],
-              };
-              
-              await codeGenService.generateCode(projectData);
+        // Create form with onComplete callback
+        const form = await formsService.createForm({
+          name: 'trigger-test-form',
+          description: 'Test code generation trigger',
+          steps: [
+            {
+              id: 'details',
+              name: 'Details',
+              fields: [
+                {
+                  name: 'projectName',
+                  type: 'text',
+                  label: 'Project Name',
+                  value: 'trigger-test-project',
+                },
+                {
+                  name: 'description',
+                  type: 'text',
+                  label: 'Description',
+                  value: 'Test project to verify form triggers code generation',
+                },
+              ],
             },
-          });
+          ],
+          onComplete: async (completedForm: any) => {
+            // Extract data and trigger code generation
+            const projectData = {
+              projectName: 'trigger-test-project',
+              description: 'Test project',
+              targetType: 'plugin' as const,
+              requirements: ['Test requirement'],
+              apis: [],
+            };
 
-          // Simulate form completion
-          if (form.onComplete) {
-            await form.onComplete(form);
-          }
+            await codeGenService.generateCode(projectData);
+          },
+        });
 
-          if (!codeGenerationTriggered) {
-            throw new Error('Code generation was not triggered');
-          }
-          if (!generatedProjectData) {
-            throw new Error('Project data was not passed to generateCode');
-          }
-          if (generatedProjectData.projectName !== 'trigger-test-project') {
-            throw new Error(`Expected projectName 'trigger-test-project', got '${generatedProjectData.projectName}'`);
-          }
+        // Simulate form completion
+        if (form.onComplete) {
+          await form.onComplete(form);
+        }
 
-          console.log('✅ Form completion successfully triggers code generation');
-          // Restore original method
-          codeGenService.generateCode = originalGenerateCode;
+        if (!codeGenerationTriggered) {
+          throw new Error('Code generation was not triggered');
+        }
+        if (!generatedProjectData) {
+          throw new Error('Project data was not passed to generateCode');
+        }
+        if (generatedProjectData.projectName !== 'trigger-test-project') {
+          throw new Error(
+            `Expected projectName 'trigger-test-project', got '${generatedProjectData.projectName}'`
+          );
+        }
+
+        console.log('✅ Form completion successfully triggers code generation');
+        // Restore original method
+        codeGenService.generateCode = originalGenerateCode;
       },
     },
 
@@ -578,14 +586,14 @@ export class CodeGenerationFormTestSuite implements TestSuite {
         // Cancel the form
         if (typeof formsService.cancelForm === 'function') {
           await formsService.cancelForm(form.id);
-          
+
           // Try to get the cancelled form
-            const cancelledForm = await formsService.getForm(form.id);
-            if (cancelledForm && cancelledForm.status === 'cancelled') {
-              console.log('✅ Form cancellation handled correctly');
-            } else {
-              console.log('⚠️  Form exists but status not updated to cancelled');
-            }
+          const cancelledForm = await formsService.getForm(form.id);
+          if (cancelledForm && cancelledForm.status === 'cancelled') {
+            console.log('✅ Form cancellation handled correctly');
+          } else {
+            console.log('⚠️  Form exists but status not updated to cancelled');
+          }
         } else {
           console.log('⚠️  cancelForm method not available, skipping cancellation test');
         }

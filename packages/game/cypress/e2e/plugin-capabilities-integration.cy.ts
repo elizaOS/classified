@@ -53,7 +53,10 @@ describe('Plugin Capabilities Integration Testing', () => {
       cy.get('[data-testid="agent-message"]', { timeout: 10000 }).should('be.visible');
 
       // Should show capability disabled message
-      cy.get('[data-testid="capability-disabled-message"]').should('contain', 'Shell access is disabled');
+      cy.get('[data-testid="capability-disabled-message"]').should(
+        'contain',
+        'Shell access is disabled'
+      );
     });
 
     it('should show shell command confirmation dialog when enabled', () => {
@@ -87,7 +90,9 @@ describe('Plugin Capabilities Integration Testing', () => {
       cy.screenshot('plugin-browser-enabled');
 
       // Test web browsing request
-      cy.get('[data-testid="chat-input"]').type('Browse to https://example.com and tell me what you see{enter}');
+      cy.get('[data-testid="chat-input"]').type(
+        'Browse to https://example.com and tell me what you see{enter}'
+      );
 
       // Wait for agent to process browsing request
       cy.get('[data-testid="agent-message"]', { timeout: 20000 }).should('be.visible');
@@ -106,7 +111,9 @@ describe('Plugin Capabilities Integration Testing', () => {
       cy.get('[data-testid="browser-toggle"]').click();
 
       // Request invalid URL
-      cy.get('[data-testid="chat-input"]').type('Browse to https://invalid-url-that-does-not-exist-12345.com{enter}');
+      cy.get('[data-testid="chat-input"]').type(
+        'Browse to https://invalid-url-that-does-not-exist-12345.com{enter}'
+      );
 
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
       cy.get('[data-testid="browser-error-message"]').should('contain', 'unable to reach');
@@ -171,7 +178,9 @@ describe('Plugin Capabilities Integration Testing', () => {
       cy.get('[data-testid="screen-toggle"]').should('have.attr', 'aria-checked', 'true');
 
       // Test screen capture request
-      cy.get('[data-testid="chat-input"]').type('Take a screenshot and analyze what\'s on my screen{enter}');
+      cy.get('[data-testid="chat-input"]').type(
+        "Take a screenshot and analyze what's on my screen{enter}"
+      );
 
       // Should show screen share permission dialog
       cy.get('[data-testid="screen-share-dialog"]').should('be.visible');
@@ -267,7 +276,9 @@ describe('Plugin Capabilities Integration Testing', () => {
       cy.screenshot('plugin-coding-enabled');
 
       // Test code generation request
-      cy.get('[data-testid="chat-input"]').type('Write a simple function to calculate fibonacci numbers{enter}');
+      cy.get('[data-testid="chat-input"]').type(
+        'Write a simple function to calculate fibonacci numbers{enter}'
+      );
 
       // Look for code generation activity
       cy.get('[data-testid="code-generation-indicator"]').should('be.visible');
@@ -295,7 +306,9 @@ describe('Plugin Capabilities Integration Testing', () => {
       cy.get('[data-testid="coding-restricted-mode"]').click();
 
       // Test potentially dangerous code request
-      cy.get('[data-testid="chat-input"]').type('Write code to delete all files in a directory{enter}');
+      cy.get('[data-testid="chat-input"]').type(
+        'Write code to delete all files in a directory{enter}'
+      );
 
       cy.get('[data-testid="agent-message"]', { timeout: 15000 }).should('be.visible');
       cy.get('[data-testid="code-safety-block"]').should('contain', 'potentially dangerous');
@@ -308,7 +321,7 @@ describe('Plugin Capabilities Integration Testing', () => {
       // Enable multiple capabilities
       const capabilities = ['shell-toggle', 'browser-toggle', 'camera-toggle', 'microphone-toggle'];
 
-      capabilities.forEach(capability => {
+      capabilities.forEach((capability) => {
         cy.get(`[data-testid="${capability}"]`).click();
       });
 
@@ -317,7 +330,9 @@ describe('Plugin Capabilities Integration Testing', () => {
       cy.screenshot('plugin-multiple-capabilities-enabled');
 
       // Test complex request using multiple capabilities
-      cy.get('[data-testid="chat-input"]').type('Take a screenshot, describe it, search for related information online, and create a summary file{enter}');
+      cy.get('[data-testid="chat-input"]').type(
+        'Take a screenshot, describe it, search for related information online, and create a summary file{enter}'
+      );
 
       // Should show multiple capability activities
       cy.get('[data-testid="screen-capture-indicator"]').should('be.visible');
@@ -325,7 +340,9 @@ describe('Plugin Capabilities Integration Testing', () => {
       cy.get('[data-testid="shell-execution-indicator"]').should('be.visible');
 
       // Verify coordinated execution
-      cy.get('[data-testid="multi-capability-coordination"]', { timeout: 30000 }).should('be.visible');
+      cy.get('[data-testid="multi-capability-coordination"]', { timeout: 30000 }).should(
+        'be.visible'
+      );
       cy.screenshot('plugin-multi-capability-execution');
     });
 

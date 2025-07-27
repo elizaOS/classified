@@ -5,11 +5,38 @@ import { createMockRuntime } from './test-utils';
 import { todosTable, todoTagsTable } from '../schema.ts';
 import { createTodoDataService, TodoDataService } from '../services/todoDataService.ts';
 
+// Mock type definitions
+interface MockThenable {
+  from: ReturnType<typeof mock>;
+  where: ReturnType<typeof mock>;
+  orderBy: ReturnType<typeof mock>;
+  limit: ReturnType<typeof mock>;
+  returning: ReturnType<typeof mock>;
+  values: ReturnType<typeof mock>;
+  set: ReturnType<typeof mock>;
+  then: ReturnType<typeof mock>;
+  execute: ReturnType<typeof mock>;
+  findFirst: ReturnType<typeof mock>;
+  all: ReturnType<typeof mock>;
+  $dynamic: ReturnType<typeof mock>;
+}
+
+interface MockDb {
+  insert: ReturnType<typeof mock>;
+  select: ReturnType<typeof mock>;
+  update: ReturnType<typeof mock>;
+  delete: ReturnType<typeof mock>;
+  execute: ReturnType<typeof mock>;
+}
+
+type ResolveFn<T = unknown> = (value: T) => void;
+type RejectFn = (error: Error) => void;
+
 describe('TodoDataService', () => {
   let mockRuntime: IAgentRuntime;
   let service: TodoDataService;
-  let mockDb: any;
-  let mockThenable: any;
+  let mockDb: MockDb;
+  let mockThenable: MockThenable;
 
   beforeEach(() => {
     mockThenable = {
@@ -62,8 +89,10 @@ describe('TodoDataService', () => {
   describe('createTodo', () => {
     it('should create a new todo with tags', async () => {
       const mockTodo = { id: '00000000-0000-0000-0000-000000000001' };
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve([mockTodo]));
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(true));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<(typeof mockTodo)[]>) =>
+        resolve([mockTodo])
+      );
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<boolean>) => resolve(true));
 
       const todoId = await service.createTodo({
         agentId: 'agent-1' as UUID,
@@ -88,8 +117,10 @@ describe('TodoDataService', () => {
 
     it('should create daily todo', async () => {
       const mockTodo = { id: '00000000-0000-0000-0000-000000000002' };
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve([mockTodo]));
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(true));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<(typeof mockTodo)[]>) =>
+        resolve([mockTodo])
+      );
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<boolean>) => resolve(true));
 
       const todoId = await service.createTodo({
         agentId: 'agent-1' as UUID,
@@ -106,7 +137,7 @@ describe('TodoDataService', () => {
     });
 
     it('should handle creation failure', async () => {
-      mockThenable.then.mockImplementationOnce((resolve: any, reject: any) =>
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn, reject: RejectFn) =>
         reject(new Error('DB error'))
       );
       await expect(
@@ -130,13 +161,15 @@ describe('TodoDataService', () => {
       ];
 
       // First mock: getTodos query
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(mockTodos));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<typeof mockTodos>) =>
+        resolve(mockTodos)
+      );
 
       // Mock for each todo's tags query (2 todos = 2 tag queries)
-      mockThenable.then.mockImplementationOnce((resolve: any) =>
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<Array<{ tag: string }>>) =>
         resolve([{ tag: 'TODO' }, { tag: 'urgent' }])
       );
-      mockThenable.then.mockImplementationOnce((resolve: any) =>
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<Array<{ tag: string }>>) =>
         resolve([{ tag: 'TODO' }, { tag: 'daily' }])
       );
 
@@ -156,8 +189,12 @@ describe('TodoDataService', () => {
       const mockTodos = [{ id: '00000000-0000-0000-0000-000000000001', name: 'Todo 1' }];
       const mockTags = [{ todoId: '00000000-0000-0000-0000-000000000001', tag: 'urgent' }];
 
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(mockTodos));
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(mockTags));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<typeof mockTodos>) =>
+        resolve(mockTodos)
+      );
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<typeof mockTags>) =>
+        resolve(mockTags)
+      );
 
       const todos = await service.getTodos({
         tags: ['urgent'],
@@ -178,8 +215,12 @@ describe('TodoDataService', () => {
         { todoId: '00000000-0000-0000-0000-000000000001', tag: 'urgent' },
       ];
 
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve([mockTodo]));
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(mockTags));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<(typeof mockTodo)[]>) =>
+        resolve([mockTodo])
+      );
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<typeof mockTags>) =>
+        resolve(mockTags)
+      );
 
       const todo = await service.getTodo('00000000-0000-0000-0000-000000000001' as UUID);
 
@@ -192,7 +233,7 @@ describe('TodoDataService', () => {
     });
 
     it('should return null for non-existent todo', async () => {
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve([]));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<unknown[]>) => resolve([]));
       const todo = await service.getTodo('non-existent' as UUID);
       expect(todo).toBeNull();
     });
@@ -200,7 +241,7 @@ describe('TodoDataService', () => {
 
   describe('updateTodo', () => {
     it('should update todo fields', async () => {
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(true));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<boolean>) => resolve(true));
 
       const success = await service.updateTodo('00000000-0000-0000-0000-000000000001' as UUID, {
         name: 'Updated Name',
@@ -215,7 +256,7 @@ describe('TodoDataService', () => {
     });
 
     it('should handle update failure', async () => {
-      mockThenable.then.mockImplementationOnce((resolve: any, reject: any) =>
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn, reject: RejectFn) =>
         reject(new Error('Update failed'))
       );
 
@@ -229,7 +270,7 @@ describe('TodoDataService', () => {
 
   describe('deleteTodo', () => {
     it('should delete a todo', async () => {
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(true));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<boolean>) => resolve(true));
 
       const success = await service.deleteTodo('00000000-0000-0000-0000-000000000001' as UUID);
 
@@ -241,8 +282,10 @@ describe('TodoDataService', () => {
   describe('addTags', () => {
     it('should add new tags to a todo', async () => {
       const existingTags = [{ tag: 'TODO' }];
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(existingTags));
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(true));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<typeof existingTags>) =>
+        resolve(existingTags)
+      );
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<boolean>) => resolve(true));
 
       const success = await service.addTags('00000000-0000-0000-0000-000000000001' as UUID, [
         'urgent',
@@ -256,7 +299,9 @@ describe('TodoDataService', () => {
 
     it('should not add duplicate tags', async () => {
       const existingTags = [{ tag: 'TODO' }, { tag: 'urgent' }];
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(existingTags));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<typeof existingTags>) =>
+        resolve(existingTags)
+      );
 
       const success = await service.addTags('00000000-0000-0000-0000-000000000002' as UUID, [
         'urgent',
@@ -271,7 +316,7 @@ describe('TodoDataService', () => {
 
   describe('removeTags', () => {
     it('should remove tags from a todo', async () => {
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(true));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<boolean>) => resolve(true));
 
       const success = await service.removeTags('00000000-0000-0000-0000-000000000001' as UUID, [
         'urgent',
@@ -303,8 +348,12 @@ describe('TodoDataService', () => {
         { todoId: '00000000-0000-0000-0000-000000000001', tag: 'urgent' },
       ];
 
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(mockTodos));
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve(mockTags));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<typeof mockTodos>) =>
+        resolve(mockTodos)
+      );
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<typeof mockTags>) =>
+        resolve(mockTags)
+      );
 
       const overdueTodos = await service.getOverdueTodos();
 
@@ -316,7 +365,9 @@ describe('TodoDataService', () => {
 
   describe('resetDailyTodos', () => {
     it('should reset completed daily todos', async () => {
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve({ count: 3 }));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<{ count: number }>) =>
+        resolve({ count: 3 })
+      );
       const count = await service.resetDailyTodos({
         agentId: 'agent-1' as UUID,
       });
@@ -324,7 +375,9 @@ describe('TodoDataService', () => {
     });
 
     it('should return 0 if no todos to reset', async () => {
-      mockThenable.then.mockImplementationOnce((resolve: any) => resolve({ count: 0 }));
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn<{ count: number }>) =>
+        resolve({ count: 0 })
+      );
       const count = await service.resetDailyTodos({
         agentId: 'agent-1' as UUID,
       });
@@ -341,7 +394,7 @@ describe('TodoDataService', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      mockThenable.then.mockImplementationOnce((resolve: any, reject: any) =>
+      mockThenable.then.mockImplementationOnce((resolve: ResolveFn, reject: RejectFn) =>
         reject(new Error('Database error'))
       );
       // getTodos should return empty array on error

@@ -20,7 +20,7 @@ interface AudioRequest extends express.Request {
 /**
  * Securely validates a file path to prevent path traversal attacks
  */
-function validateSecureFilePath(filePath: string): string {
+function _validateSecureFilePath(filePath: string): string {
   if (!filePath) {
     throw new Error('File path is required');
   }

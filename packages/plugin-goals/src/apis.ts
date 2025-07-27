@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createGoalDataService } from './services/goalDataService';
+import type { GoalService } from './services/goalService';
 
 // Define the equivalent of __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -158,7 +158,35 @@ export const routes: Route[] = [
       try {
         logger.debug('[API /api/goals] Fetching goals for agent:', runtime.agentId);
 
-        const dataService = createGoalDataService(runtime);
+        // Log all registered services
+        const services = (runtime as any).services || new Map();
+        logger.info('[API /api/goals] All registered services:', Array.from(services.keys()));
+        logger.info('[API /api/goals] Services map size:', services.size);
+
+        // Log detailed service info
+        services.forEach((service: any, key: string) => {
+          logger.info(`[API /api/goals] Service "${key}":`, {
+            type: service.constructor.name,
+            hasStart: typeof service.start === 'function',
+            hasGetGoals: typeof service.getGoals === 'function',
+          });
+        });
+
+        // Try both uppercase and lowercase service names for compatibility
+        const dataService = (runtime.getService('goals') ||
+          runtime.getService('goals')) as GoalService;
+
+        if (!dataService) {
+          logger.error('[API /api/goals] Goals service not found!');
+          logger.error(
+            '[API /api/goals] Available services:',
+            Array.from((runtime as any).services?.keys() || [])
+          );
+          return res.status(503).json({
+            error: 'Goals service not available',
+            availableServices: Array.from((runtime as any).services?.keys() || []),
+          });
+        }
 
         // Get query parameters for filtering
         const { ownerType, ownerId, isCompleted, tags } = req.query;
@@ -186,7 +214,7 @@ export const routes: Route[] = [
 
         const goals = await dataService.getGoals(filters);
         logger.debug(`[API /api/goals] Found ${goals.length} goals`);
-        
+
         res.json(goals);
       } catch (error) {
         logger.error('[API /api/goals] Error fetching goals:', error);
@@ -206,7 +234,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing required field: name');
         }
 
-        const dataService = createGoalDataService(runtime);
+        const dataService = runtime.getService('goals') as GoalService;
 
         const newGoalId = await dataService.createGoal({
           agentId: runtime.agentId,
@@ -238,7 +266,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing goalId');
         }
 
-        const dataService = createGoalDataService(runtime);
+        const dataService = runtime.getService('goals') as GoalService;
         const goal = await dataService.getGoal(goalId);
 
         if (!goal) {
@@ -286,7 +314,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing goalId');
         }
 
-        const dataService = createGoalDataService(runtime);
+        const dataService = runtime.getService('goals') as GoalService;
         const goal = await dataService.getGoal(goalId);
 
         if (!goal) {
@@ -336,7 +364,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing update data');
         }
 
-        const dataService = createGoalDataService(runtime);
+        const dataService = runtime.getService('goals') as GoalService;
         const goal = await dataService.getGoal(goalId);
 
         if (!goal) {
@@ -383,7 +411,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing goal ID');
         }
 
-        const dataService = createGoalDataService(runtime);
+        const dataService = runtime.getService('goals') as GoalService;
         const goal = await dataService.getGoal(goalId);
 
         if (!goal) {

@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import typescript from '@typescript-eslint/eslint-plugin';
 import typescriptParser from '@typescript-eslint/parser';
+import prettierConfig from 'eslint-config-prettier';
 
 export default [
   js.configs.recommended,
@@ -162,31 +163,11 @@ export default [
       'no-var': 'error',
       'prefer-const': 'warn', // Not critical
       'prefer-arrow-callback': 'error',
-      'arrow-spacing': 'error',
       'object-shorthand': 'error',
       'prefer-template': 'error',
-      'template-curly-spacing': 'error',
-      'no-multiple-empty-lines': ['error', { max: 2, maxEOF: 1 }],
-      'eol-last': 'error',
-      'comma-dangle': ['error', 'only-multiline'],
-      semi: ['error', 'always'],
-      quotes: ['error', 'single', { avoidEscape: true }],
-      indent: ['error', 2, { SwitchCase: 1 }],
-      'no-trailing-spaces': 'error',
-      'keyword-spacing': 'error',
-      'space-before-blocks': 'error',
-      'object-curly-spacing': ['error', 'always'],
-      'array-bracket-spacing': ['error', 'never'],
-      'computed-property-spacing': ['error', 'never'],
-      'space-in-parens': ['error', 'never'],
-      'space-before-function-paren': [
-        'error',
-        {
-          anonymous: 'always',
-          named: 'never',
-          asyncArrow: 'always',
-        },
-      ],
+
+      // Remove all formatting-related rules that conflict with Prettier
+      // These are now handled by Prettier
 
       // Import/Export rules
       'no-duplicate-imports': 'off', // Common in large codebases
@@ -224,7 +205,7 @@ export default [
     files: ['**/*.{jsx,tsx}'],
     rules: {
       // React specific rules can be added here
-      'jsx-quotes': ['error', 'prefer-double'],
+      // Remove jsx-quotes as it's a formatting rule handled by Prettier
     },
   },
   {
@@ -264,6 +245,8 @@ export default [
       'react/react-in-jsx-scope': 'off',
     },
   },
+  // Apply prettier config last to override any formatting rules
+  prettierConfig,
   {
     ignores: [
       // Dependencies and package managers

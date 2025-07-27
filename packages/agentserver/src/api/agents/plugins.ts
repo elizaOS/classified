@@ -1,7 +1,7 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { logger, validateUuid } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import { sendError, sendSuccess } from '../shared/response-utils';
 
 interface PluginConfig {
@@ -19,7 +19,7 @@ interface PluginConfig {
  */
 export function createAgentPluginsRouter(
   agents: Map<UUID, IAgentRuntime>,
-  serverInstance: AgentServer
+  _serverInstance: AgentServer
 ): express.Router {
   const router = express.Router();
 
@@ -28,7 +28,7 @@ export function createAgentPluginsRouter(
     try {
       const agentId = validateUuid(req.params.agentId);
       const runtime = agents.get(agentId);
-      
+
       if (!runtime) {
         return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
       }
@@ -42,7 +42,7 @@ export function createAgentPluginsRouter(
           enabled: true,
           version: '1.0.0',
           description: 'Core bootstrap functionality for ElizaOS agents',
-          config: {}
+          config: {},
         },
         {
           id: 'openai',
@@ -53,8 +53,8 @@ export function createAgentPluginsRouter(
           description: 'OpenAI integration for language model capabilities',
           config: {
             model: runtime.character.settings?.model || 'gpt-4o-mini',
-            temperature: 0.7
-          }
+            temperature: 0.7,
+          },
         },
         {
           id: 'sql',
@@ -63,8 +63,8 @@ export function createAgentPluginsRouter(
           enabled: true,
           version: '1.0.0',
           description: 'Database integration for persistent memory',
-          config: {}
-        }
+          config: {},
+        },
       ];
 
       sendSuccess(res, { plugins: pluginConfigs });
@@ -86,16 +86,18 @@ export function createAgentPluginsRouter(
       const agentId = validateUuid(req.params.agentId);
       const pluginId = req.params.pluginId;
       const { config } = req.body;
-      
+
       const runtime = agents.get(agentId);
       if (!runtime) {
         return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
       }
 
-      logger.info(`[PLUGINS API] Updated config for plugin ${pluginId} on agent ${runtime.character.name}`);
-      sendSuccess(res, { 
+      logger.info(
+        `[PLUGINS API] Updated config for plugin ${pluginId} on agent ${runtime.character.name}`
+      );
+      sendSuccess(res, {
         message: `Plugin ${pluginId} configuration updated successfully`,
-        config 
+        config,
       });
     } catch (error) {
       logger.error('[PLUGINS API] Error updating plugin config:', error);

@@ -1,17 +1,16 @@
 // Vision plugin -- gives an agent visual perception through camera integration
 import { Plugin } from '@elizaos/core';
-import { VisionService } from './service.js';
-import { visionProvider } from './provider.js';
+import { VisionService } from './service';
+import { visionProvider } from './provider';
 import {
   describeSceneAction,
   captureImageAction,
-  killAutonomousAction,
   setVisionModeAction,
   nameEntityAction,
   identifyPersonAction,
   trackEntityAction,
-} from './action.js';
-import { testSuites } from './tests/e2e/index.js';
+} from './action';
+import { testSuites } from './tests/e2e/index';
 
 export const visionPlugin: Plugin = {
   name: 'vision',
@@ -23,8 +22,6 @@ export const visionPlugin: Plugin = {
     describeSceneAction,
     // Image capture disabled by default (privacy-sensitive)
     captureImageAction,
-    // Autonomous kill disabled (potentially dangerous)
-    killAutonomousAction,
     // Vision mode setting enabled for configuration
     setVisionModeAction,
     // Entity naming enabled for scene understanding

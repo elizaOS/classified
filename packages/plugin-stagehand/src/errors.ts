@@ -39,7 +39,7 @@ export class BrowserNavigationError extends StagehandError {
     super(
       `Failed to navigate to ${url}: ${originalError.message}`,
       'NAVIGATION_ERROR',
-      `I couldn't navigate to the requested page. Please check the URL and try again.`,
+      "I couldn't navigate to the requested page. Please check the URL and try again.",
       true
     );
   }
@@ -58,20 +58,11 @@ export class BrowserActionError extends StagehandError {
 
 export class BrowserSecurityError extends StagehandError {
   constructor(message: string) {
-    super(
-      message,
-      'SECURITY_ERROR',
-      'This action was blocked for security reasons.',
-      false
-    );
+    super(message, 'SECURITY_ERROR', 'This action was blocked for security reasons.', false);
   }
 }
 
-export function handleBrowserError(
-  error: Error,
-  callback?: any,
-  action?: string
-): void {
+export function handleBrowserError(error: Error, callback?: any, action?: string): void {
   if (error instanceof StagehandError) {
     logger.error(`Stagehand error [${error.code}]:`, error.message);
     callback?.({
@@ -81,7 +72,7 @@ export function handleBrowserError(
   } else {
     logger.error('Unexpected browser error:', error);
     callback?.({
-      text: action 
+      text: action
         ? `I encountered an error while trying to ${action}. Please try again.`
         : 'I encountered an unexpected error. Please try again.',
       error: true,

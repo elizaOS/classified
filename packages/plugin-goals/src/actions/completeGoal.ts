@@ -9,7 +9,7 @@ import {
   ModelType,
   logger,
 } from '@elizaos/core';
-import { createGoalDataService } from '../services/goalDataService';
+import type { GoalService } from '../services/goalService';
 
 /**
  * The COMPLETE_GOAL action allows users to mark a goal as achieved.
@@ -19,6 +19,12 @@ export const completeGoalAction: Action = {
   similes: ['ACHIEVE_GOAL', 'FINISH_GOAL', 'CHECK_OFF_GOAL', 'ACCOMPLISH_GOAL'],
   description: 'Marks a goal as completed/achieved.',
   validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
+    const dataService = runtime.getService('goals') as GoalService;
+    if (!dataService) {
+      logger.warn('Goals service not available');
+      return false;
+    }
+
     if (!message.roomId) {
       logger.warn('No roomId provided for complete goal validation');
       return false;
@@ -48,6 +54,21 @@ export const completeGoalAction: Action = {
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
     try {
+      const dataService = runtime.getService('goals') as GoalService;
+      if (!dataService) {
+        logger.error('Goals service not available');
+        if (callback) {
+          await callback({
+            text: 'Goal tracking is not available at the moment.',
+            source: message.content?.source,
+          });
+        }
+        return {
+          success: false,
+          data: { error: 'Goals service not available' },
+        };
+      }
+
       if (!message.roomId) {
         const errorMessage = 'No room context available';
         if (callback) {
@@ -58,9 +79,6 @@ export const completeGoalAction: Action = {
         }
         return { text: errorMessage, success: false };
       }
-
-      // Create data service
-      const dataService = createGoalDataService(runtime);
 
       // Determine owner context (entity vs agent)
       const isEntityMessage = message.entityId && message.entityId !== runtime.agentId;

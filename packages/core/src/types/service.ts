@@ -118,16 +118,36 @@ export abstract class Service {
   /** Runtime instance */
   protected runtime!: IAgentRuntime;
 
+  /** Service type - for categorizing services */
+  static serviceType: ServiceTypeName = ServiceType.UNKNOWN;
+
+  /** Service name - for looking up services */
+  static serviceName?: string;
+
+  /** Instance copies of static properties */
+  public readonly serviceType: ServiceTypeName;
+  public readonly serviceName: string;
+
   constructor(runtime?: IAgentRuntime) {
     if (runtime) {
       this.runtime = runtime;
     }
+
+    // Copy static properties to instance
+    const ctor = this.constructor as typeof Service;
+    this.serviceType = ctor.serviceType || ServiceType.UNKNOWN;
+
+    // Derive service name from class name if not explicitly set
+    if (ctor.serviceName) {
+      this.serviceName = ctor.serviceName;
+    } else {
+      // Remove "Service" suffix from class name
+      const className = ctor.name;
+      this.serviceName = className.endsWith('Service') ? className.slice(0, -7) : className;
+    }
   }
 
   abstract stop(): Promise<void>;
-
-  /** Service type */
-  static serviceType: string;
 
   /** Service name */
   abstract capabilityDescription: string;

@@ -1,7 +1,7 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
-import { validateUuid, logger } from '@elizaos/core';
+import { logger, validateUuid } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import { sendError, sendSuccess } from '../shared/response-utils';
 
 interface Todo {
@@ -19,7 +19,7 @@ interface Todo {
  */
 export function createAgentTodosRouter(
   agents: Map<UUID, IAgentRuntime>,
-  serverInstance: AgentServer
+  _serverInstance: AgentServer
 ): express.Router {
   const router = express.Router();
 
@@ -60,7 +60,7 @@ export function createAgentTodosRouter(
           priority: 'low',
           createdAt: new Date().toISOString(),
           completedAt: new Date().toISOString(),
-        }
+        },
       ];
 
       sendSuccess(res, { todos });
@@ -105,7 +105,7 @@ export function createAgentTodosRouter(
       };
 
       logger.info(`[TODOS CREATE] Created todo "${task}" for agent ${runtime.character.name}`);
-      
+
       // In a full implementation, this would save to database
       sendSuccess(res, { todo: newTodo }, 201);
     } catch (error) {

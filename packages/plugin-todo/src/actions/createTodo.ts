@@ -13,7 +13,8 @@ import {
   type State,
   type UUID,
 } from '@elizaos/core';
-import { createTodoDataService } from '../services/todoDataService';
+import type { TodoMetadata } from '../types';
+import type { TodoDataServiceWrapper } from '../services/todoDataService';
 
 // Interface for parsed task data
 interface TodoTaskInput {
@@ -95,7 +96,7 @@ async function extractTodoInfo(
     logger.debug('Extract todo result:', result);
 
     // Parse XML from the text results
-    const parsedResult: Record<string, any> | null = parseKeyValueXml(result);
+    const parsedResult = parseKeyValueXml(result) as TodoTaskInput | null;
 
     logger.debug('Parsed XML Todo:', parsedResult);
 
@@ -103,7 +104,8 @@ async function extractTodoInfo(
     // First, check for explicit confirmation flag or intentionally empty response
     if (
       parsedResult &&
-      (parsedResult.is_confirmation === 'true' || Object.keys(parsedResult).length === 0)
+      (('is_confirmation' in parsedResult && parsedResult.is_confirmation === 'true') ||
+        Object.keys(parsedResult).length === 0)
     ) {
       logger.info('Extraction skipped, likely a confirmation message or empty response.');
       return null;
@@ -115,27 +117,24 @@ async function extractTodoInfo(
       return null;
     }
 
-    // Cast to the expected type *after* validation
-    const validatedTodo = parsedResult as TodoTaskInput;
-
     // Convert specific fields from string if necessary and apply defaults
     const finalTodo: TodoTaskInput = {
-      ...validatedTodo,
-      name: String(validatedTodo.name),
-      taskType: validatedTodo.taskType as 'daily' | 'one-off' | 'aspirational',
+      ...parsedResult,
+      name: String(parsedResult.name),
+      taskType: parsedResult.taskType as 'daily' | 'one-off' | 'aspirational',
     };
 
     if (finalTodo.taskType === 'one-off') {
-      finalTodo.priority = validatedTodo.priority
-        ? (parseInt(String(validatedTodo.priority), 10) as 1 | 2 | 3 | 4)
+      finalTodo.priority = parsedResult.priority
+        ? (parseInt(String(parsedResult.priority), 10) as 1 | 2 | 3 | 4)
         : 3;
-      finalTodo.urgent = validatedTodo.urgent
-        ? validatedTodo.urgent === true || validatedTodo.urgent === 'true'
+      finalTodo.urgent = parsedResult.urgent
+        ? parsedResult.urgent === true || parsedResult.urgent === 'true'
         : false;
       finalTodo.dueDate =
-        validatedTodo.dueDate === 'null' ? undefined : String(validatedTodo.dueDate || '');
+        parsedResult.dueDate === 'null' ? undefined : String(parsedResult.dueDate || '');
     } else if (finalTodo.taskType === 'daily') {
-      finalTodo.recurring = (validatedTodo.recurring || 'daily') as 'daily' | 'weekly' | 'monthly';
+      finalTodo.recurring = (parsedResult.recurring || 'daily') as 'daily' | 'weekly' | 'monthly';
     }
 
     return finalTodo;
@@ -163,62 +162,81 @@ export const createTodoAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     stateFromTrigger: State | undefined,
-    options: any,
+    options?: { [key: string]: unknown },
     callback?: HandlerCallback,
     _responses?: Memory[]
   ): Promise<ActionResult> => {
     let todo: TodoTaskInput | null = null;
 
+    const state = stateFromTrigger || {};
+
     try {
-      if (!message.roomId || !message.entityId) {
-        if (callback) {
-          await callback({
-            text: 'I cannot create a todo without a room and entity context.',
-            actions: ['CREATE_TODO_FAILED'],
-            source: message.content.source,
-          });
-        }
+      // Step 1: Check if this is part of a confirmation flow
+      const pendingTask = (state as any)?.pendingTask as TodoTaskInput | undefined;
+      const isWaitingConfirmation = (state as any)?.isWaitingTodoConfirmation;
+
+      // Get the data service early for all operations
+      const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+      if (!dataService) {
+        logger.error('[createTodo] Todo service not available');
+        const errorResponse = `Sorry, the todo service is not available right now. Please try again later.`;
+        await callback?.(
+          {
+            text: errorResponse,
+            error: true,
+          },
+          []
+        );
         return {
           success: false,
           data: {
             actionName: 'CREATE_TODO',
-            error: 'Missing room or entity context',
+            error: 'Todo service not available',
           },
           values: {
-            success: false,
+            error: 'Todo service not available',
           },
         };
       }
 
-      // Step 1: Compose state with relevant providers (use stateFromTrigger if available)
-      const state =
-        stateFromTrigger || (await runtime.composeState(message, ['TODOS', 'RECENT_MESSAGES']));
+      if (isWaitingConfirmation && pendingTask) {
+        logger.info('[createTodo] Using pending task from confirmation flow', {
+          pendingTask,
+        });
+        todo = pendingTask;
+      } else {
+        // Step 2: Extract task info from current message  
+        const composedState = state || (await runtime.composeState(message, ['TODOS', 'RECENT_MESSAGES']));
+        todo = await extractTodoInfo(runtime, message, composedState);
+        if (!todo) {
+          const errorResponse = `I couldn't understand the task details. Please describe what you'd like to add to your todo list.
 
-      // Step 2: Extract todo info from the message using the composed state
-      todo = await extractTodoInfo(runtime, message, state);
+Examples:
+• "Add a daily task to exercise for 30 minutes"
+• "Create a high priority task to finish the report by Friday"
+• "Add an aspirational goal to learn Spanish"`;
 
-      if (!todo) {
-        if (callback) {
-          await callback({
-            text: "I couldn't understand the details of the todo you want to create. Could you please provide more information?",
-            actions: ['CREATE_TODO_FAILED'],
-            source: message.content.source,
-          });
+          await callback?.(
+            {
+              text: errorResponse,
+              error: true,
+            },
+            []
+          );
+          return {
+            success: false,
+            data: {
+              actionName: 'CREATE_TODO',
+              error: 'Could not extract task details',
+            },
+            values: {
+              error: 'Could not extract task details',
+            },
+          };
         }
-        return {
-          success: false,
-          data: {
-            actionName: 'CREATE_TODO',
-            error: 'Could not extract todo information',
-          },
-          values: {
-            success: false,
-          },
-        };
       }
 
-      // Step 3: Get the data service
-      const dataService = createTodoDataService(runtime);
+      // Step 3: No need to get the data service again, we already have it
 
       // Step 4: Duplicate Check
       const existingTodos = await dataService.getTodos({
@@ -273,7 +291,7 @@ export const createTodoAction: Action = {
         tags.push('aspirational');
       }
 
-      const metadata: Record<string, any> = {
+      const metadata: TodoMetadata = {
         createdAt: new Date().toISOString(),
       };
       if (todo.description) {
@@ -283,7 +301,7 @@ export const createTodoAction: Action = {
         metadata.dueDate = todo.dueDate;
       }
 
-      const room = state.data?.room ?? (await runtime.getRoom(message.roomId));
+      const room = (state as any)?.data?.room ?? (await runtime.getRoom(message.roomId));
       const worldId =
         room?.worldId || message.worldId || createUniqueUuid(runtime, message.entityId);
 

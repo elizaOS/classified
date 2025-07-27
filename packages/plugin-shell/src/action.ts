@@ -166,11 +166,14 @@ export const runShellCommandAction: Action = {
     _state?: State
   ): Promise<boolean> => {
     // Check if shell capability is enabled in runtime settings
-    const shellEnabled = runtime.getSetting('ENABLE_SHELL') === 'true' || 
-                         runtime.getSetting('SHELL_ENABLED') === 'true';
-    
+    const shellEnabled =
+      runtime.getSetting('ENABLE_SHELL') === 'true' ||
+      runtime.getSetting('SHELL_ENABLED') === 'true';
+
     if (!shellEnabled) {
-      logger.debug('[runShellCommandAction] Shell capability disabled in settings.');
+      logger.debug(
+        '[runShellCommandAction] Shell capability disabled in settings.'
+      );
       return false;
     }
 
@@ -476,8 +479,8 @@ Respond using XML format:
       {
         name: 'agent',
         content: {
-          text: "I'll check the running processes and stop the autonomous loop if it's active.",
-          actions: ['RUN_SHELL_COMMAND', 'KILL_AUTONOMOUS'],
+          text: "I'll check the running processes.",
+          actions: ['RUN_SHELL_COMMAND'],
         },
       },
     ],
@@ -526,11 +529,14 @@ export const clearShellHistoryAction: Action = {
     _state?: State
   ): Promise<boolean> => {
     // Check if shell capability is enabled in runtime settings
-    const shellEnabled = runtime.getSetting('ENABLE_SHELL') === 'true' || 
-                         runtime.getSetting('SHELL_ENABLED') === 'true';
-    
+    const shellEnabled =
+      runtime.getSetting('ENABLE_SHELL') === 'true' ||
+      runtime.getSetting('SHELL_ENABLED') === 'true';
+
     if (!shellEnabled) {
-      logger.debug('[clearShellHistoryAction] Shell capability disabled in settings.');
+      logger.debug(
+        '[clearShellHistoryAction] Shell capability disabled in settings.'
+      );
       return false;
     }
 
@@ -631,156 +637,6 @@ export const clearShellHistoryAction: Action = {
           thought:
             'The user wants to clear the shell history. I will call the clearHistory method.',
           text: 'Shell command history has been cleared.',
-        },
-      },
-    ],
-  ],
-};
-
-export const killAutonomousAction: Action = {
-  name: 'KILL_AUTONOMOUS',
-  similes: ['STOP_AUTONOMOUS', 'HALT_AUTONOMOUS', 'KILL_AUTO_LOOP'],
-  description:
-    'Stops the autonomous agent loop for debugging purposes. Can be chained with RUN_SHELL_COMMAND to check process status before/after stopping.',
-  validate: async (
-    runtime: IAgentRuntime,
-    _message: Memory,
-    _state?: State
-  ): Promise<boolean> => {
-    // Check if shell capability is enabled in runtime settings
-    const shellEnabled = runtime.getSetting('ENABLE_SHELL') === 'true' || 
-                         runtime.getSetting('SHELL_ENABLED') === 'true';
-    
-    if (!shellEnabled) {
-      logger.debug('[killAutonomousAction] Shell capability disabled in settings.');
-      return false;
-    }
-
-    // Always allow this action for debugging if shell is enabled
-    return true;
-  },
-  handler: async (
-    runtime: IAgentRuntime,
-    message: Memory,
-    _state?: State,
-    _options?: any,
-    callback?: HandlerCallback,
-    _responses?: Memory[]
-  ): Promise<ActionResult> => {
-    try {
-      // Try to get the autonomous service and stop it
-      const autonomousService = runtime.getService('AUTONOMOUS' as any);
-
-      if (autonomousService && 'stop' in autonomousService) {
-        await (autonomousService as any).stop();
-
-        const thought = 'Successfully stopped the autonomous agent loop.';
-        const text =
-          'Autonomous loop has been killed. The agent will no longer run autonomously until restarted.';
-
-        await saveExecutionRecord(runtime, message, thought, text, [
-          'KILL_AUTONOMOUS',
-        ]);
-        if (callback) {
-          await callback({ thought, text });
-        }
-        return {
-          data: {
-            actionName: 'KILL_AUTONOMOUS',
-            autonomousStopped: true,
-          },
-          values: {
-            success: true,
-            stopped: true,
-          },
-          success: true,
-        };
-      } else {
-        const thought = 'Autonomous service not found or already stopped.';
-        const text =
-          'No autonomous loop was running or the service could not be found.';
-
-        await saveExecutionRecord(runtime, message, thought, text, [
-          'KILL_AUTONOMOUS',
-        ]);
-        if (callback) {
-          await callback({ thought, text });
-        }
-        return {
-          data: {
-            actionName: 'KILL_AUTONOMOUS',
-            autonomousStopped: false,
-            reason: 'Service not found or already stopped',
-          },
-          values: {
-            success: true,
-            stopped: false,
-          },
-          success: true,
-        };
-      }
-    } catch (error: any) {
-      logger.error(
-        '[killAutonomousAction] Error stopping autonomous service:',
-        error
-      );
-
-      const thought =
-        'An error occurred while trying to stop the autonomous loop.';
-      const text = `Error stopping autonomous loop: ${error.message}`;
-
-      await saveExecutionRecord(runtime, message, thought, text, [
-        'KILL_AUTONOMOUS',
-      ]);
-      if (callback) {
-        await callback({ thought, text });
-      }
-      return {
-        data: {
-          actionName: 'KILL_AUTONOMOUS',
-          error: error.message,
-        },
-        values: {
-          success: false,
-          error: error.message,
-        },
-        success: false,
-      };
-    }
-  },
-  examples: [
-    // Multi-action: Check processes then kill
-    [
-      {
-        name: 'user',
-        content: { text: 'Check if autonomous is running and kill it' },
-      },
-      {
-        name: 'agent',
-        content: {
-          text: "I'll check the running processes and stop the autonomous loop if it's running.",
-          actions: ['RUN_SHELL_COMMAND', 'KILL_AUTONOMOUS'],
-        },
-      },
-    ],
-    [
-      { name: 'user', content: { text: 'kill the autonomous loop' } },
-      {
-        name: 'agent',
-        content: {
-          actions: ['KILL_AUTONOMOUS'],
-          thought:
-            'The user wants to stop the autonomous agent loop for debugging.',
-          text: 'Autonomous loop has been killed. The agent will no longer run autonomously until restarted.',
-        },
-      },
-    ],
-    [
-      { name: 'user', content: { text: 'stop autonomous mode' } },
-      {
-        name: 'agent',
-        content: {
-          actions: ['KILL_AUTONOMOUS'],
         },
       },
     ],

@@ -20,5 +20,5 @@
 //     }
 
 export const tests = [
-    // tests go here
-]
+  // tests go here
+];

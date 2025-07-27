@@ -93,7 +93,7 @@ export function createEnvironmentRouter(): express.Router {
         data: localEnvs,
       });
     } catch (error) {
-      logger.error(`[ENVS GET] Error retrieving local envs`, error);
+      logger.error('[ENVS GET] Error retrieving local envs', error);
       res.status(500).json({
         success: false,
         error: {
@@ -121,7 +121,9 @@ export function createEnvironmentRouter(): express.Router {
       }
 
       const localEnvPath = getLocalEnvPath();
-      if (!localEnvPath) throw new Error('Local .env file not found');
+      if (!localEnvPath) {
+        throw new Error('Local .env file not found');
+      }
 
       const envString = serializeEnvObject(content);
       writeFileSync(localEnvPath, envString, 'utf-8');
@@ -131,7 +133,7 @@ export function createEnvironmentRouter(): express.Router {
         message: 'Local env updated',
       });
     } catch (error) {
-      logger.error(`[ENVS POST] Error updating local envs`, error);
+      logger.error('[ENVS POST] Error updating local envs', error);
       res.status(500).json({
         success: false,
         error: {

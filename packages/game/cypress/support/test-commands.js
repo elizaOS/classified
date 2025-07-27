@@ -2,34 +2,30 @@
 
 // Command to wait for agent to be ready
 Cypress.Commands.add('waitForAgentReady', () => {
-  cy.get('[data-testid="agent-status"]', { timeout: 30000 })
-    .should('contain', 'Ready');
-  cy.get('[data-testid="chat-interface"]')
-    .should('be.visible');
+  cy.get('[data-testid="agent-status"]', { timeout: 30000 }).should('contain', 'Ready');
+  cy.get('[data-testid="chat-interface"]').should('be.visible');
 });
 
 // Command to send message and wait for response
 Cypress.Commands.add('sendMessageAndWait', (message) => {
-  cy.get('[data-testid="chat-input"]')
-    .type(`${message}{enter}`);
-  cy.get('[data-testid="agent-message"]', { timeout: 20000 })
-    .should('be.visible');
+  cy.get('[data-testid="chat-input"]').type(`${message}{enter}`);
+  cy.get('[data-testid="agent-message"]', { timeout: 20000 }).should('be.visible');
 });
 
 // Command to toggle capability and verify state
 Cypress.Commands.add('toggleCapability', (capability, expectedState) => {
-  cy.get(`[data-testid="${capability}-toggle"]`)
-    .click();
-  cy.get(`[data-testid="${capability}-toggle"]`)
-    .should('have.attr', 'aria-checked', expectedState.toString());
+  cy.get(`[data-testid="${capability}-toggle"]`).click();
+  cy.get(`[data-testid="${capability}-toggle"]`).should(
+    'have.attr',
+    'aria-checked',
+    expectedState.toString()
+  );
 });
 
 // Command to verify error handling
 Cypress.Commands.add('verifyErrorHandling', (errorType) => {
-  cy.get(`[data-testid="${errorType}-error"]`)
-    .should('be.visible');
-  cy.get('[data-testid="error-message"]')
-    .should('not.be.empty');
+  cy.get(`[data-testid="${errorType}-error"]`).should('be.visible');
+  cy.get('[data-testid="error-message"]').should('not.be.empty');
 });
 
 // Command to reset application state
@@ -81,7 +77,8 @@ Cypress.Commands.add('checkA11y', () => {
   // Check for basic accessibility requirements
   cy.get('[data-testid]').each(($el) => {
     if ($el.is('button, input, select, textarea')) {
-      cy.wrap($el).should('have.attr', 'aria-label')
+      cy.wrap($el)
+        .should('have.attr', 'aria-label')
         .or('have.attr', 'aria-labelledby')
         .or('have.attr', 'title');
     }
@@ -92,7 +89,7 @@ Cypress.Commands.add('checkA11y', () => {
     // Verify headings are in logical order
     let lastLevel = 0;
     $headings.each((index, heading) => {
-      const currentLevel = parseInt(heading.tagName.charAt(1));
+      const currentLevel = parseInt(heading.tagName.charAt(1), 10);
       expect(currentLevel).to.be.at.most(lastLevel + 1);
       lastLevel = currentLevel;
     });
@@ -107,7 +104,7 @@ Cypress.Commands.add('measurePerformance', (testName) => {
     const timing = {
       domContentLoaded: navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart,
       loadComplete: navigation.loadEventEnd - navigation.loadEventStart,
-      totalTime: navigation.loadEventEnd - navigation.fetchStart
+      totalTime: navigation.loadEventEnd - navigation.fetchStart,
     };
 
     cy.log(`Performance metrics for ${testName}:`, timing);
@@ -121,13 +118,13 @@ Cypress.Commands.add('measurePerformance', (testName) => {
 // Command to verify responsive design
 Cypress.Commands.add('testResponsive', () => {
   const viewports = [
-    { width: 320, height: 568 },   // iPhone SE
-    { width: 768, height: 1024 },  // iPad
-    { width: 1024, height: 768 },  // iPad Landscape
-    { width: 1920, height: 1080 }  // Desktop
+    { width: 320, height: 568 }, // iPhone SE
+    { width: 768, height: 1024 }, // iPad
+    { width: 1024, height: 768 }, // iPad Landscape
+    { width: 1920, height: 1080 }, // Desktop
   ];
 
-  viewports.forEach((viewport, index) => {
+  viewports.forEach((viewport, _index) => {
     cy.viewport(viewport.width, viewport.height);
     cy.get('[data-testid="chat-interface"]').should('be.visible');
     cy.get('[data-testid="chat-input"]').should('be.visible');

@@ -13,7 +13,9 @@ import { sql } from 'drizzle-orm';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createTodoDataService } from './services/todoDataService';
+import type { TodoDataServiceWrapper } from './services/todoDataService';
+import type { TodoData } from './services/todoDataService';
+import type { TodoMetadata } from './types';
 
 // Define the equivalent of __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -36,7 +38,7 @@ export const routes: Route[] = [
   {
     type: 'GET',
     path: '/',
-    handler: async (_req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (_req: unknown, res: TodoApiResponse, _runtime: IAgentRuntime) => {
       const indexPath = path.resolve(frontendDist, 'index.html');
       if (fs.existsSync(indexPath)) {
         const htmlContent = fs.readFileSync(indexPath, 'utf-8');
@@ -51,7 +53,7 @@ export const routes: Route[] = [
   {
     type: 'GET',
     path: '/todos',
-    handler: async (_req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (_req: unknown, res: TodoApiResponse, _runtime: IAgentRuntime) => {
       const todosHtmlPath = path.resolve(frontendDist, 'index.html');
       if (fs.existsSync(todosHtmlPath)) {
         const htmlContent = fs.readFileSync(todosHtmlPath, 'utf-8');
@@ -67,9 +69,13 @@ export const routes: Route[] = [
   {
     type: 'GET',
     path: '/assets/*',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (
+      req: { params?: Record<string, string> },
+      res: TodoApiResponse,
+      _runtime: IAgentRuntime
+    ) => {
       // Extract the relative path after '/assets/'
-      const assetRelativePath = req.params[0]; // This captures everything after '/assets/'
+      const assetRelativePath = req.params?.[0]; // This captures everything after '/assets/'
       if (!assetRelativePath) {
         return res.status(400).send('Invalid asset path');
       }
@@ -94,9 +100,13 @@ export const routes: Route[] = [
   {
     type: 'GET',
     path: '/api/todos',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (_req: unknown, res: TodoApiResponse, runtime: IAgentRuntime) => {
       try {
-        const dataService = createTodoDataService(runtime);
+        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        if (!dataService) {
+          logger.error('[API /api/todos] Todo service not available');
+          return res.status(503).json({ error: 'Todo service not available' });
+        }
 
         // 1. Get all room IDs the agent is a participant in
         const agentRoomIds = await runtime.getRoomsForParticipant(runtime.agentId);
@@ -129,7 +139,7 @@ export const routes: Route[] = [
         }
 
         // 3. Fetch all TODO tasks for these specific rooms using the data service
-        const tasksByRoom = new Map<string, any[]>();
+        const tasksByRoom = new Map<string, TodoData[]>();
 
         // Fetch tasks per room
         for (const roomId of agentRoomIds) {
@@ -203,7 +213,7 @@ export const routes: Route[] = [
   {
     type: 'GET',
     path: '/api/tags',
-    handler: async (_req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (_req: unknown, res: TodoApiResponse, runtime: IAgentRuntime) => {
       try {
         logger.debug('[API /api/tags] Fetching all distinct tags');
 
@@ -213,27 +223,35 @@ export const routes: Route[] = [
           return res.status(500).json({ error: 'Database not available' });
         }
 
-        // Detect database type
-        let dbType: 'sqlite' | 'postgres' | 'unknown' = 'unknown';
+        // Determine database type to handle PostgreSQL-specific features
+        // Default to 'postgres' if not specified
+        let dbType = 'postgres';
         try {
-          // Try PostgreSQL detection
-          const connection = await runtime.getConnection();
-          if (connection && connection.constructor.name === 'Pool') {
-            dbType = 'postgres';
+          // Check if runtime has a database type hint
+          if ((runtime as IAgentRuntime & { databaseType?: string }).databaseType) {
+            dbType =
+              (runtime as IAgentRuntime & { databaseType?: string }).databaseType || 'postgres';
           } else {
-            // Try SQLite detection
-            try {
-              await runtime.db.execute(sql`SELECT sqlite_version()`);
-              dbType = 'sqlite';
-            } catch {
-              // Not SQLite
+            // Attempt to detect based on connection properties
+            const conn = await runtime.getConnection();
+            if (conn && typeof conn === 'object') {
+              // Basic heuristic - PGLite or SQLite connections might have specific properties
+              if ('constructor' in conn && conn.constructor.name.includes('PGlite')) {
+                dbType = 'pglite';
+              } else if ('constructor' in conn && conn.constructor.name.includes('SQLite')) {
+                dbType = 'sqlite';
+              }
             }
           }
         } catch (error) {
           logger.warn('Could not determine database type:', error);
         }
 
-        let result: any;
+        interface TagRow {
+          tag: string;
+        }
+
+        let result: TagRow[] | { rows: TagRow[] };
 
         if (dbType === 'postgres') {
           // PostgreSQL query using unnest
@@ -252,9 +270,9 @@ export const routes: Route[] = [
         // Drizzle's execute might return results differently depending on the driver
         // Adapting for common patterns (e.g., pg driver returning 'rows')
         const tags = Array.isArray(result)
-          ? result.map((row: any) => row.tag)
-          : (result as any).rows // Node-postgres likely returns object with 'rows'
-            ? (result as any).rows.map((row: any) => row.tag)
+          ? result.map((row: TagRow) => row.tag)
+          : 'rows' in result // Node-postgres likely returns object with 'rows'
+            ? result.rows.map((row: TagRow) => row.tag)
             : [];
 
         logger.debug(`[API /api/tags] Found ${tags.length} distinct tags`);
@@ -269,7 +287,7 @@ export const routes: Route[] = [
   {
     type: 'POST',
     path: '/api/todos',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: TodoApiRequest, res: TodoApiResponse, runtime: IAgentRuntime) => {
       try {
         const { name, type, priority, dueDate, isUrgent, roomId } = req.body; // Assume roomId is passed in body
 
@@ -277,9 +295,14 @@ export const routes: Route[] = [
           return res.status(400).send('Missing required fields: name, type, roomId');
         }
 
-        const dataService = createTodoDataService(runtime);
+        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        if (!dataService) {
+          logger.error('[API /api/todos] Todo service not available');
+          return res.status(503).json({ error: 'Todo service not available' });
+        }
+
         const tags = ['TODO'];
-        const metadata: Record<string, any> = {};
+        const metadata: TodoMetadata = {};
 
         // --- Determine Task Type and Tags ---
         if (type === 'daily') {
@@ -337,6 +360,10 @@ export const routes: Route[] = [
           tags,
         });
 
+        if (!newTodoId) {
+          return res.status(500).send('Failed to create todo');
+        }
+
         const newTodo = await dataService.getTodo(newTodoId);
         res.status(201).json(newTodo);
       } catch (error) {
@@ -349,16 +376,24 @@ export const routes: Route[] = [
   {
     type: 'PUT',
     path: '/api/todos/:id/complete',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (
+      req: { params: { id: string } },
+      res: TodoApiResponse,
+      runtime: IAgentRuntime
+    ) => {
       try {
-        const taskId = req.params.id;
+        const taskId = req.params.id as UUID;
 
         // Task ID is required
         if (!taskId) {
           return res.status(400).send('Missing taskId');
         }
 
-        const dataService = createTodoDataService(runtime);
+        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        if (!dataService) {
+          logger.error('[API /api/todos/:id/complete] Todo service not available');
+          return res.status(503).send('Todo service not available');
+        }
         const task = await dataService.getTodo(taskId);
 
         if (!task) {
@@ -395,7 +430,7 @@ export const routes: Route[] = [
           message: `Task ${taskId} completed.`,
           task: updatedTask,
         });
-      } catch (error: any) {
+      } catch (error) {
         console.error(`Error completing todo ${req.params.id}:`, error);
         res.status(500).send('Error completing todo');
       }
@@ -405,14 +440,22 @@ export const routes: Route[] = [
   {
     type: 'PUT',
     path: '/api/todos/:id/uncomplete',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (
+      req: { params: { id: string } },
+      res: TodoApiResponse,
+      runtime: IAgentRuntime
+    ) => {
       try {
-        const taskId = req.params.id;
+        const taskId = req.params.id as UUID;
         if (!taskId) {
           return res.status(400).send('Missing taskId');
         }
 
-        const dataService = createTodoDataService(runtime);
+        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        if (!dataService) {
+          logger.error('[API /api/todos/:id/uncomplete] Todo service not available');
+          return res.status(503).send('Todo service not available');
+        }
         const task = await dataService.getTodo(taskId);
 
         if (!task) {
@@ -443,31 +486,55 @@ export const routes: Route[] = [
           message: `Task ${taskId} marked as not completed.`,
           task: updatedTask,
         });
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error(`Error uncompleting todo ${req.params.id}:`, error);
         logger.error(`Error uncompleting todo ${req.params.id}:`, error);
-        res.status(500).send(`Error uncompleting todo: ${error.message}`);
+        res.status(500).send(`Error uncompleting todo: ${errorMessage}`);
       }
     },
   },
   // API route to update an existing TODO
   {
     type: 'PUT',
-    path: '/api/todos/:id',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    path: '/api/todos',
+    handler: async (req: TodoApiRequest, res: TodoApiResponse, runtime: IAgentRuntime) => {
       try {
-        const taskId = req.params.id;
-        const updateData: TaskUpdate = req.body; // Directly use interface from updateTodo.ts
+        const {
+          id,
+          name,
+          description,
+          type,
+          priority,
+          isUrgent,
+          isCompleted,
+          dueDate,
+          completedAt,
+          tags,
+        } = req.body;
 
-        if (!taskId) {
+        if (!id) {
           return res.status(400).send('Missing task ID');
         }
-        if (!updateData || Object.keys(updateData).length === 0) {
+        if (
+          !name &&
+          !description &&
+          !priority &&
+          isUrgent === undefined &&
+          isCompleted === undefined &&
+          dueDate === undefined &&
+          completedAt === undefined &&
+          tags === undefined
+        ) {
           return res.status(400).send('Missing update data');
         }
 
-        const dataService = createTodoDataService(runtime);
-        const task = await dataService.getTodo(taskId);
+        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        if (!dataService) {
+          logger.error('[API /api/todos] Todo service not available');
+          return res.status(503).send('Todo service not available');
+        }
+        const task = await dataService.getTodo(id);
 
         if (!task) {
           return res.status(404).send('Task not found');
@@ -476,73 +543,86 @@ export const routes: Route[] = [
         // --- Apply updates (similar logic to applyTaskUpdate in updateTodo.ts) ---
         const updatedTags = [...(task.tags || [])];
         const updatedMetadata = { ...(task.metadata || {}) };
-        const updatedTaskData: any = {};
+        const updatedTaskData: Record<string, unknown> = {};
 
-        if (updateData.name) {
-          updatedTaskData.name = updateData.name;
+        if (name) {
+          updatedTaskData.name = name;
         }
-        if (updateData.description !== undefined) {
-          updatedTaskData.description = updateData.description;
+        if (description !== undefined) {
+          updatedTaskData.description = description;
         }
 
         // Update priority (for one-off tasks)
-        if (updateData.priority && task.type === 'one-off') {
-          updatedTaskData.priority = updateData.priority;
+        if (priority && task.type === 'one-off') {
+          updatedTaskData.priority = priority;
           // Update priority tag
           const priorityIndex = updatedTags.findIndex((tag) => tag.startsWith('priority-'));
           if (priorityIndex !== -1) {
             updatedTags.splice(priorityIndex, 1);
           }
-          updatedTags.push(`priority-${updateData.priority}`);
+          updatedTags.push(`priority-${priority}`);
         }
 
         // Update urgency (for one-off tasks)
-        if (updateData.urgent !== undefined && task.type === 'one-off') {
-          updatedTaskData.isUrgent = updateData.urgent;
+        if (isUrgent !== undefined && task.type === 'one-off') {
+          updatedTaskData.isUrgent = isUrgent;
           const urgentIndex = updatedTags.indexOf('urgent');
           if (urgentIndex !== -1) {
             updatedTags.splice(urgentIndex, 1);
           }
-          if (updateData.urgent) {
+          if (isUrgent) {
             updatedTags.push('urgent');
           }
         }
 
         // Update recurring pattern (for daily tasks)
-        if (updateData.recurring && task.type === 'daily') {
+        if (type === 'daily') {
           const recurringIndex = updatedTags.findIndex((tag) => tag.startsWith('recurring-'));
           if (recurringIndex !== -1) {
             updatedTags.splice(recurringIndex, 1);
           }
-          updatedTags.push(`recurring-${updateData.recurring}`);
-          updatedMetadata.recurring = updateData.recurring;
+          updatedTags.push(`recurring-${type}`);
+          updatedMetadata.recurring = type;
         }
 
         // Update due date (for one-off tasks)
-        if (updateData.dueDate !== undefined) {
-          if (updateData.dueDate === null) {
+        if (dueDate !== undefined) {
+          if (dueDate === null) {
             updatedTaskData.dueDate = null;
           } else {
-            updatedTaskData.dueDate = new Date(updateData.dueDate);
+            updatedTaskData.dueDate = new Date(dueDate);
+          }
+        }
+
+        // Update completion status
+        if (isCompleted !== undefined) {
+          updatedTaskData.isCompleted = isCompleted;
+        }
+
+        if (completedAt !== undefined) {
+          if (completedAt === null) {
+            updatedTaskData.completedAt = null;
+          } else {
+            updatedTaskData.completedAt = new Date(completedAt);
           }
         }
 
         // Apply all updates
-        await dataService.updateTodo(taskId, {
+        await dataService.updateTodo(id, {
           ...updatedTaskData,
-          tags: updatedTags,
           metadata: updatedMetadata,
         });
 
-        const updatedTask = await dataService.getTodo(taskId);
+        const updatedTask = await dataService.getTodo(id);
         res.json({
-          message: `Task ${taskId} updated successfully.`,
+          message: `Task ${id} updated successfully.`,
           task: updatedTask,
         });
-      } catch (error: any) {
-        console.error(`Error updating todo ${req.params.id}:`, error);
-        logger.error(`Error updating todo ${req.params.id}:`, error);
-        res.status(500).send(`Error updating todo: ${error.message}`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Error updating todo ${req.body.id}:`, error);
+        logger.error(`Error updating todo ${req.body.id}:`, error);
+        res.status(500).send(`Error updating todo: ${errorMessage}`);
       }
     },
   },
@@ -550,24 +630,32 @@ export const routes: Route[] = [
   {
     type: 'DELETE',
     path: '/api/todos/:id',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (
+      req: { params: { id: string } },
+      res: TodoApiResponse,
+      runtime: IAgentRuntime
+    ) => {
       try {
-        const taskId = req.params.id;
-        if (!taskId) {
-          return res.status(400).send('Missing task ID');
+        const todoId = req.params?.id as UUID;
+        if (!todoId) {
+          return res.status(400).send('Missing todo ID');
         }
 
-        const dataService = createTodoDataService(runtime);
-        const task = await dataService.getTodo(taskId);
+        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        if (!dataService) {
+          logger.error('[API /api/todos/:id] Todo service not available');
+          return res.status(503).send('Todo service not available');
+        }
+        const task = await dataService.getTodo(todoId);
 
         if (!task) {
           return res.status(404).send('Task not found');
         }
 
-        await dataService.deleteTodo(taskId);
+        await dataService.deleteTodo(todoId);
 
         res.json({
-          message: `Task ${taskId} deleted successfully.`,
+          message: `Task ${todoId} deleted successfully.`,
         });
       } catch (error) {
         console.error(`Error deleting todo ${req.params.id}:`, error);
@@ -576,16 +664,71 @@ export const routes: Route[] = [
       }
     },
   },
+  // API to get overdue TODOs
+  {
+    type: 'GET',
+    path: '/api/todos/overdue',
+    handler: async (_req: unknown, res: TodoApiResponse, runtime: IAgentRuntime) => {
+      try {
+        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        if (!dataService) {
+          logger.error('[API /api/todos/overdue] Todo service not available');
+          return res.status(503).json({ error: 'Todo service not available' });
+        }
+        const overdueTodos = await dataService.getOverdueTodos();
+        res.json(overdueTodos);
+      } catch (error) {
+        logger.error('[API /api/todos/overdue] Error fetching overdue todos:', error);
+        res.status(500).json({ error: 'Failed to fetch overdue todos' });
+      }
+    },
+  },
+  // API to reset daily TODOs
+  {
+    type: 'POST',
+    path: '/api/todos/reset-daily',
+    handler: async (_req: unknown, res: TodoApiResponse, runtime: IAgentRuntime) => {
+      try {
+        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        if (!dataService) {
+          logger.error('[API /api/todos/reset-daily] Todo service not available');
+          return res.status(503).json({ error: 'Todo service not available' });
+        }
+        const count = await dataService.resetDailyTodos();
+        res.json({ success: true, resetCount: count });
+      } catch (error) {
+        logger.error('[API /api/todos/reset-daily] Error resetting daily todos:', error);
+        res.status(500).json({ error: 'Failed to reset daily todos' });
+      }
+    },
+  },
 ];
 
 export default routes;
 
-// TaskUpdate interface for API updates
-interface TaskUpdate {
-  name?: string;
-  description?: string;
-  priority?: 1 | 2 | 3 | 4;
-  urgent?: boolean;
-  dueDate?: string | null; // Expect ISO string or null
-  recurring?: 'daily' | 'weekly' | 'monthly';
+// Type definitions for API requests and responses
+interface TodoApiRequest {
+  body: {
+    name?: string;
+    type?: 'daily' | 'one-off' | 'aspirational';
+    priority?: number;
+    dueDate?: string;
+    isUrgent?: boolean;
+    roomId?: UUID;
+    // For update operations
+    id?: UUID;
+    description?: string;
+    isCompleted?: boolean;
+    completedAt?: string;
+    tags?: string[];
+  };
+  params?: Record<string, string>;
+}
+
+interface TodoApiResponse {
+  status: (code: number) => TodoApiResponse;
+  json: (data: unknown) => void;
+  send: (data: string) => void;
+  setHeader: (name: string, value: string) => void;
+  sendFile: (path: string) => void;
 }

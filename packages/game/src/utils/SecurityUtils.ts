@@ -37,13 +37,13 @@ export class SecurityUtils {
   static generateSecureId(): string {
     const array = new Uint8Array(32);
     crypto.getRandomValues(array);
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 
   /**
    * Encrypt sensitive data (placeholder - implement with actual encryption)
    */
-  static async encryptData(data: string, key: string): Promise<string> {
+  static async encryptData(data: string, _key: string): Promise<string> {
     // TODO: Implement actual encryption using Web Crypto API
     return btoa(data);
   }
@@ -51,7 +51,7 @@ export class SecurityUtils {
   /**
    * Decrypt sensitive data (placeholder - implement with actual decryption)
    */
-  static async decryptData(encryptedData: string, key: string): Promise<string> {
+  static async decryptData(encryptedData: string, _key: string): Promise<string> {
     // TODO: Implement actual decryption using Web Crypto API
     return atob(encryptedData);
   }
@@ -80,7 +80,7 @@ export class SecurityUtils {
     const data = encoder.encode(str);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
   /**
@@ -116,7 +116,7 @@ export class SecurityUtils {
         keysToRemove.push(key);
       }
     }
-    keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    keysToRemove.forEach((key) => sessionStorage.removeItem(key));
   }
 
   /**
@@ -134,12 +134,12 @@ export class SecurityUtils {
     isSecure: boolean;
     instanceId: string;
     sessionId: string;
-    } {
+  } {
     return {
       isTauri: this.isRunningInTauri(),
       isSecure: this.isSecureContext(),
       instanceId: this.getInstanceId(),
-      sessionId: this.getSessionId()
+      sessionId: this.getSessionId(),
     };
   }
 }
@@ -163,10 +163,10 @@ export class InputValidator {
       /on\w+\s*=/i,
       /<iframe/i,
       /<object/i,
-      /<embed/i
+      /<embed/i,
     ];
 
-    return !dangerousPatterns.some(pattern => pattern.test(input));
+    return !dangerousPatterns.some((pattern) => pattern.test(input));
   }
 
   /**
@@ -190,7 +190,8 @@ export class InputValidator {
       return false;
     }
 
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidPattern =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return uuidPattern.test(uuid);
   }
 
@@ -213,7 +214,11 @@ export class InputValidator {
   /**
    * Validate user input for chat messages
    */
-  static validateUserInput(input: string): { valid: boolean; error?: string; sanitizedInput?: string } {
+  static validateUserInput(input: string): {
+    valid: boolean;
+    error?: string;
+    sanitizedInput?: string;
+  } {
     if (!input || typeof input !== 'string') {
       return { valid: false, error: 'Input must be a non-empty string' };
     }
@@ -229,14 +234,17 @@ export class InputValidator {
 
     return {
       valid: true,
-      sanitizedInput: this.sanitizeInput(input)
+      sanitizedInput: this.sanitizeInput(input),
     };
   }
 
   /**
    * Validate configuration values
    */
-  static validateConfigValue(key: string, value: any): { valid: boolean; error?: string; sanitizedValue?: any } {
+  static validateConfigValue(
+    key: string,
+    value: any
+  ): { valid: boolean; error?: string; sanitizedValue?: any } {
     if (!key || typeof key !== 'string') {
       return { valid: false, error: 'Configuration key must be a string' };
     }
@@ -298,16 +306,21 @@ export class InputValidator {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'text/html',
       'application/json',
-      'text/csv'
+      'text/csv',
     ];
 
     const allowedExtensions = ['.txt', '.md', '.pdf', '.doc', '.docx', '.html', '.json', '.csv'];
 
     const hasValidType = allowedTypes.includes(file.type);
-    const hasValidExtension = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    const hasValidExtension = allowedExtensions.some((ext) =>
+      file.name.toLowerCase().endsWith(ext)
+    );
 
     if (!hasValidType && !hasValidExtension) {
-      return { valid: false, error: 'File type not allowed. Supported: txt, md, pdf, doc, docx, html, json, csv' };
+      return {
+        valid: false,
+        error: 'File type not allowed. Supported: txt, md, pdf, doc, docx, html, json, csv',
+      };
     }
 
     // Check filename for dangerous patterns
@@ -377,7 +390,12 @@ export class SecurityLogger {
    * Log security events with different types
    */
   static logSecurityEvent(
-    eventType: 'access_granted' | 'access_revoked' | 'invalid_input' | 'security_warning' | 'capability_change',
+    eventType:
+      | 'access_granted'
+      | 'access_revoked'
+      | 'invalid_input'
+      | 'security_warning'
+      | 'capability_change',
     message: string,
     severity: 'low' | 'medium' | 'high' = 'medium'
   ) {
@@ -403,7 +421,7 @@ export class SecurityLogger {
       timestamp: Date.now(),
       level,
       message,
-      details
+      details,
     });
 
     // Keep only last 500 logs to prevent memory issues

@@ -10,6 +10,7 @@ import {
   jsonb,
   uuid,
 } from 'drizzle-orm/pg-core';
+import type { TodoMetadata } from './types';
 
 // Define the todo tables without schema namespace for better compatibility
 // PGLite and some environments don't support PostgreSQL schemas
@@ -39,7 +40,7 @@ export const todosTable = pgTable(
     updatedAt: timestamp('updated_at')
       .default(sql`now()`)
       .notNull(),
-    metadata: jsonb('metadata').$type<Record<string, any>>().default({}).notNull(),
+    metadata: jsonb('metadata').$type<TodoMetadata>().default({}).notNull(),
   },
   (table) => ({
     agentIdIndex: index('idx_todos_agent').on(table.agentId),

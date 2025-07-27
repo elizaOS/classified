@@ -32,7 +32,9 @@ export const roleProvider: Provider = {
     const room = state.data.room ?? (await runtime.getRoom(message.roomId));
     if (!room) {
       // Return a graceful fallback instead of throwing an error
-      logger.warn(`[ROLES Provider] No room found for message ${message.id} in room ${message.roomId}`);
+      logger.warn(
+        `[ROLES Provider] No room found for message ${message.id} in room ${message.roomId}`
+      );
       return {
         data: {
           roles: [],

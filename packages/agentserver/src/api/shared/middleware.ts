@@ -138,7 +138,9 @@ export const securityMiddleware = () => {
           break;
         }
       }
-      if (hasSqlPattern) break;
+      if (hasSqlPattern) {
+        break;
+      }
     }
 
     // Check for other suspicious patterns

@@ -1,6 +1,12 @@
 import { logger, TestSuite, createMessageMemory, type UUID } from '@elizaos/core';
 import type { IAgentRuntime } from '@elizaos/core';
 import { setupReminderDemo, monitorReminders, cleanupDemo } from '../../scripts/demo-reminders';
+import type { TodoReminderService } from '../../types/service-interfaces';
+
+// Type for the MESSAGE_DELIVERY service from rolodex plugin
+interface MessageDeliveryService {
+  sendMessage?: (message: unknown) => Promise<void>;
+}
 
 export const ReminderDeliveryE2ETestSuite: TestSuite = {
   name: 'Reminder Delivery E2E Tests',
@@ -11,7 +17,9 @@ export const ReminderDeliveryE2ETestSuite: TestSuite = {
         logger.info('🧪 Testing reminder delivery to actual platforms...');
 
         // Check if rolodex is available
-        const messageDeliveryService = runtime.getService('MESSAGE_DELIVERY' as any);
+        const messageDeliveryService = runtime.getService(
+          'MESSAGE_DELIVERY' as 'unknown'
+        ) as MessageDeliveryService | null;
         if (!messageDeliveryService) {
           logger.warn('⚠️ Rolodex MESSAGE_DELIVERY service not available');
           logger.info('This test requires the rolodex plugin to be loaded');
@@ -80,9 +88,11 @@ export const ReminderDeliveryE2ETestSuite: TestSuite = {
           logger.info('Daily reminders should be sent now');
 
           // Trigger reminder check
-          const reminderService = runtime.getService('TODO_REMINDER' as any);
+          const reminderService = runtime.getService(
+            'TODO_REMINDER' as 'unknown'
+          ) as TodoReminderService | null;
           if (reminderService) {
-            await (reminderService as any).checkTasksForReminders();
+            await reminderService.checkTasksForReminders();
           }
         } else {
           logger.info(`⏰ Current time is ${hour}:00`);
@@ -131,7 +141,9 @@ export const ReminderDeliveryE2ETestSuite: TestSuite = {
         logger.info('✓ Created overdue task');
 
         // Get reminder service
-        const reminderService = runtime.getService('TODO_REMINDER' as any);
+        const reminderService = runtime.getService(
+          'TODO_REMINDER' as 'unknown'
+        ) as TodoReminderService | null;
         if (!reminderService) {
           throw new Error('Reminder service not found');
         }
@@ -141,7 +153,7 @@ export const ReminderDeliveryE2ETestSuite: TestSuite = {
 
         for (let i = 1; i <= 3; i++) {
           logger.info(`Check #${i}...`);
-          await (reminderService as any).checkTasksForReminders();
+          await reminderService.checkTasksForReminders();
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
 
@@ -215,9 +227,11 @@ export const ReminderDeliveryE2ETestSuite: TestSuite = {
 
         // Trigger reminder check
         logger.info('\n🔔 Checking for reminders...');
-        const reminderService = runtime.getService('TODO_REMINDER' as any);
+        const reminderService = runtime.getService(
+          'TODO_REMINDER' as 'unknown'
+        ) as TodoReminderService | null;
         if (reminderService) {
-          await (reminderService as any).checkTasksForReminders();
+          await reminderService.checkTasksForReminders();
         }
 
         logger.info('\n📊 Expected delivery priorities:');

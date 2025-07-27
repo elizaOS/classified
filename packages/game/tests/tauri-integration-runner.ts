@@ -42,7 +42,6 @@ class TauriIntegrationRunner {
 
       // Step 5: Generate report
       await this.generateReport();
-
     } catch (error) {
       console.error('❌ Test runner failed:', error);
       process.exit(1);
@@ -57,7 +56,7 @@ class TauriIntegrationRunner {
     return new Promise((resolve, reject) => {
       const buildProcess = spawn('npm', ['run', 'build:tauri'], {
         cwd: process.cwd(),
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
 
       let output = '';
@@ -89,7 +88,7 @@ class TauriIntegrationRunner {
       // Start the server in the parent directory
       this.serverProcess = spawn('elizaos', ['start'], {
         cwd: path.join(process.cwd(), '../..'),
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
 
       let serverReady = false;
@@ -104,9 +103,11 @@ class TauriIntegrationRunner {
         console.log('📡 Server:', output.trim());
 
         // Look for server ready indicators
-        if (output.includes('Server running') ||
-            output.includes('listening on') ||
-            output.includes('started successfully')) {
+        if (
+          output.includes('Server running') ||
+          output.includes('listening on') ||
+          output.includes('started successfully')
+        ) {
           clearTimeout(timeout);
           if (!serverReady) {
             serverReady = true;
@@ -136,7 +137,7 @@ class TauriIntegrationRunner {
 
       this.tauriProcess = spawn(appPath, [], {
         stdio: 'pipe',
-        env: { ...process.env, RUST_LOG: 'info' }
+        env: { ...process.env, RUST_LOG: 'info' },
       });
 
       let appReady = false;
@@ -151,8 +152,10 @@ class TauriIntegrationRunner {
         console.log('🎮 Tauri:', output.trim());
 
         // Look for app ready indicators
-        if (output.includes('Rust backend setup completed') ||
-            output.includes('initialization complete')) {
+        if (
+          output.includes('Rust backend setup completed') ||
+          output.includes('initialization complete')
+        ) {
           clearTimeout(timeout);
           if (!appReady) {
             appReady = true;
@@ -211,9 +214,12 @@ class TauriIntegrationRunner {
       const wasEnabled = currentStatus.data?.enabled || false;
 
       // Toggle autonomy
-      const toggleResponse = await fetch(`http://localhost:7777/autonomy/${wasEnabled ? 'disable' : 'enable'}`, {
-        method: 'POST'
-      });
+      const toggleResponse = await fetch(
+        `http://localhost:7777/autonomy/${wasEnabled ? 'disable' : 'enable'}`,
+        {
+          method: 'POST',
+        }
+      );
       if (!toggleResponse.ok) {
         throw new Error(`Failed to toggle autonomy: ${toggleResponse.status}`);
       }
@@ -231,9 +237,12 @@ class TauriIntegrationRunner {
       }
 
       // Toggle back to original state
-      const restoreResponse = await fetch(`http://localhost:7777/autonomy/${wasEnabled ? 'enable' : 'disable'}`, {
-        method: 'POST'
-      });
+      const restoreResponse = await fetch(
+        `http://localhost:7777/autonomy/${wasEnabled ? 'enable' : 'disable'}`,
+        {
+          method: 'POST',
+        }
+      );
       if (!restoreResponse.ok) {
         console.warn('Failed to restore original autonomy state');
       }
@@ -244,7 +253,9 @@ class TauriIntegrationRunner {
       const capabilities = ['browser', 'shell', 'screen', 'camera', 'microphone', 'speakers'];
 
       for (const capability of capabilities) {
-        const response = await fetch(`http://localhost:7777/api/agents/default/capabilities/${capability}`);
+        const response = await fetch(
+          `http://localhost:7777/api/agents/default/capabilities/${capability}`
+        );
         if (!response.ok) {
           throw new Error(`Failed to get ${capability} status: ${response.status}`);
         }
@@ -281,13 +292,13 @@ class TauriIntegrationRunner {
           source_type: 'integration_test',
           raw_message: {
             text: testMessage,
-            type: 'user_message'
+            type: 'user_message',
           },
           metadata: {
             source: 'integration_runner',
-            userName: 'TestRunner'
-          }
-        })
+            userName: 'TestRunner',
+          },
+        }),
       });
 
       if (!messageResponse.ok) {
@@ -302,12 +313,7 @@ class TauriIntegrationRunner {
 
     // Test 6: Data Fetching
     await this.runTest('Data Fetching', async () => {
-      const endpoints = [
-        '/api/goals',
-        '/api/todos',
-        '/knowledge/documents',
-        '/api/plugin-config'
-      ];
+      const endpoints = ['/api/goals', '/api/todos', '/knowledge/documents', '/api/plugin-config'];
 
       for (const endpoint of endpoints) {
         const response = await fetch(`http://localhost:7777${endpoint}`);
@@ -326,7 +332,7 @@ class TauriIntegrationRunner {
     let passed = 0;
     let failed = 0;
 
-    this.results.forEach(result => {
+    this.results.forEach((result) => {
       const status = result.passed ? '✅' : '❌';
       const duration = result.duration ? ` (${result.duration}ms)` : '';
       console.log(`${status} ${result.name}${duration}`);
@@ -335,8 +341,11 @@ class TauriIntegrationRunner {
         console.log(`   Error: ${result.error}`);
       }
 
-      if (result.passed) {passed++;}
-      else {failed++;}
+      if (result.passed) {
+        passed++;
+      } else {
+        failed++;
+      }
     });
 
     console.log(`\nPassed: ${passed}, Failed: ${failed}`);
@@ -357,7 +366,7 @@ class TauriIntegrationRunner {
       this.results.push({
         name,
         passed: true,
-        duration
+        duration,
       });
 
       console.log(`✅ ${name} passed (${duration}ms)`);
@@ -368,7 +377,7 @@ class TauriIntegrationRunner {
         name,
         passed: false,
         error: error instanceof Error ? error.message : String(error),
-        duration
+        duration,
       });
 
       console.log(`❌ ${name} failed (${duration}ms): ${error}`);
@@ -381,10 +390,10 @@ class TauriIntegrationRunner {
       results: this.results,
       summary: {
         total: this.results.length,
-        passed: this.results.filter(r => r.passed).length,
-        failed: this.results.filter(r => !r.passed).length,
-        duration: this.results.reduce((sum, r) => sum + (r.duration || 0), 0)
-      }
+        passed: this.results.filter((r) => r.passed).length,
+        failed: this.results.filter((r) => !r.passed).length,
+        duration: this.results.reduce((sum, r) => sum + (r.duration || 0), 0),
+      },
     };
 
     const reportPath = path.join(process.cwd(), 'test-reports', 'tauri-integration-report.json');
@@ -406,14 +415,14 @@ class TauriIntegrationRunner {
     }
 
     // Give processes time to clean up
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 }
 
 // Run the tests if this script is executed directly
 if (require.main === module) {
   const runner = new TauriIntegrationRunner();
-  runner.runAll().catch(error => {
+  runner.runAll().catch((error) => {
     console.error('❌ Integration tests failed:', error);
     process.exit(1);
   });

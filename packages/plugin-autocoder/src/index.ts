@@ -1,4 +1,4 @@
-import type { Plugin, IAgentRuntime } from '@elizaos/core';
+import type { Plugin } from '@elizaos/core';
 import { CodeGenerationService } from './services/CodeGenerationService';
 import { SecretsManagerService } from './services/SecretsManagerService';
 import { ProjectPlanningService } from './services/ProjectPlanningService';

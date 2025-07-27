@@ -37,7 +37,7 @@ class TauriAppTester {
 
     this.tauriProcess = spawn('npm', ['run', 'tauri:dev'], {
       cwd: tauriPath,
-      stdio: 'pipe'
+      stdio: 'pipe',
     });
 
     this.tauriProcess.stdout.on('data', (data) => {
@@ -60,10 +60,7 @@ class TauriAppTester {
     options.addArguments('--disable-features=VizDisplayCompositor');
     options.addArguments('--remote-debugging-port=9222');
 
-    this.driver = await new Builder()
-      .forBrowser('chrome')
-      .setChromeOptions(options)
-      .build();
+    this.driver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
 
     // Connect to the Tauri app's webview
     await this.driver.get('http://localhost:5173');
@@ -83,7 +80,7 @@ class TauriAppTester {
       this.testContainerManagement.bind(this),
       this.testSettingsDialog.bind(this),
       this.testKeyboardShortcuts.bind(this),
-      this.testWindowInteractions.bind(this)
+      this.testWindowInteractions.bind(this),
     ];
 
     for (const test of tests) {
@@ -94,13 +91,13 @@ class TauriAppTester {
         this.testResults.push({
           test: test.name,
           status: 'failed',
-          error: error.message
+          error: error.message,
         });
       }
     }
 
     console.log('📊 Test Results Summary:');
-    this.testResults.forEach(result => {
+    this.testResults.forEach((result) => {
       const status = result.status === 'passed' ? '✅' : '❌';
       console.log(`${status} ${result.test}`);
       if (result.error) {
@@ -116,7 +113,9 @@ class TauriAppTester {
     await this.driver.wait(until.titleContains('ELIZA'), 10000);
 
     // Check if main app container exists
-    const appContainer = await this.driver.findElement(By.css('[data-testid="app-container"], .app, #root'));
+    const appContainer = await this.driver.findElement(
+      By.css('[data-testid="app-container"], .app, #root')
+    );
 
     // Verify app is visible
     const isDisplayed = await appContainer.isDisplayed();
@@ -126,7 +125,7 @@ class TauriAppTester {
 
     this.testResults.push({
       test: 'testAppInitialization',
-      status: 'passed'
+      status: 'passed',
     });
 
     console.log('✅ App initialization test passed');
@@ -137,7 +136,9 @@ class TauriAppTester {
 
     // Look for boot sequence elements
     try {
-      const bootElements = await this.driver.findElements(By.css('.boot-sequence, [data-testid="boot-sequence"], .loading'));
+      const bootElements = await this.driver.findElements(
+        By.css('.boot-sequence, [data-testid="boot-sequence"], .loading')
+      );
 
       if (bootElements.length > 0) {
         console.log('✅ Boot sequence elements found');
@@ -152,7 +153,7 @@ class TauriAppTester {
 
     this.testResults.push({
       test: 'testBootSequence',
-      status: 'passed'
+      status: 'passed',
     });
   }
 
@@ -164,7 +165,7 @@ class TauriAppTester {
       '.game-interface',
       '[data-testid="game-interface"]',
       '.main-interface',
-      '.chat-interface'
+      '.chat-interface',
     ];
 
     let gameInterface = null;
@@ -203,7 +204,7 @@ class TauriAppTester {
 
     this.testResults.push({
       test: 'testGameInterface',
-      status: 'passed'
+      status: 'passed',
     });
 
     console.log('✅ Game interface test completed');
@@ -214,13 +215,17 @@ class TauriAppTester {
 
     try {
       // Look for security warning elements
-      const securityElements = await this.driver.findElements(By.css('.security-warning, [data-testid="security-warning"]'));
+      const securityElements = await this.driver.findElements(
+        By.css('.security-warning, [data-testid="security-warning"]')
+      );
 
       if (securityElements.length > 0) {
         console.log('🔒 Security warning found');
 
         // Look for accept/dismiss buttons
-        const acceptButtons = await this.driver.findElements(By.css('button[class*="accept"], button[class*="continue"], button[class*="proceed"]'));
+        const acceptButtons = await this.driver.findElements(
+          By.css('button[class*="accept"], button[class*="continue"], button[class*="proceed"]')
+        );
 
         if (acceptButtons.length > 0) {
           console.log('🖱️ Clicking security warning accept button');
@@ -235,7 +240,7 @@ class TauriAppTester {
 
     this.testResults.push({
       test: 'testSecurityWarning',
-      status: 'passed'
+      status: 'passed',
     });
   }
 
@@ -249,7 +254,7 @@ class TauriAppTester {
         'textarea',
         '[data-testid="message-input"]',
         '.message-input',
-        '.chat-input'
+        '.chat-input',
       ];
 
       let messageInput = null;
@@ -273,7 +278,9 @@ class TauriAppTester {
         console.log('✅ Text entered in message input');
 
         // Look for send button
-        const sendButtons = await this.driver.findElements(By.css('button[class*="send"], button[type="submit"], [data-testid="send-button"]'));
+        const sendButtons = await this.driver.findElements(
+          By.css('button[class*="send"], button[type="submit"], [data-testid="send-button"]')
+        );
 
         if (sendButtons.length > 0) {
           console.log('🖱️ Clicking send button');
@@ -288,7 +295,7 @@ class TauriAppTester {
 
     this.testResults.push({
       test: 'testMessageInput',
-      status: 'passed'
+      status: 'passed',
     });
   }
 
@@ -297,7 +304,11 @@ class TauriAppTester {
 
     try {
       // Look for container-related buttons
-      const containerButtons = await this.driver.findElements(By.css('button[class*="container"], button[class*="start"], button[class*="stop"], [data-testid*="container"]'));
+      const containerButtons = await this.driver.findElements(
+        By.css(
+          'button[class*="container"], button[class*="start"], button[class*="stop"], [data-testid*="container"]'
+        )
+      );
 
       if (containerButtons.length > 0) {
         console.log(`✅ Found ${containerButtons.length} container-related buttons`);
@@ -318,7 +329,7 @@ class TauriAppTester {
 
     this.testResults.push({
       test: 'testContainerManagement',
-      status: 'passed'
+      status: 'passed',
     });
   }
 
@@ -327,7 +338,9 @@ class TauriAppTester {
 
     try {
       // Look for settings button
-      const settingsButtons = await this.driver.findElements(By.css('button[class*="settings"], [data-testid="settings"], .settings-button'));
+      const settingsButtons = await this.driver.findElements(
+        By.css('button[class*="settings"], [data-testid="settings"], .settings-button')
+      );
 
       if (settingsButtons.length > 0) {
         console.log('🖱️ Opening settings dialog');
@@ -341,7 +354,9 @@ class TauriAppTester {
           console.log('✅ Settings dialog opened');
 
           // Look for close button
-          const closeButtons = await this.driver.findElements(By.css('button[class*="close"], [data-testid="close"], .close-button'));
+          const closeButtons = await this.driver.findElements(
+            By.css('button[class*="close"], [data-testid="close"], .close-button')
+          );
 
           if (closeButtons.length > 0) {
             console.log('🖱️ Closing settings dialog');
@@ -357,7 +372,7 @@ class TauriAppTester {
 
     this.testResults.push({
       test: 'testSettingsDialog',
-      status: 'passed'
+      status: 'passed',
     });
   }
 
@@ -369,7 +384,7 @@ class TauriAppTester {
       const shortcuts = [
         { keys: [Key.ESCAPE], description: 'Escape key' },
         { keys: [Key.ENTER], description: 'Enter key' },
-        { keys: [Key.TAB], description: 'Tab key' }
+        { keys: [Key.TAB], description: 'Tab key' },
       ];
 
       for (const shortcut of shortcuts) {
@@ -386,7 +401,7 @@ class TauriAppTester {
 
     this.testResults.push({
       test: 'testKeyboardShortcuts',
-      status: 'passed'
+      status: 'passed',
     });
   }
 
@@ -412,7 +427,7 @@ class TauriAppTester {
 
     this.testResults.push({
       test: 'testWindowInteractions',
-      status: 'passed'
+      status: 'passed',
     });
   }
 
@@ -431,7 +446,7 @@ class TauriAppTester {
   }
 
   async wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 

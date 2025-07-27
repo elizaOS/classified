@@ -24,14 +24,15 @@ describe('Knowledge Base UI CRUD Operations', () => {
 
       // Create a test file
       const testFileName = 'cypress-test-upload.txt';
-      const testFileContent = 'This is a test file uploaded via Cypress UI testing.\n\nIt contains:\n- Test content\n- Upload validation\n- UI interaction testing';
+      const testFileContent =
+        'This is a test file uploaded via Cypress UI testing.\n\nIt contains:\n- Test content\n- Upload validation\n- UI interaction testing';
 
       // Create the file and trigger upload
       cy.get('input[type="file"]#file-upload').selectFile(
         {
           contents: testFileContent,
           fileName: testFileName,
-          mimeType: 'text/plain'
+          mimeType: 'text/plain',
         },
         { force: true } // force because input is hidden
       );
@@ -60,7 +61,7 @@ describe('Knowledge Base UI CRUD Operations', () => {
         {
           contents: invalidContent,
           fileName: invalidFileName,
-          mimeType: 'application/x-executable'
+          mimeType: 'application/x-executable',
         },
         { force: true }
       );
@@ -82,7 +83,7 @@ describe('Knowledge Base UI CRUD Operations', () => {
         {
           contents: largeContent,
           fileName: largeFileName,
-          mimeType: 'text/plain'
+          mimeType: 'text/plain',
         },
         { force: true }
       );
@@ -110,13 +111,14 @@ describe('Knowledge Base UI CRUD Operations', () => {
       cy.wait(1000);
 
       uploadedFileName = 'cypress-management-test.txt';
-      const testContent = 'This file is for testing management operations like viewing and deletion.';
+      const testContent =
+        'This file is for testing management operations like viewing and deletion.';
 
       cy.get('input[type="file"]#file-upload').selectFile(
         {
           contents: testContent,
           fileName: uploadedFileName,
-          mimeType: 'text/plain'
+          mimeType: 'text/plain',
         },
         { force: true }
       );
@@ -143,14 +145,16 @@ describe('Knowledge Base UI CRUD Operations', () => {
     });
 
     it('should show file metadata correctly', () => {
-      cy.get('.file-item').first().within(() => {
-        // Check file metadata format
-        cy.get('.file-meta').should('exist');
-        cy.get('.file-meta').should('contain', 'text/plain');
+      cy.get('.file-item')
+        .first()
+        .within(() => {
+          // Check file metadata format
+          cy.get('.file-meta').should('exist');
+          cy.get('.file-meta').should('contain', 'text/plain');
 
-        // Should show creation date
-        cy.get('.file-meta').should('match', /\d{1,2}\/\d{1,2}\/\d{4}/);
-      });
+          // Should show creation date
+          cy.get('.file-meta').should('match', /\d{1,2}\/\d{1,2}\/\d{4}/);
+        });
     });
 
     it('should update the knowledge base count', () => {
@@ -175,7 +179,7 @@ describe('Knowledge Base UI CRUD Operations', () => {
         {
           contents: testContent,
           fileName: testFileName,
-          mimeType: 'text/plain'
+          mimeType: 'text/plain',
         },
         { force: true }
       );
@@ -187,13 +191,15 @@ describe('Knowledge Base UI CRUD Operations', () => {
 
     it('should delete files when clicking the delete button', () => {
       // Get initial file count
-      cy.get('.file-item').then($items => {
+      cy.get('.file-item').then(($items) => {
         const initialCount = $items.length;
 
         // Click delete button on the first file
-        cy.get('.file-item').first().within(() => {
-          cy.get('.file-action').should('be.visible').click();
-        });
+        cy.get('.file-item')
+          .first()
+          .within(() => {
+            cy.get('.file-action').should('be.visible').click();
+          });
 
         // Wait for deletion to complete
         cy.wait(3000);
@@ -210,9 +216,11 @@ describe('Knowledge Base UI CRUD Operations', () => {
       // This test covers the case where deletion might fail
       // We'll monitor for error messages
 
-      cy.get('.file-item').first().within(() => {
-        cy.get('.file-action').click();
-      });
+      cy.get('.file-item')
+        .first()
+        .within(() => {
+          cy.get('.file-action').click();
+        });
 
       cy.wait(3000);
 
@@ -228,26 +236,32 @@ describe('Knowledge Base UI CRUD Operations', () => {
 
     it('should update UI immediately after deletion', () => {
       // Store initial state
-      cy.get('.file-item').then($items => {
+      cy.get('.file-item').then(($items) => {
         const initialCount = $items.length;
 
         if (initialCount > 0) {
           // Get the name of the file we're about to delete
-          cy.get('.file-item').first().find('.file-name').invoke('text').then(fileName => {
-            // Delete the file
-            cy.get('.file-item').first().within(() => {
-              cy.get('.file-action').click();
+          cy.get('.file-item')
+            .first()
+            .find('.file-name')
+            .invoke('text')
+            .then((fileName) => {
+              // Delete the file
+              cy.get('.file-item')
+                .first()
+                .within(() => {
+                  cy.get('.file-action').click();
+                });
+
+              // Wait for deletion
+              cy.wait(3000);
+
+              // Verify the specific file is no longer in the list
+              cy.get('.file-name').should('not.contain', fileName);
+
+              // Verify count decreased
+              cy.get('.file-item').should('have.length', initialCount - 1);
             });
-
-            // Wait for deletion
-            cy.wait(3000);
-
-            // Verify the specific file is no longer in the list
-            cy.get('.file-name').should('not.contain', fileName);
-
-            // Verify count decreased
-            cy.get('.file-item').should('have.length', initialCount - 1);
-          });
         } else {
           cy.log('No files to delete');
         }
@@ -262,8 +276,7 @@ describe('Knowledge Base UI CRUD Operations', () => {
       cy.wait(1000);
 
       // Step 2: Get initial state
-      cy.get('body').then($body => {
-        const hasFiles = $body.find('.file-item').length > 0;
+      cy.get('body').then(($body) => {
         const initialCount = $body.find('.file-item').length;
 
         cy.log(`Initial file count: ${initialCount}`);
@@ -276,7 +289,7 @@ describe('Knowledge Base UI CRUD Operations', () => {
           {
             contents: workflowContent,
             fileName: workflowFileName,
-            mimeType: 'text/plain'
+            mimeType: 'text/plain',
           },
           { force: true }
         );
@@ -293,9 +306,12 @@ describe('Knowledge Base UI CRUD Operations', () => {
         cy.get('.file-item').should('contain', 'text/plain');
 
         // Step 7: Delete the uploaded file
-        cy.get('.file-item').contains(workflowFileName.replace('.txt', '')).closest('.file-item').within(() => {
-          cy.get('.file-action').should('be.visible').click();
-        });
+        cy.get('.file-item')
+          .contains(workflowFileName.replace('.txt', ''))
+          .closest('.file-item')
+          .within(() => {
+            cy.get('.file-action').should('be.visible').click();
+          });
 
         // Step 8: Verify deletion success
         cy.wait(3000);
@@ -320,7 +336,7 @@ describe('Knowledge Base UI CRUD Operations', () => {
         {
           contents: '',
           fileName: 'empty-file.txt',
-          mimeType: 'text/plain'
+          mimeType: 'text/plain',
         },
         { force: true }
       );
@@ -347,7 +363,7 @@ describe('Knowledge Base UI CRUD Operations', () => {
         {
           contents: 'Testing tab switching behavior',
           fileName: tabSwitchFileName,
-          mimeType: 'text/plain'
+          mimeType: 'text/plain',
         },
         { force: true }
       );
@@ -356,7 +372,7 @@ describe('Knowledge Base UI CRUD Operations', () => {
       cy.contains('uploaded successfully').should('be.visible');
 
       // Switch to another tab
-      cy.contains('GOALS').click();
+      cy.contains('goals').click();
       cy.wait(1000);
 
       // Switch back to Files tab
@@ -367,9 +383,12 @@ describe('Knowledge Base UI CRUD Operations', () => {
       cy.contains(tabSwitchFileName.replace('.txt', '')).should('be.visible');
 
       // Clean up
-      cy.get('.file-item').contains(tabSwitchFileName.replace('.txt', '')).closest('.file-item').within(() => {
-        cy.get('.file-action').click();
-      });
+      cy.get('.file-item')
+        .contains(tabSwitchFileName.replace('.txt', ''))
+        .closest('.file-item')
+        .within(() => {
+          cy.get('.file-action').click();
+        });
     });
 
     it('should show appropriate message when no files exist', () => {
@@ -377,16 +396,18 @@ describe('Knowledge Base UI CRUD Operations', () => {
       cy.wait(1000);
 
       // Check if there are any files, delete them all
-      cy.get('body').then($body => {
+      cy.get('body').then(($body) => {
         const fileItems = $body.find('.file-item');
         if (fileItems.length > 0) {
           // Delete all files one by one
           const deleteNext = () => {
-            cy.get('.file-item').then($items => {
+            cy.get('.file-item').then(($items) => {
               if ($items.length > 0) {
-                cy.get('.file-item').first().within(() => {
-                  cy.get('.file-action').click();
-                });
+                cy.get('.file-item')
+                  .first()
+                  .within(() => {
+                    cy.get('.file-action').click();
+                  });
                 cy.wait(2000);
                 deleteNext();
               }
@@ -404,12 +425,20 @@ describe('Knowledge Base UI CRUD Operations', () => {
   describe('File Type Support', () => {
     const supportedFileTypes = [
       { extension: 'txt', mimeType: 'text/plain', content: 'Plain text content' },
-      { extension: 'md', mimeType: 'text/markdown', content: '# Markdown Content\n\nThis is **markdown**.' },
-      { extension: 'json', mimeType: 'application/json', content: '{"key": "value", "test": true}' },
-      { extension: 'csv', mimeType: 'text/csv', content: 'name,age,city\nJohn,30,NYC\nJane,25,LA' }
+      {
+        extension: 'md',
+        mimeType: 'text/markdown',
+        content: '# Markdown Content\n\nThis is **markdown**.',
+      },
+      {
+        extension: 'json',
+        mimeType: 'application/json',
+        content: '{"key": "value", "test": true}',
+      },
+      { extension: 'csv', mimeType: 'text/csv', content: 'name,age,city\nJohn,30,NYC\nJane,25,LA' },
     ];
 
-    supportedFileTypes.forEach(fileType => {
+    supportedFileTypes.forEach((fileType) => {
       it(`should support ${fileType.extension.toUpperCase()} files`, () => {
         cy.contains('FILES').click();
         cy.wait(1000);
@@ -420,7 +449,7 @@ describe('Knowledge Base UI CRUD Operations', () => {
           {
             contents: fileType.content,
             fileName,
-            mimeType: fileType.mimeType
+            mimeType: fileType.mimeType,
           },
           { force: true }
         );
@@ -436,12 +465,17 @@ describe('Knowledge Base UI CRUD Operations', () => {
             cy.contains(fileName.replace(`.${fileType.extension}`, '')).should('be.visible');
 
             // Clean up - delete the uploaded file
-            cy.get('.file-item').contains(fileName.replace(`.${fileType.extension}`, '')).closest('.file-item').within(() => {
-              cy.get('.file-action').click();
-            });
+            cy.get('.file-item')
+              .contains(fileName.replace(`.${fileType.extension}`, ''))
+              .closest('.file-item')
+              .within(() => {
+                cy.get('.file-action').click();
+              });
             cy.wait(2000);
           } else {
-            cy.log(`${fileType.extension.toUpperCase()} file upload rejected (may not be supported)`);
+            cy.log(
+              `${fileType.extension.toUpperCase()} file upload rejected (may not be supported)`
+            );
           }
         });
       });

@@ -2,14 +2,38 @@ import DOMMatrix from '@thednp/dommatrix';
 
 (function setupDOMPolyfills() {
   console.log('[DOM-POLYFILL] Setting up comprehensive DOM polyfills with professional DOMMatrix');
-  
+
   // Collect all available global contexts safely
   const contexts: any = [];
-  try { if (typeof globalThis !== 'undefined') contexts.push(globalThis); } catch (e) {}
-  try { if (typeof global !== 'undefined') contexts.push(global); } catch (e) {}
-  try { if (typeof window !== 'undefined') contexts.push(window); } catch (e) {}
-  try { if (typeof self !== 'undefined') contexts.push(self); } catch (e) {}
-  
+  try {
+    if (typeof globalThis !== 'undefined') {
+      contexts.push(globalThis);
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+  try {
+    if (typeof global !== 'undefined') {
+      contexts.push(global);
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+  try {
+    if (typeof window !== 'undefined') {
+      contexts.push(window);
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+  try {
+    if (typeof self !== 'undefined') {
+      contexts.push(self);
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+
   // Professional DOMMatrix implementation
   for (const ctx of contexts) {
     if (ctx && typeof ctx === 'object') {
@@ -18,7 +42,7 @@ import DOMMatrix from '@thednp/dommatrix';
       ctx.WebKitCSSMatrix = DOMMatrix;
     }
   }
-  
+
   // Additional DOM API polyfills
   class ImageDataPolyfill {
     data: Uint8ClampedArray<ArrayBufferLike>;
@@ -38,51 +62,83 @@ import DOMMatrix from '@thednp/dommatrix';
       this.colorSpace = 'srgb';
     }
   }
-  
+
   class Path2DPolyfill {
     path: any;
-    constructor(path) { this.path = path || ''; }
-    addPath() {} arc() {} arcTo() {} bezierCurveTo() {} closePath() {}
-    ellipse() {} lineTo() {} moveTo() {} quadraticCurveTo() {} rect() {}
+    constructor(path) {
+      this.path = path || '';
+    }
+    addPath() {}
+    arc() {}
+    arcTo() {}
+    bezierCurveTo() {}
+    closePath() {}
+    ellipse() {}
+    lineTo() {}
+    moveTo() {}
+    quadraticCurveTo() {}
+    rect() {}
   }
-  
+
   class HTMLCanvasElementPolyfill {
     width: number;
     height: number;
-    constructor() { 
-      this.width = 300; 
-      this.height = 150; 
+    constructor() {
+      this.width = 300;
+      this.height = 150;
     }
-    
+
     getContext(type) {
       if (type === '2d') {
         return {
-          arc: () => {}, beginPath: () => {}, clearRect: () => {}, closePath: () => {},
+          arc: () => {},
+          beginPath: () => {},
+          clearRect: () => {},
+          closePath: () => {},
           createImageData: (w, h, colorSpace) => new ImageDataPolyfill(w, h, colorSpace),
-          drawImage: () => {}, fill: () => {}, fillRect: () => {},
+          drawImage: () => {},
+          fill: () => {},
+          fillRect: () => {},
           getImageData: (x, y, w, h, colorSpace) => new ImageDataPolyfill(w, h, colorSpace),
-          lineTo: () => {}, moveTo: () => {}, putImageData: () => {},
-          restore: () => {}, save: () => {}, scale: () => {}, stroke: () => {},
-          translate: () => {}, transform: () => {}, setTransform: () => {},
-          canvas: this, fillStyle: '#000000', strokeStyle: '#000000',
-          globalAlpha: 1.0, lineWidth: 1.0, font: '10px sans-serif'
+          lineTo: () => {},
+          moveTo: () => {},
+          putImageData: () => {},
+          restore: () => {},
+          save: () => {},
+          scale: () => {},
+          stroke: () => {},
+          translate: () => {},
+          transform: () => {},
+          setTransform: () => {},
+          canvas: this,
+          fillStyle: '#000000',
+          strokeStyle: '#000000',
+          globalAlpha: 1.0,
+          lineWidth: 1.0,
+          font: '10px sans-serif',
         };
       }
       return null;
     }
-    
-    toDataURL() { 
-      return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='; 
+
+    toDataURL() {
+      return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
     }
   }
-  
+
   // Apply polyfills to all contexts if not already defined
   for (const ctx of contexts) {
     if (ctx && typeof ctx === 'object') {
-      if (!ctx.ImageData) ctx.ImageData = ImageDataPolyfill;
-      if (!ctx.Path2D) ctx.Path2D = Path2DPolyfill;
-      if (!ctx.HTMLCanvasElement) ctx.HTMLCanvasElement = HTMLCanvasElementPolyfill;
-      
+      if (!ctx.ImageData) {
+        ctx.ImageData = ImageDataPolyfill;
+      }
+      if (!ctx.Path2D) {
+        ctx.Path2D = Path2DPolyfill;
+      }
+      if (!ctx.HTMLCanvasElement) {
+        ctx.HTMLCanvasElement = HTMLCanvasElementPolyfill;
+      }
+
       // Basic document polyfill if needed
       if (!ctx.document) {
         ctx.document = {
@@ -96,12 +152,12 @@ import DOMMatrix from '@thednp/dommatrix';
           querySelectorAll: () => [],
           addEventListener: () => {},
           removeEventListener: () => {},
-          visibilityState: 'visible'
+          visibilityState: 'visible',
         };
       }
     }
   }
-  
+
   console.log('[DOM-POLYFILL] ✅ All DOM polyfills loaded successfully');
   console.log('[DOM-POLYFILL] - Professional DOMMatrix from @thednp/dommatrix');
   console.log('[DOM-POLYFILL] - ImageData, Path2D, HTMLCanvasElement polyfills');
@@ -111,7 +167,7 @@ import DOMMatrix from '@thednp/dommatrix';
 // Mock window object for browser dependencies (only minimal ones needed)
 if (typeof globalThis.window === 'undefined') {
   globalThis.window = {
-    location: { 
+    location: {
       href: 'http://localhost:3000/',
       search: '',
       origin: 'http://localhost:3000',
@@ -120,9 +176,9 @@ if (typeof globalThis.window === 'undefined') {
       host: 'localhost:3000',
       hostname: 'localhost',
       protocol: 'http:',
-      port: '3000'
+      port: '3000',
     },
-    document: { 
+    document: {
       createElement: () => ({
         setAttribute: () => {},
         getAttribute: () => null,
@@ -130,36 +186,37 @@ if (typeof globalThis.window === 'undefined') {
         removeChild: () => {},
         style: {},
         innerHTML: '',
-        textContent: ''
+        textContent: '',
       }),
-      getElementsByTagName: () => ([]),
+      getElementsByTagName: () => [],
       querySelector: () => null,
-      querySelectorAll: () => ([]),
+      querySelectorAll: () => [],
       body: { appendChild: () => {} },
       head: { appendChild: () => {} },
       addEventListener: () => {},
       removeEventListener: () => {},
-      visibilityState: 'visible'
+      visibilityState: 'visible',
     },
     navigator: { userAgent: 'Node.js' },
     localStorage: {
       getItem: () => null,
       setItem: () => {},
       removeItem: () => {},
-      clear: () => {}
+      clear: () => {},
     },
     sessionStorage: {
       getItem: () => null,
       setItem: () => {},
       removeItem: () => {},
-      clear: () => {}
+      clear: () => {},
     },
     XMLHttpRequest: class MockXMLHttpRequest {
       open() {}
       send() {}
       setRequestHeader() {}
     },
-    fetch: typeof fetch !== 'undefined' ? fetch : () => Promise.reject(new Error('fetch not available'))
+    fetch:
+      typeof fetch !== 'undefined' ? fetch : () => Promise.reject(new Error('fetch not available')),
   } as any;
 }
 
@@ -179,7 +236,7 @@ if (typeof globalThis.location === 'undefined') {
     host: 'localhost:3000',
     hostname: 'localhost',
     protocol: 'http:',
-    port: '3000'
+    port: '3000',
   } as any;
 }
 

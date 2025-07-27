@@ -16,7 +16,7 @@ describe('Button Interactions - Fixed Implementation', () => {
 
     const tabs = ['goals', 'todos', 'monologue', 'files', 'config'];
 
-    tabs.forEach((tab, index) => {
+    tabs.forEach((tab, _index) => {
       cy.log(`🔘 Testing ${tab} tab button interactions`);
 
       // Test 1: Click on the button element itself
@@ -36,10 +36,7 @@ describe('Button Interactions - Fixed Implementation', () => {
       cy.log(`✅ Force click works for ${tab}`);
 
       // Test 4: Click multiple times rapidly
-      cy.get(`[data-testid="${tab}-tab"]`)
-        .click()
-        .click()
-        .click();
+      cy.get(`[data-testid="${tab}-tab"]`).click().click().click();
       cy.get(`[data-testid="${tab}-tab"]`).should('have.class', 'active');
       cy.log(`✅ Rapid clicks handled correctly for ${tab}`);
 
@@ -52,13 +49,21 @@ describe('Button Interactions - Fixed Implementation', () => {
   it('should handle capability toggle button interactions correctly', () => {
     cy.screenshot('03-before-capability-tests');
 
-    const capabilities = ['autonomy', 'camera', 'screen', 'microphone', 'speakers', 'shell', 'browser'];
+    const capabilities = [
+      'autonomy',
+      'camera',
+      'screen',
+      'microphone',
+      'speakers',
+      'shell',
+      'browser',
+    ];
 
-    capabilities.forEach(capability => {
+    capabilities.forEach((capability) => {
       cy.log(`🔘 Testing ${capability} toggle button`);
 
       // Get initial state
-      cy.get(`[data-testid="${capability}-toggle"]`).then($btn => {
+      cy.get(`[data-testid="${capability}-toggle"]`).then(($btn) => {
         const initialState = $btn.hasClass('enabled');
         cy.log(`Initial ${capability} state: ${initialState ? 'enabled' : 'disabled'}`);
 
@@ -83,12 +88,8 @@ describe('Button Interactions - Fixed Implementation', () => {
         cy.log(`✅ Label click registered for ${capability}`);
 
         // Test 4: Verify button styling responds to interactions
-        cy.get(`[data-testid="${capability}-toggle"]`)
-          .trigger('mouseover')
-          .should('exist');
-        cy.get(`[data-testid="${capability}-toggle"]`)
-          .trigger('mouseout')
-          .should('exist');
+        cy.get(`[data-testid="${capability}-toggle"]`).trigger('mouseover').should('exist');
+        cy.get(`[data-testid="${capability}-toggle"]`).trigger('mouseout').should('exist');
         cy.log(`✅ Hover states work for ${capability}`);
 
         // Test 5: Test with different mouse events
@@ -109,7 +110,7 @@ describe('Button Interactions - Fixed Implementation', () => {
     // Test tab button visual feedback
     const tabs = ['goals', 'todos', 'monologue', 'files', 'config'];
 
-    tabs.forEach(tab => {
+    tabs.forEach((tab) => {
       // Click tab and verify active state styling
       cy.get(`[data-testid="${tab}-tab"]`).click();
 
@@ -117,9 +118,11 @@ describe('Button Interactions - Fixed Implementation', () => {
       cy.get(`[data-testid="${tab}-tab"]`).should('have.class', 'active');
 
       // Verify other tabs don't have active class
-      tabs.filter(t => t !== tab).forEach(otherTab => {
-        cy.get(`[data-testid="${otherTab}-tab"]`).should('not.have.class', 'active');
-      });
+      tabs
+        .filter((t) => t !== tab)
+        .forEach((otherTab) => {
+          cy.get(`[data-testid="${otherTab}-tab"]`).should('not.have.class', 'active');
+        });
 
       cy.log(`✅ Visual feedback correct for ${tab} tab`);
     });
@@ -127,22 +130,22 @@ describe('Button Interactions - Fixed Implementation', () => {
     // Test capability button visual feedback
     const capabilities = ['autonomy', 'shell', 'browser']; // Test subset for speed
 
-    capabilities.forEach(capability => {
-      cy.get(`[data-testid="${capability}-toggle"]`).then($btn => {
-        const wasEnabled = $btn.hasClass('enabled');
+    capabilities.forEach((capability) => {
+      cy.get(`[data-testid="${capability}-toggle"]`).then(($btn) => {
+        const _wasEnabled = $btn.hasClass('enabled');
 
         // Click the button
         cy.get(`[data-testid="${capability}-toggle"]`).click();
         cy.wait(1000);
 
         // Check if visual state changed (may or may not depending on service availability)
-        cy.get(`[data-testid="${capability}-toggle"]`).then($newBtn => {
+        cy.get(`[data-testid="${capability}-toggle"]`).then(($newBtn) => {
           // Button should still exist and be responsive
           expect($newBtn).to.exist;
           cy.log(`✅ ${capability} button remains responsive after click`);
 
           // Check indicator symbol
-          cy.get(`[data-testid="${capability}-toggle-status"]`).then($indicator => {
+          cy.get(`[data-testid="${capability}-toggle-status"]`).then(($indicator) => {
             const symbol = $indicator.text();
             expect(['◉', '◯']).to.include(symbol);
             cy.log(`✅ ${capability} indicator shows valid symbol: ${symbol}`);
@@ -227,8 +230,8 @@ describe('Button Interactions - Fixed Implementation', () => {
     // Test tab buttons have proper ARIA attributes
     const tabs = ['goals', 'todos', 'monologue', 'files', 'config'];
 
-    tabs.forEach(tab => {
-      cy.get(`[data-testid="${tab}-tab"]`).then($btn => {
+    tabs.forEach((tab) => {
+      cy.get(`[data-testid="${tab}-tab"]`).then(($btn) => {
         // Should be focusable
         expect($btn.attr('tabindex')).to.not.equal('-1');
         cy.log(`✅ ${tab} tab is focusable`);
@@ -236,10 +239,18 @@ describe('Button Interactions - Fixed Implementation', () => {
     });
 
     // Test capability buttons have proper ARIA attributes
-    const capabilities = ['autonomy', 'camera', 'screen', 'microphone', 'speakers', 'shell', 'browser'];
+    const capabilities = [
+      'autonomy',
+      'camera',
+      'screen',
+      'microphone',
+      'speakers',
+      'shell',
+      'browser',
+    ];
 
-    capabilities.forEach(capability => {
-      cy.get(`[data-testid="${capability}-toggle"]`).then($btn => {
+    capabilities.forEach((capability) => {
+      cy.get(`[data-testid="${capability}-toggle"]`).then(($btn) => {
         // Should have role
         expect($btn.attr('role')).to.equal('switch');
 

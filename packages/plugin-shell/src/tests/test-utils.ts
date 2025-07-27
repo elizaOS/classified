@@ -1,7 +1,9 @@
 import { vi } from 'vitest';
 import type { IAgentRuntime, Memory, State, UUID } from '@elizaos/core';
 
-export function createMockRuntime(overrides: Partial<IAgentRuntime> = {}): IAgentRuntime {
+export function createMockRuntime(
+  overrides: Partial<IAgentRuntime> = {}
+): IAgentRuntime {
   return {
     agentId: '00000000-0000-0000-0000-000000000001' as UUID,
     getConversationLength: vi.fn(() => 10),
@@ -15,7 +17,9 @@ export function createMockRuntime(overrides: Partial<IAgentRuntime> = {}): IAgen
     processActions: vi.fn(() => Promise.resolve()),
     useModel: vi.fn(() => Promise.resolve('test response')) as any,
     ensureConnection: vi.fn(() => Promise.resolve()),
-    composeState: vi.fn(() => Promise.resolve({ data: {}, values: {}, text: '' } as State)),
+    composeState: vi.fn(() =>
+      Promise.resolve({ data: {}, values: {}, text: '' } as State)
+    ),
     createMemory: vi.fn(() => Promise.resolve('test-memory-id' as UUID)),
     actions: [],
     providers: [],
@@ -59,4 +63,4 @@ export function createMockState(overrides: Partial<State> = {}): State {
     text: '',
     ...overrides,
   };
-} 
+}

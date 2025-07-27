@@ -25,7 +25,7 @@ describe('AutoCoder Runtime Integration', () => {
 
   beforeAll(async () => {
     // Set up test environment
-    testDbPath = `:memory:`;
+    testDbPath = ':memory:';
     process.env.DATABASE_PATH = testDbPath;
     process.env.FORCE_BUNSQLITE = 'true';
     process.env.ELIZA_TEST_MODE = 'true';
@@ -71,14 +71,14 @@ describe('AutoCoder Runtime Integration', () => {
       getAgent: async (id: string) => ({ id, name: 'Test Agent' }),
       // Room methods
       getRooms: async () => [],
-      getRoomsByIds: async (ids: string[]) => ids.map(id => ({ id })),
+      getRoomsByIds: async (ids: string[]) => ids.map((id) => ({ id })),
       createRoom: async (room: any) => room,
       updateRoom: async (id: string, updates: any) => ({ id, ...updates }),
       deleteRoom: async (id: string) => {},
       getRoom: async (id: string) => ({ id }),
       // Participant methods
       getParticipants: async () => [],
-      getParticipantsByIds: async (ids: string[]) => ids.map(id => ({ id })),
+      getParticipantsByIds: async (ids: string[]) => ids.map((id) => ({ id })),
       getParticipantsForRoom: async (roomId: string) => [],
       addParticipantsToRoom: async (participantIds: string[], roomId: string) => true,
       createParticipant: async (participant: any) => participant,
@@ -87,19 +87,19 @@ describe('AutoCoder Runtime Integration', () => {
       getParticipant: async (id: string) => ({ id }),
       // Memory methods
       getMemories: async () => [],
-      getMemoriesByIds: async (ids: string[]) => ids.map(id => ({ id })),
+      getMemoriesByIds: async (ids: string[]) => ids.map((id) => ({ id })),
       createMemory: async (memory: any) => memory,
       updateMemory: async (id: string, updates: any) => ({ id, ...updates }),
       deleteMemory: async (id: string) => {},
       getMemory: async (id: string) => ({ id }),
       // Entity methods
-      getEntitiesByIds: async (ids: string[]) => ids.map(id => ({ id })),
+      getEntitiesByIds: async (ids: string[]) => ids.map((id) => ({ id })),
       createEntity: async (entity: any) => entity,
       updateEntity: async (id: string, updates: any) => ({ id, ...updates }),
       deleteEntity: async (id: string) => {},
       getEntity: async (id: string) => ({ id }),
       // World methods
-      updateWorld: async (world: any) => world
+      updateWorld: async (world: any) => world,
     };
 
     // Register mock model handlers
@@ -107,7 +107,7 @@ describe('AutoCoder Runtime Integration', () => {
       TEXT_LARGE: {
         generate: async (prompt: string) => {
           return {
-            text: 'Mock generated code for: ' + prompt.substring(0, 50),
+            text: `Mock generated code for: ${prompt.substring(0, 50)}`,
             success: true,
           };
         },
@@ -115,7 +115,7 @@ describe('AutoCoder Runtime Integration', () => {
       TEXT: {
         generate: async (prompt: string) => {
           return {
-            text: 'Mock response: ' + prompt.substring(0, 50),
+            text: `Mock response: ${prompt.substring(0, 50)}`,
             success: true,
           };
         },
@@ -160,31 +160,33 @@ describe('AutoCoder Runtime Integration', () => {
         console.log('Runtime not initialized, skipping test');
         return;
       }
-      
+
       const actions = runtime.actions || [];
       const providers = runtime.providers || [];
-      
+
       // Check actions are registered
-      const hasGenerateCodeAction = actions.some(a => a.name === 'GENERATE_CODE');
-      const hasCreateProjectAction = actions.some(a => a.name === 'CREATE_PROJECT');
-      
+      const hasGenerateCodeAction = actions.some((a) => a.name === 'GENERATE_CODE');
+      const hasCreateProjectAction = actions.some((a) => a.name === 'CREATE_PROJECT');
+
       // During test setup, these might not be available due to mock adapter
       if (actions.length === 0) {
         console.log('No actions registered - initialization may have failed');
         expect(true).toBe(true); // Pass the test anyway
         return;
       }
-      
+
       expect(hasGenerateCodeAction).toBe(true);
       expect(hasCreateProjectAction).toBe(true);
-      
+
       // Check provider is registered - providers might be registered differently
       // or not exposed directly on runtime
-      const hasProjectsProvider = providers.some(p => p.name === 'PROJECTS');
-      
+      const hasProjectsProvider = providers.some((p) => p.name === 'PROJECTS');
+
       // Skip provider check for now - providers are handled internally
       // and may not be exposed on runtime in test environment
-      console.log('Note: Provider registration test skipped - providers not directly exposed in test environment');
+      console.log(
+        'Note: Provider registration test skipped - providers not directly exposed in test environment'
+      );
       expect(true).toBe(true);
     });
 
@@ -193,11 +195,11 @@ describe('AutoCoder Runtime Integration', () => {
         console.log('Runtime not initialized, skipping test');
         return;
       }
-      
+
       // Check that required services are available
       const codeGenService = runtime.getService('code-generation');
       const formsService = runtime.getService('forms');
-      
+
       // Code generation service might not be available without proper API keys
       // But forms service should always be available
       if (!formsService) {
@@ -205,7 +207,7 @@ describe('AutoCoder Runtime Integration', () => {
         expect(true).toBe(true); // Pass the test anyway
         return;
       }
-      
+
       expect(formsService).toBeDefined();
     });
   });
@@ -213,7 +215,7 @@ describe('AutoCoder Runtime Integration', () => {
   describe('CodeGenerationService', () => {
     it('should start and provide correct capability description', async () => {
       const service = runtime.getService('code-generation') as CodeGenerationService;
-      
+
       // Service might not be available without API keys
       if (service) {
         expect(service.capabilityDescription).toContain('Generates complete ElizaOS projects');
@@ -227,7 +229,6 @@ describe('AutoCoder Runtime Integration', () => {
       // Skip this test - it requires real E2B sandboxes
       console.log('Skipping E2B sandbox test - requires real E2B API');
       expect(true).toBe(true);
-      return;
     }, 10000); // Increase timeout to 10 seconds
   });
 
@@ -272,7 +273,7 @@ describe('AutoCoder Runtime Integration', () => {
         projectId: 'test-project-id',
         values: {},
         data: {},
-        text: ''
+        text: '',
       };
 
       const options = {};
@@ -300,15 +301,15 @@ describe('AutoCoder Runtime Integration', () => {
         agentId: runtime.agentId,
         roomId: uuidv4() as UUID,
         content: { text: 'test' },
-        createdAt: Date.now()
+        createdAt: Date.now(),
       };
       const state: State = {
         values: {},
         data: {},
-        text: ''
+        text: '',
       };
       const result = await projectsProvider.get(runtime, memory, state);
-      
+
       expect(result).toBeDefined();
       expect(result.text).toBeDefined();
       // The provider returns "Project planning service is not available." when the service is missing
@@ -320,29 +321,31 @@ describe('AutoCoder Runtime Integration', () => {
   describe('Forms Integration', () => {
     it('should create forms for interactive code generation', async () => {
       const formsService = runtime.getService('forms');
-      
+
       if (!formsService) {
         console.log('Skipping test - forms service not available');
         return;
       }
 
       expect(formsService).toBeDefined();
-      
+
       // Test form creation through forms service
       const form = await (formsService as any).createForm({
         name: 'code-project',
         description: 'Code generation project form',
-        steps: [{
-          name: 'project-info',
-          fields: [
-            {
-              name: 'projectName',
-              type: 'text',
-              label: 'Project Name',
-              required: true,
-            },
-          ],
-        }],
+        steps: [
+          {
+            name: 'project-info',
+            fields: [
+              {
+                name: 'projectName',
+                type: 'text',
+                label: 'Project Name',
+                required: true,
+              },
+            ],
+          },
+        ],
       });
 
       expect(form).toBeDefined();
@@ -353,14 +356,14 @@ describe('AutoCoder Runtime Integration', () => {
   describe('GitHub Integration', () => {
     it('should interact with GitHub service', async () => {
       const githubService = runtime.getService('github');
-      
+
       if (!githubService || !process.env.GITHUB_TOKEN) {
         console.log('Skipping test - GitHub service not available or no token');
         return;
       }
 
       expect(githubService).toBeDefined();
-      
+
       // Test rate limit check (doesn't require auth)
       const rateLimit = await (githubService as any).getRateLimit();
       expect(rateLimit).toBeDefined();
@@ -372,7 +375,6 @@ describe('AutoCoder Runtime Integration', () => {
       // Skip this test - it requires real E2B sandboxes
       console.log('Skipping security validation test - requires real E2B API');
       expect(true).toBe(true);
-      return;
     }, 10000); // Increase timeout
   });
 
@@ -381,7 +383,6 @@ describe('AutoCoder Runtime Integration', () => {
       // Skip this test - it requires real E2B sandboxes and forms integration
       console.log('Skipping E2E workflow test - requires real E2B API');
       expect(true).toBe(true);
-      return;
     }, 10000); // Increase timeout
   });
-}); 
+});

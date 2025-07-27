@@ -119,7 +119,7 @@ send_test_message() {
             \"source_type\": \"game_ui\",
             \"metadata\": {
                 \"callback_url\": \"$callback_url\",
-                \"source\": \"eliza_game\",
+                \"source\": \"eliza\",
                 \"userName\": \"Admin\"
             }
         }")

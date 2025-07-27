@@ -20,6 +20,9 @@ export function useTauriChat(): UseTauriChatReturn {
     const initialize = async () => {
       setIsLoading(true);
 
+      // Give TauriService a moment to detect Tauri environment
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
       // Initialize Tauri service
       await TauriService.initialize();
 
@@ -35,11 +38,11 @@ export function useTauriChat(): UseTauriChatReturn {
         setTimeout(async () => {
           try {
             console.log('[AUTO-GREETING] Checking if agent and Ollama are ready...');
-            
+
             // Check agent health
             const agentHealth = await TauriService.checkAgentHealth();
             console.log('[AUTO-GREETING] Agent health:', agentHealth);
-            
+
             // If agent is healthy, send greeting
             if (agentHealth && (agentHealth.status === 'healthy' || agentHealth.success)) {
               console.log('[AUTO-GREETING] Sending hello message to Eliza...');

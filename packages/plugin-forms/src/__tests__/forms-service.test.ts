@@ -20,7 +20,7 @@ const createMockMemory = (text: string): Memory => ({
 // Helper to create a properly typed mock runtime
 const createTypedMockRuntime = (): IAgentRuntime => {
   const testAgentId = asUUID(uuidv4());
-  
+
   const runtime = {
     agentId: testAgentId,
     providers: [],
@@ -432,16 +432,16 @@ describe('FormsService', () => {
         },
         useModel: mock(() => Promise.resolve('{}')),
       } as unknown as IAgentRuntime;
-      
+
       // Mock runtime.adapter to simulate missing tables
       (runtime as any).adapter = {
         fetch: mock(() => Promise.resolve({ rows: [] })),
         run: mock(() => Promise.reject(new Error('relation "forms" does not exist'))),
       };
-      
+
       const formsService = await FormsService.start(runtime);
       expect(formsService).toBeInstanceOf(FormsService);
-      
+
       // Service should still work without persistence
       const form = await (formsService as FormsService).createForm('contact');
       expect(form).toBeTruthy();
@@ -460,26 +460,30 @@ describe('FormsService', () => {
         },
         useModel: mock(() => Promise.resolve('{}')),
       } as unknown as IAgentRuntime;
-      
+
       // Mock runtime to simulate working database
       const mockRun = mock(() => Promise.resolve());
-      const mockFetch = mock(() => Promise.resolve({ 
-        rows: [{ exists: true }] 
-      }));
-      
-      (runtime as any).getDatabase = mock(() => Promise.resolve({
-        fetch: mockFetch,
-        run: mockRun,
-      }));
-      
+      const mockFetch = mock(() =>
+        Promise.resolve({
+          rows: [{ exists: true }],
+        })
+      );
+
+      (runtime as any).getDatabase = mock(() =>
+        Promise.resolve({
+          fetch: mockFetch,
+          run: mockRun,
+        })
+      );
+
       const formsService = (await FormsService.start(runtime)) as FormsService;
-      
+
       // Create a form
       await formsService.createForm('contact');
-      
+
       // Wait for persistence batch interval
-      await new Promise(resolve => setTimeout(resolve, 1100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+
       // Check that database operations were attempted
       expect((runtime as any).getDatabase).toHaveBeenCalled();
     });
@@ -521,12 +525,12 @@ describe('FormsService', () => {
       (mockRuntime.useModel as ReturnType<typeof mock>).mockResolvedValueOnce(
         '{"email": "not-an-email"}'
       );
-      
+
       const result1 = await service.updateForm(
         form.id,
         createMockMemory('My email is not-an-email')
       );
-      
+
       // The validation might not work as expected with mocked LLM
       // Just check that the form update was attempted
       expect(result1.success).toBe(true);
@@ -536,12 +540,12 @@ describe('FormsService', () => {
       (mockRuntime.useModel as ReturnType<typeof mock>).mockResolvedValueOnce(
         '{"email": "test@example.com", "age": 25, "website": "https://example.com"}'
       );
-      
+
       const result2 = await service.updateForm(
         form.id,
         createMockMemory('Email test@example.com, age 25, website https://example.com')
       );
-      
+
       expect(result2.errors).toHaveLength(0);
       expect(result2.updatedFields).toHaveLength(3);
     });
@@ -582,20 +586,20 @@ describe('FormsService', () => {
       (mockRuntime.useModel as ReturnType<typeof mock>).mockResolvedValueOnce(
         '{"enabled": false, "count": 0, "message": ""}'
       );
-      
+
       const result = await service.updateForm(
         form.id,
         createMockMemory('Disabled, count 0, no message')
       );
-      
+
       expect(result.success).toBe(true);
       expect(result.updatedFields).toHaveLength(3);
-      
+
       const updatedForm = await service.getForm(form.id);
-      const enabledField = updatedForm?.steps[0].fields.find(f => f.id === 'enabled');
-      const countField = updatedForm?.steps[0].fields.find(f => f.id === 'count');
-      const messageField = updatedForm?.steps[0].fields.find(f => f.id === 'message');
-      
+      const enabledField = updatedForm?.steps[0].fields.find((f) => f.id === 'enabled');
+      const countField = updatedForm?.steps[0].fields.find((f) => f.id === 'count');
+      const messageField = updatedForm?.steps[0].fields.find((f) => f.id === 'message');
+
       expect(enabledField?.value).toBe(false);
       expect(countField?.value).toBe(0);
       expect(messageField?.value).toBe('');
@@ -615,7 +619,7 @@ describe('FormsService', () => {
         },
         useModel: mock(() => Promise.resolve('{}')),
       } as unknown as IAgentRuntime;
-      
+
       const mockRun = mock((query: string) => {
         if (query === 'BEGIN') {
           return Promise.resolve();
@@ -632,20 +636,22 @@ describe('FormsService', () => {
         }
         return Promise.resolve();
       });
-      
-      (runtime as any).getDatabase = mock(() => Promise.resolve({
-        fetch: mock(() => Promise.resolve({ rows: [{ exists: true }] })),
-        run: mockRun,
-      }));
-      
+
+      (runtime as any).getDatabase = mock(() =>
+        Promise.resolve({
+          fetch: mock(() => Promise.resolve({ rows: [{ exists: true }] })),
+          run: mockRun,
+        })
+      );
+
       const formsService = (await FormsService.start(runtime)) as FormsService;
-      
+
       // Create a form to trigger persistence
       await formsService.createForm('contact');
-      
+
       // Wait for persistence batch
-      await new Promise(resolve => setTimeout(resolve, 1100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+
       // Check that database was called
       expect((runtime as any).getDatabase).toHaveBeenCalled();
       // Transaction might not start if persistence is disabled

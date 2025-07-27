@@ -9,7 +9,7 @@ describe('todosProvider', () => {
   let mockState: State;
 
   const setupMocks = () => {
-    // @ts-ignore - test mock
+    // @ts-expect-error - test mock
     mockRuntime = createMockRuntime({
       worldId: 'world-1' as UUID,
       getRoom: () => Promise.resolve({ worldId: 'world-1' }),

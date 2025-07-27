@@ -57,9 +57,9 @@ describe('ActionExample Module', () => {
     });
 
     it('should handle null or undefined content', () => {
-      // @ts-ignore - testing null content
+      // @ts-expect-error - testing null content
       const result1 = convertContentToV1(null);
-      // @ts-ignore - testing undefined content
+      // @ts-expect-error - testing undefined content
       const result2 = convertContentToV1(undefined);
 
       expect(result1.text).toBe('');
@@ -96,9 +96,9 @@ describe('ActionExample Module', () => {
     });
 
     it('should handle null or undefined content', () => {
-      // @ts-ignore - testing null content
+      // @ts-expect-error - testing null content
       const result1 = convertContentToV2(null);
-      // @ts-ignore - testing undefined content
+      // @ts-expect-error - testing undefined content
       const result2 = convertContentToV2(undefined);
 
       expect(result1.text).toBe('');
@@ -147,9 +147,9 @@ describe('ActionExample Module', () => {
     });
 
     it('should handle null or undefined example', () => {
-      // @ts-ignore - testing null example
+      // @ts-expect-error - testing null example
       const result1 = fromV2ActionExample(null);
-      // @ts-ignore - testing undefined example
+      // @ts-expect-error - testing undefined example
       const result2 = fromV2ActionExample(undefined);
 
       expect(result1.user).toBe('');
@@ -212,9 +212,9 @@ describe('ActionExample Module', () => {
     });
 
     it('should handle null or undefined example', () => {
-      // @ts-ignore - testing null example
+      // @ts-expect-error - testing null example
       const result1 = toV2ActionExample(null);
-      // @ts-ignore - testing undefined example
+      // @ts-expect-error - testing undefined example
       const result2 = toV2ActionExample(undefined);
 
       expect(result1.name).toBe('');

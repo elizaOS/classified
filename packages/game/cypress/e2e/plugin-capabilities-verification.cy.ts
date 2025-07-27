@@ -9,7 +9,7 @@ describe('Plugin Capabilities Verification', () => {
       method: 'GET',
       url: `${BACKEND_URL}/api/server/health`,
       timeout: 30000,
-      retries: 5
+      retries: 5,
     }).then((response) => {
       expect(response.status).to.eq(200);
       expect(response.body.data.status).to.eq('healthy');
@@ -187,7 +187,6 @@ describe('Plugin Setup Requirements Summary', () => {
 
     cy.request(`${BACKEND_URL}/api/plugin-config`).then((configResponse) => {
       cy.request(`${BACKEND_URL}/api/server/health`).then((healthResponse) => {
-
         const plugins = configResponse.body.data.availablePlugins;
         const health = healthResponse.body.data;
 
@@ -197,7 +196,8 @@ describe('Plugin Setup Requirements Summary', () => {
 
         // Requirement 2: Stagehand browser plugin is loaded and available
         const stagehandAvailable = plugins.includes('stagehand');
-        expect(stagehandAvailable, 'Stagehand browser plugin should be loaded and available').to.be.true;
+        expect(stagehandAvailable, 'Stagehand browser plugin should be loaded and available').to.be
+          .true;
 
         // Requirement 3: Agent runtime is healthy and connected
         const agentConnected = health.agent === 'connected' && health.status === 'healthy';
@@ -205,7 +205,10 @@ describe('Plugin Setup Requirements Summary', () => {
 
         // Requirement 4: Both plugins accessible to agent
         const bothPluginsAccessible = shellAvailable && stagehandAvailable && agentConnected;
-        expect(bothPluginsAccessible, 'Agent should have access to both Shell and Stagehand plugins').to.be.true;
+        expect(
+          bothPluginsAccessible,
+          'Agent should have access to both Shell and Stagehand plugins'
+        ).to.be.true;
 
         cy.log('🎉 ALL PLUGIN REQUIREMENTS VERIFIED:');
         cy.log('✅ Shell plugin loaded and accessible to agent');

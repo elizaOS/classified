@@ -4,7 +4,7 @@
     "build": {
       "dependsOn": ["^build"],
       "env": ["LOG_LEVEL"],
-      "outputs": ["dist/**", "dist-backend/**", "dist-binaries/**"]
+      "outputs": ["dist/**", "dist/**", "dist-binaries/**"]
     },
     "build:binary": {
       "dependsOn": ["build"],
@@ -12,7 +12,7 @@
       "outputs": ["dist-binaries/**"]
     },
     "lint": {
-      "outputs": [".eslintcache"]
+      "outputs": []
     },
     "format": {
       "outputs": []

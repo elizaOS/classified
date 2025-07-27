@@ -5,27 +5,19 @@ import {
   logger,
   type UUID,
 } from '@elizaos/core';
-import '../types'; // Import to register service types
-import { createTodoDataService, type TodoData } from './todoDataService';
+import { TodoServiceType } from '../types';
+import type { TodoDataServiceWrapper, TodoData } from './todoDataService';
 import { NotificationManager } from './notificationManager';
-import { CacheManager } from './cacheManager';
 
 // Define optional rolodex types for enhanced messaging
 interface RolodexService {
-  sendNotification?: (message: any) => Promise<boolean>;
-}
-
-interface ReminderMessage {
-  entityId: UUID;
-  message: string;
-  priority: 'low' | 'medium' | 'high';
-  platforms?: string[];
-  metadata?: {
-    todoId: UUID;
-    todoName: string;
-    reminderType: string;
-    dueDate?: Date;
-  };
+  sendNotification?: (message: {
+    entityId: UUID;
+    message: string;
+    priority: string;
+    platforms?: string[];
+    metadata?: unknown;
+  }) => Promise<boolean>;
 }
 
 /**
@@ -42,13 +34,9 @@ interface TodoReminderConfig {
  * Main todo reminder service that handles all reminder functionality
  */
 export class TodoReminderService extends Service {
-  static serviceType: ServiceTypeName = 'TODO_REMINDER';
-  static serviceName = 'TODO_REMINDER';
+  static readonly serviceType: ServiceTypeName = 'TODO_REMINDER' as ServiceTypeName;
+  static readonly serviceName = 'TODO_REMINDER';
   capabilityDescription = 'Manages todo reminders and notifications';
-
-  get serviceName(): string {
-    return 'TODO_REMINDER';
-  }
 
   // Configuration with sensible defaults
   private reminderConfig: TodoReminderConfig = {
@@ -59,7 +47,6 @@ export class TodoReminderService extends Service {
   };
 
   private notificationManager!: NotificationManager;
-  private cacheManager!: CacheManager;
   private reminderTimer: NodeJS.Timeout | null = null;
   private rolodexService: RolodexService | null = null;
   private lastReminderCheck: Map<UUID, number> = new Map(); // Track last reminder time per todo
@@ -96,7 +83,7 @@ export class TodoReminderService extends Service {
         // Parse comma-separated string like "9,18"
         const hours = dailyHours
           .split(',')
-          .map((h) => parseInt(h.trim()))
+          .map((h) => parseInt(h.trim(), 10))
           .filter((h) => h >= 0 && h <= 23);
         if (hours.length > 0) {
           this.reminderConfig.dailyReminderHours = hours;
@@ -119,7 +106,6 @@ export class TodoReminderService extends Service {
 
     // Initialize internal managers
     this.notificationManager = new NotificationManager(this.runtime);
-    this.cacheManager = new CacheManager();
 
     // Try to get rolodex service for enhanced entity management (optional)
     try {
@@ -163,28 +149,45 @@ export class TodoReminderService extends Service {
   }
 
   async checkTasksForReminders(): Promise<void> {
-    try {
-      const dataService = createTodoDataService(this.runtime);
+    logger.debug('[TodoReminderService] Checking tasks for reminders...');
 
-      // Get all incomplete todos
-      const todos = await dataService.getTodos({ isCompleted: false });
+    const dataService = this.runtime.getService('todo') as TodoDataServiceWrapper;
+    if (!dataService) {
+      logger.error('[TodoReminderService] Todo service not available');
+      return;
+    }
 
-      for (const todo of todos) {
-        try {
-          await this.processTodoReminder(todo);
-        } catch (error) {
-          logger.error(`Error processing reminder for todo ${todo.id}:`, error);
-        }
+    // Get overdue todos
+    const overdueTodos = await dataService.getOverdueTodos({
+      agentId: this.runtime.agentId,
+    });
+
+    logger.debug(`[TodoReminderService] Found ${overdueTodos.length} overdue todos`);
+
+    // Process each overdue todo
+    for (const todo of overdueTodos) {
+      await this.processTodoReminder(todo);
+    }
+
+    // Check for upcoming todos (due within threshold)
+    const allTodos = await dataService.getTodos({
+      agentId: this.runtime.agentId,
+      isCompleted: false,
+    });
+
+    for (const todo of allTodos) {
+      try {
+        await this.processTodoReminder(todo);
+      } catch (error) {
+        logger.error(`Error processing reminder for todo ${todo.id}:`, error);
       }
-    } catch (error) {
-      logger.error('Error checking tasks for reminders:', error);
     }
   }
 
   private async processTodoReminder(todo: TodoData): Promise<void> {
     const now = new Date();
     let shouldRemind = false;
-    let reminderType = 'general';
+    let reminderType: 'overdue' | 'upcoming' | 'daily' | 'system' = 'system';
     let priority: 'low' | 'medium' | 'high' = 'medium';
 
     // Check last reminder time to avoid spam
@@ -235,7 +238,7 @@ export class TodoReminderService extends Service {
 
   private async sendReminder(
     todo: TodoData,
-    reminderType: string,
+    reminderType: 'overdue' | 'upcoming' | 'daily' | 'system',
     priority: 'low' | 'medium' | 'high'
   ): Promise<void> {
     try {
@@ -246,7 +249,7 @@ export class TodoReminderService extends Service {
       await this.notificationManager.queueNotification({
         title,
         body,
-        type: reminderType as any,
+        type: reminderType,
         taskId: todo.id,
         roomId: todo.roomId,
         priority,
@@ -322,10 +325,6 @@ export class TodoReminderService extends Service {
 
     if (this.notificationManager) {
       await this.notificationManager.stop();
-    }
-
-    if (this.cacheManager) {
-      await this.cacheManager.stop();
     }
 
     logger.info('TodoReminderService stopped');

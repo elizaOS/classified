@@ -11,8 +11,9 @@ const __dirname = path.dirname(__filename);
 const packageJson = JSON.parse(readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'));
 
 // Get all workspace dependencies that should be bundled
-const workspaceDependencies = Object.keys(packageJson.dependencies || {})
-  .filter(dep => packageJson.dependencies[dep].startsWith('workspace:'));
+const workspaceDependencies = Object.keys(packageJson.dependencies || {}).filter((dep) =>
+  packageJson.dependencies[dep].startsWith('workspace:')
+);
 
 console.log('Workspace dependencies to bundle:', workspaceDependencies);
 
@@ -24,7 +25,7 @@ async function build() {
       platform: 'node',
       target: 'node18',
       format: 'esm',
-      outfile: path.join(__dirname, '..', 'dist-backend', 'server.js'),
+      outfile: path.join(__dirname, '..', 'dist', 'server.js'),
       external: [
         // Canvas has native dependencies that can't be bundled
         'canvas',
@@ -54,33 +55,42 @@ async function build() {
         'jimp',
       ],
       // Add a plugin to resolve workspace dependencies
-      plugins: [{
-        name: 'workspace-resolver',
-        setup(build) {
-          const fs = require('fs');
-          const path = require('path');
-          
-          // Resolve @elizaos/* packages to their dist directories
-          build.onResolve({ filter: /^@elizaos\// }, args => {
-            const packageName = args.path;
-            const packageDir = packageName.replace('@elizaos/', '');
-            const packagePath = path.resolve(__dirname, '..', '..', packageDir, 'dist', 'index.js');
-            
-            // Check if the built package exists
-            if (fs.existsSync(packagePath)) {
-              return { path: packagePath };
-            }
-            
-            // Fallback to source if dist doesn't exist
-            const srcPath = path.resolve(__dirname, '..', '..', packageDir, 'src', 'index.ts');
-            if (fs.existsSync(srcPath)) {
-              return { path: srcPath };
-            }
-            
-            return null;
-          });
-        }
-      }],
+      plugins: [
+        {
+          name: 'workspace-resolver',
+          setup(build) {
+            const fs = require('fs');
+            const path = require('path');
+
+            // Resolve @elizaos/* packages to their dist directories
+            build.onResolve({ filter: /^@elizaos\// }, (args) => {
+              const packageName = args.path;
+              const packageDir = packageName.replace('@elizaos/', '');
+              const packagePath = path.resolve(
+                __dirname,
+                '..',
+                '..',
+                packageDir,
+                'dist',
+                'index.js'
+              );
+
+              // Check if the built package exists
+              if (fs.existsSync(packagePath)) {
+                return { path: packagePath };
+              }
+
+              // Fallback to source if dist doesn't exist
+              const srcPath = path.resolve(__dirname, '..', '..', packageDir, 'src', 'index.ts');
+              if (fs.existsSync(srcPath)) {
+                return { path: srcPath };
+              }
+
+              return null;
+            });
+          },
+        },
+      ],
       sourcemap: true,
       minify: false,
       loader: {
@@ -185,8 +195,8 @@ const require = __createRequire(import.meta.url);
   }
   
   console.log('[POLYFILL-BANNER] ✅ Critical DOM polyfills loaded');
-})();`
-      }
+})();`,
+      },
     });
 
     console.log('Backend build complete!');

@@ -29,7 +29,7 @@ async function build() {
 
   // Generate basic TypeScript declaration file
   console.log('📝 Generating TypeScript declarations...');
-  
+
   // Ensure dist directory exists
   if (!existsSync('dist')) {
     mkdirSync('dist', { recursive: true });

@@ -19,22 +19,22 @@ declare global {
       seedTestData(): Chainable<void>;
       bypassBoot(): Chainable<void>;
       setupApiKey(provider: 'openai' | 'anthropic', key: string): Chainable<void>;
-      
+
       // UI Helpers
       elementExists(selector: string): Chainable<boolean>;
       safeClick(selector: string): Chainable<void>;
-      
+
       // Knowledge Management
       uploadKnowledgeFile(fileName: string, content: string, fileType?: string): Chainable<any>;
       searchKnowledge(query: string, count?: number): Chainable<any[]>;
       deleteKnowledgeDocument(documentId: string): Chainable<void>;
       cleanupKnowledgeTests(): Chainable<void>;
       waitForDocumentProcessing(documentId: string, timeout?: number): Chainable<void>;
-      
+
       // Capability Management
       toggleCapability(capability: string): Chainable<void>;
       getCapabilityStatus(capability: string): Chainable<boolean>;
-      
+
       // Database Helpers
       authenticateDb(username?: string, password?: string): Chainable<string>;
       getDbTables(): Chainable<any[]>;
@@ -53,19 +53,19 @@ Cypress.Commands.add('setupTestEnvironment', () => {
   cy.task('setupTestEnvironment');
 });
 
-Cypress.Commands.add('waitForBackend', (timeout = 30000) => {
+Cypress.Commands.add('waitForBackend', (_timeout = 30000) => {
   cy.log('Waiting for backend to be ready...');
-  
+
   const checkBackend = (retries = 6) => {
     if (retries <= 0) {
       throw new Error('Backend failed to respond after 30 seconds');
     }
-    
+
     cy.request({
       method: 'GET',
       url: 'http://localhost:7777/api/server/health',
       failOnStatusCode: false,
-      timeout: 5000
+      timeout: 5000,
     }).then((response) => {
       if (response.status === 200 && response.body.data?.status === 'healthy') {
         cy.log('✅ Backend is ready!');
@@ -76,7 +76,7 @@ Cypress.Commands.add('waitForBackend', (timeout = 30000) => {
       }
     });
   };
-  
+
   checkBackend();
 });
 
@@ -100,21 +100,21 @@ Cypress.Commands.add('bypassBoot', () => {
 Cypress.Commands.add('setupApiKey', (provider: 'openai' | 'anthropic', key: string) => {
   cy.visit('/');
   cy.contains('ELIZA OS Configuration', { timeout: 40000 });
-  
+
   if (provider === 'anthropic') {
     cy.get('select#modelProvider').select('anthropic');
     cy.get('input#anthropicKey').type(key);
   } else {
     cy.get('input#openaiKey').type(key);
   }
-  
+
   cy.get('button').contains('Continue').click();
   cy.wait(3000);
 });
 
 // UI Helper Commands
 Cypress.Commands.add('elementExists', (selector: string) => {
-  cy.get('body').then($body => {
+  cy.get('body').then(($body) => {
     return cy.wrap($body.find(selector).length > 0);
   });
 });
@@ -124,9 +124,12 @@ Cypress.Commands.add('safeClick', (selector: string) => {
 });
 
 // Knowledge Management Commands
-Cypress.Commands.add('uploadKnowledgeFile', (fileName: string, content: string, fileType?: string) => {
-  return cy.wrap(knowledgeHelper.uploadFile(fileName, content, fileType || 'text/plain'));
-});
+Cypress.Commands.add(
+  'uploadKnowledgeFile',
+  (fileName: string, content: string, fileType?: string) => {
+    return cy.wrap(knowledgeHelper.uploadFile(fileName, content, fileType || 'text/plain'));
+  }
+);
 
 Cypress.Commands.add('searchKnowledge', (query: string, count?: number) => {
   return cy.wrap(knowledgeHelper.search(query, count));
@@ -153,9 +156,9 @@ Cypress.Commands.add('toggleCapability', (capability: string) => {
     microphone: 'microphone-toggle',
     speaker: 'speakers-toggle',
     shell: 'shell-toggle',
-    browser: 'browser-toggle'
+    browser: 'browser-toggle',
   };
-  
+
   const testId = capabilityMap[capability.toLowerCase()];
   if (testId) {
     cy.get(`[data-testid="${testId}"]`).click();
@@ -167,13 +170,15 @@ Cypress.Commands.add('toggleCapability', (capability: string) => {
 
 Cypress.Commands.add('getCapabilityStatus', (capability: string) => {
   const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
-  
+
   if (capability === 'autonomy') {
-    return cy.request('GET', `${BACKEND_URL}/autonomy/status`)
-      .then(response => response.body.data.enabled);
+    return cy
+      .request('GET', `${BACKEND_URL}/autonomy/status`)
+      .then((response) => response.body.data.enabled);
   } else {
-    return cy.request('GET', `${BACKEND_URL}/api/agents/default/capabilities/${capability}`)
-      .then(response => response.body.data.enabled);
+    return cy
+      .request('GET', `${BACKEND_URL}/api/agents/default/capabilities/${capability}`)
+      .then((response) => response.body.data.enabled);
   }
 });
 

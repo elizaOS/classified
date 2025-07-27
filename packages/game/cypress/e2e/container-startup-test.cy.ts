@@ -33,12 +33,14 @@ describe('Container-Managed Agent Startup and Message Flow', () => {
     cy.log('🚀 Starting container environment via Tauri');
 
     // Step 1: Start the complete container environment
-    cy.window().then((win) => {
-      return (win as any).__TAURI_INVOKE__('setup_complete_environment_new');
-    }).then((result) => {
-      expect(result).to.equal('Environment setup completed successfully');
-      cy.log('✅ Container environment setup initiated');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI_INVOKE__('setup_complete_environment_new');
+      })
+      .then((result) => {
+        expect(result).to.equal('Environment setup completed successfully');
+        cy.log('✅ Container environment setup initiated');
+      });
 
     // Step 2: Wait for containers to be ready and healthy
     cy.log('⏳ Waiting for containers to become healthy...');
@@ -60,11 +62,12 @@ describe('Container-Managed Agent Startup and Message Flow', () => {
         return checkContainerHealth().then((statuses) => {
           cy.log(`Container statuses: ${JSON.stringify(statuses, null, 2)}`);
 
-          const allHealthy = statuses.every((status: any) =>
-            status.health === 'Healthy' || status.health === 'Running'
+          const allHealthy = statuses.every(
+            (status: any) => status.health === 'Healthy' || status.health === 'Running'
           );
 
-          if (allHealthy && statuses.length >= 3) { // postgres, ollama, agent
+          if (allHealthy && statuses.length >= 3) {
+            // postgres, ollama, agent
             cy.log('✅ All containers are healthy');
             return statuses;
           } else {
@@ -86,7 +89,7 @@ describe('Container-Managed Agent Startup and Message Flow', () => {
       url: `${AGENT_CONTAINER_URL}/api/server/health`,
       timeout: 10000,
       retries: 5,
-      retryOnStatusCodeFailure: true
+      retryOnStatusCodeFailure: true,
     }).then((response) => {
       expect(response.status).to.equal(200);
       expect(response.body).to.have.property('status');
@@ -99,7 +102,7 @@ describe('Container-Managed Agent Startup and Message Flow', () => {
     cy.request({
       method: 'GET',
       url: `${AGENT_CONTAINER_URL}/api/agents/default/settings`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       expect(response.status).to.equal(200);
 
@@ -121,19 +124,21 @@ describe('Container-Managed Agent Startup and Message Flow', () => {
 
     const testMessage = 'Hello ELIZA, can you respond to this test message?';
 
-    cy.window().then((win) => {
-      return (win as any).__TAURI_INVOKE__('send_message_to_agent', testMessage);
-    }).then((response) => {
-      expect(response).to.be.a('string');
-      expect(response.length).to.be.greaterThan(0);
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI_INVOKE__('send_message_to_agent', testMessage);
+      })
+      .then((response) => {
+        expect(response).to.be.a('string');
+        expect(response.length).to.be.greaterThan(0);
 
-      // Should not be an error response
-      expect(response).to.not.contain('Error');
-      expect(response).to.not.contain('Failed');
-      expect(response).to.not.contain('unavailable');
+        // Should not be an error response
+        expect(response).to.not.contain('Error');
+        expect(response).to.not.contain('Failed');
+        expect(response).to.not.contain('unavailable');
 
-      cy.log(`✅ Agent responded: ${response.substring(0, 100)}...`);
-    });
+        cy.log(`✅ Agent responded: ${response.substring(0, 100)}...`);
+      });
 
     // Step 6: Test direct HTTP message API
     cy.log('📡 Testing direct HTTP message API');
@@ -144,9 +149,9 @@ describe('Container-Managed Agent Startup and Message Flow', () => {
       body: {
         text: 'Direct HTTP test message',
         userId: 'test-user',
-        userName: 'TestUser'
+        userName: 'TestUser',
       },
-      timeout: 30000
+      timeout: 30000,
     }).then((response) => {
       expect(response.status).to.equal(200);
       expect(response.body).to.have.property('data');
@@ -165,7 +170,7 @@ describe('Container-Managed Agent Startup and Message Flow', () => {
     cy.request({
       method: 'GET',
       url: `${AGENT_CONTAINER_URL}/api/memories?count=5`,
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       expect(response.status).to.equal(200);
       expect(response.body).to.have.property('data');
@@ -185,7 +190,7 @@ describe('Container-Managed Agent Startup and Message Flow', () => {
       method: 'GET',
       url: 'http://localhost:11434/api/tags',
       timeout: 10000,
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       if (response.status === 200) {
         cy.log('✅ Ollama service is accessible');
@@ -208,71 +213,85 @@ describe('Container-Managed Agent Startup and Message Flow', () => {
     // Test autonomy status
     cy.log('🎯 Testing agent autonomy and goal system');
 
-    cy.window().then((win) => {
-      return (win as any).__TAURI_INVOKE__('get_autonomy_status');
-    }).then((status) => {
-      expect(status).to.be.an('object');
-      cy.log(`Autonomy status: ${JSON.stringify(status, null, 2)}`);
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI_INVOKE__('get_autonomy_status');
+      })
+      .then((status) => {
+        expect(status).to.be.an('object');
+        cy.log(`Autonomy status: ${JSON.stringify(status, null, 2)}`);
+      });
 
     // Test goals API
-    cy.window().then((win) => {
-      return (win as any).__TAURI_INVOKE__('fetch_goals');
-    }).then((goals) => {
-      expect(goals).to.be.an('object');
-      cy.log(`Goals: ${JSON.stringify(goals, null, 2)}`);
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI_INVOKE__('fetch_goals');
+      })
+      .then((goals) => {
+        expect(goals).to.be.an('object');
+        cy.log(`Goals: ${JSON.stringify(goals, null, 2)}`);
+      });
 
     // Test todos API
-    cy.window().then((win) => {
-      return (win as any).__TAURI_INVOKE__('fetch_todos');
-    }).then((todos) => {
-      expect(todos).to.be.an('object');
-      cy.log(`Todos: ${JSON.stringify(todos, null, 2)}`);
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI_INVOKE__('fetch_todos');
+      })
+      .then((todos) => {
+        expect(todos).to.be.an('object');
+        cy.log(`Todos: ${JSON.stringify(todos, null, 2)}`);
+      });
   });
 
   it('should handle container lifecycle properly', () => {
     cy.log('🔄 Testing container lifecycle management');
 
     // Start containers individually to test each step
-    cy.window().then((win) => {
-      return (win as any).__TAURI_INVOKE__('start_postgres_container');
-    }).then((status) => {
-      expect(status).to.have.property('name', 'eliza-postgres');
-      cy.log('✅ PostgreSQL container started');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI_INVOKE__('start_postgres_container');
+      })
+      .then((status) => {
+        expect(status).to.have.property('name', 'eliza-postgres');
+        cy.log('✅ PostgreSQL container started');
+      });
 
-    cy.window().then((win) => {
-      return (win as any).__TAURI_INVOKE__('start_ollama_container');
-    }).then((status) => {
-      expect(status).to.have.property('name', 'eliza-ollama');
-      cy.log('✅ Ollama container started');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI_INVOKE__('start_ollama_container');
+      })
+      .then((status) => {
+        expect(status).to.have.property('name', 'eliza-ollama');
+        cy.log('✅ Ollama container started');
+      });
 
-    cy.window().then((win) => {
-      return (win as any).__TAURI_INVOKE__('start_agent_container');
-    }).then((status) => {
-      expect(status).to.have.property('name', 'eliza-agent');
-      cy.log('✅ Agent container started');
-    });
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI_INVOKE__('start_agent_container');
+      })
+      .then((status) => {
+        expect(status).to.have.property('name', 'eliza-agent');
+        cy.log('✅ Agent container started');
+      });
 
     // Wait for health checks
     cy.wait(20000);
 
     // Test container status query
-    cy.window().then((win) => {
-      return (win as any).__TAURI_INVOKE__('get_container_status_new');
-    }).then((statuses) => {
-      expect(statuses).to.be.an('array');
-      expect(statuses.length).to.be.greaterThan(0);
+    cy.window()
+      .then((win) => {
+        return (win as any).__TAURI_INVOKE__('get_container_status_new');
+      })
+      .then((statuses) => {
+        expect(statuses).to.be.an('array');
+        expect(statuses.length).to.be.greaterThan(0);
 
-      const containerNames = statuses.map((s: any) => s.name);
-      expect(containerNames).to.include('eliza-postgres');
-      expect(containerNames).to.include('eliza-ollama');
-      expect(containerNames).to.include('eliza-agent');
+        const containerNames = statuses.map((s: any) => s.name);
+        expect(containerNames).to.include('eliza-postgres');
+        expect(containerNames).to.include('eliza-ollama');
+        expect(containerNames).to.include('eliza-agent');
 
-      cy.log('✅ All expected containers are running');
-    });
+        cy.log('✅ All expected containers are running');
+      });
   });
 });

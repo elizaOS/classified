@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { getTableColumns } from 'drizzle-orm';
-import { goalsTable, goalTagsTable, goalSchema } from '../schema';
+import { goalsTable, goalTagsTable } from '../schema';
 
 describe('Goals Schema Tests', () => {
   describe('goalsTable', () => {
@@ -43,17 +43,6 @@ describe('Goals Schema Tests', () => {
       const goalIdColumn = columns.goalId;
 
       expect(goalIdColumn).toBeDefined();
-    });
-  });
-
-  describe('goalSchema export', () => {
-    it('should export all tables correctly', () => {
-      expect(goalSchema).toBeDefined();
-      expect(goalSchema.goalsTable).toBeDefined();
-      expect(goalSchema.goalTagsTable).toBeDefined();
-      expect(goalSchema.tables).toBeDefined();
-      expect(goalSchema.tables.goals).toBe(goalsTable);
-      expect(goalSchema.tables.goalTags).toBe(goalTagsTable);
     });
   });
 });

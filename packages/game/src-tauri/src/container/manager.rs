@@ -3,18 +3,27 @@ use crate::backend::{
     HealthCheckConfig, HealthStatus, ModelDownloadProgress, ModelDownloadStatus, PortMapping,
     SetupProgress, VolumeMount,
 };
+use crate::container::runtime_manager::RuntimeType;
+use crate::container::retry::{retry_with_backoff, RetryConfig, is_retryable_error};
 use dashmap::DashMap;
 use std::sync::Arc;
+use std::process::Stdio;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::RwLock;
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
 pub struct ContainerManager {
     runtime: ContainerRuntime,
     containers: Arc<DashMap<String, ContainerInfo>>,
     health_monitor: Arc<HealthMonitor>,
+    log_streamer: Arc<LogStreamManager>,
     setup_progress: Arc<RwLock<SetupProgress>>,
     app_handle: Option<AppHandle>,
+    resource_dir: Option<std::path::PathBuf>,
+    podman_restart_mutex: Arc<Mutex<()>>,
 }
 
 #[derive(Debug, Clone)]
@@ -24,9 +33,62 @@ pub struct ContainerInfo {
     pub status: ContainerStatus,
 }
 
+#[derive(Clone)]
 pub enum ContainerRuntime {
     Podman(super::podman::PodmanClient),
     Docker(super::docker::DockerClient),
+}
+
+/// Manages log streaming tasks for containers
+pub struct LogStreamManager {
+    /// Active log streaming tasks
+    streams: Arc<DashMap<String, LogStreamTask>>,
+}
+
+struct LogStreamTask {
+    /// Handle to the spawned log streaming task
+    handle: JoinHandle<()>,
+    /// Handle to the child process (podman/docker logs command)
+    child_handle: JoinHandle<()>,
+}
+
+impl LogStreamManager {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            streams: Arc::new(DashMap::new()),
+        }
+    }
+
+    /// Stop log streaming for a specific container
+    pub async fn stop_streaming(&self, container_name: &str) {
+        if let Some((_, task)) = self.streams.remove(container_name) {
+            task.handle.abort();
+            task.child_handle.abort();
+            info!("Stopped log streaming for container: {}", container_name);
+        }
+    }
+
+    /// Stop all log streaming
+    pub async fn stop_all_streaming(&self) {
+        let container_names: Vec<String> = self
+            .streams
+            .iter()
+            .map(|entry| entry.key().clone())
+            .collect();
+
+        for name in container_names {
+            self.stop_streaming(&name).await;
+        }
+
+        info!("Stopped all log streaming");
+    }
+}
+
+impl Default for LogStreamManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ContainerManager {
@@ -51,6 +113,7 @@ impl ContainerManager {
             runtime,
             containers: Arc::new(DashMap::new()),
             health_monitor,
+            log_streamer: Arc::new(LogStreamManager::new()),
             setup_progress: Arc::new(RwLock::new(SetupProgress {
                 stage: "initialized".to_string(),
                 progress: 0,
@@ -60,6 +123,8 @@ impl ContainerManager {
                 model_progress: None,
             })),
             app_handle: None,
+            resource_dir: None,
+            podman_restart_mutex: Arc::new(Mutex::new(())),
         })
     }
 
@@ -75,14 +140,14 @@ impl ContainerManager {
         _preferred_runtime_type: crate::backend::ContainerRuntimeType,
         resource_dir: std::path::PathBuf,
     ) -> BackendResult<Self> {
-        let mut runtime_manager = super::RuntimeManager::new(resource_dir);
+        let mut runtime_manager = super::RuntimeManager::new(resource_dir.clone());
 
         match runtime_manager.initialize().await {
             Ok(runtime_type) => {
                 let (runtime, runtime_name) = match runtime_type {
-                    super::RuntimeType::Bundled(path)
-                    | super::RuntimeType::System(path)
-                    | super::RuntimeType::Downloaded(path) => {
+                    RuntimeType::Bundled(path)
+                    | RuntimeType::System(path)
+                    | RuntimeType::Downloaded(path) => {
                         // Determine if it's Podman or Docker based on the executable name
                         let exe_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
@@ -106,6 +171,7 @@ impl ContainerManager {
                     runtime,
                     containers: Arc::new(DashMap::new()),
                     health_monitor,
+                    log_streamer: Arc::new(LogStreamManager::new()),
                     setup_progress: Arc::new(RwLock::new(SetupProgress {
                         stage: "initialized".to_string(),
                         progress: 0,
@@ -115,6 +181,8 @@ impl ContainerManager {
                         model_progress: None,
                     })),
                     app_handle: None,
+                    resource_dir: Some(resource_dir),
+                    podman_restart_mutex: Arc::new(Mutex::new(())),
                 })
             }
             Err(e) => {
@@ -146,7 +214,7 @@ impl ContainerManager {
             image: "pgvector/pgvector:pg16".to_string(),
             ports: vec![PortMapping::new(5432, 5432)],
             environment: vec![
-                "POSTGRES_DB=eliza_game".to_string(),
+                "POSTGRES_DB=eliza".to_string(),
                 "POSTGRES_USER=eliza".to_string(),
                 "POSTGRES_PASSWORD=eliza_secure_pass".to_string(),
                 "POSTGRES_INITDB_ARGS=--encoding=UTF-8 --locale=C".to_string(),
@@ -160,7 +228,16 @@ impl ContainerManager {
             memory_limit: Some("2g".to_string()),
         };
 
-        self.start_container(config).await
+        let status = self.start_container(config).await?;
+        
+        // Start streaming container logs to the Tauri app logs
+        info!("🔍 Starting log streaming for eliza-postgres container");
+        if let Err(e) = self.stream_container_logs("eliza-postgres").await {
+            warn!("⚠️ Failed to start log streaming for eliza-postgres: {}", e);
+            // Don't fail the container start if log streaming fails
+        }
+        
+        Ok(status)
     }
 
     /// Starts an Ollama container for local AI model serving.
@@ -172,10 +249,24 @@ impl ContainerManager {
     /// - Container startup fails
     /// - Health check configuration is invalid
     pub async fn start_ollama(&self) -> BackendResult<ContainerStatus> {
-        info!("Starting Ollama container");
+        info!("Checking for Ollama service");
 
-        // Kill any existing system Ollama processes to free up port 11434
-        self.kill_existing_ollama_processes().await;
+        // Check if Ollama is already running on port 11434
+        if self.is_ollama_already_running().await {
+            info!("✅ Found existing Ollama instance running on port 11434, using it instead of starting a container");
+            return Ok(ContainerStatus {
+                id: "native-ollama".to_string(),
+                name: "ollama-native".to_string(),
+                state: ContainerState::Running,
+                health: HealthStatus::Healthy,
+                ports: vec![PortMapping::new(11434, 11434)],
+                started_at: Some(chrono::Utc::now().timestamp()),
+                uptime_seconds: 0,
+                restart_count: 0,
+            });
+        }
+
+        info!("No existing Ollama found, starting Ollama container");
 
         let config = ContainerConfig {
             name: "eliza-ollama".to_string(),
@@ -188,7 +279,12 @@ impl ContainerManager {
             memory_limit: Some("16g".to_string()), // 16GB for Ollama to handle large models
         };
 
-        self.start_container(config).await
+        let status = self.start_container(config).await?;
+        
+        // Ollama log streaming disabled per user request
+        // Only streaming logs from agent server and postgres containers
+        
+        Ok(status)
     }
 
     /// Get current download progress from Ollama API
@@ -199,13 +295,14 @@ impl ContainerManager {
     ) -> BackendResult<Option<ModelDownloadProgress>> {
         debug!("Getting download progress for model: {}", model);
 
-        // Use curl inside the container to query Ollama API
-        let output = match &self.runtime {
-            ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
+        // Check if we're using native Ollama
+        let is_native = self.is_ollama_already_running().await;
+        
+        // Query Ollama API
+        let output = if is_native {
+            // For native Ollama, run curl directly
+            tokio::process::Command::new("curl")
                 .args([
-                    "exec",
-                    "eliza-ollama",
-                    "curl",
                     "-s",
                     "http://localhost:11434/api/show",
                     "-d",
@@ -215,22 +312,41 @@ impl ContainerManager {
                 .await
                 .map_err(|e| {
                     BackendError::Container(format!("Failed to query ollama API: {}", e))
-                })?,
-            ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
-                .args([
-                    "exec",
-                    "eliza-ollama",
-                    "curl",
-                    "-s",
-                    "http://localhost:11434/api/show",
-                    "-d",
-                    &format!(r#"{{"name":"{}"}}"#, model),
-                ])
-                .output()
-                .await
-                .map_err(|e| {
-                    BackendError::Container(format!("Failed to query ollama API: {}", e))
-                })?,
+                })?
+        } else {
+            // For containerized Ollama, use curl inside the container
+            match &self.runtime {
+                ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
+                    .args([
+                        "exec",
+                        "eliza-ollama",
+                        "curl",
+                        "-s",
+                        "http://localhost:11434/api/show",
+                        "-d",
+                        &format!(r#"{{"name":"{}"}}"#, model),
+                    ])
+                    .output()
+                    .await
+                    .map_err(|e| {
+                        BackendError::Container(format!("Failed to query ollama API: {}", e))
+                    })?,
+                ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
+                    .args([
+                        "exec",
+                        "eliza-ollama",
+                        "curl",
+                        "-s",
+                        "http://localhost:11434/api/show",
+                        "-d",
+                        &format!(r#"{{"name":"{}"}}"#, model),
+                    ])
+                    .output()
+                    .await
+                    .map_err(|e| {
+                        BackendError::Container(format!("Failed to query ollama API: {}", e))
+                    })?,
+            }
         };
 
         if !output.status.success() {
@@ -261,21 +377,36 @@ impl ContainerManager {
     async fn check_ollama_model_exists(&self, model: &str) -> BackendResult<bool> {
         debug!("Checking if Ollama model exists: {}", model);
 
-        let output = match &self.runtime {
-            ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
-                .args(["exec", "eliza-ollama", "ollama", "list"])
+        // First check if we're using native Ollama
+        let is_native = self.is_ollama_already_running().await;
+        
+        let output = if is_native {
+            // For native Ollama, run the command directly
+            tokio::process::Command::new("ollama")
+                .args(["list"])
                 .output()
                 .await
                 .map_err(|e| {
                     BackendError::Container(format!("Failed to list ollama models: {}", e))
-                })?,
-            ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
-                .args(["exec", "eliza-ollama", "ollama", "list"])
-                .output()
-                .await
-                .map_err(|e| {
-                    BackendError::Container(format!("Failed to list ollama models: {}", e))
-                })?,
+                })?
+        } else {
+            // For containerized Ollama, use exec
+            match &self.runtime {
+                ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
+                    .args(["exec", "eliza-ollama", "ollama", "list"])
+                    .output()
+                    .await
+                    .map_err(|e| {
+                        BackendError::Container(format!("Failed to list ollama models: {}", e))
+                    })?,
+                ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
+                    .args(["exec", "eliza-ollama", "ollama", "list"])
+                    .output()
+                    .await
+                    .map_err(|e| {
+                        BackendError::Container(format!("Failed to list ollama models: {}", e))
+                    })?,
+            }
         };
 
         if !output.status.success() {
@@ -301,66 +432,40 @@ impl ContainerManager {
         Ok(exists)
     }
 
-    /// Handle Podman connection errors by attempting to restart the Podman machine
+    /// Handle Podman connection errors by ensuring Podman is running
     async fn handle_podman_connection_error(&self, error: &BackendError) -> BackendResult<()> {
-        let error_str = error.to_string();
-
-        // Check if this is a Podman connection error
-        if error_str.contains("unable to connect to Podman socket")
-            || error_str.contains("Cannot connect to Podman")
-            || error_str.contains("connection refused")
-        {
-            warn!("Podman connection error detected, attempting to restart Podman machine...");
-
-            // Stop the Podman machine
-            info!("Stopping Podman machine...");
-            let stop_result = tokio::process::Command::new("podman")
-                .args(["machine", "stop"])
-                .output()
-                .await;
-
-            if let Err(e) = stop_result {
-                error!("Failed to stop Podman machine: {}", e);
-            } else {
-                // Wait a moment for the machine to fully stop
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-            }
-
-            // Start the Podman machine
-            info!("Starting Podman machine...");
-            let start_result = tokio::process::Command::new("podman")
-                .args(["machine", "start"])
-                .output()
-                .await;
-
-            match start_result {
-                Ok(output) => {
-                    if output.status.success() {
-                        info!("✅ Podman machine restarted successfully");
-                        // Wait for the machine to be fully ready
-                        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-                        return Ok(());
-                    } else {
-                        let error_msg = String::from_utf8_lossy(&output.stderr);
-                        error!("Failed to start Podman machine: {}", error_msg);
-                        return Err(BackendError::Container(format!(
-                            "Failed to restart Podman machine: {}",
-                            error_msg
-                        )));
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to start Podman machine: {}", e);
-                    return Err(BackendError::Container(format!(
-                        "Failed to restart Podman machine: {}",
-                        e
-                    )));
-                }
-            }
+        // Check if this is a retryable error
+        if !is_retryable_error(error) {
+            // Not a connection error, return the original error
+            return Err(BackendError::Container(error.to_string()));
         }
 
-        // Not a connection error, return the original error
-        Err(BackendError::Container(error.to_string()))
+        let error_str = error.to_string();
+        warn!("Podman connection error detected: {}", error_str);
+        
+        // Use retry mechanism to recover Podman connection
+        retry_with_backoff(
+            "Podman connection recovery",
+            RetryConfig::podman_recovery(),
+            || async {
+                // Delegate to ensure_podman_running which handles synchronization
+                self.ensure_podman_running().await?;
+                
+                // Give Podman a moment to stabilize
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                
+                // Verify connection is working
+                match &self.runtime {
+                    ContainerRuntime::Podman(client) => {
+                        client.is_available().await?;
+                    }
+                    _ => {}
+                }
+                
+                Ok(())
+            },
+        )
+        .await
     }
 
     /// Pulls required Ollama models for the agent with progress tracking
@@ -542,24 +647,40 @@ impl ContainerManager {
             }
         });
 
+        // Check if we're using native Ollama
+        let is_native = self.is_ollama_already_running().await;
+        
         // Execute ollama pull with streaming output
-        let mut child = match &self.runtime {
-            ContainerRuntime::Podman(_) => Command::new("podman")
-                .args(["exec", "eliza-ollama", "ollama", "pull", model])
+        let mut child = if is_native {
+            // For native Ollama, run the command directly
+            Command::new("ollama")
+                .args(["pull", model])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
                 .map_err(|e| {
                     BackendError::Container(format!("Failed to start ollama pull: {}", e))
-                })?,
-            ContainerRuntime::Docker(_) => Command::new("docker")
-                .args(["exec", "eliza-ollama", "ollama", "pull", model])
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .map_err(|e| {
-                    BackendError::Container(format!("Failed to start ollama pull: {}", e))
-                })?,
+                })?
+        } else {
+            // For containerized Ollama, use exec
+            match &self.runtime {
+                ContainerRuntime::Podman(_) => Command::new("podman")
+                    .args(["exec", "eliza-ollama", "ollama", "pull", model])
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .map_err(|e| {
+                        BackendError::Container(format!("Failed to start ollama pull: {}", e))
+                    })?,
+                ContainerRuntime::Docker(_) => Command::new("docker")
+                    .args(["exec", "eliza-ollama", "ollama", "pull", model])
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .map_err(|e| {
+                        BackendError::Container(format!("Failed to start ollama pull: {}", e))
+                    })?,
+            }
         };
 
         // Get stdout for progress parsing
@@ -702,13 +823,13 @@ impl ContainerManager {
             "PORT=7777".to_string(),
             "SERVER_PORT=7777".to_string(),
             // Database connection - connects to eliza-postgres container
-            "DATABASE_URL=postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza_game"
+            "DATABASE_URL=postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza"
                 .to_string(),
-            "POSTGRES_URL=postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza_game"
+            "POSTGRES_URL=postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza"
                 .to_string(),
             "POSTGRES_HOST=eliza-postgres".to_string(),
             "POSTGRES_PORT=5432".to_string(),
-            "POSTGRES_DB=eliza_game".to_string(),
+            "POSTGRES_DB=eliza".to_string(),
             "POSTGRES_USER=eliza".to_string(),
             "POSTGRES_PASSWORD=eliza_secure_pass".to_string(),
             // Ollama connection - connects to eliza-ollama container via container network
@@ -771,7 +892,204 @@ impl ContainerManager {
             memory_limit: Some("4g".to_string()), // 4GB for agent container
         };
 
-        self.start_container(config).await
+        let status = self.start_container(config).await?;
+        
+        // Start streaming container logs to the Tauri app logs
+        info!("🔍 Starting log streaming for eliza-agent container");
+        if let Err(e) = self.stream_container_logs("eliza-agent").await {
+            warn!("⚠️ Failed to start log streaming for eliza-agent: {}", e);
+            // Don't fail the container start if log streaming fails
+        }
+        
+        Ok(status)
+    }
+
+    /// Waits for a container to become healthy with retry logic
+    pub async fn wait_for_container_health(
+        &self,
+        container_name: &str,
+        timeout: Duration,
+    ) -> BackendResult<()> {
+        use crate::container::retry::{retry_with_backoff, RetryConfig};
+        use std::time::Instant;
+        
+        info!("⏳ Waiting for container {} to become healthy...", container_name);
+
+        let start_time = Instant::now();
+        
+        // Configure retry for health checks
+        let health_config = RetryConfig {
+            max_attempts: 30, // 30 attempts over ~timeout duration
+            initial_delay: Duration::from_secs(2),
+            backoff_factor: 1.0, // Linear backoff for health checks
+            max_delay: Duration::from_secs(5),
+            jitter: true,
+        };
+
+        retry_with_backoff(
+            &format!("{} health check", container_name),
+            health_config,
+            || async {
+                // Check if we've exceeded timeout
+                if start_time.elapsed() > timeout {
+                    return Err(BackendError::Container(format!(
+                        "Container {} failed to become healthy within {:?}",
+                        container_name, timeout
+                    )));
+                }
+
+                // Get container status
+                let status = self.get_runtime_container_status(container_name).await?;
+
+                match status.health {
+                    HealthStatus::Healthy => {
+                        info!("✅ Container {} is healthy", container_name);
+                        Ok(())
+                    }
+                    HealthStatus::Unhealthy => {
+                        // Container is unhealthy, this might be permanent
+                        Err(BackendError::Container(format!(
+                            "Container {} is unhealthy",
+                            container_name
+                        )))
+                    }
+                    HealthStatus::Starting | HealthStatus::Unknown => {
+                        // Still starting, retry
+                        Err(BackendError::Container(format!(
+                            "Container {} is still starting (health: {:?})",
+                            container_name, status.health
+                        )))
+                    }
+                }
+            },
+        )
+        .await
+    }
+
+    /// Start containers with proper dependencies and health checks
+    pub async fn start_containers_with_dependencies(&self) -> BackendResult<()> {
+        info!("🚀 Starting containers with dependency management...");
+
+        // First, ensure network exists
+        self.update_progress(
+            "network",
+            10,
+            "Creating container network...",
+            "Setting up eliza-network for inter-container communication",
+        )
+        .await;
+
+        match &self.runtime {
+            ContainerRuntime::Podman(client) => client.create_network("eliza-network").await?,
+            ContainerRuntime::Docker(client) => client.create_network("eliza-network").await?,
+        }
+
+        // Start PostgreSQL first (no dependencies)
+        self.update_progress(
+            "postgres",
+            20,
+            "Starting PostgreSQL database...",
+            "Initializing database container",
+        )
+        .await;
+
+        match self.start_postgres().await {
+            Ok(_) => {
+                // Wait for PostgreSQL to be healthy
+                if let Err(e) = self.wait_for_container_health("eliza-postgres", Duration::from_secs(60)).await {
+                    error!("PostgreSQL failed health check: {}", e);
+                    return Err(e);
+                }
+            }
+            Err(e) if is_retryable_error(&e) => {
+                // Try to recover and retry
+                self.handle_podman_connection_error(&e).await?;
+                self.start_postgres().await?;
+                self.wait_for_container_health("eliza-postgres", Duration::from_secs(60)).await?;
+            }
+            Err(e) => return Err(e),
+        }
+
+        // Start Ollama in parallel with PostgreSQL health check
+        self.update_progress(
+            "ollama",
+            40,
+            "Starting Ollama AI service...",
+            "Initializing local AI model server",
+        )
+        .await;
+
+        match self.start_ollama().await {
+            Ok(status) => {
+                // Check if we're using native Ollama
+                if status.name == "ollama-native" {
+                    info!("Using native Ollama instance, skipping container health check");
+                } else {
+                    // Wait for Ollama container to be healthy
+                    if let Err(e) = self.wait_for_container_health("eliza-ollama", Duration::from_secs(60)).await {
+                        error!("Ollama container failed health check: {}", e);
+                        return Err(e);
+                    }
+                }
+            }
+            Err(e) if is_retryable_error(&e) => {
+                // Try to recover and retry
+                self.handle_podman_connection_error(&e).await?;
+                self.start_ollama().await?;
+                self.wait_for_container_health("eliza-ollama", Duration::from_secs(60)).await?;
+            }
+            Err(e) => return Err(e),
+        }
+
+        // Pull Ollama models after Ollama is healthy
+        self.update_progress(
+            "models",
+            60,
+            "Downloading AI models...",
+            "Pulling required models for agent operation",
+        )
+        .await;
+
+        if let Err(e) = self.pull_ollama_models().await {
+            error!("Failed to pull Ollama models: {}", e);
+            return Err(e);
+        }
+
+        // Start agent after both PostgreSQL and Ollama are ready
+        self.update_progress(
+            "agent",
+            80,
+            "Starting ElizaOS Agent...",
+            "Initializing conversational AI agent",
+        )
+        .await;
+
+        match self.start_agent().await {
+            Ok(_) => {
+                // Wait for agent to be healthy
+                if let Err(e) = self.wait_for_container_health("eliza-agent", Duration::from_secs(120)).await {
+                    error!("Agent failed health check: {}", e);
+                    return Err(e);
+                }
+            }
+            Err(e) if is_retryable_error(&e) => {
+                // Try to recover and retry
+                self.handle_podman_connection_error(&e).await?;
+                self.start_agent().await?;
+                self.wait_for_container_health("eliza-agent", Duration::from_secs(120)).await?;
+            }
+            Err(e) => return Err(e),
+        }
+
+        self.update_progress(
+            "complete",
+            100,
+            "All containers started successfully!",
+            "ElizaOS is ready to use",
+        )
+        .await;
+
+        Ok(())
     }
 
     /// Starts a container with the specified configuration.
@@ -1387,6 +1705,301 @@ impl ContainerManager {
         progress
     }
 
+    /// Stream container logs to console
+    pub async fn stream_container_logs(&self, container_name: &str) -> BackendResult<()> {
+        info!("Starting log streaming for container: {}", container_name);
+        
+        // Stop any existing log streaming for this container
+        self.log_streamer.stop_streaming(container_name).await;
+        
+        // Verify container exists
+        if !self.container_exists(container_name).await? {
+            return Err(BackendError::Container(format!(
+                "Container '{}' does not exist",
+                container_name
+            )));
+        }
+        
+        let runtime_clone = self.runtime.clone();
+        let container_name_str = container_name.to_string();
+        let log_streamer = self.log_streamer.clone();
+        let container_name_for_storage = container_name.to_string();
+        let app_handle_clone = self.app_handle.clone();
+        
+        // Spawn the main log streaming task
+        let handle = tokio::spawn(async move {
+            let mut first_iteration = true;
+            
+            loop {
+                info!("Starting/restarting log stream for container: {}", container_name_str);
+                
+                let result = match &runtime_clone {
+                    ContainerRuntime::Podman(_client) => {
+                        Self::stream_logs_podman_with_recovery(&container_name_str, app_handle_clone.as_ref()).await
+                    }
+                    ContainerRuntime::Docker(_client) => {
+                        Self::stream_logs_docker_with_recovery(&container_name_str, app_handle_clone.as_ref()).await
+                    }
+                };
+                
+                match result {
+                    Ok(child_handle) => {
+                        // For now, we just wait for the child process
+                        if let Err(e) = child_handle.await {
+                            error!("Log streaming task error for {}: {}", container_name_str, e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to stream logs for {}: {}", container_name_str, e);
+                        
+                        // On first iteration failure, break to avoid infinite loop
+                        if first_iteration {
+                            break;
+                        }
+                    }
+                }
+                
+                first_iteration = false;
+                
+                // Check if we should stop (container removed or stopped)
+                if !Self::should_continue_streaming(&runtime_clone, &container_name_str).await {
+                    info!("Container {} no longer exists or is stopped, ending log stream", container_name_str);
+                    break;
+                }
+                
+                // Wait a bit before retrying
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            }
+            
+            // Clean up when done
+            log_streamer.streams.remove(&container_name_str);
+        });
+        
+        // For the child handle in LogStreamTask, we'll use a dummy handle
+        // The actual child process is managed inside the main task
+        let child_handle = tokio::spawn(async {});
+        
+        // Store the task
+        self.log_streamer.streams.insert(
+            container_name_for_storage,
+            LogStreamTask {
+                handle,
+                child_handle,
+            },
+        );
+        
+        Ok(())
+    }
+    
+    async fn should_continue_streaming(runtime: &ContainerRuntime, container_name: &str) -> bool {
+        match runtime {
+            ContainerRuntime::Podman(client) => {
+                client.is_container_running(container_name).await.unwrap_or(false)
+            }
+            ContainerRuntime::Docker(client) => {
+                client.is_container_running(container_name).await.unwrap_or(false)
+            }
+        }
+    }
+    
+    async fn stream_logs_podman_with_recovery(container_name: &str, app_handle: Option<&AppHandle>) -> BackendResult<JoinHandle<()>> {
+        use tokio::process::Command;
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        use chrono::Local;
+        
+        let mut child = Command::new("podman")
+            .args(["logs", "-f", "--timestamps", container_name])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)  // Ensure process is killed if we drop it
+            .spawn()
+            .map_err(|e| BackendError::Container(format!("Failed to start log streaming: {}", e)))?;
+            
+        let container_name_stdout = container_name.to_string();
+        let container_name_stderr = container_name.to_string();
+        let container_name_handle = container_name.to_string();
+        let app_handle_stdout = app_handle.cloned();
+        let app_handle_stderr = app_handle.cloned();
+        
+        // Stream stdout
+        if let Some(stdout) = child.stdout.take() {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            
+            tokio::spawn(async move {
+                while let Ok(Some(line)) = lines.next_line().await {
+                    // Parse podman timestamp format if present, otherwise add our own
+                    let formatted_line = if line.starts_with("20") && line.len() > 30 {
+                        // Line likely has podman timestamp, use as-is
+                        line.clone()
+                    } else {
+                        // Add our own timestamp
+                        format!("{} {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), line)
+                    };
+                    info!("[{}] {}", container_name_stdout, formatted_line);
+                    
+                    // Emit to frontend if app_handle is available
+                    if let Some(app_handle) = &app_handle_stdout {
+                        let _ = app_handle.emit("container-log", serde_json::json!({
+                            "container": container_name_stdout.clone(),
+                            "message": formatted_line,
+                            "stream": "stdout",
+                            "timestamp": Local::now().timestamp_millis()
+                        }));
+                    }
+                }
+                debug!("Stdout stream ended for container: {}", container_name_stdout);
+            });
+        }
+        
+        // Stream stderr
+        if let Some(stderr) = child.stderr.take() {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            
+            tokio::spawn(async move {
+                while let Ok(Some(line)) = lines.next_line().await {
+                    // Parse timestamp or add our own
+                    let formatted_line = if line.starts_with("20") && line.len() > 30 {
+                        line.clone()
+                    } else {
+                        format!("{} {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), line)
+                    };
+                    error!("[{}] {}", container_name_stderr, formatted_line);
+                    
+                    // Emit to frontend if app_handle is available
+                    if let Some(app_handle) = &app_handle_stderr {
+                        let _ = app_handle.emit("container-log", serde_json::json!({
+                            "container": container_name_stderr.clone(),
+                            "message": formatted_line,
+                            "stream": "stderr",
+                            "timestamp": Local::now().timestamp_millis()
+                        }));
+                    }
+                }
+                debug!("Stderr stream ended for container: {}", container_name_stderr);
+            });
+        }
+        
+        // Return a handle that waits for the child process
+        Ok(tokio::spawn(async move {
+            match child.wait().await {
+                Ok(status) => {
+                    if !status.success() {
+                        warn!("Log streaming process exited with status: {} for container: {}", 
+                              status, container_name_handle);
+                    } else {
+                        debug!("Log streaming process ended normally for container: {}", 
+                               container_name_handle);
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to wait for log streaming process: {} for container: {}", 
+                           e, container_name_handle);
+                }
+            }
+        }))
+    }
+    
+    async fn stream_logs_docker_with_recovery(container_name: &str, app_handle: Option<&AppHandle>) -> BackendResult<JoinHandle<()>> {
+        use tokio::process::Command;
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        use chrono::Local;
+        
+        let mut child = Command::new("docker")
+            .args(["logs", "-f", "--timestamps", container_name])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)  // Ensure process is killed if we drop it
+            .spawn()
+            .map_err(|e| BackendError::Container(format!("Failed to start log streaming: {}", e)))?;
+            
+        let container_name_stdout = container_name.to_string();
+        let container_name_stderr = container_name.to_string();
+        let container_name_handle = container_name.to_string();
+        let app_handle_stdout = app_handle.cloned();
+        let app_handle_stderr = app_handle.cloned();
+        
+        // Stream stdout
+        if let Some(stdout) = child.stdout.take() {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            
+            tokio::spawn(async move {
+                while let Ok(Some(line)) = lines.next_line().await {
+                    // Parse docker timestamp format if present, otherwise add our own
+                    let formatted_line = if line.starts_with("20") && line.len() > 30 {
+                        // Line likely has docker timestamp, use as-is
+                        line.clone()
+                    } else {
+                        // Add our own timestamp
+                        format!("{} {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), line)
+                    };
+                    info!("[{}] {}", container_name_stdout, formatted_line);
+                    
+                    // Emit to frontend if app_handle is available
+                    if let Some(app_handle) = &app_handle_stdout {
+                        let _ = app_handle.emit("container-log", serde_json::json!({
+                            "container": container_name_stdout.clone(),
+                            "message": formatted_line,
+                            "stream": "stdout",
+                            "timestamp": Local::now().timestamp_millis()
+                        }));
+                    }
+                }
+                debug!("Stdout stream ended for container: {}", container_name_stdout);
+            });
+        }
+        
+        // Stream stderr  
+        if let Some(stderr) = child.stderr.take() {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            
+            tokio::spawn(async move {
+                while let Ok(Some(line)) = lines.next_line().await {
+                    // Parse timestamp or add our own
+                    let formatted_line = if line.starts_with("20") && line.len() > 30 {
+                        line.clone()
+                    } else {
+                        format!("{} {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), line)
+                    };
+                    error!("[{}] {}", container_name_stderr, formatted_line);
+                    
+                    // Emit to frontend if app_handle is available
+                    if let Some(app_handle) = &app_handle_stderr {
+                        let _ = app_handle.emit("container-log", serde_json::json!({
+                            "container": container_name_stderr.clone(),
+                            "message": formatted_line,
+                            "stream": "stderr",
+                            "timestamp": Local::now().timestamp_millis()
+                        }));
+                    }
+                }
+                debug!("Stderr stream ended for container: {}", container_name_stderr);
+            });
+        }
+        
+        // Return a handle that waits for the child process
+        Ok(tokio::spawn(async move {
+            match child.wait().await {
+                Ok(status) => {
+                    if !status.success() {
+                        warn!("Log streaming process exited with status: {} for container: {}", 
+                              status, container_name_handle);
+                    } else {
+                        debug!("Log streaming process ended normally for container: {}", 
+                               container_name_handle);
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to wait for log streaming process: {} for container: {}", 
+                           e, container_name_handle);
+                }
+            }
+        }))
+    }
+
     /// Sets up PostgreSQL initialization scripts
     async fn setup_postgres_init_scripts(&self) -> BackendResult<()> {
         // Create a named volume for PostgreSQL init scripts
@@ -1407,6 +2020,93 @@ impl ContainerManager {
                         warn!("Could not create init volume: {}", error);
                     }
                 }
+                
+                // Copy init scripts to the volume
+                // Try multiple locations for init scripts
+                let possible_script_dirs = if let Some(resource_dir) = &self.resource_dir {
+                    vec![
+                        resource_dir.join("init-scripts"), // Bundled resources
+                        resource_dir.parent().unwrap_or(resource_dir).join("init-scripts"), // Resource parent
+                        std::path::PathBuf::from("init-scripts"), // Current directory
+                        std::path::PathBuf::from("../init-scripts"), // Parent directory (development)
+                    ]
+                } else {
+                    vec![
+                        std::path::PathBuf::from("init-scripts"),
+                        std::path::PathBuf::from("../init-scripts"),
+                    ]
+                };
+                
+                let mut init_scripts_found = false;
+                for init_scripts_dir in &possible_script_dirs {
+                    if init_scripts_dir.exists() {
+                        info!("Found PostgreSQL init scripts at: {}", init_scripts_dir.display());
+                        init_scripts_found = true;
+                        
+                        // Get volume mount point
+                        let inspect_output = std::process::Command::new("podman")
+                            .args(["volume", "inspect", "eliza-postgres-init", "--format", "{{.Mountpoint}}"])
+                            .output()
+                            .map_err(|e| {
+                                BackendError::Container(format!("Failed to inspect init volume: {e}"))
+                            })?;
+                        
+                        if inspect_output.status.success() {
+                            let mount_point = String::from_utf8_lossy(&inspect_output.stdout).trim().to_string();
+                            
+                            // Copy all SQL files to the volume
+                            for entry in std::fs::read_dir(init_scripts_dir)? {
+                                let entry = entry?;
+                                let path = entry.path();
+                                if path.extension().and_then(|s| s.to_str()) == Some("sql") {
+                                    let file_name = path.file_name().unwrap();
+                                    let _dest_path = std::path::Path::new(&mount_point).join(file_name);
+                                    
+                                    // For macOS compatibility, use a temporary container to copy files
+                                    // First, create a temp container
+                                    let temp_container = format!("temp-init-copy-{}", uuid::Uuid::new_v4());
+                                    let create_output = std::process::Command::new("podman")
+                                        .args(["create", "--name", &temp_container, "-v", "eliza-postgres-init:/init", "busybox"])
+                                        .output()
+                                        .map_err(|e| {
+                                            BackendError::Container(format!("Failed to create temp container: {e}"))
+                                        })?;
+                                    
+                                    if create_output.status.success() {
+                                        // Copy file to container
+                                        let cp_output = std::process::Command::new("podman")
+                                            .args(["cp", path.to_str().unwrap(), &format!("{}:/init/{}", temp_container, file_name.to_string_lossy())])
+                                            .output()
+                                            .map_err(|e| {
+                                                BackendError::Container(format!("Failed to copy init script: {e}"))
+                                            })?;
+                                        
+                                        if !cp_output.status.success() {
+                                            warn!("Failed to copy {}: {}", path.display(), String::from_utf8_lossy(&cp_output.stderr));
+                                        } else {
+                                            info!("Copied init script: {}", file_name.to_string_lossy());
+                                        }
+                                        
+                                        // Clean up temp container
+                                        let _ = std::process::Command::new("podman")
+                                            .args(["rm", &temp_container])
+                                            .output();
+                                    } else {
+                                        warn!("Failed to create temp container: {}", String::from_utf8_lossy(&create_output.stderr));
+                                    }
+                                }
+                            }
+                        } else {
+                            warn!("Could not get volume mount point: {}", String::from_utf8_lossy(&inspect_output.stderr));
+                        }
+                        break; // Found and processed scripts, stop looking
+                    }
+                }
+                
+                if !init_scripts_found {
+                    warn!("No init-scripts directory found in any of the expected locations");
+                    debug!("Searched locations: {:?}", possible_script_dirs);
+                }
             }
             ContainerRuntime::Docker(_client) => {
                 // Similar for Docker if needed
@@ -1416,306 +2116,169 @@ impl ContainerManager {
         Ok(())
     }
 
-    /// Kills any existing system Ollama processes to free up port 11434
-    async fn kill_existing_ollama_processes(&self) {
-        info!("🔍 Checking for existing Ollama processes on port 11434...");
-
-        // Find processes using port 11434
-        let lsof_output = std::process::Command::new("lsof")
-            .args(["-ti:11434"])
-            .output();
-
-        match lsof_output {
+    /// Checks if Ollama is already running on port 11434
+    async fn is_ollama_already_running(&self) -> bool {
+        info!("🔍 Checking if Ollama is already running on port 11434...");
+        
+        // Try to connect to Ollama API
+        match tokio::process::Command::new("curl")
+            .args(["-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:11434/api/tags"])
+            .output()
+            .await
+        {
             Ok(output) => {
-                let pids_str = String::from_utf8_lossy(&output.stdout);
-                let pids: Vec<&str> = pids_str
-                    .lines()
-                    .filter(|line| !line.trim().is_empty())
-                    .collect();
-
-                if !pids.is_empty() {
-                    info!(
-                        "🚫 Found {} process(es) using port 11434: {:?}",
-                        pids.len(),
-                        pids
-                    );
-
-                    // Kill ALL processes, not just some
-                    let mut killed_count = 0;
-                    let mut failed_count = 0;
-
-                    for pid in pids {
-                        if let Ok(pid_num) = pid.trim().parse::<u32>() {
-                            info!("🔪 Killing process with PID: {}", pid_num);
-
-                            // Try graceful termination first
-                            let kill_result = std::process::Command::new("kill")
-                                .args(["-TERM", &pid_num.to_string()])
-                                .output();
-
-                            match kill_result {
-                                Ok(result) => {
-                                    if result.status.success() {
-                                        info!(
-                                            "✅ Successfully sent SIGTERM to process {}",
-                                            pid_num
-                                        );
-                                        killed_count += 1;
-                                    } else {
-                                        // Process might already be gone, or permission denied
-                                        let stderr = String::from_utf8_lossy(&result.stderr);
-                                        if stderr.contains("No such process") {
-                                            info!("Process {} already gone", pid_num);
-                                        } else {
-                                            warn!("Failed to kill process {}: {}", pid_num, stderr);
-                                            failed_count += 1;
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    warn!("Error killing process {}: {}", pid_num, e);
-                                    failed_count += 1;
-                                }
-                            }
-                        }
-                    }
-
-                    // Wait for graceful shutdown
-                    if killed_count > 0 {
-                        info!(
-                            "Waiting for {} processes to terminate gracefully...",
-                            killed_count
-                        );
-                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                    }
-
-                    // Force kill any remaining processes
-                    let pids_str = String::from_utf8_lossy(&output.stdout);
-                    let pids: Vec<&str> = pids_str
-                        .lines()
-                        .filter(|line| !line.trim().is_empty())
-                        .collect();
-
-                    for pid in pids {
-                        if let Ok(pid_num) = pid.trim().parse::<u32>() {
-                            // Check if process is still running
-                            let check_result = std::process::Command::new("kill")
-                                .args(["-0", &pid_num.to_string()])
-                                .output();
-
-                            if let Ok(check) = check_result {
-                                if check.status.success() {
-                                    info!("⚡ Process {} still running, force killing...", pid_num);
-                                    let force_result = std::process::Command::new("kill")
-                                        .args(["-KILL", &pid_num.to_string()])
-                                        .output();
-
-                                    if let Ok(result) = force_result {
-                                        if result.status.success() {
-                                            info!("✅ Force killed process {}", pid_num);
-                                        } else {
-                                            error!(
-                                                "❌ Failed to force kill process {}: {}",
-                                                pid_num,
-                                                String::from_utf8_lossy(&result.stderr)
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Final wait for processes to fully terminate
-                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-                    // Verify port is now free
-                    let verify_output = std::process::Command::new("lsof")
-                        .args(["-ti:11434"])
-                        .output();
-
-                    if let Ok(output) = verify_output {
-                        let remaining = String::from_utf8_lossy(&output.stdout);
-                        if !remaining.trim().is_empty() {
-                            error!("❌ Port 11434 still in use after cleanup attempt!");
-                        } else {
-                            info!("✅ Port 11434 is now free");
-                        }
-                    }
-
-                    info!(
-                        "✅ Finished cleaning up processes on port 11434 (killed: {}, failed: {})",
-                        killed_count, failed_count
-                    );
-                } else {
-                    info!("✅ No existing processes found on port 11434");
+                let status_code = String::from_utf8_lossy(&output.stdout);
+                if status_code.trim() == "200" {
+                    info!("✅ Ollama is already running and responding on port 11434");
+                    return true;
                 }
             }
-            Err(e) => {
-                // lsof might not be available or permission denied, try alternative approach
-                warn!(
-                    "Could not use lsof to check port 11434: {}, trying alternative approach",
-                    e
-                );
-
-                // Try to find Ollama processes by name
-                let ps_output = std::process::Command::new("pgrep")
-                    .args(["-f", "ollama"])
-                    .output();
-
-                match ps_output {
-                    Ok(output) => {
-                        let pids_str = String::from_utf8_lossy(&output.stdout);
-                        let pids: Vec<&str> = pids_str
-                            .lines()
-                            .filter(|line| !line.trim().is_empty())
-                            .collect();
-
-                        if !pids.is_empty() {
-                            info!("🚫 Found {} Ollama process(es): {:?}", pids.len(), pids);
-
-                            for pid in pids {
-                                if let Ok(pid_num) = pid.trim().parse::<u32>() {
-                                    info!("🔪 Killing Ollama process with PID: {}", pid_num);
-                                    let _ = std::process::Command::new("kill")
-                                        .args(["-TERM", &pid_num.to_string()])
-                                        .output();
-                                }
-                            }
-
-                            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                            info!("✅ Finished cleaning up Ollama processes");
-                        } else {
-                            info!("✅ No existing Ollama processes found");
-                        }
-                    }
-                    Err(_) => {
-                        info!(
-                            "ℹ️ Could not check for existing Ollama processes, proceeding anyway"
-                        );
-                    }
-                }
+            Err(_) => {
+                // curl might not be available, try alternative check
             }
         }
+        
+        // Alternative: Check if port is in use
+        match std::process::Command::new("lsof")
+            .args(["-ti:11434"])
+            .output()
+        {
+            Ok(output) => {
+                let pids = String::from_utf8_lossy(&output.stdout);
+                if !pids.trim().is_empty() {
+                    info!("🔍 Port 11434 is in use, checking if it's Ollama...");
+                    
+                    // Try a simple health check
+                    match tokio::process::Command::new("nc")
+                        .args(["-z", "localhost", "11434"])
+                        .output()
+                        .await
+                    {
+                        Ok(output) => {
+                            if output.status.success() {
+                                info!("✅ Port 11434 is responding, assuming Ollama is running");
+                                return true;
+                            }
+                        }
+                        Err(_) => {}
+                    }
+                }
+            }
+            Err(_) => {}
+        }
+        
+        info!("❌ No Ollama instance found on port 11434");
+        false
     }
 
     /// Check if Podman is running and attempt to restart if needed
     pub async fn ensure_podman_running(&self) -> BackendResult<()> {
+        // Acquire the mutex to prevent concurrent restart attempts
+        let _lock = self.podman_restart_mutex.lock().await;
+        
         info!("🔍 Checking Podman machine status...");
 
-        // Check if podman machine is running
-        let status_output = tokio::process::Command::new("podman")
-            .args(["machine", "list", "--format", "{{.Running}}"])
-            .output()
-            .await;
-
-        match status_output {
-            Ok(output) => {
-                let status_str = String::from_utf8_lossy(&output.stdout);
-                let is_running = status_str.trim().contains("true");
-
-                if !is_running {
-                    warn!("⚠️ Podman machine is not running, attempting to start...");
-
-                    // Try to start podman machine
-                    let start_result = tokio::process::Command::new("podman")
-                        .args(["machine", "start"])
-                        .output()
-                        .await;
-
-                    match start_result {
-                        Ok(start_output) => {
-                            if start_output.status.success() {
-                                info!("✅ Successfully started Podman machine");
-
-                                // Wait a bit for machine to fully initialize
-                                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-                                // Emit event to frontend
-                                if let Some(app_handle) = &self.app_handle {
-                                    let _ = app_handle.emit(
-                                        "podman-restarted",
-                                        "Podman machine restarted successfully",
-                                    );
-                                }
-                            } else {
-                                let error_msg = String::from_utf8_lossy(&start_output.stderr);
-                                error!("❌ Failed to start Podman machine: {}", error_msg);
-                                return Err(BackendError::Container(format!(
-                                    "Failed to start Podman machine: {}",
-                                    error_msg
-                                )));
-                            }
-                        }
-                        Err(e) => {
-                            error!("❌ Error starting Podman machine: {}", e);
-                            return Err(BackendError::Container(format!(
-                                "Error starting Podman machine: {}",
-                                e
-                            )));
-                        }
-                    }
-                } else {
-                    info!("✅ Podman machine is running");
-                }
-            }
-            Err(e) => {
-                error!("❌ Failed to check Podman machine status: {}", e);
-                return Err(BackendError::Container(format!(
-                    "Failed to check Podman machine status: {}",
-                    e
-                )));
-            }
-        }
-
-        // Additional health check - try to run a simple podman command
-        let health_result = tokio::process::Command::new("podman")
+        // First, do a quick health check
+        let health_check = tokio::process::Command::new("podman")
             .args(["info", "--format", "{{.Host.Arch}}"])
             .output()
             .await;
 
-        match health_result {
-            Ok(output) => {
-                if output.status.success() {
-                    info!("✅ Podman is responding to commands");
-                } else {
-                    warn!("⚠️ Podman machine running but not responding to commands");
-
-                    // Try to restart podman machine
-                    info!("🔄 Attempting to restart Podman machine...");
-                    let _ = tokio::process::Command::new("podman")
-                        .args(["machine", "stop"])
-                        .output()
-                        .await;
-
-                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-
-                    let restart_result = tokio::process::Command::new("podman")
-                        .args(["machine", "start"])
-                        .output()
-                        .await;
-
-                    if let Ok(restart_output) = restart_result {
-                        if restart_output.status.success() {
-                            info!("✅ Podman machine restarted successfully");
-                            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-                            if let Some(app_handle) = &self.app_handle {
-                                let _ = app_handle.emit(
-                                    "podman-restarted",
-                                    "Podman machine restarted after health check failure",
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                warn!("⚠️ Podman health check failed: {}", e);
+        if let Ok(output) = health_check {
+            if output.status.success() {
+                info!("✅ Podman is running and healthy");
+                return Ok(());
             }
         }
 
-        Ok(())
+        // If health check failed, check machine status
+        let machine_status = tokio::process::Command::new("podman")
+            .args(["machine", "list", "--format", "{{.Name}},{{.Running}}"])
+            .output()
+            .await;
+
+        let needs_start = match machine_status {
+            Ok(output) => {
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                // Check if any machine exists and is running
+                !output_str.lines().any(|line| line.contains("true"))
+            }
+            Err(e) => {
+                warn!("Failed to check Podman machine status: {}", e);
+                true // Assume we need to start if we can't check
+            }
+        };
+
+        if needs_start {
+            info!("🚀 Starting Podman machine...");
+            
+            // Try to start the machine
+            let start_result = tokio::process::Command::new("podman")
+                .args(["machine", "start"])
+                .output()
+                .await;
+
+            match start_result {
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    
+                    // Check if it's already running (not an error)
+                    if output.status.success() || stderr.contains("already running") {
+                        info!("✅ Podman machine is now running");
+                        
+                        // Wait for it to be fully ready
+                        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                        
+                        // Emit success event
+                        if let Some(app_handle) = &self.app_handle {
+                            let _ = app_handle.emit(
+                                "podman-ready",
+                                "Podman machine is ready",
+                            );
+                        }
+                        
+                        return Ok(());
+                    } else {
+                        error!("❌ Failed to start Podman machine: {}", stderr);
+                        return Err(BackendError::Container(format!(
+                            "Failed to start Podman machine: {}",
+                            stderr
+                        )));
+                    }
+                }
+                Err(e) => {
+                    error!("❌ Error running podman machine start: {}", e);
+                    return Err(BackendError::Container(format!(
+                        "Error starting Podman machine: {}",
+                        e
+                    )));
+                }
+            }
+        }
+
+        // Machine was already running, do one final health check
+        let final_health = tokio::process::Command::new("podman")
+            .args(["info", "--format", "{{.Host.Arch}}"])
+            .output()
+            .await;
+
+        match final_health {
+            Ok(output) => {
+                if output.status.success() {
+                    info!("✅ Podman is healthy and ready");
+                    Ok(())
+                } else {
+                    warn!("⚠️ Podman machine is running but not responding properly");
+                    // Don't try to restart here to avoid loops
+                    Ok(())
+                }
+            }
+            Err(e) => {
+                warn!("⚠️ Final health check failed: {}", e);
+                // Still return Ok to avoid cascading failures
+                Ok(())
+            }
+        }
     }
 
     /// Monitor Podman health continuously and restart if needed
@@ -1734,6 +2297,27 @@ impl ContainerManager {
             }
         });
     }
+
+    /// Stop all background services (health monitoring and log streaming)
+    pub async fn stop_all(&self) {
+        info!("Stopping all container manager background services");
+        
+        // Stop all health monitoring
+        self.health_monitor.stop_all_monitoring().await;
+        
+        // Stop all log streaming
+        self.log_streamer.stop_all_streaming().await;
+        
+        info!("All container manager background services stopped");
+    }
+
+    /// Check if a container exists
+    pub async fn container_exists(&self, container_name: &str) -> BackendResult<bool> {
+        match &self.runtime {
+            ContainerRuntime::Podman(client) => client.container_exists(container_name).await,
+            ContainerRuntime::Docker(client) => client.container_exists(container_name).await,
+        }
+    }
 }
 
 impl Clone for ContainerManager {
@@ -1745,8 +2329,11 @@ impl Clone for ContainerManager {
             },
             containers: self.containers.clone(),
             health_monitor: self.health_monitor.clone(),
+            log_streamer: self.log_streamer.clone(),
             setup_progress: self.setup_progress.clone(),
             app_handle: self.app_handle.clone(),
+            resource_dir: self.resource_dir.clone(),
+            podman_restart_mutex: self.podman_restart_mutex.clone(),
         }
     }
 }

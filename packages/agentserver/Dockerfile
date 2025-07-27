@@ -13,10 +13,14 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Cache-busting argument to ensure fresh builds
+ARG CACHE_BUST=1
+
 # Copy the pre-built Linux binary and health check  
 ARG TARGETARCH=arm64
 # Map Docker's TARGETARCH to our binary naming convention
 RUN echo "Target architecture: ${TARGETARCH}"
+RUN echo "Cache bust: ${CACHE_BUST}"
 COPY dist-binaries/server-linux-${TARGETARCH} ./server
 COPY scripts/health-check.sh ./health-check.sh
 
@@ -47,8 +51,8 @@ ENV NODE_ENV=production \
     PORT=7777 \
     LOG_LEVEL=info \
     DOCKER_CONTAINER=true \
-    POSTGRES_URL="postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza_game" \
-    DATABASE_URL="postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza_game" \
+    POSTGRES_URL="postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza" \
+    DATABASE_URL="postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza" \
     OLLAMA_BASE_URL="http://eliza-ollama:11434" \
     OLLAMA_API_ENDPOINT="http://eliza-ollama:11434/api" \
     KNOWLEDGE_PATH="/app/knowledge" \

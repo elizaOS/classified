@@ -1,6 +1,6 @@
-pub mod handlers;
+// Server modules
 pub mod http;
 pub mod websocket;
 
-pub use http::*;
-pub use websocket::*;
+pub use http::HttpServer;
+pub use websocket::WebSocketHub;

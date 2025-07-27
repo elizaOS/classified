@@ -8,12 +8,11 @@
  */
 
 describe('Knowledge Management API Validation (Backend Only)', () => {
-
   it('validates backend server health', () => {
     cy.request({
       method: 'GET',
       url: 'http://127.0.0.1:7777/api/server/health',
-      timeout: 10000
+      timeout: 10000,
     }).then((response) => {
       expect(response.status).to.equal(200);
       expect(response.body.success).to.be.true;
@@ -26,7 +25,7 @@ describe('Knowledge Management API Validation (Backend Only)', () => {
     cy.request({
       method: 'GET',
       url: 'http://127.0.0.1:7777/knowledge/documents',
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       // Should return 200 with data or 401 for authentication
       expect([200, 401]).to.include(response.status);
@@ -46,7 +45,7 @@ describe('Knowledge Management API Validation (Backend Only)', () => {
       url: 'http://127.0.0.1:7777/knowledge/upload',
       failOnStatusCode: false,
       headers: { 'Content-Type': 'application/json' },
-      body: {}
+      body: {},
     }).then((response) => {
       // Should return 400 NO_FILE error or 401 auth error
       expect([400, 401]).to.include(response.status);
@@ -64,7 +63,7 @@ describe('Knowledge Management API Validation (Backend Only)', () => {
     cy.request({
       method: 'DELETE',
       url: 'http://127.0.0.1:7777/knowledge/documents/test-doc-id',
-      failOnStatusCode: false
+      failOnStatusCode: false,
     }).then((response) => {
       // Should not return connection error - endpoint should exist
       expect(response.status).to.not.equal(-1);

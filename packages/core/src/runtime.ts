@@ -101,6 +101,7 @@ export class AgentRuntime implements IAgentRuntime {
   readonly fetch = fetch;
   services = new Map<ServiceTypeName, Service[]>();
   private serviceTypes = new Map<ServiceTypeName, (typeof Service)[]>();
+  private servicesByName = new Map<string, Service>(); // New: track services by name
   models = new Map<string, ModelHandler[]>();
   routes: Route[] = [];
   private taskWorkers = new Map<string, TaskWorker>();
@@ -355,11 +356,6 @@ export class AgentRuntime implements IAgentRuntime {
     try {
       await this.adapter.init();
 
-      // Run migrations for all loaded plugins
-      this.logger.info('Running plugin migrations...');
-      await this.runPluginMigrations();
-      this.logger.info('Plugin migrations completed.');
-
       const existingAgent = await this.ensureAgentExists(this.character as Partial<Agent>);
       if (!existingAgent) {
         const errorMsg = `Agent ${this.character.name} does not exist in database after ensureAgentExists call`;
@@ -380,7 +376,7 @@ export class AgentRuntime implements IAgentRuntime {
             id: this.agentId,
             names: [this.character.name],
             metadata: {},
-            agentId: this.agentId
+            agentId: this.agentId,
           });
           const created = await this.createEntity({
             id: this.agentId, // Use agent's ID as entity ID
@@ -390,28 +386,34 @@ export class AgentRuntime implements IAgentRuntime {
           });
           console.log('DEBUG: Entity creation result:', created);
           if (!created) {
-            this.logger.warn(`Failed to create entity for agent ${this.agentId}, proceeding without entity (database adapter issue)`);
+            this.logger.warn(
+              `Failed to create entity for agent ${this.agentId}, proceeding without entity (database adapter issue)`
+            );
             // Create a minimal entity object to allow runtime to continue
             agentEntity = {
               id: this.agentId,
               names: [this.character.name],
               metadata: {},
               agentId: this.agentId,
-              components: []
+              components: [],
             };
           } else {
             agentEntity = await this.getEntityById(this.agentId);
             if (!agentEntity) {
-              this.logger.warn(`Entity not found after creation for ${this.agentId}, creating placeholder`);
+              this.logger.warn(
+                `Entity not found after creation for ${this.agentId}, creating placeholder`
+              );
               agentEntity = {
                 id: this.agentId,
                 names: [this.character.name],
                 metadata: {},
                 agentId: this.agentId,
-                components: []
+                components: [],
               };
             }
-            this.logger.debug(`Success: Agent entity created successfully for ${this.character.name}`);
+            this.logger.debug(
+              `Success: Agent entity created successfully for ${this.character.name}`
+            );
           }
         } else {
           agentEntityId = agentEntity.id;
@@ -454,7 +456,9 @@ export class AgentRuntime implements IAgentRuntime {
             const errorMsg = `Failed to add agent ${this.agentId} with entity ${agentEntityId} as participant to its own room`;
             throw new Error(errorMsg);
           }
-          this.logger.debug(`Agent ${this.character.name} (entity: ${agentEntityId}) linked to its own room successfully`);
+          this.logger.debug(
+            `Agent ${this.character.name} (entity: ${agentEntityId}) linked to its own room successfully`
+          );
         }
       } catch (error: any) {
         const errorMsg = error instanceof Error ? error.message : String(error);
@@ -477,34 +481,6 @@ export class AgentRuntime implements IAgentRuntime {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to initialize agent: ${errorMsg}`);
       throw error;
-    }
-  }
-
-  async runPluginMigrations(): Promise<void> {
-    const drizzle = (this.adapter as any)?.db;
-    if (!drizzle) {
-      this.logger.warn('Drizzle instance not found on adapter, skipping plugin migrations.');
-      return;
-    }
-
-    const pluginsWithSchemas = this.plugins.filter((p) => p.schema);
-    this.logger.info(`Found ${pluginsWithSchemas.length} plugins with schemas to migrate.`);
-
-    for (const p of pluginsWithSchemas) {
-      if (p.schema) {
-        this.logger.info(`Running migrations for plugin: ${p.name}`);
-        try {
-          // You might need a more generic way to run migrations if they are not all Drizzle-based
-          // For now, assuming a function on the adapter or a utility function
-          if (this.adapter && 'runMigrations' in this.adapter) {
-            await (this.adapter as any).runMigrations(p.schema, p.name);
-            this.logger.info(`Successfully migrated plugin: ${p.name}`);
-          }
-        } catch (error) {
-          this.logger.error(`Failed to migrate plugin ${p.name}:`, error);
-          // Decide if you want to throw or continue
-        }
-      }
     }
   }
 
@@ -614,6 +590,7 @@ export class AgentRuntime implements IAgentRuntime {
     callback?: HandlerCallback
   ): Promise<void> {
     // Determine if we have multiple actions to execute
+    this.logger.info('[Runtime] Processing actions');
     const allActions: string[] = [];
     for (const response of responses) {
       if (response.content?.actions && response.content.actions.length > 0) {
@@ -639,7 +616,10 @@ export class AgentRuntime implements IAgentRuntime {
       startTime: number;
     } | null = null;
 
+    this.logger.info('[Runtime] Action plan is', JSON.stringify(actionPlan, null, 2));
+
     if (hasMultipleActions) {
+      this.logger.info('[Runtime] Has multiple actions');
       // Extract thought from response content
       const thought =
         responses[0]?.content?.thought ||
@@ -656,11 +636,17 @@ export class AgentRuntime implements IAgentRuntime {
         thought,
         startTime: Date.now(),
       };
+    } else {
+      this.logger.info('[Runtime] Has single action');
     }
 
     let actionIndex = 0;
 
+    this.logger.info('[Runtime] Action index is', actionIndex);
+    this.logger.info('[Runtime] Responses are', JSON.stringify(responses, null, 2));
+
     for (const response of responses) {
+      this.logger.info('[Runtime] Response is', JSON.stringify(response, null, 2));
       if (!response.content?.actions || response.content.actions.length === 0) {
         this.logger.warn('No action found in the response content.');
         continue;
@@ -1464,8 +1450,10 @@ export class AgentRuntime implements IAgentRuntime {
       providersToGet.map(async (provider) => {
         const start = Date.now();
         try {
+          this.logger.info(`[composeState] Getting state from provider: ${provider.name}`);
           const result = await provider.get(this, message, cachedState);
           const duration = Date.now() - start;
+          this.logger.info(`[composeState] Provider ${provider.name} completed in ${duration}ms`);
 
           this.logger.debug(`${provider.name} Provider took ${duration}ms to respond`);
           return {
@@ -1473,8 +1461,8 @@ export class AgentRuntime implements IAgentRuntime {
             providerName: provider.name,
           };
         } catch (error: any) {
-          console.error('provider error', provider.name, error);
-          return { values: {}, text: '', data: {}, providerName: provider.name };
+          throw new Error(`provider error: ${provider.name}, ${error}`);
+          // return { values: {}, text: '', data: {}, providerName: provider.name };
         }
       })
     );
@@ -1521,6 +1509,13 @@ export class AgentRuntime implements IAgentRuntime {
   }
 
   getService<T extends Service = Service>(serviceName: ServiceTypeName | string): T | null {
+    // First try to find by name (case-insensitive)
+    const service = this.servicesByName.get(serviceName.toLowerCase());
+    if (service) {
+      return service as T;
+    }
+
+    // Fallback: try to find by type for backward compatibility
     const serviceInstances = this.services.get(serviceName as ServiceTypeName);
     if (!serviceInstances || serviceInstances.length === 0) {
       // it's not a warn, a plugin might just not be installed
@@ -1600,6 +1595,16 @@ export class AgentRuntime implements IAgentRuntime {
       // Add the service to the arrays
       this.services.get(serviceType)!.push(serviceInstance);
       this.serviceTypes.get(serviceType)!.push(serviceDef);
+
+      // Also store by name for easy lookup
+      const serviceName = (serviceInstance as any).serviceName || serviceDef.serviceName;
+      if (serviceName) {
+        // Store with lowercase key for case-insensitive lookup
+        this.servicesByName.set(serviceName.toLowerCase(), serviceInstance);
+        this.logger.debug(
+          `${this.character.name}(${this.agentId}) - Service registered with name: ${serviceName}`
+        );
+      }
 
       if (typeof (serviceDef as any).registerSendHandlers === 'function') {
         (serviceDef as any).registerSendHandlers(this, serviceInstance);
@@ -2373,7 +2378,9 @@ export class AgentRuntime implements IAgentRuntime {
     // Query for the agent's entity if not cached
     const agentEntity = await this.getEntityById(this.agentId);
     if (!agentEntity) {
-      throw new Error(`Agent entity not found for agent ${this.agentId}. Agent may not be properly initialized.`);
+      throw new Error(
+        `Agent entity not found for agent ${this.agentId}. Agent may not be properly initialized.`
+      );
     }
 
     this.agentEntityId = agentEntity.id;

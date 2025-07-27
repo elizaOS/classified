@@ -131,7 +131,7 @@ Please follow these carefully
 
 -- ALWAYS FIX EVERYTHING. Any error in the backend or frontend is unacceptable. Always set up testing so you can see all of the errors at once at the end and handle them. Never believe you are error-free unless you can see confirmation of all tests passing.
 
---  PRODUCITON CODE ONLY. No LARP, no stub, no hardcode, no "will fix later". Always take the time to write out the complete implementation, even if it has errors we'll fix them. Better to be thorough.
+-- PRODUCITON CODE ONLY. No LARP, no stub, no hardcode, no "will fix later". Always take the time to write out the complete implementation, even if it has errors we'll fix them. Better to be thorough.
 
 # e2e Testing Is The Most Important Aspect of this Project
 
@@ -200,7 +200,7 @@ I repeat: If you create "simple" reproductions I will fire you and replace you w
 
 # IMPORTANT RULE: One build, one dev, one start, one test
 
-It is very important that when we run 'npm run build' we get ALL build steps. No npm run build:*
+It is very important that when we run 'npm run build' we get ALL build steps. No npm run build:\*
 
 Same with start, test and dev
 
@@ -220,7 +220,6 @@ All binary compilation etc must be encapsulated
 
 No tauri:dev -- just dev
 No build:server -- just build
-
 
 # EXTREMELY IMPORTANT
 

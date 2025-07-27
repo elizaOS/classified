@@ -17,11 +17,7 @@ import {
 import { createMockRuntime } from './test-utils';
 import { ShellService } from '../service';
 import { shellProvider } from '../provider';
-import {
-  runShellCommandAction,
-  clearShellHistoryAction,
-  killAutonomousAction,
-} from '../action';
+import { runShellCommandAction, clearShellHistoryAction } from '../action';
 import * as child_process from 'child_process';
 
 // Simplified TestSuite implementation for local use
@@ -745,71 +741,6 @@ describe('Shell Actions', () => {
         expect(result).toBeDefined();
         expect((result as any).values.success).toBe(false);
         expect((result as any).values.error).toBe('ShellService not available');
-      },
-    })
-  );
-  shellActionsSuite.addTest(
-    createUnitTest({
-      name: 'killAutonomousAction should stop autonomous service',
-      fn: async ({ mockMemory, mockState, mockCallback, mockShellService }) => {
-        const mockAutonomousService = {
-          stop: mock(),
-        };
-        const mockRuntime = createMockRuntime({
-          getService: mock((name) =>
-            name === 'AUTONOMOUS' ? mockAutonomousService : mockShellService
-          ),
-        }) as any;
-
-        const result = await killAutonomousAction.handler(
-          mockRuntime,
-          mockMemory,
-          mockState,
-          {},
-          mockCallback
-        );
-
-        expect(mockAutonomousService.stop).toHaveBeenCalled();
-        expect(mockCallback).toHaveBeenCalledWith(
-          expect.objectContaining({
-            thought: 'Successfully stopped the autonomous agent loop.',
-            text: expect.stringContaining('Autonomous loop has been killed'),
-          })
-        );
-        expect(result).toBeDefined();
-        expect((result as any).values.success).toBe(true);
-        expect((result as any).values.stopped).toBe(true);
-      },
-    })
-  );
-
-  shellActionsSuite.addTest(
-    createUnitTest({
-      name: 'killAutonomousAction should handle missing autonomous service',
-      fn: async ({ mockMemory, mockState, mockCallback, mockShellService }) => {
-        const mockRuntime = createMockRuntime({
-          getService: mock((name) =>
-            name === 'SHELL' ? mockShellService : null
-          ),
-        }) as any;
-
-        const result = await killAutonomousAction.handler(
-          mockRuntime,
-          mockMemory,
-          mockState,
-          {},
-          mockCallback
-        );
-
-        expect(mockCallback).toHaveBeenCalledWith(
-          expect.objectContaining({
-            thought: 'Autonomous service not found or already stopped.',
-            text: expect.stringContaining('No autonomous loop was running'),
-          })
-        );
-        expect(result).toBeDefined();
-        expect((result as any).values.success).toBe(true);
-        expect((result as any).values.stopped).toBe(false);
       },
     })
   );

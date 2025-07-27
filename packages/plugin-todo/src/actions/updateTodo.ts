@@ -10,7 +10,8 @@ import {
   parseKeyValueXml,
   type State,
 } from '@elizaos/core';
-import { createTodoDataService, type TodoData } from '../services/todoDataService';
+import type { TodoDataServiceWrapper, TodoData } from '../services/todoDataService';
+import type { TodoMetadata } from '../types';
 
 // Interface for task selection properties
 interface TaskSelection {
@@ -256,7 +257,7 @@ async function extractTaskUpdate(
  * Applies updates to a task
  */
 async function applyTaskUpdate(
-  dataService: any,
+  dataService: TodoDataServiceWrapper,
   task: TodoData,
   update: TaskUpdate
 ): Promise<TodoData> {
@@ -275,7 +276,14 @@ async function applyTaskUpdate(
   }
 
   // Prepare the update object
-  const updateData: any = {
+  const updateData: {
+    name?: string;
+    description?: string;
+    priority?: number;
+    isUrgent?: boolean;
+    dueDate?: Date;
+    metadata?: TodoMetadata;
+  } = {
     ...(update.name ? { name: update.name } : {}),
     ...(update.description !== undefined ? { description: update.description } : {}),
     ...(update.priority !== undefined && task.type === 'one-off'
@@ -283,9 +291,8 @@ async function applyTaskUpdate(
       : {}),
     ...(update.urgent !== undefined && task.type === 'one-off' ? { isUrgent: update.urgent } : {}),
     ...(update.dueDate !== undefined
-      ? { dueDate: update.dueDate ? new Date(update.dueDate) : null }
+      ? { dueDate: update.dueDate ? new Date(update.dueDate) : undefined }
       : {}),
-    tags: updatedTags,
     metadata: {
       ...task.metadata,
       ...(update.recurring ? { recurring: update.recurring } : {}),
@@ -314,7 +321,7 @@ export const updateTodoAction: Action = {
       if (!message.roomId) {
         return false;
       }
-      const dataService = createTodoDataService(runtime);
+      const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
       const todos = await dataService.getTodos({
         roomId: message.roomId,
         isCompleted: false,
@@ -330,7 +337,7 @@ export const updateTodoAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     state: State | undefined,
-    options: any,
+    options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<void> => {
     try {
@@ -354,7 +361,7 @@ export const updateTodoAction: Action = {
         }
         return;
       }
-      const dataService = createTodoDataService(runtime);
+      const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
 
       // Get all active todos for this room
       const availableTasks = await dataService.getTodos({

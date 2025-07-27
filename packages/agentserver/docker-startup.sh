@@ -17,14 +17,14 @@ if [ "$RESET_DB" = "true" ]; then
     
     # Drop and recreate the database
     PGPASSWORD=eliza_secure_pass psql -h eliza-postgres -U eliza -d postgres <<EOF
-DROP DATABASE IF EXISTS eliza_game;
-CREATE DATABASE eliza_game;
+DROP DATABASE IF EXISTS eliza;
+CREATE DATABASE eliza;
 EOF
     
     echo "[STARTUP] Database created - installing extensions"
     
     # Install required extensions in the new database
-    PGPASSWORD=eliza_secure_pass psql -h eliza-postgres -U eliza -d eliza_game <<EOF
+    PGPASSWORD=eliza_secure_pass psql -h eliza-postgres -U eliza -d eliza <<EOF
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
 CREATE EXTENSION IF NOT EXISTS "fuzzystrmatch";

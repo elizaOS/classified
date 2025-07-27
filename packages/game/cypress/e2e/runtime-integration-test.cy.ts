@@ -15,16 +15,19 @@ describe('Runtime Integration Test', () => {
           status: 'healthy',
           agent: 'connected',
           agentId: 'test-agent-123',
-          timestamp: Date.now()
-        }
-      }
+          timestamp: Date.now(),
+        },
+      },
     }).as('healthCheck');
 
     cy.visit('http://localhost:5173');
 
     // Wait for the game interface to load
     cy.get('[data-testid="game-interface"]', { timeout: 10000 }).should('exist');
-    cy.get('[data-testid="connection-status"]', { timeout: 10000 }).should('contain.text', 'ONLINE');
+    cy.get('[data-testid="connection-status"]', { timeout: 10000 }).should(
+      'contain.text',
+      'ONLINE'
+    );
 
     // Navigate to CONFIG tab
     cy.get('[data-testid="config-tab"]').click();
@@ -50,27 +53,27 @@ describe('Runtime Integration Test', () => {
                   connectionTest: {
                     status: 'success',
                     modelAvailable: true,
-                    message: 'Connection successful and model available'
-                  }
-                }
+                    message: 'Connection successful and model available',
+                  },
+                },
               },
               environment: {
                 MODEL_PROVIDER: {
                   value: 'openai',
                   status: 'healthy',
-                  message: 'Provider set to: openai'
-                }
+                  message: 'Provider set to: openai',
+                },
               },
               services: {
                 openai: {
                   loaded: true,
-                  status: 'healthy'
-                }
-              }
+                  status: 'healthy',
+                },
+              },
             },
-            recommendations: ['✅ openai configuration is working correctly.']
-          }
-        }
+            recommendations: ['✅ openai configuration is working correctly.'],
+          },
+        },
       }).as('validateOpenAI');
 
       // Mock the actual runtime testing API with realistic responses
@@ -93,15 +96,15 @@ describe('Runtime Integration Test', () => {
                   match: true,
                   message: 'LLM completion test passed via OpenAI gpt-4o-mini',
                   runtimeMethod: 'runtime.generateText()',
-                  apiUsed: 'https://api.openai.com/v1/chat/completions'
+                  apiUsed: 'https://api.openai.com/v1/chat/completions',
                 },
                 embedding: {
                   status: 'success',
                   textLength: 39,
-                  embeddingDimensions: 1536,
-                  message: 'Generated 1536-dimensional embedding via OpenAI text-embedding-3-small',
+                  embeddingDimensions: 768,
+                  message: 'Generated 768-dimensional embedding via OpenAI text-embedding-3-small',
                   runtimeMethod: 'runtime.embed()',
-                  apiUsed: 'https://api.openai.com/v1/embeddings'
+                  apiUsed: 'https://api.openai.com/v1/embeddings',
                 },
                 memory: {
                   status: 'success',
@@ -109,24 +112,24 @@ describe('Runtime Integration Test', () => {
                   retrieved: true,
                   message: 'Memory operations working correctly with OpenAI embeddings',
                   runtimeMethod: 'runtime.messageManager.createMemory()',
-                  embedsUsing: 'openai'
-                }
-              }
+                  embedsUsing: 'openai',
+                },
+              },
             },
             summary: {
               total: 3,
               passed: 3,
               failed: 0,
-              partial: 0
+              partial: 0,
             },
             runtimeVerification: {
               providerActuallyUsed: 'openai',
               modelActuallyUsed: 'gpt-4o-mini',
               embeddingModelUsed: 'text-embedding-3-small',
-              verifiedViaRuntime: true
-            }
-          }
-        }
+              verifiedViaRuntime: true,
+            },
+          },
+        },
       }).as('testOpenAI');
 
       // Set OpenAI configuration
@@ -151,9 +154,15 @@ describe('Runtime Integration Test', () => {
         .should('contain.text', 'Configuration Test Complete (Provider: openai)')
         .should('contain.text', 'Test Status: SUCCESS')
         .should('contain.text', 'Results: 3/3 tests passed')
-        .should('contain.text', '✅ llmCompletion: LLM completion test passed via OpenAI gpt-4o-mini')
-        .should('contain.text', '✅ embedding: Generated 1536-dimensional embedding via OpenAI')
-        .should('contain.text', '✅ memory: Memory operations working correctly with OpenAI embeddings');
+        .should(
+          'contain.text',
+          '✅ llmCompletion: LLM completion test passed via OpenAI gpt-4o-mini'
+        )
+        .should('contain.text', '✅ embedding: Generated 768-dimensional embedding via OpenAI')
+        .should(
+          'contain.text',
+          '✅ memory: Memory operations working correctly with OpenAI embeddings'
+        );
     });
 
     it('should actually call Anthropic models when configured for Anthropic', () => {
@@ -178,27 +187,27 @@ describe('Runtime Integration Test', () => {
                   message: 'Anthropic configured with model: claude-3-5-sonnet-20241022',
                   connectionTest: {
                     status: 'success',
-                    message: 'Connection successful'
-                  }
-                }
+                    message: 'Connection successful',
+                  },
+                },
               },
               environment: {
                 MODEL_PROVIDER: {
                   value: 'anthropic',
                   status: 'healthy',
-                  message: 'Provider set to: anthropic'
-                }
+                  message: 'Provider set to: anthropic',
+                },
               },
               services: {
                 anthropic: {
                   loaded: true,
-                  status: 'healthy'
-                }
-              }
+                  status: 'healthy',
+                },
+              },
             },
-            recommendations: ['✅ anthropic configuration is working correctly.']
-          }
-        }
+            recommendations: ['✅ anthropic configuration is working correctly.'],
+          },
+        },
       }).as('validateAnthropic');
 
       // Mock Anthropic runtime testing with different API endpoints
@@ -221,16 +230,16 @@ describe('Runtime Integration Test', () => {
                   match: true,
                   message: 'LLM completion test passed via Anthropic claude-3-5-sonnet-20241022',
                   runtimeMethod: 'runtime.generateText()',
-                  apiUsed: 'https://api.anthropic.com/v1/messages'
+                  apiUsed: 'https://api.anthropic.com/v1/messages',
                 },
                 embedding: {
                   status: 'success',
                   textLength: 39,
-                  embeddingDimensions: 1536,
+                  embeddingDimensions: 768,
                   message: 'Generated embedding via OpenAI (fallback for Anthropic)',
                   runtimeMethod: 'runtime.embed()',
                   apiUsed: 'https://api.openai.com/v1/embeddings',
-                  note: 'Anthropic does not provide embeddings - using OpenAI as fallback'
+                  note: 'Anthropic does not provide embeddings - using OpenAI as fallback',
                 },
                 memory: {
                   status: 'success',
@@ -238,24 +247,24 @@ describe('Runtime Integration Test', () => {
                   retrieved: true,
                   message: 'Memory operations working correctly with Anthropic completions',
                   runtimeMethod: 'runtime.messageManager.createMemory()',
-                  embedsUsing: 'openai-fallback'
-                }
-              }
+                  embedsUsing: 'openai-fallback',
+                },
+              },
             },
             summary: {
               total: 3,
               passed: 3,
               failed: 0,
-              partial: 0
+              partial: 0,
             },
             runtimeVerification: {
               providerActuallyUsed: 'anthropic',
               modelActuallyUsed: 'claude-3-5-sonnet-20241022',
               embeddingModelUsed: 'text-embedding-3-small (openai fallback)',
-              verifiedViaRuntime: true
-            }
-          }
-        }
+              verifiedViaRuntime: true,
+            },
+          },
+        },
       }).as('testAnthropic');
 
       // Validate configuration
@@ -275,8 +284,14 @@ describe('Runtime Integration Test', () => {
       cy.get('[data-testid="chat-messages"]')
         .should('contain.text', 'Configuration Test Complete (Provider: anthropic)')
         .should('contain.text', 'Test Status: SUCCESS')
-        .should('contain.text', '✅ llmCompletion: LLM completion test passed via Anthropic claude-3-5-sonnet-20241022')
-        .should('contain.text', '✅ embedding: Generated embedding via OpenAI (fallback for Anthropic)');
+        .should(
+          'contain.text',
+          '✅ llmCompletion: LLM completion test passed via Anthropic claude-3-5-sonnet-20241022'
+        )
+        .should(
+          'contain.text',
+          '✅ embedding: Generated embedding via OpenAI (fallback for Anthropic)'
+        );
     });
 
     it('should actually call Ollama models when configured for local Ollama', () => {
@@ -302,33 +317,34 @@ describe('Runtime Integration Test', () => {
                   status: 'healthy',
                   serverUrl: 'http://localhost:11434',
                   model: 'llama3.1:8b',
-                  message: 'Ollama configured with server: http://localhost:11434, model: llama3.1:8b',
+                  message:
+                    'Ollama configured with server: http://localhost:11434, model: llama3.1:8b',
                   connectionTest: {
                     status: 'success',
                     version: '0.1.32',
                     modelAvailable: true,
                     availableModels: ['llama3.1:8b', 'codellama:7b'],
-                    message: 'Connection successful and model available'
-                  }
-                }
+                    message: 'Connection successful and model available',
+                  },
+                },
               },
               environment: {
                 MODEL_PROVIDER: {
                   value: 'ollama',
                   status: 'healthy',
-                  message: 'Provider set to: ollama'
-                }
+                  message: 'Provider set to: ollama',
+                },
               },
               services: {
                 ollama: {
                   loaded: true,
-                  status: 'healthy'
-                }
-              }
+                  status: 'healthy',
+                },
+              },
             },
-            recommendations: ['✅ ollama configuration is working correctly.']
-          }
-        }
+            recommendations: ['✅ ollama configuration is working correctly.'],
+          },
+        },
       }).as('validateOllama');
 
       // Mock Ollama runtime testing with local API calls
@@ -351,7 +367,7 @@ describe('Runtime Integration Test', () => {
                   match: true,
                   message: 'LLM completion test passed via Ollama llama3.1:8b',
                   runtimeMethod: 'runtime.generateText()',
-                  apiUsed: 'http://localhost:11434/api/generate'
+                  apiUsed: 'http://localhost:11434/api/generate',
                 },
                 embedding: {
                   status: 'success',
@@ -359,7 +375,7 @@ describe('Runtime Integration Test', () => {
                   embeddingDimensions: 768,
                   message: 'Generated 768-dimensional embedding via Ollama local embeddings',
                   runtimeMethod: 'runtime.embed()',
-                  apiUsed: 'http://localhost:11434/api/embeddings'
+                  apiUsed: 'http://localhost:11434/api/embeddings',
                 },
                 memory: {
                   status: 'success',
@@ -367,25 +383,25 @@ describe('Runtime Integration Test', () => {
                   retrieved: true,
                   message: 'Memory operations working correctly with Ollama local embeddings',
                   runtimeMethod: 'runtime.messageManager.createMemory()',
-                  embedsUsing: 'ollama-local'
-                }
-              }
+                  embedsUsing: 'ollama-local',
+                },
+              },
             },
             summary: {
               total: 3,
               passed: 3,
               failed: 0,
-              partial: 0
+              partial: 0,
             },
             runtimeVerification: {
               providerActuallyUsed: 'ollama',
               modelActuallyUsed: 'llama3.1:8b',
               embeddingModelUsed: 'nomic-embed-text (ollama)',
               verifiedViaRuntime: true,
-              localServer: 'http://localhost:11434'
-            }
-          }
-        }
+              localServer: 'http://localhost:11434',
+            },
+          },
+        },
       }).as('testOllama');
 
       // Validate configuration
@@ -405,9 +421,18 @@ describe('Runtime Integration Test', () => {
       cy.get('[data-testid="chat-messages"]')
         .should('contain.text', 'Configuration Test Complete (Provider: ollama)')
         .should('contain.text', 'Test Status: SUCCESS')
-        .should('contain.text', '✅ llmCompletion: LLM completion test passed via Ollama llama3.1:8b')
-        .should('contain.text', '✅ embedding: Generated 768-dimensional embedding via Ollama local embeddings')
-        .should('contain.text', '✅ memory: Memory operations working correctly with Ollama local embeddings');
+        .should(
+          'contain.text',
+          '✅ llmCompletion: LLM completion test passed via Ollama llama3.1:8b'
+        )
+        .should(
+          'contain.text',
+          '✅ embedding: Generated 768-dimensional embedding via Ollama local embeddings'
+        )
+        .should(
+          'contain.text',
+          '✅ memory: Memory operations working correctly with Ollama local embeddings'
+        );
     });
   });
 
@@ -431,22 +456,22 @@ describe('Runtime Integration Test', () => {
                   calledWith: {
                     text: "Respond with exactly: 'Configuration test successful'",
                     temperature: 0.1,
-                    max_tokens: 20
+                    max_tokens: 20,
                   },
                   runtimeResponse: 'Configuration test successful',
                   providerActuallyUsed: 'openai',
                   modelActuallyUsed: 'gpt-4o-mini',
-                  message: 'Verified runtime.generateText() uses configured provider and model'
+                  message: 'Verified runtime.generateText() uses configured provider and model',
                 },
                 embedding: {
                   status: 'success',
                   runtimeMethod: 'runtime.embed()',
                   calledWith: 'This is a test for embedding generation',
-                  runtimeResponse: Array(1536).fill(0.1),
-                  embeddingDimensions: 1536,
+                  runtimeResponse: Array(768).fill(0.1),
+                  embeddingDimensions: 768,
                   providerActuallyUsed: 'openai',
                   modelActuallyUsed: 'text-embedding-3-small',
-                  message: 'Verified runtime.embed() uses configured embedding provider'
+                  message: 'Verified runtime.embed() uses configured embedding provider',
                 },
                 memory: {
                   status: 'success',
@@ -455,19 +480,20 @@ describe('Runtime Integration Test', () => {
                     userId: 'test-agent-123',
                     content: { text: 'This is a configuration test memory', source: 'config_test' },
                     roomId: 'config-test-room',
-                    agentId: 'test-agent-123'
+                    agentId: 'test-agent-123',
                   },
-                  runtimeResponse: { id: 'test-memory-123', embedding: Array(1536).fill(0.1) },
+                  runtimeResponse: { id: 'test-memory-123', embedding: Array(768).fill(0.1) },
                   memoryRetrieved: true,
-                  message: 'Verified runtime.messageManager.createMemory() and runtime.getMemories() work correctly'
-                }
-              }
+                  message:
+                    'Verified runtime.messageManager.createMemory() and runtime.getMemories() work correctly',
+                },
+              },
             },
             summary: {
               total: 3,
               passed: 3,
               failed: 0,
-              partial: 0
+              partial: 0,
             },
             runtimeIntegrationDetails: {
               allMethodsCallable: true,
@@ -477,10 +503,10 @@ describe('Runtime Integration Test', () => {
               databaseAccessible: true,
               embeddingGeneration: true,
               memoryOperations: true,
-              actualElizaRuntime: true
-            }
-          }
-        }
+              actualElizaRuntime: true,
+            },
+          },
+        },
       }).as('testRuntimeDetails');
 
       // Run test
@@ -517,8 +543,9 @@ describe('Runtime Integration Test', () => {
                   actualProviderUsed: 'anthropic',
                   configuredModel: 'gpt-4o-mini',
                   actualModelUsed: 'claude-3-haiku-20240307',
-                  message: '❌ CRITICAL: Configuration set to OpenAI but runtime is calling Anthropic API',
-                  runtimeMethod: 'runtime.generateText()'
+                  message:
+                    '❌ CRITICAL: Configuration set to OpenAI but runtime is calling Anthropic API',
+                  runtimeMethod: 'runtime.generateText()',
                 },
                 embedding: {
                   status: 'partial',
@@ -526,28 +553,28 @@ describe('Runtime Integration Test', () => {
                   configuredProvider: 'openai',
                   actualProviderUsed: 'openai',
                   message: '⚠️ Embedding working but may not respect configuration changes',
-                  runtimeMethod: 'runtime.embed()'
+                  runtimeMethod: 'runtime.embed()',
                 },
                 memory: {
                   status: 'success',
                   message: 'Memory operations working correctly',
-                  runtimeMethod: 'runtime.messageManager.createMemory()'
-                }
-              }
+                  runtimeMethod: 'runtime.messageManager.createMemory()',
+                },
+              },
             },
             summary: {
               total: 3,
               passed: 1,
               failed: 1,
-              partial: 1
+              partial: 1,
             },
             configurationIssues: [
               'CRITICAL: Model provider configuration not being respected by runtime',
               'Runtime is calling different APIs than configured',
-              'This indicates a configuration integration bug'
-            ]
-          }
-        }
+              'This indicates a configuration integration bug',
+            ],
+          },
+        },
       }).as('testProviderMismatch');
 
       // Run test
@@ -557,8 +584,14 @@ describe('Runtime Integration Test', () => {
       // Verify error detection is shown
       cy.get('[data-testid="chat-messages"]')
         .should('contain.text', 'Test Status: FAILED')
-        .should('contain.text', '❌ llmCompletion: CRITICAL: Configuration set to OpenAI but runtime is calling Anthropic API')
-        .should('contain.text', '⚠️ embedding: Embedding working but may not respect configuration changes')
+        .should(
+          'contain.text',
+          '❌ llmCompletion: CRITICAL: Configuration set to OpenAI but runtime is calling Anthropic API'
+        )
+        .should(
+          'contain.text',
+          '⚠️ embedding: Embedding working but may not respect configuration changes'
+        )
         .should('contain.text', 'Model provider configuration not being respected by runtime');
     });
   });
@@ -567,7 +600,7 @@ describe('Runtime Integration Test', () => {
     // Take screenshot for debugging
     cy.screenshot(`runtime-integration-${Cypress.currentTest.title}`, {
       capture: 'viewport',
-      overwrite: true
+      overwrite: true,
     });
   });
 });

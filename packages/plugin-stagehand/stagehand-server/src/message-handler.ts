@@ -90,7 +90,7 @@ export class MessageHandler {
   private async handleCreateSession(requestId: string, clientId: string): Promise<Response> {
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     const session = await this.sessionManager.createSession(sessionId, clientId);
-    
+
     return {
       type: 'sessionCreated',
       requestId,
@@ -104,7 +104,7 @@ export class MessageHandler {
 
   private async handleDestroySession(requestId: string, sessionId: string): Promise<Response> {
     await this.sessionManager.destroySession(sessionId);
-    
+
     return {
       type: 'sessionDestroyed',
       requestId,
@@ -112,7 +112,11 @@ export class MessageHandler {
     };
   }
 
-  private async handleNavigate(requestId: string, sessionId: string, url: string): Promise<Response> {
+  private async handleNavigate(
+    requestId: string,
+    sessionId: string,
+    url: string
+  ): Promise<Response> {
     const session = this.sessionManager.getSession(sessionId);
     if (!session) {
       return this.sessionNotFoundResponse(requestId);
@@ -120,7 +124,7 @@ export class MessageHandler {
 
     await session.stagehand.page.goto(url);
     await session.stagehand.page.waitForLoadState('domcontentloaded');
-    
+
     const title = await session.stagehand.page.title();
     const currentUrl = session.stagehand.page.url();
 
@@ -143,7 +147,7 @@ export class MessageHandler {
 
     await session.stagehand.page.goBack();
     await session.stagehand.page.waitForLoadState('domcontentloaded');
-    
+
     const title = await session.stagehand.page.title();
     const url = session.stagehand.page.url();
 
@@ -163,7 +167,7 @@ export class MessageHandler {
 
     await session.stagehand.page.goForward();
     await session.stagehand.page.waitForLoadState('domcontentloaded');
-    
+
     const title = await session.stagehand.page.title();
     const url = session.stagehand.page.url();
 
@@ -183,7 +187,7 @@ export class MessageHandler {
 
     await session.stagehand.page.reload();
     await session.stagehand.page.waitForLoadState('domcontentloaded');
-    
+
     const title = await session.stagehand.page.title();
     const url = session.stagehand.page.url();
 
@@ -195,7 +199,11 @@ export class MessageHandler {
     };
   }
 
-  private async handleClick(requestId: string, sessionId: string, description: string): Promise<Response> {
+  private async handleClick(
+    requestId: string,
+    sessionId: string,
+    description: string
+  ): Promise<Response> {
     const session = this.sessionManager.getSession(sessionId);
     if (!session) {
       return this.sessionNotFoundResponse(requestId);
@@ -213,7 +221,12 @@ export class MessageHandler {
     };
   }
 
-  private async handleType(requestId: string, sessionId: string, text: string, field: string): Promise<Response> {
+  private async handleType(
+    requestId: string,
+    sessionId: string,
+    text: string,
+    field: string
+  ): Promise<Response> {
     const session = this.sessionManager.getSession(sessionId);
     if (!session) {
       return this.sessionNotFoundResponse(requestId);
@@ -231,7 +244,12 @@ export class MessageHandler {
     };
   }
 
-  private async handleSelect(requestId: string, sessionId: string, option: string, dropdown: string): Promise<Response> {
+  private async handleSelect(
+    requestId: string,
+    sessionId: string,
+    option: string,
+    dropdown: string
+  ): Promise<Response> {
     const session = this.sessionManager.getSession(sessionId);
     if (!session) {
       return this.sessionNotFoundResponse(requestId);
@@ -249,7 +267,11 @@ export class MessageHandler {
     };
   }
 
-  private async handleExtract(requestId: string, sessionId: string, instruction: string): Promise<Response> {
+  private async handleExtract(
+    requestId: string,
+    sessionId: string,
+    instruction: string
+  ): Promise<Response> {
     const session = this.sessionManager.getSession(sessionId);
     if (!session) {
       return this.sessionNotFoundResponse(requestId);
@@ -351,4 +373,4 @@ export class MessageHandler {
       error: 'Session not found',
     };
   }
-} 
+}

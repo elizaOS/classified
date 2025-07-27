@@ -98,7 +98,7 @@ export async function generateTextEmbeddingsBatch(
             index: globalIndex,
           };
         }
-        
+
         const result = await generateTextEmbedding(runtime, text);
         return {
           embedding: result.embedding,
@@ -215,20 +215,20 @@ async function generateOllamaEmbedding(
     // Use the same approach as plugin-ollama
     const { createOllama } = await import('ollama-ai-provider');
     const { embed } = await import('ai');
-    
+
     const baseURL = config.OLLAMA_BASE_URL || 'http://localhost:11434';
     const apiBase = baseURL.endsWith('/api') ? baseURL.slice(0, -4) : baseURL;
-    
+
     const ollama = createOllama({
-      baseURL: apiBase
+      baseURL: apiBase,
     });
-    
+
     const modelName = cleanModelName(config.TEXT_EMBEDDING_MODEL || 'nomic-embed-text');
     logger.debug(`[Document Processor] Ollama embedding with model: ${modelName}`);
-    
+
     const { embedding } = await embed({
       model: ollama.embedding(modelName),
-      value: text
+      value: text,
     });
 
     logger.debug(
@@ -765,17 +765,17 @@ async function generateOllamaText(
     // Use the same approach as plugin-ollama
     const { createOllama } = await import('ollama-ai-provider');
     const { generateText } = await import('ai');
-    
+
     const baseURL = config.OLLAMA_BASE_URL || 'http://localhost:11434';
     const apiBase = baseURL.endsWith('/api') ? baseURL.slice(0, -4) : baseURL;
-    
+
     const ollama = createOllama({
-      baseURL: apiBase
+      baseURL: apiBase,
     });
-    
+
     const model = cleanModelName(modelName || 'gemma3');
     logger.debug(`[Document Processor] Ollama text generation with model: ${model}`);
-    
+
     const { text } = await generateText({
       model: ollama(model),
       prompt: prompt,

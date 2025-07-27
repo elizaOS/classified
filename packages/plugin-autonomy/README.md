@@ -1,14 +1,17 @@
 # ElizaOS Autonomy Plugin
 
-A clean, focused autonomy plugin that enables autonomous agent behavior with admin chat integration.
+A clean, focused autonomy plugin that enables autonomous agent behavior with
+admin chat integration.
 
 ## Overview
 
 This plugin provides exactly **3 components**:
 
 1. **AutonomyService**: Autonomous loop service that can be controlled via API
-2. **adminChatProvider**: Provides conversation history with admin user (autonomous context only)
-3. **sendToAdminAction**: Allows agent to send messages to admin (autonomous context only)
+2. **adminChatProvider**: Provides conversation history with admin user
+   (autonomous context only)
+3. **sendToAdminAction**: Allows agent to send messages to admin (autonomous
+   context only)
 
 ## Components
 
@@ -20,8 +23,9 @@ This plugin provides exactly **3 components**:
 - **Room**: Creates dedicated autonomous room for internal thoughts
 
 **Methods:**
+
 - `startLoop()` - Start autonomous thinking
-- `stopLoop()` - Stop autonomous thinking  
+- `stopLoop()` - Stop autonomous thinking
 - `setLoopInterval(ms)` - Set thinking interval
 - `isLoopRunning()` - Check if running
 - `getAutonomousRoomId()` - Get the autonomous room ID
@@ -56,7 +60,7 @@ Add these settings to your character configuration:
 ### Settings
 
 - `ADMIN_USER_ID`: UUID of the admin user for chat history and messaging
-- `AUTONOMY_AUTO_START`: Whether to start autonomy loop on agent startup  
+- `AUTONOMY_AUTO_START`: Whether to start autonomy loop on agent startup
 - `AUTONOMY_ENABLED`: Current state of autonomy (managed by service)
 
 ## Usage
@@ -87,7 +91,8 @@ const isRunning = autonomyService.isLoopRunning();
 
 ## Autonomous Context
 
-The plugin creates a dedicated "autonomous room" where the agent thinks independently. In this context:
+The plugin creates a dedicated "autonomous room" where the agent thinks
+independently. In this context:
 
 - **Admin chat provider** supplies conversation history for context
 - **Send to admin action** becomes available to message the admin
@@ -102,6 +107,7 @@ elizaos test # Runs all plugin tests including autonomy
 ```
 
 Tests validate:
+
 - Service lifecycle (start/stop/interval)
 - Provider context validation (autonomous vs regular rooms)
 - Action validation and execution
@@ -121,7 +127,9 @@ Autonomous Loop (30s default)
    Send to Admin ← (Action, if needed)
 ```
 
-The agent continuously thinks in its autonomous room, has access to admin conversation history for context, and can proactively message the admin when appropriate.
+The agent continuously thinks in its autonomous room, has access to admin
+conversation history for context, and can proactively message the admin when
+appropriate.
 
 ## Security
 

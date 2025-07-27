@@ -1,7 +1,7 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { validateUuid, logger } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 import { sendError, sendSuccess } from '../shared/response-utils';
 
 interface AgentSettings {
@@ -22,7 +22,7 @@ interface AgentSettings {
  */
 export function createAgentSettingsRouter(
   agents: Map<UUID, IAgentRuntime>,
-  serverInstance: AgentServer
+  _serverInstance: AgentServer
 ): express.Router {
   const router = express.Router();
 
@@ -43,18 +43,25 @@ export function createAgentSettingsRouter(
       const settings: AgentSettings = {
         autonomy: true, // Most agents have autonomy enabled
         capabilities: {
-          shellAccess: runtime.plugins?.some(p => p.name?.includes('shell')) || false,
-          webAccess: runtime.plugins?.some(p => p.name?.includes('browser')) || false,
-          visionAccess: runtime.plugins?.some(p => p.name?.includes('vision') || p.name?.includes('camera')) || false,
-          speechToText: runtime.plugins?.some(p => p.name?.includes('audio') || p.name?.includes('mic')) || false,
-          textToSpeech: runtime.plugins?.some(p => p.name?.includes('tts') || p.name?.includes('speech')) || false,
+          shellAccess: runtime.plugins?.some((p) => p.name?.includes('shell')) || false,
+          webAccess: runtime.plugins?.some((p) => p.name?.includes('browser')) || false,
+          visionAccess:
+            runtime.plugins?.some(
+              (p) => p.name?.includes('vision') || p.name?.includes('camera')
+            ) || false,
+          speechToText:
+            runtime.plugins?.some((p) => p.name?.includes('audio') || p.name?.includes('mic')) ||
+            false,
+          textToSpeech:
+            runtime.plugins?.some((p) => p.name?.includes('tts') || p.name?.includes('speech')) ||
+            false,
         },
         modelProvider: runtime.character?.settings?.model || 'openai',
         apiKeys: {
           // Don't expose actual API keys for security
           openai: runtime.character?.settings?.secrets?.OPENAI_API_KEY ? '***' : '',
           anthropic: runtime.character?.settings?.secrets?.ANTHROPIC_API_KEY ? '***' : '',
-        }
+        },
       };
 
       sendSuccess(res, { settings });
@@ -115,7 +122,7 @@ export function createAgentSettingsRouter(
         message: `Setting ${key} updated successfully`,
         key,
         value,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error('[SETTINGS UPDATE] Error updating setting:', error);
@@ -143,7 +150,9 @@ export function createAgentSettingsRouter(
 
     try {
       const visionSettings = {
-        enabled: runtime.plugins?.some(p => p.name?.includes('vision') || p.name?.includes('camera')) || false,
+        enabled:
+          runtime.plugins?.some((p) => p.name?.includes('vision') || p.name?.includes('camera')) ||
+          false,
         model: 'gpt-4-vision-preview',
         maxImageSize: 1024,
         supportedFormats: ['jpg', 'jpeg', 'png', 'webp'],
@@ -176,11 +185,11 @@ export function createAgentSettingsRouter(
 
     try {
       logger.info(`[VISION REFRESH] Refreshing vision service for agent ${runtime.character.name}`);
-      
+
       // In a full implementation, this would restart or refresh the vision service
       sendSuccess(res, {
         message: 'Vision service refreshed successfully',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error('[VISION REFRESH] Error refreshing vision service:', error);

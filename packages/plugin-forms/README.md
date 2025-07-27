@@ -1,28 +1,35 @@
 # 🗂️ ElizaOS Forms Plugin
 
-A powerful forms management plugin for ElizaOS that enables structured data collection through conversational interactions. This plugin allows agents to create, manage, and process multi-step forms while maintaining natural conversation flow.
+A powerful forms management plugin for ElizaOS that enables structured data
+collection through conversational interactions. This plugin allows agents to
+create, manage, and process multi-step forms while maintaining natural
+conversation flow.
 
 ## 🚨 TL;DR - Quick Setup
 
-**Want your agent to collect structured data through forms? Here's the fastest path:**
+**Want your agent to collect structured data through forms? Here's the fastest
+path:**
 
 1. **Install the plugin** → `bun install @elizaos/plugin-forms`
 2. **Add to your agent**:
+
    ```typescript
    import { formsPlugin } from '@elizaos/plugin-forms';
-   
+
    const character = {
      plugins: [formsPlugin],
      // ... other config
    };
    ```
+
 3. **Try it** → "I need to fill out a contact form"
 4. **Done!** Your agent now handles forms naturally in conversation
 
 ## ✨ Features
 
 - ✅ **Multi-Step Forms** - Create complex forms with conditional logic
-- ✅ **Natural Language Processing** - Extract form values from user messages using LLM
+- ✅ **Natural Language Processing** - Extract form values from user messages
+  using LLM
 - ✅ **Secret Field Handling** - Secure handling of sensitive data like API keys
 - ✅ **Form Templates** - Pre-built templates for common use cases
 - ✅ **Smart Validation** - Field-level validation with custom criteria
@@ -51,7 +58,7 @@ import { formsPlugin } from '@elizaos/plugin-forms';
 
 // In your character configuration
 const character = {
-  name: "FormBot",
+  name: 'FormBot',
   plugins: [formsPlugin],
   // ... other configuration
 };
@@ -88,23 +95,25 @@ Agent: "Form completed successfully! I've recorded:
 ```typescript
 const apiConfigForm = {
   name: 'api-config',
-  steps: [{
-    id: 'credentials',
-    name: 'API Configuration',
-    fields: [
-      {
-        id: 'apiKey',
-        label: 'API Key',
-        type: 'text',
-        secret: true,  // Value will be masked
-      },
-      {
-        id: 'endpoint',
-        label: 'API Endpoint',
-        type: 'text',
-      }
-    ]
-  }]
+  steps: [
+    {
+      id: 'credentials',
+      name: 'API Configuration',
+      fields: [
+        {
+          id: 'apiKey',
+          label: 'API Key',
+          type: 'text',
+          secret: true, // Value will be masked
+        },
+        {
+          id: 'endpoint',
+          label: 'API Endpoint',
+          type: 'text',
+        },
+      ],
+    },
+  ],
 };
 ```
 
@@ -123,8 +132,8 @@ const surveyForm = {
           label: 'Overall Rating',
           type: 'number',
           criteria: 'Number between 1-5',
-        }
-      ]
+        },
+      ],
     },
     {
       id: 'details',
@@ -135,10 +144,10 @@ const surveyForm = {
           label: 'Comments',
           type: 'textarea',
           optional: true,
-        }
-      ]
-    }
-  ]
+        },
+      ],
+    },
+  ],
 };
 ```
 
@@ -181,22 +190,22 @@ The core service managing form lifecycle:
 ```typescript
 class FormsService {
   // Create a new form
-  createForm(templateOrDefinition): Promise<Form>
-  
+  createForm(templateOrDefinition): Promise<Form>;
+
   // Update form with user input
-  updateForm(formId, message): Promise<UpdateResult>
-  
+  updateForm(formId, message): Promise<UpdateResult>;
+
   // List forms by status
-  listForms(status?): Promise<Form[]>
-  
+  listForms(status?): Promise<Form[]>;
+
   // Get specific form
-  getForm(formId): Promise<Form>
-  
+  getForm(formId): Promise<Form>;
+
   // Cancel active form
-  cancelForm(formId): Promise<void>
-  
+  cancelForm(formId): Promise<void>;
+
   // Register custom template
-  registerTemplate(template): void
+  registerTemplate(template): void;
 }
 ```
 
@@ -226,16 +235,17 @@ const customForm = {
           type: 'textarea',
           description: 'Tell us about yourself',
           optional: true,
-        }
-      ]
-    }
-  ]
+        },
+      ],
+    },
+  ],
 };
 ```
 
 #### Advanced Features
 
 **🔒 Secret Fields**
+
 ```typescript
 {
   id: 'password',
@@ -247,6 +257,7 @@ const customForm = {
 ```
 
 **✅ Field Validation**
+
 ```typescript
 {
   id: 'age',
@@ -261,6 +272,7 @@ const customForm = {
 ```
 
 **🔄 Callbacks**
+
 ```typescript
 {
   steps: [{
@@ -282,9 +294,11 @@ const customForm = {
 ## 🎮 Actions
 
 ### CREATE_FORM
+
 Creates a new form from template or definition.
 
-**Triggers**: 
+**Triggers**:
+
 - "create form"
 - "fill out"
 - "questionnaire"
@@ -293,14 +307,17 @@ Creates a new form from template or definition.
 - "application"
 
 ### UPDATE_FORM
+
 Updates active form with user values.
 
 **Triggers**: Automatically when form is active
 
 ### CANCEL_FORM
+
 Cancels the current form.
 
 **Triggers**:
+
 - "cancel"
 - "stop"
 - "abort"
@@ -315,6 +332,7 @@ Cancels the current form.
 **Issue**: Agent doesn't create form when requested
 
 **Solution**:
+
 - ✅ Ensure plugin is loaded: Check logs for "Forms plugin initialized"
 - ✅ Verify trigger words: Use exact phrases like "create form"
 - ✅ Check character config includes the plugin
@@ -324,6 +342,7 @@ Cancels the current form.
 **Issue**: User input not being captured
 
 **Solution**:
+
 - ✅ Be explicit: "My email is user@example.com"
 - ✅ One field at a time for complex forms
 - ✅ Check field criteria matches input format
@@ -333,6 +352,7 @@ Cancels the current form.
 **Issue**: Form won't progress to next step
 
 **Solution**:
+
 - ✅ Ensure all required fields are filled
 - ✅ Check validation criteria
 - ✅ Try "skip" for optional fields
@@ -342,6 +362,7 @@ Cancels the current form.
 **Issue**: Sensitive data showing in responses
 
 **Solution**:
+
 - ✅ Set `secret: true` on sensitive fields
 - ✅ Check provider implementation
 - ✅ Verify latest plugin version
@@ -367,6 +388,7 @@ bun test --coverage
 ### Test Coverage
 
 The plugin maintains ~85% test coverage:
+
 - ✅ Service lifecycle
 - ✅ Form CRUD operations
 - ✅ Multi-step progression
@@ -377,7 +399,8 @@ The plugin maintains ~85% test coverage:
 
 ### Known Issues
 
-⚠️ The `elizaos test` command may encounter pino logger compatibility issues. Use `bun run test:e2e` directly.
+⚠️ The `elizaos test` command may encounter pino logger compatibility issues.
+Use `bun run test:e2e` directly.
 
 ## 🔗 Integration Examples
 
@@ -390,23 +413,25 @@ const formsService = runtime.getService<FormsService>('forms');
 // Create configuration form
 const form = await formsService.createForm({
   name: 'plugin-config',
-  steps: [{
-    id: 'settings',
-    name: 'Plugin Settings',
-    fields: [
-      {
-        id: 'apiKey',
-        label: 'API Key',
-        type: 'text',
-        secret: true,
-      }
-    ],
-    onComplete: async (form) => {
-      // Save configuration
-      const apiKey = form.steps[0].fields[0].value;
-      await saveConfig({ apiKey });
-    }
-  }]
+  steps: [
+    {
+      id: 'settings',
+      name: 'Plugin Settings',
+      fields: [
+        {
+          id: 'apiKey',
+          label: 'API Key',
+          type: 'text',
+          secret: true,
+        },
+      ],
+      onComplete: async (form) => {
+        // Save configuration
+        const apiKey = form.steps[0].fields[0].value;
+        await saveConfig({ apiKey });
+      },
+    },
+  ],
 });
 ```
 
@@ -437,10 +462,10 @@ formsService.registerTemplate({
           label: 'Severity',
           type: 'choice',
           options: ['low', 'medium', 'high', 'critical'],
-        }
-      ]
-    }
-  ]
+        },
+      ],
+    },
+  ],
 });
 ```
 

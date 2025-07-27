@@ -275,9 +275,10 @@ const browserNavigateAction: Action = {
 
   validate: async (runtime: IAgentRuntime, message: Memory, _state?: State): Promise<boolean> => {
     // Check if browser capability is enabled in runtime settings
-    const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
-                           runtime.getSetting('BROWSER_ENABLED') === 'true';
-    
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
     if (!browserEnabled) {
       logger.debug('Browser capability disabled in settings.');
       return false;
@@ -353,8 +354,8 @@ const browserNavigateAction: Action = {
         if (error instanceof BrowserSecurityError) {
           handleBrowserError(error, callback);
           return {
-        text: 'Security error: Cannot navigate to restricted URL',
-        success: false,
+            text: 'Security error: Cannot navigate to restricted URL',
+            success: false,
             data: {
               actionName: 'BROWSER_NAVIGATE',
               error: 'security_error',
@@ -501,9 +502,10 @@ const browserBackAction: Action = {
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Check if browser capability is enabled in runtime settings
-    const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
-                           runtime.getSetting('BROWSER_ENABLED') === 'true';
-    
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
     if (!browserEnabled) {
       logger.debug('Browser capability disabled in settings.');
       return false;
@@ -514,7 +516,7 @@ const browserBackAction: Action = {
       logger.debug('Stagehand service not available.');
       return false;
     }
-    
+
     const session = await service.getCurrentSession();
     return session !== undefined;
   },
@@ -535,8 +537,8 @@ const browserBackAction: Action = {
         const error = new BrowserServiceNotAvailableError();
         handleBrowserError(error, callback, 'go back to the previous page');
         return {
-        text: 'Browser service is not available',
-        success: true,
+          text: 'Browser service is not available',
+          success: true,
           data: {
             actionName: 'BROWSER_BACK',
             error: 'service_not_available',
@@ -553,8 +555,8 @@ const browserBackAction: Action = {
         const error = new BrowserSessionError('No active browser session');
         handleBrowserError(error, callback, 'go back');
         return {
-        text: 'No active browser session. Please navigate to a page first.',
-        success: false,
+          text: 'No active browser session. Please navigate to a page first.',
+          success: false,
           data: {
             actionName: 'BROWSER_BACK',
             error: 'no_session',
@@ -660,9 +662,10 @@ const browserForwardAction: Action = {
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Check if browser capability is enabled in runtime settings
-    const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
-                           runtime.getSetting('BROWSER_ENABLED') === 'true';
-    
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
     if (!browserEnabled) {
       logger.debug('Browser capability disabled in settings.');
       return false;
@@ -673,7 +676,7 @@ const browserForwardAction: Action = {
       logger.debug('Stagehand service not available.');
       return false;
     }
-    
+
     const session = await service.getCurrentSession();
     return session !== undefined;
   },
@@ -702,8 +705,8 @@ const browserForwardAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'No active browser session. Please navigate to a page first.',
-        success: false,
+          text: 'No active browser session. Please navigate to a page first.',
+          success: false,
           data: {
             actionName: 'BROWSER_FORWARD',
             error: 'no_session',
@@ -812,9 +815,10 @@ const browserRefreshAction: Action = {
 
   validate: async (runtime: IAgentRuntime, _message: Memory, _state?: State): Promise<boolean> => {
     // Check if browser capability is enabled in runtime settings
-    const browserEnabled = runtime.getSetting('ENABLE_BROWSER') === 'true' || 
-                           runtime.getSetting('BROWSER_ENABLED') === 'true';
-    
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
     if (!browserEnabled) {
       logger.debug('Browser capability disabled in settings.');
       return false;
@@ -825,7 +829,7 @@ const browserRefreshAction: Action = {
       logger.debug('Stagehand service not available.');
       return false;
     }
-    
+
     const session = await service.getCurrentSession();
     return session !== undefined;
   },
@@ -854,8 +858,8 @@ const browserRefreshAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'No active browser session. Please navigate to a page first.',
-        success: false,
+          text: 'No active browser session. Please navigate to a page first.',
+          success: false,
           data: {
             actionName: 'BROWSER_REFRESH',
             error: 'no_session',
@@ -998,8 +1002,8 @@ const browserClickAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'No active browser session. Please navigate to a page first.',
-        success: false,
+          text: 'No active browser session. Please navigate to a page first.',
+          success: false,
           data: {
             actionName: 'BROWSER_CLICK',
             error: 'no_session',
@@ -1163,8 +1167,8 @@ const browserTypeAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'No active browser session. Please navigate to a page first.',
-        success: false,
+          text: 'No active browser session. Please navigate to a page first.',
+          success: false,
           data: {
             actionName: 'BROWSER_TYPE',
             error: 'no_session',
@@ -1189,8 +1193,8 @@ const browserTypeAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'Could not understand the type command. Please use format: "type \'text\' in field"',
-        success: false,
+          text: 'Could not understand the type command. Please use format: "type \'text\' in field"',
+          success: false,
           data: {
             actionName: 'BROWSER_TYPE',
             error: 'parse_error',
@@ -1349,8 +1353,8 @@ const browserSelectAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'No active browser session. Please navigate to a page first.',
-        success: false,
+          text: 'No active browser session. Please navigate to a page first.',
+          success: false,
           data: {
             actionName: 'BROWSER_SELECT',
             error: 'no_session',
@@ -1374,8 +1378,8 @@ const browserSelectAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'Could not understand the select command. Please use format: "select \'option\' from dropdown"',
-        success: false,
+          text: 'Could not understand the select command. Please use format: "select \'option\' from dropdown"',
+          success: false,
           data: {
             actionName: 'BROWSER_SELECT',
             error: 'parse_error',
@@ -1539,8 +1543,8 @@ const browserExtractAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'No active browser session. Please navigate to a page first.',
-        success: false,
+          text: 'No active browser session. Please navigate to a page first.',
+          success: false,
           data: {
             actionName: 'BROWSER_EXTRACT',
             error: 'no_session',
@@ -1708,8 +1712,8 @@ const browserScreenshotAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'No active browser session. Please navigate to a page first.',
-        success: false,
+          text: 'No active browser session. Please navigate to a page first.',
+          success: false,
           data: {
             actionName: 'BROWSER_SCREENSHOT',
             error: 'no_session',
@@ -1879,8 +1883,8 @@ const browserSolveCaptchaAction: Action = {
           source: message.content.source,
         });
         return {
-        text: 'No active browser session. Please navigate to a page first.',
-        success: false,
+          text: 'No active browser session. Please navigate to a page first.',
+          success: false,
           data: {
             actionName: 'BROWSER_SOLVE_CAPTCHA',
             error: 'no_session',

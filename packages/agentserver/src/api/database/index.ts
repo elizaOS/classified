@@ -1,7 +1,7 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { logger } from '@elizaos/core';
 import express from 'express';
-import type { AgentServer } from '../../index';
+import type { AgentServer } from '../../server';
 
 interface ColumnInfo {
   name: string;
@@ -13,7 +13,7 @@ interface ColumnInfo {
 
 export function createDatabaseRouter(
   agents: Map<UUID, IAgentRuntime>,
-  serverInstance: AgentServer
+  _serverInstance: AgentServer
 ): express.Router {
   const router = express.Router();
 
@@ -28,9 +28,7 @@ export function createDatabaseRouter(
     try {
       const runtime = getRuntime();
       const db = runtime.db;
-      let tablesQuery: string;
-
-      tablesQuery = `
+      const tablesQuery: string = `
         SELECT table_name as name, table_schema as schema 
         FROM information_schema.tables 
         WHERE table_schema NOT IN ('information_schema', 'pg_catalog') 
@@ -74,15 +72,15 @@ export function createDatabaseRouter(
       const runtime = getRuntime();
       const db = runtime.db;
       const { tableName } = req.params;
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100); // Max 100 rows
+      const page = parseInt(req.query.page as string, 10) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 100); // Max 100 rows
       const search = (req.query.search as string) || '';
       const orderBy = (req.query.orderBy as string) || '';
       const orderDir = (req.query.orderDir as string)?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
       // Validate table name exists
       const tableExists = await db.get(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
         [tableName]
       );
 
