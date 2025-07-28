@@ -1,6 +1,6 @@
 use crate::backend::{BackendError, BackendResult, ContainerRuntimeType};
 use crate::container::{ContainerManager, RuntimeDetectionStatus};
-use crate::common::{AGENT_CONTAINER, OLLAMA_CONTAINER, POSTGRES_CONTAINER, NETWORK_NAME};
+use crate::common::{AGENT_CONTAINER, OLLAMA_CONTAINER};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};

@@ -132,7 +132,7 @@ mod ollama_container_tests {
                 println!("✅ Ollama container started with health monitoring");
 
                 // Health monitoring should be configured for Ollama
-                assert_eq!(status.name, "eliza-ollama");
+                assert_eq!(status.name, OLLAMA_CONTAINER);
 
                 // Verify port configuration for health checks if ports are available
                 if !status.ports.is_empty() {
@@ -140,7 +140,7 @@ mod ollama_container_tests {
                 }
 
                 // Clean up
-                let _ = manager.stop_container("eliza-ollama").await;
+                let _ = manager.stop_container(OLLAMA_CONTAINER).await;
             }
             Err(e) => {
                 println!(
@@ -170,7 +170,7 @@ mod ollama_container_tests {
                 println!("✅ Ollama container started with volumes");
 
                 // Verify the container name and ports
-                assert_eq!(status.name, "eliza-ollama");
+                assert_eq!(status.name, OLLAMA_CONTAINER);
                 
                 if !status.ports.is_empty() {
                     assert_eq!(status.ports[0].container_port, 11434);
@@ -179,7 +179,7 @@ mod ollama_container_tests {
                 println!("✅ Ollama volume configuration verified");
 
                 // Clean up
-                let _ = manager.stop_container("eliza-ollama").await;
+                let _ = manager.stop_container(OLLAMA_CONTAINER).await;
             }
             Err(e) => {
                 println!("⚠️ Ollama volume test couldn't start container: {}", e);
@@ -206,19 +206,19 @@ mod ollama_container_tests {
                 println!("✅ Ollama container started for restart test");
 
                 // Test restart functionality
-                match manager.restart_container("eliza-ollama").await {
+                match manager.restart_container(OLLAMA_CONTAINER).await {
                     Ok(status) => {
                         println!("✅ Ollama container restarted successfully");
-                        assert_eq!(status.name, "eliza-ollama");
+                        assert_eq!(status.name, OLLAMA_CONTAINER);
                         assert_eq!(status.restart_count, 1);
 
                         // Clean up
-                        let _ = manager.stop_container("eliza-ollama").await;
+                        let _ = manager.stop_container(OLLAMA_CONTAINER).await;
                     }
                     Err(e) => {
                         println!("⚠️ Couldn't restart Ollama container: {}", e);
                         // Clean up
-                        let _ = manager.stop_container("eliza-ollama").await;
+                        let _ = manager.stop_container(OLLAMA_CONTAINER).await;
                     }
                 }
             }
@@ -235,13 +235,13 @@ mod ollama_container_tests {
         println!("Testing Ollama configuration values...");
 
         // These are the expected values for Ollama container
-        let expected_name = "eliza-ollama";
+        let expected_name = OLLAMA_CONTAINER;
         let expected_image = "ollama/ollama:latest";
         let expected_port = 11434;
         let expected_volume_mount = "/root/.ollama";
 
         // Verify these values are what we expect
-        assert_eq!(expected_name, "eliza-ollama");
+        assert_eq!(expected_name, OLLAMA_CONTAINER);
         assert_eq!(expected_image, "ollama/ollama:latest");
         assert_eq!(expected_port, 11434);
         assert_eq!(expected_volume_mount, "/root/.ollama");

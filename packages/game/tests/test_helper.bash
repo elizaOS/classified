@@ -53,7 +53,11 @@ wait_for_http() {
 
 # Clean up podman containers
 cleanup_containers() {
-    local containers=("eliza-agent" "eliza-postgres")
+    # Note: These container names match the constants defined in the Rust code:
+    # POSTGRES_CONTAINER = "eliza-postgres"
+    # OLLAMA_CONTAINER = "eliza-ollama"  
+    # AGENT_CONTAINER = "eliza-agent"
+    local containers=("eliza-agent" "eliza-postgres" "eliza-ollama")
     for container in "${containers[@]}"; do
         podman stop "$container" 2>/dev/null || true
         podman rm "$container" 2>/dev/null || true

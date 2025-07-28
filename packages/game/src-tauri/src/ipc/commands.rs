@@ -765,35 +765,4 @@ pub async fn recover_agent_container(
     }
 }
 
-// VNC commands temporarily disabled - vnc_tests module not available
-/*
-#[tauri::command]
-pub async fn test_vnc_display() -> Result<bool, String> {
-    use crate::tests::vnc_tests::VncTests;
-    
-    info!("Testing VNC display functionality...");
-    
-    match VncTests::test_vnc_display().await {
-        Ok(result) => Ok(result),
-        Err(e) => {
-            error!("VNC test failed: {}", e);
-            Err(e.to_string())
-        }
-    }
-}
 
-#[tauri::command]
-pub async fn restart_vnc_display() -> Result<(), String> {
-    use crate::tests::vnc_tests::VncTests;
-    
-    info!("Restarting VNC display...");
-    
-    match VncTests::run_vnc_autostart().await {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            error!("Failed to restart VNC: {}", e);
-            Err(e.to_string())
-        }
-    }
-}
-*/

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod postgres_container_tests {
-    use app_lib::{ContainerManager, ContainerRuntimeType};
+    use app_lib::{ContainerManager, ContainerRuntimeType, POSTGRES_CONTAINER};
     
 
     #[tokio::test]
@@ -19,7 +19,7 @@ mod postgres_container_tests {
 
         match result {
             Ok(status) => {
-                assert_eq!(status.name, "eliza-postgres");
+                assert_eq!(status.name, POSTGRES_CONTAINER);
                 
                 // Ports may not be populated immediately after container start
                 if !status.ports.is_empty() {
@@ -31,7 +31,7 @@ mod postgres_container_tests {
                 println!("✅ PostgreSQL container configuration test passed");
 
                 // Clean up - stop the container
-                let _ = manager.stop_container("eliza-postgres").await;
+                let _ = manager.stop_container(POSTGRES_CONTAINER).await;
             }
             Err(e) => {
                 // This is expected if no container runtime is available or images aren't present
@@ -75,7 +75,7 @@ mod postgres_container_tests {
                 println!("✅ PostgreSQL container started: {}", status.id);
 
                 // Test getting status
-                match manager.get_container_status("eliza-postgres").await {
+                match manager.get_container_status(POSTGRES_CONTAINER).await {
                     Ok(status) => {
                         println!("✅ Container status retrieved: {:?}", status.state);
                     }
@@ -85,7 +85,7 @@ mod postgres_container_tests {
                 }
 
                 // Test stopping
-                match manager.stop_container("eliza-postgres").await {
+                match manager.stop_container(POSTGRES_CONTAINER).await {
                     Ok(_) => {
                         println!("✅ PostgreSQL container stopped successfully");
                     }
@@ -95,7 +95,7 @@ mod postgres_container_tests {
                 }
 
                 // Verify container is stopped by checking status
-                match manager.get_container_status("eliza-postgres").await {
+                match manager.get_container_status(POSTGRES_CONTAINER).await {
                     Ok(status) => {
                         println!("Container status after stop: {:?}", status.state);
                     }
@@ -159,10 +159,10 @@ mod postgres_container_tests {
                 println!("✅ Container started with health monitoring");
 
                 // Health monitoring should be configured for PostgreSQL
-                assert_eq!(status.name, "eliza-postgres");
+                assert_eq!(status.name, POSTGRES_CONTAINER);
 
                 // Clean up
-                let _ = manager.stop_container("eliza-postgres").await;
+                let _ = manager.stop_container(POSTGRES_CONTAINER).await;
             }
             Err(e) => {
                 println!("⚠️ Health monitoring test couldn't start container: {}", e);

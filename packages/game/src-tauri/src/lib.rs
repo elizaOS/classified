@@ -14,6 +14,9 @@ mod ipc;
 mod server;
 mod startup;
 mod tests;
+
+// Re-export common constants for tests
+pub use common::{AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER};
 // Export types for external use (tests, etc.)
 pub use backend::{
     AgentConfig, BackendConfig, BackendError, BackendResult, ContainerConfig, ContainerRuntimeType,
@@ -813,9 +816,7 @@ pub fn run() {
             stream_media_audio,
             start_agent_screen_capture,
             stop_agent_screen_capture,
-            // VNC commands
-            test_vnc_display,
-            restart_vnc_display
+
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");

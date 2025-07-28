@@ -51,7 +51,7 @@ impl ScreenSharingTests {
     /// Check if IPC command exists
     async fn test_ipc_command_exists(app_handle: &AppHandle) -> BackendResult<()> {
         // Try to invoke the command with minimal data
-        let test_data = vec![0u8; 100]; // Small test frame
+        let _test_data = [0u8; 100]; // Small test frame
         
         // We're just checking if the command exists, not if it succeeds
         match app_handle.emit("ipc-test", json!({
@@ -73,7 +73,7 @@ impl ScreenSharingTests {
     }
 
     /// Test if agent can receive frames (requires agent to be running)
-    async fn test_agent_frame_reception(app_handle: &AppHandle) -> BackendResult<()> {
+    async fn test_agent_frame_reception(_app_handle: &AppHandle) -> BackendResult<()> {
         // Check if agent is running by testing health endpoint
         let client = reqwest::Client::new();
         let health_url = "http://localhost:7777/api/health";
