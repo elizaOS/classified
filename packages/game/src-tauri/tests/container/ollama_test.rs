@@ -75,7 +75,7 @@ mod ollama_container_tests {
                 println!("✅ Ollama container started: {}", status.id);
 
                 // Test getting status
-                match manager.get_container_status("eliza-ollama").await {
+                match manager.get_container_status(OLLAMA_CONTAINER).await {
                     Ok(status) => {
                         println!("✅ Container status retrieved: {:?}", status.state);
                     }
@@ -85,7 +85,7 @@ mod ollama_container_tests {
                 }
 
                 // Test stopping
-                match manager.stop_container("eliza-ollama").await {
+                match manager.stop_container(OLLAMA_CONTAINER).await {
                     Ok(_) => {
                         println!("✅ Ollama container stopped successfully");
                     }
@@ -95,7 +95,7 @@ mod ollama_container_tests {
                 }
 
                 // Verify container is stopped by checking status
-                match manager.get_container_status("eliza-ollama").await {
+                match manager.get_container_status(OLLAMA_CONTAINER).await {
                     Ok(status) => {
                         println!("Container status after stop: {:?}", status.state);
                     }
