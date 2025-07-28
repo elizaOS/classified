@@ -56,12 +56,10 @@ export function createAgentSettingsRouter(
             runtime.plugins?.some((p) => p.name?.includes('tts') || p.name?.includes('speech')) ||
             false,
         },
-        modelProvider: runtime.character?.settings?.model || 'openai',
-        apiKeys: {
-          // Don't expose actual API keys for security
-          openai: runtime.character?.settings?.secrets?.OPENAI_API_KEY ? '***' : '',
-          anthropic: runtime.character?.settings?.secrets?.ANTHROPIC_API_KEY ? '***' : '',
-        },
+        modelProvider: String(
+          runtime.character?.settings?.MODEL_PROVIDER || process.env.MODEL_PROVIDER || 'ollama'
+        ),
+        apiKeys: {},
       };
 
       sendSuccess(res, { settings });

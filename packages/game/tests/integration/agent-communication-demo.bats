@@ -89,7 +89,7 @@ teardown() {
         --name eliza-agent \
         --network eliza-network \
         -p 7777:7777 \
-        eliza-agent-server:latest
+        eliza-agent:latest
     
     # Wait for agent server to be ready
     local agent_ready=false

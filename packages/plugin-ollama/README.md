@@ -10,11 +10,12 @@ Ollama enables running large language models locally on your machine. This plugi
 
 - [Ollama](https://ollama.com/) installed and running on your system
 - ElizaOS platform
-- At least one Ollama model pulled and available (e.g., `llama3`, `gemma3:latest`)
+- At least one Ollama model pulled and available (e.g., `llama3`, `llama3.2:latest`)
 
 ## Installation
 
 1. Install this plugin in your ElizaOS project:
+
    ```bash
    bun add @elizaos-plugins/plugin-ollama
    ```
@@ -39,9 +40,9 @@ The plugin requires these environment variables (can be set in .env file or char
 ```json
 "settings": {
   "OLLAMA_API_ENDPOINT": "http://localhost:11434/api",
-  "OLLAMA_SMALL_MODEL": "gemma3",
-  "OLLAMA_MEDIUM_MODEL": "gemma3",
-  "OLLAMA_LARGE_MODEL": "gemma3",
+  "OLLAMA_SMALL_MODEL": "llama3.2",
+  "OLLAMA_MEDIUM_MODEL": "llama3.2",
+  "OLLAMA_LARGE_MODEL": "llama3.2",
   "OLLAMA_EMBEDDING_MODEL": "nomic-embed-text"
 }
 ```
@@ -50,18 +51,18 @@ Or in `.env` file:
 
 ```
 OLLAMA_API_ENDPOINT=http://localhost:11434/api
-OLLAMA_SMALL_MODEL=gemma3
-OLLAMA_MEDIUM_MODEL=gemma3
-OLLAMA_LARGE_MODEL=gemma3
+OLLAMA_SMALL_MODEL=llama3.2
+OLLAMA_MEDIUM_MODEL=llama3.2
+OLLAMA_LARGE_MODEL=llama3.2
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
 ### Configuration Options
 
 - `OLLAMA_API_ENDPOINT`: Ollama API endpoint (default: http://localhost:11434/api)
-- `OLLAMA_SMALL_MODEL`: Model for simpler tasks (default: gemma3)
-- `OLLAMA_MEDIUM_MODEL`: Medium-complexity model (default: gemma3)
-- `OLLAMA_LARGE_MODEL`: Model for complex tasks (default: gemma3)
+- `OLLAMA_SMALL_MODEL`: Model for simpler tasks (default: llama3.2)
+- `OLLAMA_MEDIUM_MODEL`: Medium-complexity model (default: llama3.2)
+- `OLLAMA_LARGE_MODEL`: Model for complex tasks (default: llama3.2)
 - `OLLAMA_EMBEDDING_MODEL`: Model for text embeddings (default: nomic-embed-text)
 
 The plugin provides these model classes:
@@ -75,8 +76,6 @@ The plugin provides these model classes:
 ## API Reference
 
 For detailed information about the Ollama API used by this plugin, refer to the [official Ollama API documentation](https://github.com/ollama/ollama/blob/main/docs/api.md).
-
-
 
 ## Features
 
@@ -153,7 +152,6 @@ const object = await runtime.useModel(ModelType.OBJECT_LARGE, {
 - The plugin will attempt to download models automatically if they're not found
 - You can pre-download models using `ollama pull modelname`
 - Check model availability with `ollama list`
-
 
 ## License
 

@@ -19,11 +19,8 @@ pub use backend::{
 };
 pub use container::{ContainerManager, HealthMonitor, RuntimeDetectionStatus};
 pub use ipc::commands::*;
-pub use server::{HttpServer, WebSocketHub};
-// pub use server::websocket::{AgentMessage, ConnectionState, NativeWebSocketClient}; // Commented out until websocket.rs is fixed
-// pub use agent::{AgentManager, AgentStatus}; // Deprecated - use ContainerManager instead
+pub use server::{HttpServer, WebSocketHub, MediaWebSocketClient};
 pub use startup::{AiProvider, StartupManager, StartupStage, StartupStatus, UserConfig};
-// pub use websocket_manager::{WebSocketManager, WsMessage}; // Removed - using native_websocket instead
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -167,17 +164,45 @@ async fn kill_processes_on_port(port: u16) -> Result<(), Box<dyn std::error::Err
 async fn route_message_to_agent(message: &str) -> Result<String, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
 
-    // Use the synchronous messaging endpoint to send a message and wait for response
+    // Use the autonomous thoughts room which exists in the agent
+    let room_id = "ce5f41b4-fe24-4c01-9971-aecfed20a6bd"; // Autonomous thoughts room
+    let _agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f"; // Agent ID
+    
+    // First, ensure the room/channel exists in the messaging system
+    // Create a proper channel entry if needed
+    let channel_url = format!("http://localhost:7777/api/messaging/central-channels/{}", room_id);
+    let channel_check = client.get(&channel_url).send().await;
+    
+    if channel_check.is_err() || !channel_check.unwrap().status().is_success() {
+        info!("Channel doesn't exist in messaging system, creating it...");
+        
+        // Try to create the channel
+        let create_channel_url = "http://localhost:7777/api/messaging/central-channels";
+        let _ = client
+            .post(create_channel_url)
+            .json(&serde_json::json!({
+                "id": room_id,
+                "server_id": "00000000-0000-0000-0000-000000000000",
+                "name": "Game UI Channel",
+                "type": "game",
+                "metadata": {
+                    "source": "eliza_game"
+                }
+            }))
+            .send()
+            .await;
+    }
+    
+    // Use the ingest-external endpoint which works properly
     let message_url = "http://localhost:7777/api/messaging/ingest-external";
-    let channel_id = "e292bdf2-0baa-4677-a3a6-9426672ce6d8"; // Default channel for game UI
-    let author_id = "00000000-0000-0000-0000-000000000001"; // Proper UUID format for game user
-
+    
     let response = client
         .post(message_url)
         .json(&serde_json::json!({
-            "channel_id": channel_id,
-            "server_id": "00000000-0000-0000-0000-000000000000", // Default server ID
-            "author_id": author_id,
+            "channel_id": room_id,
+            "server_id": "00000000-0000-0000-0000-000000000000",
+            "author_id": "00000000-0000-0000-0000-000000000001", // Fixed user ID
+            "author_display_name": "Admin",
             "content": message,
             "source_type": "game_ui",
             "raw_message": {
@@ -185,11 +210,11 @@ async fn route_message_to_agent(message: &str) -> Result<String, Box<dyn std::er
                 "type": "user_message"
             },
             "metadata": {
-                "source": "eliza",
+                "source": "eliza_game",
                 "userName": "Admin"
             }
         }))
-        .timeout(std::time::Duration::from_secs(20))
+        .timeout(std::time::Duration::from_secs(10))
         .send()
         .await?;
 
@@ -697,6 +722,13 @@ pub fn run() {
             reset_agent,
             fetch_autonomy_status,
             fetch_memories,
+            // Knowledge management
+            upload_knowledge_file,
+            // Goal and Todo management
+            create_goal,
+            create_todo,
+            // Logs
+            fetch_logs,
             // Health check
             health_check,
             connect_native_websocket,
@@ -713,7 +745,13 @@ pub fn run() {
             // Socket.IO commands removed - using native WebSocket instead
             // Test commands
             test_native_websocket,
-            run_startup_hello_world_test
+            run_startup_hello_world_test,
+            // Media WebSocket commands
+            connect_media_websocket,
+            disconnect_media_websocket,
+            is_media_websocket_connected,
+            send_video_frame,
+            send_audio_chunk
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");
@@ -741,7 +779,7 @@ pub fn run() {
             let runtime_status = Arc::new(std::sync::Mutex::new(RuntimeDetectionStatus::default()));
             app.manage(runtime_status.clone());
 
-            // Note: AgentManager deprecated - StartupManager uses ContainerManager instead
+    
 
             // Initialize container manager for Tauri commands
             // Note: This will be replaced by startup manager's instance once initialized
@@ -767,6 +805,13 @@ pub fn run() {
                 "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f".to_string(), // Default agent ID
             ));
             app.manage(native_ws_client.clone());
+
+            // Initialize Media WebSocket client for audio/video streaming
+            let media_ws_client = Arc::new(MediaWebSocketClient::new(
+                app.handle().clone(),
+                "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f".to_string(), // Default agent ID
+            ));
+            app.manage(media_ws_client.clone());
 
             // Start the callback server for receiving real-time updates on available port
             tauri::async_runtime::spawn(async move {

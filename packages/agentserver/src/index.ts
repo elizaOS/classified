@@ -7,18 +7,18 @@ import {
   logger,
   stringToUuid,
 } from '@elizaos/core';
-import anthropicPlugin from '@elizaos/plugin-anthropic';
-import { autonomyPlugin } from '@elizaos/plugin-autonomy';
+// import anthropicPlugin from '@elizaos/plugin-anthropic';
+// import { autonomyPlugin } from '@elizaos/plugin-autonomy';
 import { bootstrapPlugin } from '@elizaos/plugin-bootstrap';
 // import { experiencePlugin } from '@elizaos/plugin-experience';
-import { GoalsPlugin } from '@elizaos/plugin-goals';
+// import { GoalsPlugin } from '@elizaos/plugin-goals';
 // import { knowledgePlugin } from '@elizaos/plugin-knowledge';
 import { ollamaPlugin } from '@elizaos/plugin-ollama';
-import openaiPlugin from '@elizaos/plugin-openai';
+// import openaiPlugin from '@elizaos/plugin-openai';
 // import PersonalityPlugin from '@elizaos/plugin-personality';
-import { shellPlugin } from '@elizaos/plugin-shell';
+// import { shellPlugin } from '@elizaos/plugin-shell';
 import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
-import { TodoPlugin } from '@elizaos/plugin-todo';
+// import { TodoPlugin } from '@elizaos/plugin-todo';
 // import { visionPlugin } from '@elizaos/plugin-vision';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
@@ -27,7 +27,6 @@ import { fileURLToPath } from 'url';
 import { terminalCharacter } from './character';
 import { gameAPIPlugin } from './game-api-plugin.ts';
 import { AgentServer } from './server';
-// import { localEmbeddingPlugin } from '@elizaos/plugin-local-embedding';
 // import { pluginManagerPlugin } from '@elizaos/plugin-plugin-manager';
 // import { SAMPlugin } from '@elizaos/plugin-sam';
 // import { stagehandPlugin } from '@elizaos/plugin-stagehand';
@@ -61,18 +60,18 @@ const modelProvider =
 const plugins: Plugin[] = [
   sqlPlugin,
   bootstrapPlugin,
-  ollamaPlugin,
-  openaiPlugin,
-  // Only load Anthropic plugin if it's being used
-  anthropicPlugin,
+  // Only load model provider plugins that are being used
+  ...(modelProvider === 'ollama' || modelProvider === 'all' ? [ollamaPlugin] : []),
+  // ...(modelProvider === 'openai' || modelProvider === 'all' ? [openaiPlugin] : []),
+  // ...(modelProvider === 'anthropic' || modelProvider === 'all' ? [anthropicPlugin] : []),
   // localEmbeddingPlugin,
-  autonomyPlugin,
-  GoalsPlugin,
-  TodoPlugin,
+  // autonomyPlugin,
+  // GoalsPlugin,
+  // TodoPlugin,
   // PersonalityPlugin,
   // experiencePlugin,
   // knowledgePlugin,
-  shellPlugin,
+  // shellPlugin,
   // stagehandPlugin,
   gameAPIPlugin,
   // visionPlugin,
@@ -244,7 +243,7 @@ export async function startServer() {
         environment: {
           OPENAI_API_KEY: process.env.OPENAI_API_KEY ? '***SET***' : 'NOT_SET',
           ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? '***SET***' : 'NOT_SET',
-          MODEL_PROVIDER: process.env.MODEL_PROVIDER || 'openai',
+          MODEL_PROVIDER: process.env.MODEL_PROVIDER || 'ollama',
         },
       };
       res.json({ success: true, data: { configurations, availablePlugins: [] } });

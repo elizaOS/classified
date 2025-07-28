@@ -131,6 +131,10 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
     OLLAMA_API_URL: process.env.OLLAMA_API_URL || 'http://eliza-ollama:11434',
     OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL || 'http://eliza-ollama:11434',
     OLLAMA_MODEL: process.env.LANGUAGE_MODEL || 'llama3.2:3b',
+    OLLAMA_SMALL_MODEL:
+      process.env.OLLAMA_SMALL_MODEL || process.env.LANGUAGE_MODEL || 'llama3.2:3b',
+    OLLAMA_LARGE_MODEL:
+      process.env.OLLAMA_LARGE_MODEL || process.env.LANGUAGE_MODEL || 'llama3.2:3b',
     OLLAMA_EMBEDDING_MODEL: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text',
     EMBEDDING_DIMENSION: '1536', // text-embedding-3-small has 1536 dimensions
     USE_SMALL_MODELS: process.env.USE_SMALL_MODELS || 'true',

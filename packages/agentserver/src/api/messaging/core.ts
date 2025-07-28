@@ -82,6 +82,25 @@ export function createMessagingCoreRouter(serverInstance: AgentServer): express.
           attachments: metadata?.attachments,
         });
       }
+
+      // Also broadcast to native WebSocket clients (for Tauri game)
+      if (serverInstance.broadcastToWebSocketClients) {
+        serverInstance.broadcastToWebSocketClients(
+          {
+            type: 'agent_message',
+            id: createdMessage.id,
+            content: content,
+            author: metadata?.agentName || 'Agent',
+            channel_id: channel_id,
+            timestamp: new Date(createdMessage.createdAt).getTime(),
+            source: createdMessage.source_type,
+            thought: raw_message?.thought,
+            actions: raw_message?.actions,
+            metadata: metadata,
+          },
+          channel_id
+        );
+      }
       // NO broadcast to internalMessageBus here, this endpoint is for messages ALREADY PROCESSED by an agent
       // or system messages that don't need further agent processing via the bus.
 

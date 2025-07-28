@@ -3,7 +3,7 @@ use reqwest;
 use serde_json;
 use std::sync::Arc;
 use tauri::{Manager, State};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 // Container management commands
 /// Gets the status of all managed containers.
@@ -420,4 +420,200 @@ pub async fn health_check() -> Result<String, String> {
     });
 
     Ok(health_status.to_string())
+}
+
+// Media WebSocket commands
+use crate::MediaWebSocketClient;
+
+#[tauri::command]
+pub async fn connect_media_websocket(
+    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
+    url: String,
+) -> Result<(), String> {
+    media_ws_client
+        .connect(&url)
+        .await
+        .map_err(|e| format!("Failed to connect media WebSocket: {}", e))
+}
+
+#[tauri::command]
+pub async fn disconnect_media_websocket(
+    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
+) -> Result<(), String> {
+    media_ws_client
+        .disconnect()
+        .await
+        .map_err(|e| format!("Failed to disconnect media WebSocket: {}", e))
+}
+
+#[tauri::command]
+pub async fn is_media_websocket_connected(
+    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
+) -> Result<bool, String> {
+    Ok(media_ws_client.is_connected().await)
+}
+
+#[tauri::command]
+pub async fn send_video_frame(
+    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
+    frame_data: Vec<u8>,
+) -> Result<(), String> {
+    media_ws_client
+        .send_video_frame(frame_data)
+        .await
+        .map_err(|e| format!("Failed to send video frame: {}", e))
+}
+
+#[tauri::command]
+pub async fn send_audio_chunk(
+    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
+    audio_data: Vec<u8>,
+) -> Result<(), String> {
+    media_ws_client
+        .send_audio_chunk(audio_data)
+        .await
+        .map_err(|e| format!("Failed to send audio chunk: {}", e))
+}
+
+// Knowledge management commands
+#[tauri::command]
+pub async fn upload_knowledge_file(
+    file_name: String,
+    content: String,
+    mime_type: String,
+) -> Result<serde_json::Value, String> {
+    use serde_json::Value;
+    use std::io::Write;
+    use tempfile::Builder;
+    use base64::{Engine as _, engine::general_purpose};
+
+    // Create a temporary file to store the uploaded content
+    let mut temp_file = Builder::new()
+        .prefix("upload-")
+        .suffix(&format!("-{}", file_name))
+        .tempfile()
+        .map_err(|e| format!("Failed to create temporary file: {}", e))?;
+
+    // Decode base64 content using the new Engine API
+    let decoded_content = general_purpose::STANDARD
+        .decode(&content)
+        .map_err(|e| format!("Failed to decode base64 content: {}", e))?;
+
+    // Write content to temp file
+    temp_file
+        .write_all(&decoded_content)
+        .map_err(|e| format!("Failed to write to temporary file: {}", e))?;
+    
+    // Create multipart form
+    let form = reqwest::multipart::Form::new()
+        .part(
+            "file",
+            reqwest::multipart::Part::bytes(decoded_content)
+                .file_name(file_name.clone())
+                .mime_str(&mime_type)
+                .map_err(|e| format!("Failed to set MIME type: {}", e))?,
+        );
+
+    // Make request to upload endpoint
+    let client = reqwest::Client::new();
+    let url = "http://localhost:7777/knowledge/upload";
+    
+    let response = client
+        .post(url)
+        .multipart(form)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to upload file: {}", e))?;
+
+    if response.status().is_success() {
+        let data: Value = response.json().await
+            .map_err(|e| format!("Failed to parse upload response: {}", e))?;
+        Ok(data)
+    } else {
+        let status = response.status();
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        Err(format!("Upload failed with status {}: {}", status, error_text))
+    }
+}
+
+// Goal management commands
+#[tauri::command]
+pub async fn create_goal(
+    name: String,
+    description: String,
+    metadata: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let payload = serde_json::json!({
+        "name": name,
+        "description": description,
+        "metadata": metadata.unwrap_or(serde_json::json!({}))
+    });
+
+    match make_agent_server_request("POST", "/api/goals", Some(payload)).await {
+        Ok(response) => Ok(response),
+        Err(e) => Err(format!("Failed to create goal: {}", e)),
+    }
+}
+
+// Todo management commands
+#[tauri::command]
+pub async fn create_todo(
+    name: String,
+    description: Option<String>,
+    priority: Option<i32>,
+    todo_type: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let payload = serde_json::json!({
+        "name": name,
+        "description": description,
+        "priority": priority.unwrap_or(1),
+        "type": todo_type.unwrap_or_else(|| "one-off".to_string())
+    });
+
+    match make_agent_server_request("POST", "/api/todos", Some(payload)).await {
+        Ok(response) => Ok(response),
+        Err(e) => Err(format!("Failed to create todo: {}", e)),
+    }
+}
+
+// Logs endpoint
+#[tauri::command]
+pub async fn fetch_logs(
+    log_type: Option<String>,
+    limit: Option<i32>,
+) -> Result<serde_json::Value, String> {
+    let mut query_params = vec![];
+    
+    if let Some(t) = log_type {
+        query_params.push(format!("type={}", t));
+    }
+    if let Some(l) = limit {
+        query_params.push(format!("limit={}", l));
+    }
+
+    let query_string = if query_params.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", query_params.join("&"))
+    };
+
+    let endpoint = format!("/api/logs{}", query_string);
+
+    match make_agent_server_request("GET", &endpoint, None).await {
+        Ok(response) => Ok(response),
+        Err(e) => {
+            // If logs endpoint doesn't exist on server, return empty logs
+            warn!("Logs endpoint not available: {}", e);
+            Ok(serde_json::json!({
+                "success": true,
+                "data": {
+                    "logs": []
+                }
+            }))
+        }
+    }
 }

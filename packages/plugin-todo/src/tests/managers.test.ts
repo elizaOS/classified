@@ -1,4 +1,3 @@
-// FIXME: @elizaos/core/test-utils not properly exported in build - commenting out imports until core issue is resolved
 import { describe, it, expect } from 'bun:test';
 import { CacheManager } from '../services/cacheManager';
 import { NotificationManager } from '../services/notificationManager';
@@ -6,7 +5,6 @@ import { createMockRuntime } from './test-utils';
 import type { IAgentRuntime, UUID } from '@elizaos/core';
 
 describe('Internal Managers', () => {
-  // @ts-ignore - test mock
   const mockRuntime: IAgentRuntime = createMockRuntime({
     emitEvent: () => Promise.resolve(),
   });

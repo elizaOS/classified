@@ -337,6 +337,10 @@ const messageReceivedHandler = async ({
     const runId = runtime.startRun();
     const startTime = Date.now();
 
+    callback({
+      text: '[Message received]',
+    });
+
     // Emit run started event
     await runtime.emitEvent(EventType.RUN_STARTED, {
       runtime,

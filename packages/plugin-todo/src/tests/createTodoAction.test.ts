@@ -1,5 +1,12 @@
 // FIXME: @elizaos/core/test-utils not properly exported in build - commenting out imports until core issue is resolved
-import { ChannelType, type HandlerCallback, type IAgentRuntime, type Memory, type State, type UUID } from '@elizaos/core';
+import {
+  ChannelType,
+  type HandlerCallback,
+  type IAgentRuntime,
+  type Memory,
+  type State,
+  type UUID,
+} from '@elizaos/core';
 import { describe, expect, it } from 'bun:test';
 import { createTodoAction } from '../actions/createTodo';
 import { createMockRuntime } from './test-utils';

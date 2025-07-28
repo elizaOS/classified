@@ -100,10 +100,6 @@ export interface MemoryResult {
   metadata?: any;
 }
 
-type PluginConfig = {
-  [key: string]: any;
-};
-
 class TauriServiceClass {
   private tauriInvoke: any = null;
   private tauriListen: any = null;
@@ -156,7 +152,7 @@ class TauriServiceClass {
 
   private async setupEventListeners(): Promise<void> {
     // Helper function to emit message with deduplication
-    const emitMessage = (message: TauriMessage, source: string) => {
+    const emitMessage = (message: TauriMessage, _source: string) => {
       // Ensure message has an ID
       if (!message.id) {
         message.id = uuidv4();
@@ -441,6 +437,28 @@ class TauriServiceClass {
     return [];
   }
 
+  public async createGoal(name: string, description: string, metadata?: any): Promise<void> {
+    await this.ensureInitializedAndInvoke('create_goal', {
+      name,
+      description,
+      metadata: metadata || {},
+    });
+  }
+
+  public async createTodo(
+    name: string,
+    description?: string,
+    priority?: number,
+    todoType?: string
+  ): Promise<void> {
+    await this.ensureInitializedAndInvoke('create_todo', {
+      name,
+      description,
+      priority: priority || 1,
+      todo_type: todoType || 'one-off',
+    });
+  }
+
   public async fetchKnowledgeFiles(): Promise<TauriKnowledgeFile[]> {
     const response = await this.ensureInitializedAndInvoke('fetch_knowledge_files');
     if (response.success && response.data) {
@@ -657,6 +675,17 @@ class TauriServiceClass {
   // Agent management
   public async resetAgent(): Promise<void> {
     await this.ensureInitializedAndInvoke('reset_agent');
+  }
+
+  public async fetchLogs(logType?: string, limit?: number): Promise<any[]> {
+    const response = await this.ensureInitializedAndInvoke('fetch_logs', {
+      log_type: logType,
+      limit: limit || 100,
+    });
+    if (response.success && response.data) {
+      return response.data.logs || [];
+    }
+    return [];
   }
 
   public async getAgentInfo(): Promise<{ id: string; name: string; version: string }> {

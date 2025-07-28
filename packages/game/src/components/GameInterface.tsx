@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SecurityWarning, SECURITY_CAPABILITIES } from './SecurityWarning';
 import { InputValidator, SecurityLogger } from '../utils/SecurityUtils';
 import { ContainerLogs } from './ContainerLogs';
+import { AgentLogs } from './AgentLogs';
 // Services replaced by TauriService for complete IPC integration
 
 // Tauri environment detection is handled by TauriService
@@ -20,7 +21,6 @@ interface PluginToggleState {
   camera: boolean;
   screen: boolean;
   microphone: boolean;
-  speakers: boolean;
   shell: boolean;
   browser: boolean;
 }
@@ -41,7 +41,6 @@ const UltraSimpleButtons: React.FC<{
     camera: false,
     screen: false,
     microphone: false,
-    speakers: false,
     shell: false,
     browser: false,
   });
@@ -142,20 +141,6 @@ const UltraSimpleButtons: React.FC<{
       </div>
 
       <div
-        style={buttonStyle(states.speakers, isTogglingState.speakers)}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('CLICKED: speakers');
-          handleClick('speakers');
-        }}
-        data-testid="speakers-toggle"
-      >
-        <span data-testid="speakers-toggle-status">{states.speakers ? '●' : '○'}</span>
-        <span>{isTogglingState.speakers ? '...' : 'SPK'}</span>
-      </div>
-
-      <div
         style={buttonStyle(states.shell, isTogglingState.shell)}
         onClick={(e) => {
           e.preventDefault();
@@ -219,7 +204,6 @@ export const GameInterface: React.FC = () => {
     camera: false,
     screen: false,
     microphone: false,
-    speakers: false,
     shell: false,
     browser: false,
   });
@@ -236,6 +220,7 @@ export const GameInterface: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<
     'goals' | 'todos' | 'monologue' | 'files' | 'config' | 'logs'
   >('goals');
+  const [logsSubTab, setLogsSubTab] = useState<'agent' | 'container'>('agent');
   // Config dialog removed - not currently used
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [knowledgeFiles, setKnowledgeFiles] = useState<
@@ -396,7 +381,6 @@ export const GameInterface: React.FC = () => {
           case 'camera':
           case 'screen':
           case 'microphone':
-          case 'speakers':
           case 'shell':
           case 'browser':
             newState = !plugins[capability as keyof PluginToggleState];
@@ -473,7 +457,6 @@ export const GameInterface: React.FC = () => {
           screen: false,
           camera: false,
           microphone: false,
-          speakers: false,
           shell: false,
           browser: false,
         });
@@ -643,7 +626,6 @@ export const GameInterface: React.FC = () => {
         camera: data.ENABLE_CAMERA === 'true' || data.VISION_CAMERA_ENABLED === 'true',
         screen: data.ENABLE_SCREEN_CAPTURE === 'true' || data.VISION_SCREEN_ENABLED === 'true',
         microphone: data.ENABLE_MICROPHONE === 'true' || data.VISION_MICROPHONE_ENABLED === 'true',
-        speakers: data.ENABLE_SPEAKER === 'true' || data.VISION_SPEAKER_ENABLED === 'true',
       };
 
       console.log('[FETCH] fetchVisionSettings updating vision settings to:', visionUpdates);
@@ -1528,8 +1510,24 @@ export const GameInterface: React.FC = () => {
 
       case 'logs':
         return (
-          <div className="status-content" data-testid="logs-content">
-            <ContainerLogs />
+          <div className="status-content logs-tab-content" data-testid="logs-content">
+            <div className="logs-subtabs">
+              <button
+                className={`logs-subtab ${logsSubTab === 'agent' ? 'active' : ''}`}
+                onClick={() => setLogsSubTab('agent')}
+              >
+                Agent Logs
+              </button>
+              <button
+                className={`logs-subtab ${logsSubTab === 'container' ? 'active' : ''}`}
+                onClick={() => setLogsSubTab('container')}
+              >
+                Container Logs
+              </button>
+            </div>
+            <div className="logs-content">
+              {logsSubTab === 'agent' ? <AgentLogs /> : <ContainerLogs />}
+            </div>
           </div>
         );
 
@@ -1540,6 +1538,49 @@ export const GameInterface: React.FC = () => {
 
   return (
     <div className="terminal-container" data-testid="game-interface">
+      <style>{`
+        .logs-tab-content {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+        
+        .logs-subtabs {
+          display: flex;
+          gap: 8px;
+          padding: 8px;
+          border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+          background: rgba(0, 0, 0, 0.6);
+        }
+        
+        .logs-subtab {
+          padding: 6px 16px;
+          background: rgba(0, 50, 0, 0.4);
+          border: 1px solid rgba(0, 255, 0, 0.3);
+          color: #00ff00;
+          font-size: 12px;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition: all 0.2s;
+          font-family: inherit;
+        }
+        
+        .logs-subtab:hover {
+          background: rgba(0, 100, 0, 0.4);
+          border-color: rgba(0, 255, 0, 0.5);
+        }
+        
+        .logs-subtab.active {
+          background: rgba(0, 150, 0, 0.6);
+          border-color: #00ff00;
+          box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+        }
+        
+        .logs-content {
+          flex: 1;
+          overflow: hidden;
+        }
+      `}</style>
       {/* Connection Status */}
       <div
         className={`connection-status ${effectiveIsConnected ? 'connected' : 'disconnected'}`}

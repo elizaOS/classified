@@ -1,4 +1,3 @@
-use app_lib::ContainerState;
 use std::time::Duration;
 use tokio::time::timeout;
 
@@ -149,7 +148,7 @@ async fn test_full_container_stack_integration() {
 async fn test_container_health_monitoring() {
     println!("🧪 Testing container health monitoring...");
     
-    let ctx = match TestContext::new().await {
+    let _ctx = match TestContext::new().await {
         Ok(ctx) => ctx,
         Err(_) => {
             println!("⚠️ No container runtime available, skipping test");
@@ -158,7 +157,7 @@ async fn test_container_health_monitoring() {
     };
 
     // Use a unique container name to avoid conflicts
-    let container_name = unique_container_name("health-test");
+    let _container_name = unique_container_name("health-test");
     
     // For this test, we'll use PostgreSQL as it has a built-in health check
     println!("📦 Starting container for health monitoring test...");
@@ -247,7 +246,7 @@ async fn test_container_network_connectivity() {
 async fn test_container_volume_persistence() {
     println!("🧪 Testing container volume persistence...");
     
-    let ctx = match TestContext::new().await {
+    let _ctx = match TestContext::new().await {
         Ok(ctx) => ctx,
         Err(_) => {
             println!("⚠️ No container runtime available, skipping test");

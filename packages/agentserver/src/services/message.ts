@@ -345,7 +345,7 @@ export class MessageBusService extends Service {
         id: agentWorldId,
         name: message.metadata?.serverName || `Server ${serverId.substring(0, 8)}`,
         agentId: this.runtime.agentId,
-        serverId: serverId,
+        serverId,
         metadata: {
           ...(message.metadata?.serverMetadata || {}),
         },
@@ -366,8 +366,8 @@ export class MessageBusService extends Service {
         name: message.metadata?.channelName || `Channel ${channelId.substring(0, 8)}`,
         agentId: this.runtime.agentId,
         worldId: agentWorldId,
-        channelId: channelId,
-        serverId: serverId,
+        channelId,
+        serverId,
         source: message.sourceType || 'central-bus',
         type: message.metadata?.channelType || ChannelType.GROUP,
         metadata: {
@@ -400,7 +400,7 @@ export class MessageBusService extends Service {
         names: [authorDisplayName || `User-${authorId.substring(0, 8)}`],
         agentId: this.runtime.agentId,
         metadata: {
-          authorId: authorId,
+          authorId,
           source: sourceType,
         },
       });
@@ -439,7 +439,7 @@ export class MessageBusService extends Service {
       roomId: agentRoomId,
       worldId: agentWorldId,
       content: messageContent,
-      createdAt: createdAt,
+      createdAt,
       metadata: {
         type: 'message',
         source: sourceType || 'central-bus',

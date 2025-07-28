@@ -2,18 +2,17 @@ import {
   type Action,
   type ActionExample,
   composePrompt,
-  type HandlerCallback,
+  formatMessages,
+  HandlerCallback,
   type IAgentRuntime,
   logger,
   type Memory,
   ModelType,
   parseKeyValueXml,
   type State,
-  formatMessages,
   type UUID,
 } from '@elizaos/core';
-import type { Action } from '@elizaos/core';
-import type { TodoDataServiceWrapper, TodoData } from '../services/todoDataService';
+import type { TodoData, TodoDataServiceWrapper } from '../services/todoDataService';
 
 // Interface for task cancellation properties
 interface TaskCancellation {
@@ -116,16 +115,25 @@ export const cancelTodoAction: Action = {
     return true;
   },
 
-  handler: async (runtime: IAgentRuntime, message: Memory, state: State, callback: any) => {
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    state: State | undefined,
+    _options: any,
+    callback: HandlerCallback | undefined
+  ) => {
     logger.info('[cancelTodo] Handler invoked', { messageContent: message.content.text });
 
     const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
     if (!dataService) {
       logger.error('[cancelTodo] Todo service not available');
-      await callback({
-        text: 'Sorry, the todo service is not available right now. Please try again later.',
-        error: true,
-      });
+      if (callback) {
+        await callback({
+          text: 'Sorry, the todo service is not available right now. Please try again later.',
+          error: true,
+          source: message.content.source,
+        });
+      }
       return {
         success: false,
         values: {
@@ -153,12 +161,7 @@ export const cancelTodoAction: Action = {
       }
 
       // Extract which task the user wants to cancel
-      const taskCancellation = await extractTaskCancellation(
-        runtime,
-        message,
-        allTodos,
-        state
-      );
+      const taskCancellation = await extractTaskCancellation(runtime, message, allTodos, state!);
 
       if (!taskCancellation.isFound) {
         if (callback) {

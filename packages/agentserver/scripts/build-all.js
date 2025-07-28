@@ -33,11 +33,7 @@ async function cleanContainerCache() {
     }
 
     // Remove existing agent container images to force fresh build
-    const agentImages = [
-      'eliza-agent-server:latest',
-      'eliza-agent:latest',
-      'eliza-agent-working:latest',
-    ];
+    const agentImages = ['eliza-agent:latest', 'eliza-agent:latest', 'eliza-agent-working:latest'];
 
     for (const image of agentImages) {
       try {
@@ -51,7 +47,7 @@ async function cleanContainerCache() {
     }
 
     // Stop and remove any running agent containers
-    const containerNames = ['eliza-agent', 'eliza-agent-server'];
+    const containerNames = ['eliza-agent', 'eliza-agent'];
     for (const name of containerNames) {
       try {
         console.log(`🛑 Stopping and removing container: ${name}`);
@@ -212,7 +208,7 @@ async function buildEverything() {
     }
 
     // Build the image for the native platform architecture
-    const imageName = 'eliza-agent-server:latest';
+    const imageName = 'eliza-agent:latest';
 
     // Build for native architecture to avoid Rosetta issues
     const arch = process.arch;
@@ -244,9 +240,9 @@ async function buildEverything() {
     console.log(
       `   - Binaries: ${path.relative(process.cwd(), path.join(__dirname, '..', 'dist-binaries'))}/server-linux-amd64, server-linux-arm64`
     );
-    console.log('   - Image:   eliza-agent-server:latest');
+    console.log('   - Image:   eliza-agent:latest');
     console.log('\n🚀 The Rust container manager can now start the agent using:');
-    console.log('   podman run -p 7777:7777 eliza-agent-server:latest');
+    console.log('   podman run -p 7777:7777 eliza-agent:latest');
   } catch (error) {
     console.error('\n❌ Build failed:', error.message);
     process.exit(1);

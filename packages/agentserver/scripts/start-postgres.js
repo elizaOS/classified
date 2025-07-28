@@ -115,7 +115,7 @@ async function startPostgres() {
       // Create and start the container
       console.log('🚀 Creating new PostgreSQL container...');
       const initScript = path.join(__dirname, 'init-postgres.sql');
-      
+
       execSync(
         `${runtime} run -d --name ${CONTAINER_NAME} ` +
           `--network ${NETWORK_NAME} ` +

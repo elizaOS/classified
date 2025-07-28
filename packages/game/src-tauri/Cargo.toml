@@ -1,11 +1,13 @@
 [package]
 name = "app"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "ElizaOS Game - High-performance Rust backend"
+authors = ["ElizaOS Team"]
+license = ""
+repository = ""
+default-run = "app"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+rust-version = "1.60"
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
@@ -14,6 +16,7 @@ edition = "2021"
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Tauri build paths
 [build-dependencies]
 tauri-build = { version = "2.0.0", features = [] }
 
@@ -42,7 +45,9 @@ tower-http = { version = "0.5", features = ["cors"] }
 
 # Container runtime dependencies
 bollard = "0.16"
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", features = ["json", "multipart"] }
+base64 = "0.21"
+tempfile = "3.8"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres"] }
 
 # Async utilities
@@ -56,3 +61,6 @@ tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 
 # File system utilities
 walkdir = "2"
+
+# System information
+sysinfo = "0.31"

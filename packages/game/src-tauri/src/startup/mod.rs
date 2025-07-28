@@ -5,6 +5,16 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use tracing::{error, info, warn};
 
+mod memory;
+pub use memory::{MemoryConfig, ContainerMemoryLimits};
+
+#[derive(Debug, Clone)]
+enum OllamaStatus {
+    ContainerizedRunning,  // Our containerized Ollama on port 17777
+    NativeRunning,         // Native Ollama installation on port 11434
+    NotRunning,           // No Ollama found
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StartupStatus {
     pub stage: StartupStage,
@@ -86,21 +96,149 @@ impl StartupManager {
 
         // First check if ElizaOS server is already running
         if let Ok(true) = self.check_existing_server().await {
-            info!("✅ Found existing ElizaOS server - skipping container setup");
+            info!("✅ Found existing ElizaOS server - checking Ollama status");
+            
+            // Even with existing server, we need to ensure Ollama is running
             self.update_status(
-                StartupStage::MessageServerReady,
-                90,
-                "ElizaOS server detected",
-                "Using existing server instance",
+                StartupStage::DetectingRuntime,
+                10,
+                "Checking container runtime...",
+                "Ensuring Podman and Ollama are ready",
             )
             .await;
 
-            // Skip directly to ready
+            // Ensure Podman is ready
+            if let Err(e) = self.ensure_podman_ready().await {
+                error!("Podman setup failed: {}", e);
+                self.update_status(
+                    StartupStage::Error,
+                    0,
+                    "Podman setup failed",
+                    &format!(
+                        "Please run 'podman machine start' and try again. Error: {}",
+                        e
+                    ),
+                )
+                .await;
+                return Err(e);
+            }
+
+            // Initialize container manager if needed
+            if self.container_manager.is_none() {
+                match ContainerManager::new_with_runtime_manager(ContainerRuntimeType::Podman, resource_dir.clone())
+                    .await
+                {
+                    Ok(mut manager) => {
+                        manager.set_app_handle(self.app_handle.clone());
+                        
+                        // Calculate and set memory limits based on system resources
+                        let memory_config = MemoryConfig::calculate();
+                        if memory_config.has_sufficient_memory {
+                            let container_limits = memory_config.get_container_limits();
+                            manager.set_memory_limits(container_limits);
+                        }
+                        
+                        self.container_manager = Some(Arc::new(manager));
+                    }
+                    Err(e) => {
+                        error!("Failed to create container manager: {}", e);
+                        self.update_status(
+                            StartupStage::Error,
+                            0,
+                            "Container runtime initialization failed",
+                            &format!("Error: {}", e),
+                        )
+                        .await;
+                        return Err(e);
+                    }
+                }
+            }
+
+            // Check and start Ollama if needed
+            self.update_status(
+                StartupStage::StartingOllama,
+                40,
+                "Checking Ollama status...",
+                "Ensuring AI model server is running",
+            )
+            .await;
+
+            // Check current Ollama status
+            let ollama_status = self.check_ollama_status().await?;
+            
+            match ollama_status {
+                OllamaStatus::ContainerizedRunning => {
+                    info!("✅ Our containerized Ollama is already running on eliza-network");
+                }
+                OllamaStatus::NativeRunning | OllamaStatus::NotRunning => {
+                    let status_msg = match ollama_status {
+                        OllamaStatus::NativeRunning => "Found Ollama on port 11434, but need our container for network isolation",
+                        _ => "No Ollama detected",
+                    };
+                    
+                    info!("🔍 {}", status_msg);
+                    info!("🚀 Starting our containerized Ollama on eliza-network");
+                    
+                    if let Some(manager) = &self.container_manager {
+                        // Create network if it doesn't exist
+                        if let Err(e) = manager.ensure_network_exists("eliza-network").await {
+                            warn!("Failed to ensure network exists: {}", e);
+                        }
+                        
+                        // Start our Ollama on eliza-network
+                        match manager.start_ollama().await {
+                            Ok(_) => {
+                                info!("✅ Containerized Ollama started successfully on eliza-network");
+                                
+                                // Wait for health check
+                                if let Err(e) = manager.wait_for_container_health("eliza-ollama", std::time::Duration::from_secs(60)).await {
+                                    error!("Ollama health check failed: {}", e);
+                                    self.update_status(
+                                        StartupStage::Error,
+                                        0,
+                                        "Ollama startup failed",
+                                        &format!("Failed to start AI model server: {}", e),
+                                    )
+                                    .await;
+                                    return Err(e);
+                                }
+                                
+                                // Pull models
+                                self.update_status(
+                                    StartupStage::DownloadingModels,
+                                    60,
+                                    "Downloading AI models...",
+                                    "Pulling required models for agent operation",
+                                )
+                                .await;
+                                
+                                if let Err(e) = manager.pull_ollama_models().await {
+                                    error!("Failed to pull Ollama models: {}", e);
+                                    warn!("⚠️ Some models may not be available: {}", e);
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to start Ollama: {}", e);
+                                self.update_status(
+                                    StartupStage::Error,
+                                    0,
+                                    "Ollama startup failed",
+                                    &format!("Failed to start AI model server: {}", e),
+                                )
+                                .await;
+                                return Err(e);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Now we're ready with existing server + Ollama
             self.update_status(
                 StartupStage::Ready,
                 100,
                 "Ready to use ELIZA",
-                "Connected to existing ElizaOS server",
+                "Connected to existing ElizaOS server with Ollama",
             )
             .await;
 
@@ -146,6 +284,13 @@ impl StartupManager {
             Ok(mut manager) => {
                 // Set the app handle for event emission
                 manager.set_app_handle(self.app_handle.clone());
+                
+                // Calculate and set memory limits based on system resources
+                let memory_config = MemoryConfig::calculate();
+                if memory_config.has_sufficient_memory {
+                    let container_limits = memory_config.get_container_limits();
+                    manager.set_memory_limits(container_limits);
+                }
 
                 self.container_manager = Some(Arc::new(manager));
                 self.update_status(
@@ -254,6 +399,46 @@ impl StartupManager {
                 Ok(false)
             }
         }
+    }
+
+    async fn check_ollama_status(&self) -> BackendResult<OllamaStatus> {
+        info!("🔍 Checking Ollama availability...");
+        
+        // Check if our containerized Ollama is running
+        if let Some(manager) = &self.container_manager {
+            match manager.get_container_status("eliza-ollama").await {
+                Ok(status) if matches!(status.health, crate::backend::HealthStatus::Healthy) => {
+                    info!("✅ Found containerized Ollama (eliza-ollama) running and healthy");
+                    return Ok(OllamaStatus::ContainerizedRunning);
+                }
+                Ok(status) => {
+                    info!("📍 Found eliza-ollama container but it's not healthy: {:?}", status.health);
+                }
+                Err(e) => {
+                    info!("📍 No eliza-ollama container found: {}", e);
+                }
+            }
+        }
+        
+        // Check if native Ollama is running on default port
+        let client = reqwest::Client::new();
+        match client
+            .get("http://localhost:11434/api/version")
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => {
+                info!("🔍 Found Ollama on port 11434 (could be native or another container)");
+                // We still need our own container for network isolation
+                return Ok(OllamaStatus::NativeRunning);
+            }
+            _ => {
+                info!("❌ No Ollama service found");
+            }
+        }
+        
+        Ok(OllamaStatus::NotRunning)
     }
 
     async fn setup_containers(&mut self) -> BackendResult<()> {
@@ -437,6 +622,35 @@ impl StartupManager {
             Err(_) => true, // Assume we need to start if we can't check
         };
 
+        // Check and configure memory before starting the machine
+        info!("🧠 Checking system memory and Podman machine configuration...");
+        let memory_config = MemoryConfig::calculate();
+        
+        if !memory_config.has_sufficient_memory {
+            return Err(BackendError::Container(format!(
+                "Insufficient system memory. System has {:.1} GB, but at least 7.5 GB is recommended for running llama3.2:3b model",
+                memory_config.total_system_memory_mb as f64 / 1024.0
+            )));
+        }
+        
+        // Check if memory adjustment is needed
+        if memory_config.needs_memory_adjustment().await? {
+            info!("📊 Adjusting Podman machine memory allocation...");
+            self.update_status(
+                StartupStage::DetectingRuntime,
+                15,
+                "Configuring memory allocation...",
+                &format!(
+                    "Setting Podman machine memory to {:.1} GB based on system memory",
+                    memory_config.podman_machine_memory_mb as f64 / 1024.0
+                ),
+            )
+            .await;
+            
+            // Apply the memory configuration
+            memory_config.apply_to_podman_machine().await?;
+        }
+
         if needs_start {
             info!("🚀 Starting Podman machine...");
             
@@ -523,20 +737,20 @@ impl StartupManager {
     }
 
     async fn ensure_agentserver_image(&self) -> BackendResult<()> {
-        info!("🔍 Checking for eliza-agent-server:latest image...");
+        info!("🔍 Checking for eliza-agent:latest image...");
 
         let output = tokio::process::Command::new("podman")
-            .args(["image", "exists", "eliza-agent-server:latest"])
+            .args(["image", "exists", "eliza-agent:latest"])
             .output()
             .await
             .map_err(|e| BackendError::Container(format!("Failed to check image: {}", e)))?;
 
         if output.status.success() {
-            info!("✅ eliza-agent-server:latest image found");
+            info!("✅ eliza-agent:latest image found");
             return Ok(());
         }
 
-        warn!("⚠️ eliza-agent-server:latest image not found, building...");
+        warn!("⚠️ eliza-agent:latest image not found, building...");
 
         // Change to agentserver directory and build
         let current_dir = std::env::current_dir().map_err(|e| {
@@ -611,7 +825,7 @@ impl StartupManager {
                 "-f",
                 "Dockerfile.standalone",
                 "-t",
-                "eliza-agent-server:latest",
+                "eliza-agent:latest",
                 ".",
             ])
             .current_dir(&agentserver_dir)
@@ -627,7 +841,7 @@ impl StartupManager {
             )));
         }
 
-        info!("✅ eliza-agent-server:latest image built successfully");
+        info!("✅ eliza-agent:latest image built successfully");
         Ok(())
     }
 

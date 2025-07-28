@@ -205,8 +205,9 @@ export const createTodoAction: Action = {
         });
         todo = pendingTask;
       } else {
-        // Step 2: Extract task info from current message  
-        const composedState = state || (await runtime.composeState(message, ['TODOS', 'RECENT_MESSAGES']));
+        // Step 2: Extract task info from current message
+        const composedState =
+          state || (await runtime.composeState(message, ['TODOS', 'RECENT_MESSAGES']));
         todo = await extractTodoInfo(runtime, message, composedState);
         if (!todo) {
           const errorResponse = `I couldn't understand the task details. Please describe what you'd like to add to your todo list.

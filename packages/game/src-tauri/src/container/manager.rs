@@ -24,6 +24,7 @@ pub struct ContainerManager {
     app_handle: Option<AppHandle>,
     resource_dir: Option<std::path::PathBuf>,
     podman_restart_mutex: Arc<Mutex<()>>,
+    memory_limits: Option<crate::startup::ContainerMemoryLimits>,
 }
 
 #[derive(Debug, Clone)]
@@ -125,6 +126,7 @@ impl ContainerManager {
             app_handle: None,
             resource_dir: None,
             podman_restart_mutex: Arc::new(Mutex::new(())),
+            memory_limits: None,
         })
     }
 
@@ -183,6 +185,7 @@ impl ContainerManager {
                     app_handle: None,
                     resource_dir: Some(resource_dir),
                     podman_restart_mutex: Arc::new(Mutex::new(())),
+                    memory_limits: None,
                 })
             }
             Err(e) => {
@@ -197,6 +200,15 @@ impl ContainerManager {
         self.app_handle = Some(app_handle);
     }
 
+    /// Set the memory limits for containers based on system resources
+    pub fn set_memory_limits(&mut self, limits: crate::startup::ContainerMemoryLimits) {
+        info!(
+            "Setting container memory limits - Ollama: {} MB, PostgreSQL: {} MB, Agent: {} MB",
+            limits.ollama_mb, limits.postgres_mb, limits.agent_mb
+        );
+        self.memory_limits = Some(limits);
+    }
+
     /// Starts a `PostgreSQL` container with default configuration.
     ///
     /// # Errors
@@ -208,6 +220,12 @@ impl ContainerManager {
     pub async fn start_postgres(&self) -> BackendResult<ContainerStatus> {
         self.setup_postgres_init_scripts().await?;
         info!("Starting PostgreSQL container");
+
+        // Use dynamic memory limit or fallback to default
+        let memory_limit = self.memory_limits
+            .as_ref()
+            .map(|limits| limits.postgres_limit_str())
+            .unwrap_or_else(|| "2g".to_string());
 
         let config = ContainerConfig {
             name: "eliza-postgres".to_string(),
@@ -225,7 +243,7 @@ impl ContainerManager {
             ],
             health_check: Some(HealthCheckConfig::postgres_default()),
             network: Some("eliza-network".to_string()),
-            memory_limit: Some("2g".to_string()),
+            memory_limit: Some(memory_limit),
         };
 
         let status = self.start_container(config).await?;
@@ -249,34 +267,24 @@ impl ContainerManager {
     /// - Container startup fails
     /// - Health check configuration is invalid
     pub async fn start_ollama(&self) -> BackendResult<ContainerStatus> {
-        info!("Checking for Ollama service");
+        info!("Starting Ollama container");
 
-        // Check if Ollama is already running on port 11434
-        if self.is_ollama_already_running().await {
-            info!("✅ Found existing Ollama instance running on port 11434, using it instead of starting a container");
-            return Ok(ContainerStatus {
-                id: "native-ollama".to_string(),
-                name: "ollama-native".to_string(),
-                state: ContainerState::Running,
-                health: HealthStatus::Healthy,
-                ports: vec![PortMapping::new(11434, 11434)],
-                started_at: Some(chrono::Utc::now().timestamp()),
-                uptime_seconds: 0,
-                restart_count: 0,
-            });
-        }
+        // Use dynamic memory limit or fallback to default
+        let memory_limit = self.memory_limits
+            .as_ref()
+            .map(|limits| limits.ollama_limit_str())
+            .unwrap_or_else(|| "8g".to_string());
 
-        info!("No existing Ollama found, starting Ollama container");
-
+        // Start our Ollama container on the eliza-network with standard port 11434
         let config = ContainerConfig {
             name: "eliza-ollama".to_string(),
             image: "ollama/ollama:latest".to_string(),
-            ports: vec![PortMapping::new(11434, 11434)],
+            ports: vec![PortMapping::new(11434, 11434)], // Standard Ollama port for compatibility
             environment: vec!["OLLAMA_PORT=11434".to_string()],
             volumes: vec![VolumeMount::new("eliza-ollama-data", "/root/.ollama")],
             health_check: Some(HealthCheckConfig::ollama_default()),
             network: Some("eliza-network".to_string()),
-            memory_limit: Some("16g".to_string()), // 16GB for Ollama to handle large models
+            memory_limit: Some(memory_limit),
         };
 
         let status = self.start_container(config).await?;
@@ -295,14 +303,13 @@ impl ContainerManager {
     ) -> BackendResult<Option<ModelDownloadProgress>> {
         debug!("Getting download progress for model: {}", model);
 
-        // Check if we're using native Ollama
-        let is_native = self.is_ollama_already_running().await;
-        
-        // Query Ollama API
-        let output = if is_native {
-            // For native Ollama, run curl directly
-            tokio::process::Command::new("curl")
+        // Always use containerized Ollama
+        let output = match &self.runtime {
+            ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
                 .args([
+                    "exec",
+                    "eliza-ollama",
+                    "curl",
                     "-s",
                     "http://localhost:11434/api/show",
                     "-d",
@@ -312,41 +319,22 @@ impl ContainerManager {
                 .await
                 .map_err(|e| {
                     BackendError::Container(format!("Failed to query ollama API: {}", e))
-                })?
-        } else {
-            // For containerized Ollama, use curl inside the container
-            match &self.runtime {
-                ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
-                    .args([
-                        "exec",
-                        "eliza-ollama",
-                        "curl",
-                        "-s",
-                        "http://localhost:11434/api/show",
-                        "-d",
-                        &format!(r#"{{"name":"{}"}}"#, model),
-                    ])
-                    .output()
-                    .await
-                    .map_err(|e| {
-                        BackendError::Container(format!("Failed to query ollama API: {}", e))
-                    })?,
-                ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
-                    .args([
-                        "exec",
-                        "eliza-ollama",
-                        "curl",
-                        "-s",
-                        "http://localhost:11434/api/show",
-                        "-d",
-                        &format!(r#"{{"name":"{}"}}"#, model),
-                    ])
-                    .output()
-                    .await
-                    .map_err(|e| {
-                        BackendError::Container(format!("Failed to query ollama API: {}", e))
-                    })?,
-            }
+                })?,
+            ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
+                .args([
+                    "exec",
+                    "eliza-ollama",
+                    "curl",
+                    "-s",
+                    "http://localhost:11434/api/show",
+                    "-d",
+                    &format!(r#"{{"name":"{}"}}"#, model),
+                ])
+                .output()
+                .await
+                .map_err(|e| {
+                    BackendError::Container(format!("Failed to query ollama API: {}", e))
+                })?,
         };
 
         if !output.status.success() {
@@ -377,36 +365,22 @@ impl ContainerManager {
     async fn check_ollama_model_exists(&self, model: &str) -> BackendResult<bool> {
         debug!("Checking if Ollama model exists: {}", model);
 
-        // First check if we're using native Ollama
-        let is_native = self.is_ollama_already_running().await;
-        
-        let output = if is_native {
-            // For native Ollama, run the command directly
-            tokio::process::Command::new("ollama")
-                .args(["list"])
+        // Always use containerized Ollama
+        let output = match &self.runtime {
+            ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
+                .args(["exec", "eliza-ollama", "ollama", "list"])
                 .output()
                 .await
                 .map_err(|e| {
                     BackendError::Container(format!("Failed to list ollama models: {}", e))
-                })?
-        } else {
-            // For containerized Ollama, use exec
-            match &self.runtime {
-                ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
-                    .args(["exec", "eliza-ollama", "ollama", "list"])
-                    .output()
-                    .await
-                    .map_err(|e| {
-                        BackendError::Container(format!("Failed to list ollama models: {}", e))
-                    })?,
-                ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
-                    .args(["exec", "eliza-ollama", "ollama", "list"])
-                    .output()
-                    .await
-                    .map_err(|e| {
-                        BackendError::Container(format!("Failed to list ollama models: {}", e))
-                    })?,
-            }
+                })?,
+            ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
+                .args(["exec", "eliza-ollama", "ollama", "list"])
+                .output()
+                .await
+                .map_err(|e| {
+                    BackendError::Container(format!("Failed to list ollama models: {}", e))
+                })?,
         };
 
         if !output.status.success() {
@@ -616,6 +590,8 @@ impl ContainerManager {
         use tokio::io::{AsyncBufReadExt, BufReader};
         use tokio::process::Command;
 
+        info!("Starting to pull Ollama model: {}", model);
+
         // Start a background task to periodically check download progress via API
         let model_clone = model.to_string();
         let self_clone = self.clone();
@@ -647,78 +623,121 @@ impl ContainerManager {
             }
         });
 
-        // Check if we're using native Ollama
-        let is_native = self.is_ollama_already_running().await;
-        
-        // Execute ollama pull with streaming output
-        let mut child = if is_native {
-            // For native Ollama, run the command directly
-            Command::new("ollama")
-                .args(["pull", model])
+        // Always use containerized Ollama
+        let mut child = match &self.runtime {
+            ContainerRuntime::Podman(_) => Command::new("podman")
+                .args(["exec", "eliza-ollama", "ollama", "pull", model])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
                 .map_err(|e| {
                     BackendError::Container(format!("Failed to start ollama pull: {}", e))
-                })?
-        } else {
-            // For containerized Ollama, use exec
-            match &self.runtime {
-                ContainerRuntime::Podman(_) => Command::new("podman")
-                    .args(["exec", "eliza-ollama", "ollama", "pull", model])
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .spawn()
-                    .map_err(|e| {
-                        BackendError::Container(format!("Failed to start ollama pull: {}", e))
-                    })?,
-                ContainerRuntime::Docker(_) => Command::new("docker")
-                    .args(["exec", "eliza-ollama", "ollama", "pull", model])
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .spawn()
-                    .map_err(|e| {
-                        BackendError::Container(format!("Failed to start ollama pull: {}", e))
-                    })?,
-            }
+                })?,
+            ContainerRuntime::Docker(_) => Command::new("docker")
+                .args(["exec", "eliza-ollama", "ollama", "pull", model])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| {
+                    BackendError::Container(format!("Failed to start ollama pull: {}", e))
+                })?,
         };
 
-        // Get stdout for progress parsing
+        // Get stdout and stderr for progress parsing
         let stdout = child
             .stdout
             .take()
             .ok_or_else(|| BackendError::Container("Failed to capture stdout".to_string()))?;
+        
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| BackendError::Container("Failed to capture stderr".to_string()))?;
 
-        let mut reader = BufReader::new(stdout);
+        let mut stdout_reader = BufReader::new(stdout);
+        let mut stderr_reader = BufReader::new(stderr);
         let mut line = String::new();
 
-        // Stream and parse progress
-        while let Ok(bytes_read) = reader.read_line(&mut line).await {
+        // Track pull stages
+        let mut current_layer = String::new();
+
+        // First read from stderr in a separate task (Ollama often outputs to stderr)
+        let stderr_task = tokio::spawn(async move {
+            let mut err_line = String::new();
+            while let Ok(bytes_read) = stderr_reader.read_line(&mut err_line).await {
+                if bytes_read == 0 {
+                    break;
+                }
+                let trimmed = err_line.trim();
+                if !trimmed.is_empty() {
+                    info!("Ollama stderr: {}", trimmed);
+                }
+                err_line.clear();
+            }
+        });
+
+        // Stream and parse progress from stdout
+        while let Ok(bytes_read) = stdout_reader.read_line(&mut line).await {
             if bytes_read == 0 {
                 break; // EOF
             }
 
             let trimmed_line = line.trim();
             if !trimmed_line.is_empty() {
-                debug!("Ollama output: {}", trimmed_line);
+                info!("Ollama stdout: {}", trimmed_line);
 
-                // Try to parse progress from this line
-                if let Some(model_progress) = self.parse_ollama_progress(model, trimmed_line) {
-                    // Calculate overall progress (base_progress + model progress within 25% range)
-                    let overall_progress = base_progress + (model_progress.percentage / 4); // 25% range per model
-
+                // Handle different Ollama output patterns
+                if trimmed_line.contains("pulling manifest") {
                     self.update_progress_with_model(
                         "models",
-                        overall_progress,
-                        &format!("Downloading {}: {}%", model, model_progress.percentage),
-                        &format!(
-                            "{:.1}MB/{:.1}MB at {:.1}MB/s (ETA: {}s)",
-                            model_progress.current_mb,
-                            model_progress.total_mb,
-                            model_progress.speed_mbps,
-                            model_progress.eta_seconds
-                        ),
-                        Some(model_progress),
+                        base_progress + 5,
+                        &format!("Pulling manifest for {}", model),
+                        "Fetching model metadata",
+                        None,
+                    )
+                    .await;
+                } else if trimmed_line.starts_with("pulling ") && trimmed_line.contains(':') {
+                    // Extract layer ID
+                    if let Some(layer_id) = trimmed_line.split(':').nth(0) {
+                        current_layer = layer_id.replace("pulling ", "");
+                    }
+                    
+                    // Try to parse progress from this line
+                    if let Some(model_progress) = self.parse_ollama_progress(model, trimmed_line) {
+                        // Calculate overall progress (base_progress + model progress within 25% range)
+                        let overall_progress = base_progress + (model_progress.percentage / 4);
+
+                        self.update_progress_with_model(
+                            "models",
+                            overall_progress,
+                            &format!("Downloading {}: {}%", model, model_progress.percentage),
+                            &format!(
+                                "{:.1}MB/{:.1}MB at {:.1}MB/s",
+                                model_progress.current_mb,
+                                model_progress.total_mb,
+                                model_progress.speed_mbps
+                            ),
+                            Some(model_progress),
+                        )
+                        .await;
+                    } else {
+                        // Even if we can't parse detailed progress, show we're downloading
+                        self.update_progress_with_model(
+                            "models",
+                            base_progress + 10,
+                            &format!("Downloading {} layers", model),
+                            &format!("Processing layer: {}", current_layer),
+                            None,
+                        )
+                        .await;
+                    }
+                } else if trimmed_line.contains("success") || trimmed_line.contains("complete") {
+                    self.update_progress_with_model(
+                        "models",
+                        base_progress + 25,
+                        &format!("Successfully downloaded {}", model),
+                        "Model ready for use",
+                        None,
                     )
                     .await;
                 }
@@ -726,14 +745,18 @@ impl ContainerManager {
             line.clear();
         }
 
-        // Wait for the process to complete
+        // Cancel the progress task first
+        progress_task.abort();
+
+        // Wait for the child process to complete
         let exit_status = child.wait().await.map_err(|e| {
             BackendError::Container(format!("Failed to wait for ollama pull: {}", e))
         })?;
 
-        // Cancel the progress task
-        progress_task.abort();
+        // Wait for stderr task to complete
+        let _ = stderr_task.await;
 
+        // Check if the pull was successful
         if !exit_status.success() {
             return Err(BackendError::Container(format!(
                 "Ollama pull failed for model {}",
@@ -760,11 +783,11 @@ impl ContainerManager {
         let (image_name, image_exists) = match &self.runtime {
             ContainerRuntime::Podman(client) => {
                 if client
-                    .image_exists("eliza-agent-server:latest")
+                    .image_exists("eliza-agent:latest")
                     .await
                     .unwrap_or(false)
                 {
-                    ("eliza-agent-server:latest".to_string(), true)
+                    ("eliza-agent:latest".to_string(), true)
                 } else if client
                     .image_exists("eliza-agent-working:latest")
                     .await
@@ -778,16 +801,16 @@ impl ContainerManager {
                 {
                     ("eliza-agent:latest".to_string(), true)
                 } else {
-                    ("eliza-agent-server:latest".to_string(), false)
+                    ("eliza-agent:latest".to_string(), false)
                 }
             }
             ContainerRuntime::Docker(client) => {
                 if client
-                    .image_exists("eliza-agent-server:latest")
+                    .image_exists("eliza-agent:latest")
                     .await
                     .unwrap_or(false)
                 {
-                    ("eliza-agent-server:latest".to_string(), true)
+                    ("eliza-agent:latest".to_string(), true)
                 } else if client
                     .image_exists("eliza-agent-working:latest")
                     .await
@@ -801,7 +824,7 @@ impl ContainerManager {
                 {
                     ("eliza-agent:latest".to_string(), true)
                 } else {
-                    ("eliza-agent-server:latest".to_string(), false)
+                    ("eliza-agent:latest".to_string(), false)
                 }
             }
         };
@@ -809,7 +832,7 @@ impl ContainerManager {
         if !image_exists {
             warn!("ElizaOS Agent image '{}' not found", image_name);
             return Err(BackendError::Container(
-                "Agent container image not found. Please build the image first with: cd packages/agentserver && bun run build:binary linux && podman build -f Dockerfile.standalone -t eliza-agent-server:latest .".to_string()
+                "Agent container image not found. Please build the image first with: cd packages/agentserver && bun run build:binary linux && podman build -f Dockerfile.standalone -t eliza-agent:latest .".to_string()
             ));
         }
 
@@ -841,7 +864,14 @@ impl ContainerManager {
             "TEXT_PROVIDER=ollama".to_string(),
             "EMBEDDING_PROVIDER=ollama".to_string(),
             "TEXT_EMBEDDING_MODEL=nomic-embed-text".to_string(),
-            "LANGUAGE_MODEL=llama3.2:3b".to_string(),
+            "LANGUAGE_MODEL=llama3.2:1b".to_string(),
+            "OLLAMA_MODEL=llama3.2:1b".to_string(),
+            "OLLAMA_SMALL_MODEL=llama3.2:1b".to_string(),
+            "OLLAMA_LARGE_MODEL=llama3.2:1b".to_string(),
+            "SMALL_MODEL=llama3.2:1b".to_string(),
+            "LARGE_MODEL=llama3.2:1b".to_string(),
+            "TEXT_SMALL_MODEL=llama3.2:1b".to_string(),
+            "TEXT_LARGE_MODEL=llama3.2:1b".to_string(),
             // Plugin configuration
             "AUTONOMY_ENABLED=true".to_string(),
             "AUTONOMY_AUTO_START=true".to_string(),
@@ -889,7 +919,10 @@ impl ContainerManager {
             ],
             health_check: Some(HealthCheckConfig::agent_default()),
             network: Some("eliza-network".to_string()),
-            memory_limit: Some("4g".to_string()), // 4GB for agent container
+            memory_limit: Some(self.memory_limits
+                .as_ref()
+                .map(|limits| limits.agent_limit_str())
+                .unwrap_or_else(|| "4g".to_string()))
         };
 
         let status = self.start_container(config).await?;
@@ -1020,16 +1053,11 @@ impl ContainerManager {
         .await;
 
         match self.start_ollama().await {
-            Ok(status) => {
-                // Check if we're using native Ollama
-                if status.name == "ollama-native" {
-                    info!("Using native Ollama instance, skipping container health check");
-                } else {
-                    // Wait for Ollama container to be healthy
-                    if let Err(e) = self.wait_for_container_health("eliza-ollama", Duration::from_secs(60)).await {
-                        error!("Ollama container failed health check: {}", e);
-                        return Err(e);
-                    }
+            Ok(_) => {
+                // Wait for Ollama container to be healthy
+                if let Err(e) = self.wait_for_container_health("eliza-ollama", Duration::from_secs(60)).await {
+                    error!("Ollama container failed health check: {}", e);
+                    return Err(e);
                 }
             }
             Err(e) if is_retryable_error(&e) => {
@@ -1530,6 +1558,30 @@ impl ContainerManager {
         }
     }
 
+    /// Ensures a network exists, creating it if it doesn't
+    pub async fn ensure_network_exists(&self, network_name: &str) -> BackendResult<()> {
+        info!("Ensuring network exists: {}", network_name);
+        
+        // Try to create the network - most implementations will gracefully handle if it already exists
+        match self.create_network(network_name).await {
+            Ok(_) => {
+                info!("✅ Network {} is ready", network_name);
+                Ok(())
+            }
+            Err(e) => {
+                // Check if error is because network already exists
+                let error_str = e.to_string();
+                if error_str.contains("already exists") || error_str.contains("already in use") {
+                    info!("✅ Network {} already exists", network_name);
+                    Ok(())
+                } else {
+                    error!("Failed to ensure network {}: {}", network_name, e);
+                    Err(e)
+                }
+            }
+        }
+    }
+
     async fn update_progress(&self, stage: &str, progress: u8, message: &str, details: &str) {
         let mut progress_guard = self.setup_progress.write().await;
         progress_guard.stage = stage.to_string();
@@ -1624,30 +1676,69 @@ impl ContainerManager {
         let mut speed_mbps = 0.0;
         let mut eta_seconds = 0;
 
-        // Find size pattern "X.X GB/Y.Y GB"
-        for i in 0..size_parts.len().saturating_sub(2) {
-            // Check for patterns like "1.8 GB/2.0"
-            if i + 2 < size_parts.len() && size_parts[i + 1].ends_with("/") {
+        // Find size pattern like "516 MB/2.0 GB" or "1.8 GB/2.0 GB"
+        for i in 0..size_parts.len() {
+            // Look for patterns like "X MB/Y" or "X GB/Y"
+            if i + 1 < size_parts.len() && (size_parts[i + 1] == "MB/" || size_parts[i + 1] == "GB/") {
                 if let Ok(current) = size_parts[i].parse::<f64>() {
-                    current_mb = current * 1024.0; // Convert GB to MB
-                    debug!("Found current size: {} GB = {} MB", current, current_mb);
-                }
-                if let Ok(total) = size_parts[i + 2].parse::<f64>() {
-                    total_mb = total * 1024.0; // Convert GB to MB
-                    debug!("Found total size: {} GB = {} MB", total, total_mb);
+                    current_mb = if size_parts[i + 1] == "GB/" {
+                        current * 1024.0 // Convert GB to MB
+                    } else {
+                        current // Already in MB
+                    };
+                    debug!("Found current size: {} {}", current, size_parts[i + 1].trim_end_matches('/'));
                 }
             }
-            // Check for patterns like "1.8GB/2.0GB"
-            else if size_parts[i].contains("GB/") {
+            // Look for "X.X MB/Y.Y GB" pattern
+            else if i + 3 < size_parts.len() && size_parts[i + 1].ends_with("/") {
+                if let Ok(current) = size_parts[i].parse::<f64>() {
+                    let unit = size_parts[i + 1].trim_end_matches('/');
+                    current_mb = if unit == "GB" {
+                        current * 1024.0
+                    } else {
+                        current
+                    };
+                    debug!("Found current size: {} {}", current, unit);
+                }
+                if i + 3 < size_parts.len() {
+                    if let Ok(total) = size_parts[i + 2].parse::<f64>() {
+                        let unit = size_parts.get(i + 3).unwrap_or(&"GB");
+                        total_mb = if unit == &"GB" {
+                            total * 1024.0
+                        } else {
+                            total
+                        };
+                        debug!("Found total size: {} {}", total, unit);
+                    }
+                }
+            }
+            // Check for patterns like "1.8GB/2.0GB" or "516MB/2.0GB"
+            else if size_parts[i].contains('/') && (size_parts[i].contains("GB") || size_parts[i].contains("MB")) {
                 let parts: Vec<&str> = size_parts[i].split('/').collect();
                 if parts.len() == 2 {
-                    if let Ok(current) = parts[0].replace("GB", "").parse::<f64>() {
-                        current_mb = current * 1024.0;
-                        debug!("Found current size: {} GB = {} MB", current, current_mb);
+                    // Parse current size
+                    if parts[0].ends_with("GB") {
+                        if let Ok(current) = parts[0].replace("GB", "").parse::<f64>() {
+                            current_mb = current * 1024.0;
+                            debug!("Found current size: {} GB = {} MB", current, current_mb);
+                        }
+                    } else if parts[0].ends_with("MB") {
+                        if let Ok(current) = parts[0].replace("MB", "").parse::<f64>() {
+                            current_mb = current;
+                            debug!("Found current size: {} MB", current_mb);
+                        }
                     }
-                    if let Ok(total) = parts[1].replace("GB", "").parse::<f64>() {
-                        total_mb = total * 1024.0;
-                        debug!("Found total size: {} GB = {} MB", total, total_mb);
+                    // Parse total size
+                    if parts[1].ends_with("GB") {
+                        if let Ok(total) = parts[1].replace("GB", "").parse::<f64>() {
+                            total_mb = total * 1024.0;
+                            debug!("Found total size: {} GB = {} MB", total, total_mb);
+                        }
+                    } else if parts[1].ends_with("MB") {
+                        if let Ok(total) = parts[1].replace("MB", "").parse::<f64>() {
+                            total_mb = total;
+                            debug!("Found total size: {} MB", total_mb);
+                        }
                     }
                 }
             }
@@ -1865,7 +1956,7 @@ impl ContainerManager {
                     } else {
                         format!("{} {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), line)
                     };
-                    error!("[{}] {}", container_name_stderr, formatted_line);
+                    info!("[{}] {}", container_name_stderr, formatted_line);
                     
                     // Emit to frontend if app_handle is available
                     if let Some(app_handle) = &app_handle_stderr {
@@ -1964,7 +2055,7 @@ impl ContainerManager {
                     } else {
                         format!("{} {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), line)
                     };
-                    error!("[{}] {}", container_name_stderr, formatted_line);
+                    info!("[{}] {}", container_name_stderr, formatted_line);
                     
                     // Emit to frontend if app_handle is available
                     if let Some(app_handle) = &app_handle_stderr {
@@ -2114,61 +2205,6 @@ impl ContainerManager {
         }
 
         Ok(())
-    }
-
-    /// Checks if Ollama is already running on port 11434
-    async fn is_ollama_already_running(&self) -> bool {
-        info!("🔍 Checking if Ollama is already running on port 11434...");
-        
-        // Try to connect to Ollama API
-        match tokio::process::Command::new("curl")
-            .args(["-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:11434/api/tags"])
-            .output()
-            .await
-        {
-            Ok(output) => {
-                let status_code = String::from_utf8_lossy(&output.stdout);
-                if status_code.trim() == "200" {
-                    info!("✅ Ollama is already running and responding on port 11434");
-                    return true;
-                }
-            }
-            Err(_) => {
-                // curl might not be available, try alternative check
-            }
-        }
-        
-        // Alternative: Check if port is in use
-        match std::process::Command::new("lsof")
-            .args(["-ti:11434"])
-            .output()
-        {
-            Ok(output) => {
-                let pids = String::from_utf8_lossy(&output.stdout);
-                if !pids.trim().is_empty() {
-                    info!("🔍 Port 11434 is in use, checking if it's Ollama...");
-                    
-                    // Try a simple health check
-                    match tokio::process::Command::new("nc")
-                        .args(["-z", "localhost", "11434"])
-                        .output()
-                        .await
-                    {
-                        Ok(output) => {
-                            if output.status.success() {
-                                info!("✅ Port 11434 is responding, assuming Ollama is running");
-                                return true;
-                            }
-                        }
-                        Err(_) => {}
-                    }
-                }
-            }
-            Err(_) => {}
-        }
-        
-        info!("❌ No Ollama instance found on port 11434");
-        false
     }
 
     /// Check if Podman is running and attempt to restart if needed
@@ -2334,6 +2370,7 @@ impl Clone for ContainerManager {
             app_handle: self.app_handle.clone(),
             resource_dir: self.resource_dir.clone(),
             podman_restart_mutex: self.podman_restart_mutex.clone(),
+            memory_limits: self.memory_limits.clone(),
         }
     }
 }

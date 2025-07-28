@@ -2,6 +2,16 @@ import type { IAgentRuntime, Plugin, Route } from '@elizaos/core';
 import { logger, ModelType, type UUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 
+// Media stream buffer interface
+interface MediaStreamBuffer {
+  videoFrames: Uint8Array[];
+  audioChunks: Uint8Array[];
+  maxBufferSize: number;
+}
+
+// Global media buffers that vision plugin can access
+const mediaBuffers: Map<string, MediaStreamBuffer> = new Map();
+
 // Standard API response helpers
 function successResponse(data: any) {
   return {
@@ -250,103 +260,6 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
 
 // Game API Routes following ElizaOS patterns
 const gameAPIRoutes: Route[] = [
-  // ===== Messaging Stub Endpoints for MessageBusService Compatibility =====
-  // These return minimal data to prevent connection errors in single-agent game environment
-
-  // Stub endpoint for agent servers (MessageBusService expects this)
-  {
-    type: 'GET',
-    path: '/api/messaging/agents/:agentId/servers',
-    name: 'Get Agent Servers (Stub)',
-    public: true,
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
-      // Return default server for single-agent game
-      res.json({
-        success: true,
-        data: {
-          servers: ['00000000-0000-0000-0000-000000000000'], // Default server ID
-        },
-      });
-    },
-  },
-
-  // Stub endpoint for server channels (MessageBusService expects this)
-  {
-    type: 'GET',
-    path: '/api/messaging/central-servers/:serverId/channels',
-    name: 'Get Server Channels (Stub)',
-    public: true,
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
-      // Return empty channels for game environment
-      res.json({
-        success: true,
-        data: {
-          channels: [],
-        },
-      });
-    },
-  },
-
-  // Stub endpoint for channel details (MessageBusService expects this)
-  {
-    type: 'GET',
-    path: '/api/messaging/channels/:channelId',
-    name: 'Get Channel Details (Stub)',
-    public: true,
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
-      res.status(404).json({
-        success: false,
-        error: 'Channel endpoints not implemented in game mode',
-      });
-    },
-  },
-
-  // Stub endpoint for guild members (MessageBusService expects this)
-  {
-    type: 'GET',
-    path: '/api/messaging/central-servers/:serverId/members',
-    name: 'Get Guild Members (Stub)',
-    public: true,
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
-      // Return empty list for guilds in single-agent setup
-      res.json({
-        success: true,
-        data: [],
-      });
-    },
-  },
-
-  // Stub endpoint for message status (MessageBusService expects this)
-  {
-    type: 'GET',
-    path: '/api/messaging/channels/:channelId/messages/:messageId',
-    name: 'Get Message Status (Stub)',
-    public: true,
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
-      res.status(404).json({
-        success: false,
-        error: 'Message status not implemented in game mode',
-      });
-    },
-  },
-
-  // Stub endpoint for guilds (MessageBusService expects this)
-  {
-    type: 'GET',
-    path: '/api/messaging/guilds',
-    name: 'Get Guilds (Stub)',
-    public: true,
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
-      // Return empty guilds for game environment
-      res.json({
-        success: true,
-        data: {
-          guilds: [],
-        },
-      });
-    },
-  },
-
   // ===== Game-Specific Endpoints =====
 
   // Health check (custom game-specific health)
@@ -1460,6 +1373,92 @@ const gameAPIRoutes: Route[] = [
     },
   },
 
+  // Logs API endpoint
+  {
+    type: 'GET',
+    path: '/api/logs',
+    name: 'Get System Logs',
+    public: true,
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      const { type = 'all', limit = 100 } = req.query;
+
+      // Collect logs from various sources
+      const logs: any[] = [];
+
+      // Add recent agent activity logs
+      if (type === 'all' || type === 'agent') {
+        // Get recent conversations
+        const recentMemories = await runtime.getMemories({
+          roomId: runtime.agentId,
+          count: parseInt(limit as string, 10) / 2,
+          tableName: 'messages',
+        });
+
+        recentMemories.forEach((memory: any) => {
+          logs.push({
+            timestamp: memory.createdAt || new Date().toISOString(),
+            type: 'agent',
+            level: 'info',
+            message: `${memory.userId === runtime.agentId ? 'Agent' : 'User'}: ${memory.content?.text || memory.content || ''}`,
+            metadata: {
+              userId: memory.userId,
+              roomId: memory.roomId,
+            },
+          });
+        });
+      }
+
+      // Add system logs if available
+      if (type === 'all' || type === 'system') {
+        // Get service status logs
+        const services = Array.from(runtime.services.keys());
+        services.forEach((serviceName) => {
+          const service = runtime.services.get(serviceName);
+          logs.push({
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            level: 'info',
+            message: `Service '${serviceName}' is ${service ? 'loaded' : 'not loaded'}`,
+            metadata: {
+              service: serviceName,
+              status: service ? 'active' : 'inactive',
+            },
+          });
+        });
+
+        // Add runtime status
+        logs.push({
+          timestamp: new Date().toISOString(),
+          type: 'system',
+          level: 'info',
+          message: `Agent '${runtime.character?.name}' (${runtime.agentId}) is running`,
+          metadata: {
+            agentId: runtime.agentId,
+            characterName: runtime.character?.name,
+          },
+        });
+      }
+
+      // Sort logs by timestamp (newest first)
+      logs.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
+        return timeB - timeA;
+      });
+
+      // Apply limit
+      const limitedLogs = logs.slice(0, parseInt(limit as string, 10));
+
+      res.json(
+        successResponse({
+          logs: limitedLogs,
+          total: logs.length,
+          filtered: type !== 'all',
+        })
+      );
+    },
+  },
+
   // Autonomy control routes (since autonomy plugin routes aren't being registered)
   {
     type: 'GET',
@@ -1468,7 +1467,7 @@ const gameAPIRoutes: Route[] = [
     public: true,
     handler: async (req: any, res: any, runtime: IAgentRuntime) => {
       // Use uppercase 'AUTONOMY' as per the service's serviceType
-      let autonomyService = runtime.getService('AUTONOMY');
+      const autonomyService = runtime.getService('AUTONOMY');
 
       console.log(`[API] Autonomy service lookup: ${autonomyService ? 'found' : 'not found'}`);
 
@@ -1690,7 +1689,7 @@ const gameAPIRoutes: Route[] = [
       };
 
       // Check MODEL_PROVIDER environment variable
-      const modelProvider = process.env.MODEL_PROVIDER || 'openai';
+      const modelProvider = process.env.MODEL_PROVIDER || 'ollama';
       validationResults.environment.MODEL_PROVIDER = {
         value: modelProvider,
         status: 'healthy',
@@ -1698,100 +1697,100 @@ const gameAPIRoutes: Route[] = [
       };
 
       // Validate OpenAI configuration
-      if (modelProvider === 'openai' || modelProvider === 'all') {
-        const openaiKey = process.env.OPENAI_API_KEY;
-        const openaiModel = process.env.LANGUAGE_MODEL || 'gpt-4o-mini';
+      // if (modelProvider === 'openai' || modelProvider === 'all') {
+      //   const openaiKey = process.env.OPENAI_API_KEY;
+      //   const openaiModel = process.env.LANGUAGE_MODEL || 'gpt-4o-mini';
 
-        validationResults.providers.openai = {
-          apiKey: openaiKey ? 'present' : 'missing',
-          model: openaiModel,
-          status: openaiKey ? 'healthy' : 'unhealthy',
-          message: openaiKey
-            ? `OpenAI configured with model: ${openaiModel}`
-            : 'OpenAI API key missing',
-        };
+      //   validationResults.providers.openai = {
+      //     apiKey: openaiKey ? 'present' : 'missing',
+      //     model: openaiModel,
+      //     status: openaiKey ? 'healthy' : 'unhealthy',
+      //     message: openaiKey
+      //       ? `OpenAI configured with model: ${openaiModel}`
+      //       : 'OpenAI API key missing',
+      //   };
 
-        // Test OpenAI connection if key is present
-        if (openaiKey) {
-          const testResponse = await fetch('https://api.openai.com/v1/models', {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${openaiKey}`,
-              'Content-Type': 'application/json',
-            },
-          });
+      //   // Test OpenAI connection if key is present
+      //   if (openaiKey) {
+      //     const testResponse = await fetch('https://api.openai.com/v1/models', {
+      //       method: 'GET',
+      //       headers: {
+      //         Authorization: `Bearer ${openaiKey}`,
+      //         'Content-Type': 'application/json',
+      //       },
+      //     });
 
-          if (testResponse.ok) {
-            const models = await testResponse.json();
-            const hasModel = models.data?.some((m: any) => m.id === openaiModel);
-            validationResults.providers.openai.connectionTest = {
-              status: 'success',
-              modelAvailable: hasModel,
-              message: hasModel
-                ? 'Connection successful and model available'
-                : `Connection successful but model ${openaiModel} not found`,
-            };
-            if (!hasModel) {
-              validationResults.providers.openai.status = 'degraded';
-            }
-          } else {
-            validationResults.providers.openai.connectionTest = {
-              status: 'failed',
-              error: `HTTP ${testResponse.status}: ${testResponse.statusText}`,
-              message: 'Failed to connect to OpenAI API',
-            };
-            validationResults.providers.openai.status = 'unhealthy';
-          }
-        }
-      }
+      //     if (testResponse.ok) {
+      //       const models = await testResponse.json();
+      //       const hasModel = models.data?.some((m: any) => m.id === openaiModel);
+      //       validationResults.providers.openai.connectionTest = {
+      //         status: 'success',
+      //         modelAvailable: hasModel,
+      //         message: hasModel
+      //           ? 'Connection successful and model available'
+      //           : `Connection successful but model ${openaiModel} not found`,
+      //       };
+      //       if (!hasModel) {
+      //         validationResults.providers.openai.status = 'degraded';
+      //       }
+      //     } else {
+      //       validationResults.providers.openai.connectionTest = {
+      //         status: 'failed',
+      //         error: `HTTP ${testResponse.status}: ${testResponse.statusText}`,
+      //         message: 'Failed to connect to OpenAI API',
+      //       };
+      //       validationResults.providers.openai.status = 'unhealthy';
+      //     }
+      //   }
+      // }
 
       // Validate Anthropic configuration
-      if (modelProvider === 'anthropic' || modelProvider === 'all') {
-        const anthropicKey = process.env.ANTHROPIC_API_KEY;
-        const anthropicModel = process.env.LANGUAGE_MODEL || 'claude-3-haiku-20240307';
+      // if (modelProvider === 'anthropic' || modelProvider === 'all') {
+      //   const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      //   const anthropicModel = process.env.LANGUAGE_MODEL || 'claude-3-haiku-20240307';
 
-        validationResults.providers.anthropic = {
-          apiKey: anthropicKey ? 'present' : 'missing',
-          model: anthropicModel,
-          status: anthropicKey ? 'healthy' : 'unhealthy',
-          message: anthropicKey
-            ? `Anthropic configured with model: ${anthropicModel}`
-            : 'Anthropic API key missing',
-        };
+      //   validationResults.providers.anthropic = {
+      //     apiKey: anthropicKey ? 'present' : 'missing',
+      //     model: anthropicModel,
+      //     status: anthropicKey ? 'healthy' : 'unhealthy',
+      //     message: anthropicKey
+      //       ? `Anthropic configured with model: ${anthropicModel}`
+      //       : 'Anthropic API key missing',
+      //   };
 
-        // Test Anthropic connection if key is present
-        if (anthropicKey) {
-          // Anthropic doesn't have a simple models endpoint, so we'll test with a minimal request
-          const testResponse = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${anthropicKey}`,
-              'Content-Type': 'application/json',
-              'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-              model: anthropicModel,
-              max_tokens: 1,
-              messages: [{ role: 'user', content: 'test' }],
-            }),
-          });
+      //   // Test Anthropic connection if key is present
+      //   if (anthropicKey) {
+      //     // Anthropic doesn't have a simple models endpoint, so we'll test with a minimal request
+      //     const testResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      //       method: 'POST',
+      //       headers: {
+      //         Authorization: `Bearer ${anthropicKey}`,
+      //         'Content-Type': 'application/json',
+      //         'anthropic-version': '2023-06-01',
+      //       },
+      //       body: JSON.stringify({
+      //         model: anthropicModel,
+      //         max_tokens: 1,
+      //         messages: [{ role: 'user', content: 'test' }],
+      //       }),
+      //     });
 
-          if (testResponse.ok || testResponse.status === 400) {
-            // 400 is expected for this minimal test request
-            validationResults.providers.anthropic.connectionTest = {
-              status: 'success',
-              message: 'Connection successful',
-            };
-          } else {
-            validationResults.providers.anthropic.connectionTest = {
-              status: 'failed',
-              error: `HTTP ${testResponse.status}: ${testResponse.statusText}`,
-              message: 'Failed to connect to Anthropic API',
-            };
-            validationResults.providers.anthropic.status = 'unhealthy';
-          }
-        }
-      }
+      //     if (testResponse.ok || testResponse.status === 400) {
+      //       // 400 is expected for this minimal test request
+      //       validationResults.providers.anthropic.connectionTest = {
+      //         status: 'success',
+      //         message: 'Connection successful',
+      //       };
+      //     } else {
+      //       validationResults.providers.anthropic.connectionTest = {
+      //         status: 'failed',
+      //         error: `HTTP ${testResponse.status}: ${testResponse.statusText}`,
+      //         message: 'Failed to connect to Anthropic API',
+      //       };
+      //       validationResults.providers.anthropic.status = 'unhealthy';
+      //     }
+      //   }
+      // }
 
       // Validate Ollama configuration
       if (modelProvider === 'ollama' || modelProvider === 'all') {
@@ -2090,7 +2089,102 @@ const gameAPIRoutes: Route[] = [
       });
     },
   },
+
+  // Media stream endpoint for receiving video/audio data
+  {
+    type: 'POST',
+    path: '/api/media/stream',
+    name: 'Media Stream Data',
+    public: true,
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      const { type, data, agentId } = req.body;
+
+      if (!type || !data) {
+        return res.status(400).json(errorResponse('INVALID_REQUEST', 'Type and data are required'));
+      }
+
+      // Initialize buffer for agent if not exists
+      if (!mediaBuffers.has(agentId || runtime.agentId)) {
+        mediaBuffers.set(agentId || runtime.agentId, {
+          videoFrames: [],
+          audioChunks: [],
+          maxBufferSize: 100, // Keep last 100 frames/chunks
+        });
+      }
+
+      const buffer = mediaBuffers.get(agentId || runtime.agentId)!;
+
+      // Store data in appropriate buffer
+      if (type === 'video') {
+        buffer.videoFrames.push(new Uint8Array(data));
+        if (buffer.videoFrames.length > buffer.maxBufferSize) {
+          buffer.videoFrames.shift(); // Remove oldest frame
+        }
+      } else if (type === 'audio') {
+        buffer.audioChunks.push(new Uint8Array(data));
+        if (buffer.audioChunks.length > buffer.maxBufferSize) {
+          buffer.audioChunks.shift(); // Remove oldest chunk
+        }
+      }
+
+      // Notify vision service if available
+      const visionService = runtime.getService('vision') || runtime.getService('VISION');
+      if (visionService && typeof (visionService as any).processMediaData === 'function') {
+        await (visionService as any).processMediaData({
+          type,
+          data: new Uint8Array(data),
+          timestamp: Date.now(),
+        });
+      }
+
+      res.json(successResponse({
+        received: true,
+        type,
+        size: data.length,
+      }));
+    },
+  },
+
+  // Get media buffer status
+  {
+    type: 'GET',
+    path: '/api/media/status',
+    name: 'Media Buffer Status',
+    public: true,
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      const agentId = req.query.agentId || runtime.agentId;
+      const buffer = mediaBuffers.get(agentId);
+
+      if (!buffer) {
+        return res.json(successResponse({
+          hasBuffer: false,
+          videoFrames: 0,
+          audioChunks: 0,
+        }));
+      }
+
+      res.json(successResponse({
+        hasBuffer: true,
+        videoFrames: buffer.videoFrames.length,
+        audioChunks: buffer.audioChunks.length,
+        maxBufferSize: buffer.maxBufferSize,
+      }));
+    },
+  },
 ];
+
+// Export functions for vision plugin to access media buffers
+export function getMediaBuffer(agentId: string): MediaStreamBuffer | undefined {
+  return mediaBuffers.get(agentId);
+}
+
+export function clearMediaBuffer(agentId: string): void {
+  const buffer = mediaBuffers.get(agentId);
+  if (buffer) {
+    buffer.videoFrames = [];
+    buffer.audioChunks = [];
+  }
+}
 
 // Plugin export
 export const gameAPIPlugin: Plugin = {

@@ -82,7 +82,7 @@ teardown() {
         --name eliza-agent \
         --network eliza-network \
         -p 7777:7777 \
-        eliza-agent-server:latest
+        eliza-agent:latest
     
     # Wait for server setup
     sleep 20

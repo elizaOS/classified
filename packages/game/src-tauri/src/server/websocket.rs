@@ -266,6 +266,14 @@ pub async fn app_websocket_handler(
     ws.on_upgrade(move |socket| handle_client(socket, hub))
 }
 
+// Handler for media streaming WebSocket upgrade requests
+pub async fn media_websocket_handler(
+    ws: WebSocketUpgrade,
+    hub: Arc<WebSocketHub>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_media_client(socket, hub))
+}
+
 // Client-side WebSocket for connecting to agent server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentMessage {
@@ -565,5 +573,144 @@ impl Clone for WebSocketClient {
             reconnect_attempts: self.reconnect_attempts.clone(),
             max_reconnect_attempts: self.max_reconnect_attempts,
         }
+    }
+}
+
+// Media streaming WebSocket client for audio/video data
+pub struct MediaWebSocketClient {
+    app_handle: AppHandle,
+    connection_state: Arc<RwLock<ConnectionState>>,
+    sender: Arc<Mutex<Option<mpsc::UnboundedSender<TungsteniteMessage>>>>,
+    #[allow(dead_code)]
+    agent_id: String,
+}
+
+impl MediaWebSocketClient {
+    pub fn new(app_handle: AppHandle, agent_id: String) -> Self {
+        Self {
+            app_handle,
+            connection_state: Arc::new(RwLock::new(ConnectionState::Disconnected)),
+            sender: Arc::new(Mutex::new(None)),
+            agent_id,
+        }
+    }
+
+    pub async fn connect(&self, url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        info!("🎥 Connecting to Media WebSocket at {}", url);
+
+        // Update connection state
+        *self.connection_state.write().await = ConnectionState::Connecting;
+
+        // Parse WebSocket URL for media streaming
+        let ws_url = if url.starts_with("http://localhost:7777") {
+            "ws://localhost:7777/media-stream".to_string()
+        } else if url.starts_with("http://") {
+            url.replace("http://", "ws://").replace("/api", "/media-stream")
+        } else if url.starts_with("https://") {
+            url.replace("https://", "wss://").replace("/api", "/media-stream")
+        } else {
+            url.to_string()
+        };
+
+        info!("📡 Attempting Media WebSocket connection to: {}", ws_url);
+
+        match connect_async(&ws_url).await {
+            Ok((ws_stream, _)) => {
+                info!("✅ Media WebSocket connection established");
+                *self.connection_state.write().await = ConnectionState::Connected;
+
+                let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+                let (tx, mut rx) = mpsc::unbounded_channel::<TungsteniteMessage>();
+
+                // Store sender for outgoing messages
+                *self.sender.lock().await = Some(tx.clone());
+
+                // Spawn task to handle outgoing messages
+                let app_handle_clone = self.app_handle.clone();
+                tokio::spawn(async move {
+                    while let Some(msg) = rx.recv().await {
+                        if let Err(e) = ws_sender.send(msg).await {
+                            error!("Failed to send media message: {}", e);
+                            let _ = app_handle_clone.emit("media-ws-error", serde_json::json!({
+                                "error": format!("Send error: {}", e)
+                            }));
+                            break;
+                        }
+                    }
+                });
+
+                // Handle incoming messages
+                let app_handle = self.app_handle.clone();
+                let connection_state = self.connection_state.clone();
+                
+                tokio::spawn(async move {
+                    while let Some(msg) = ws_receiver.next().await {
+                        match msg {
+                            Ok(TungsteniteMessage::Binary(data)) => {
+                                // Emit binary data for vision processing
+                                let _ = app_handle.emit("media-data", serde_json::json!({
+                                    "type": "binary",
+                                    "size": data.len(),
+                                    "data": data
+                                }));
+                            }
+                            Ok(TungsteniteMessage::Text(text)) => {
+                                // Handle control messages
+                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                                    let _ = app_handle.emit("media-control", json);
+                                }
+                            }
+                            Ok(TungsteniteMessage::Close(_)) => {
+                                info!("Media WebSocket closed by server");
+                                *connection_state.write().await = ConnectionState::Disconnected;
+                                break;
+                            }
+                            Err(e) => {
+                                error!("Media WebSocket error: {}", e);
+                                *connection_state.write().await = ConnectionState::Failed(e.to_string());
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                });
+
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to connect to media WebSocket: {}", e);
+                *self.connection_state.write().await = ConnectionState::Failed(e.to_string());
+                Err(e.into())
+            }
+        }
+    }
+
+    pub async fn send_video_frame(&self, frame_data: Vec<u8>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(sender) = self.sender.lock().await.as_ref() {
+            sender.send(TungsteniteMessage::Binary(frame_data))?;
+            Ok(())
+        } else {
+            Err("WebSocket not connected".into())
+        }
+    }
+
+    pub async fn send_audio_chunk(&self, audio_data: Vec<u8>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(sender) = self.sender.lock().await.as_ref() {
+            sender.send(TungsteniteMessage::Binary(audio_data))?;
+            Ok(())
+        } else {
+            Err("WebSocket not connected".into())
+        }
+    }
+
+    pub async fn disconnect(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        info!("Disconnecting media WebSocket");
+        *self.connection_state.write().await = ConnectionState::Disconnected;
+        *self.sender.lock().await = None;
+        Ok(())
+    }
+
+    pub async fn is_connected(&self) -> bool {
+        matches!(*self.connection_state.read().await, ConnectionState::Connected)
     }
 }

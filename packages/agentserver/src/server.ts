@@ -710,6 +710,7 @@ export class AgentServer {
             break;
 
           case 'message':
+          case 'user_message': // Support both message types
             // Handle incoming messages from client
             const { content, author, channel_id: msgChannelId, agent_id: msgAgentId } = message;
             logger.info(

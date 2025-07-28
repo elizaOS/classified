@@ -7,6 +7,8 @@ pub struct TestContext {
     containers_to_cleanup: Arc<Mutex<Vec<String>>>,
 }
 
+#[allow(dead_code)]
+
 impl TestContext {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         // Try to create a container manager
@@ -65,6 +67,7 @@ impl Drop for TestContext {
 }
 
 /// Generate a unique container name for tests to avoid conflicts
+#[allow(dead_code)]
 pub fn unique_container_name(base: &str) -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let timestamp = SystemTime::now()

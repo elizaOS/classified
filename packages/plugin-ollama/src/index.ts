@@ -282,7 +282,9 @@ export const ollamaPlugin: Plugin = {
         });
 
         const model =
-          runtime.getSetting('OLLAMA_SMALL_MODEL') || runtime.getSetting('SMALL_MODEL') || 'gemma3';
+          runtime.getSetting('OLLAMA_SMALL_MODEL') ||
+          runtime.getSetting('SMALL_MODEL') ||
+          'llama3.2:3b';
 
         logger.log(`[Ollama] Using TEXT_SMALL model: ${model}`);
         await ensureModelAvailable(runtime, model, baseURL);
@@ -316,7 +318,9 @@ export const ollamaPlugin: Plugin = {
     ) => {
       try {
         const model =
-          runtime.getSetting('OLLAMA_LARGE_MODEL') || runtime.getSetting('LARGE_MODEL') || 'gemma3';
+          runtime.getSetting('OLLAMA_LARGE_MODEL') ||
+          runtime.getSetting('LARGE_MODEL') ||
+          'llama3.2:3b';
         const baseURL = getBaseURL(runtime);
         const ollama = createOllama({
           fetch: runtime.fetch,
@@ -347,7 +351,9 @@ export const ollamaPlugin: Plugin = {
           baseURL,
         });
         const model =
-          runtime.getSetting('OLLAMA_SMALL_MODEL') || runtime.getSetting('SMALL_MODEL') || 'gemma3';
+          runtime.getSetting('OLLAMA_SMALL_MODEL') ||
+          runtime.getSetting('SMALL_MODEL') ||
+          'llama3.2:3b';
 
         logger.log(`[Ollama] Using OBJECT_SMALL model: ${model}`);
         await ensureModelAvailable(runtime, model, baseURL);
@@ -370,7 +376,9 @@ export const ollamaPlugin: Plugin = {
           baseURL,
         });
         const model =
-          runtime.getSetting('OLLAMA_LARGE_MODEL') || runtime.getSetting('LARGE_MODEL') || 'gemma3';
+          runtime.getSetting('OLLAMA_LARGE_MODEL') ||
+          runtime.getSetting('LARGE_MODEL') ||
+          'llama3.2:3b';
 
         logger.log(`[Ollama] Using OBJECT_LARGE model: ${model}`);
         await ensureModelAvailable(runtime, model, baseURL);

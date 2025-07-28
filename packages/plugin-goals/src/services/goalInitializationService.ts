@@ -28,17 +28,26 @@ export class GoalInitializationService extends Service {
   /**
    * Create initial default goals with retry logic
    */
-  private async createInitialGoalsWithRetry(runtime: IAgentRuntime, retryCount: number): Promise<void> {
+  private async createInitialGoalsWithRetry(
+    runtime: IAgentRuntime,
+    retryCount: number
+  ): Promise<void> {
     try {
       await this.createInitialGoalsDeferred(runtime);
     } catch (error) {
       if (retryCount < 3) {
-        logger.warn(`[Goal Initialization] Retry ${retryCount + 1}/3 in 2 seconds:`, (error as Error).message);
+        logger.warn(
+          `[Goal Initialization] Retry ${retryCount + 1}/3 in 2 seconds:`,
+          (error as Error).message
+        );
         setTimeout(() => {
           this.createInitialGoalsWithRetry(runtime, retryCount + 1);
         }, 2000);
       } else {
-        logger.error('[Goal Initialization] Failed to create initial goals after 3 retries:', error);
+        logger.error(
+          '[Goal Initialization] Failed to create initial goals after 3 retries:',
+          error
+        );
       }
     }
   }
@@ -51,7 +60,9 @@ export class GoalInitializationService extends Service {
       logger.info('[Goal Initialization] Creating initial default goals...');
 
       if (!runtime.db) {
-        logger.warn('[Goal Initialization] Database not available, skipping initial goals creation');
+        logger.warn(
+          '[Goal Initialization] Database not available, skipping initial goals creation'
+        );
         return;
       }
 
@@ -66,11 +77,11 @@ export class GoalInitializationService extends Service {
       } catch (error) {
         throw new Error(`Goals table not ready: ${(error as Error).message}`);
       }
-      
+
       // Check if we already have goals for this agent
       const existingGoals = await goalManager.getGoals({
         ownerType: 'agent',
-        ownerId: runtime.agentId
+        ownerId: runtime.agentId,
       });
 
       if (existingGoals && existingGoals.length > 0) {
@@ -85,7 +96,8 @@ export class GoalInitializationService extends Service {
           ownerType: 'agent' as const,
           ownerId: runtime.agentId,
           name: 'Communicate with the admin',
-          description: 'Establish and maintain communication with the admin user to understand their needs and provide assistance',
+          description:
+            'Establish and maintain communication with the admin user to understand their needs and provide assistance',
           tags: ['communication', 'admin', 'relationship'],
         },
         {
@@ -93,7 +105,8 @@ export class GoalInitializationService extends Service {
           ownerType: 'agent' as const,
           ownerId: runtime.agentId,
           name: 'Read the message from the founders',
-          description: 'Find and read any important messages or documentation from the project founders to understand the mission',
+          description:
+            'Find and read any important messages or documentation from the project founders to understand the mission',
           tags: ['learning', 'founders', 'documentation'],
         },
       ];
@@ -107,7 +120,10 @@ export class GoalInitializationService extends Service {
             logger.warn(`[Goal Initialization] Failed to create goal: ${goal.name}`);
           }
         } catch (error) {
-          logger.warn(`[Goal Initialization] Error creating goal "${goal.name}":`, (error as Error).message);
+          logger.warn(
+            `[Goal Initialization] Error creating goal "${goal.name}":`,
+            (error as Error).message
+          );
         }
       }
 

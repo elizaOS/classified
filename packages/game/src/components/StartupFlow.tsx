@@ -239,7 +239,7 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
           stage: 'error',
           progress: 0,
           description: 'Setup failed',
-          error: error.toString(),
+          error: error instanceof Error ? error.message : String(error),
         });
         setShowRetry(true);
         setIsLoading(false);
@@ -433,10 +433,8 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
 
       {status.stage === 'models' && (
         <div className="config-info">
-          <p>• Downloading AI models for local inference</p>
-          <p>• This may take several minutes depending on your connection</p>
           {status.model_progress && (
-            <p>• Currently downloading: {status.model_progress.model_name}</p>
+            <p>• Currently downloading: {JSON.stringify(status.model_progress)}</p>
           )}
         </div>
       )}

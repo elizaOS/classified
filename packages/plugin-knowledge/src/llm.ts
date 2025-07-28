@@ -773,7 +773,7 @@ async function generateOllamaText(
       baseURL: apiBase,
     });
 
-    const model = cleanModelName(modelName || 'gemma3');
+    const model = cleanModelName(modelName || 'llama3.2:3b');
     logger.debug(`[Document Processor] Ollama text generation with model: ${model}`);
 
     const { text } = await generateText({

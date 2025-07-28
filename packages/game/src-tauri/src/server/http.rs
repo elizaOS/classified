@@ -1,6 +1,6 @@
 use crate::backend::{BackendConfig, BackendError, BackendResult};
 use crate::container::ContainerManager;
-use crate::server::websocket::{WebSocketHub, app_websocket_handler};
+use crate::server::websocket::{WebSocketHub, app_websocket_handler, media_websocket_handler};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -51,6 +51,7 @@ impl HttpServer {
             // WebSocket upgrade
             .route("/ws", get(ws_handler))
             .route("/api/websocket/info", get(websocket_info))
+            .route("/media-stream", get(media_ws_handler))
             // Add state
             .with_state(AppState {
                 container_manager: self.container_manager.clone(),
@@ -168,4 +169,11 @@ async fn ws_handler(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     app_websocket_handler(ws, state.websocket_hub).await
+}
+
+async fn media_ws_handler(
+    ws: axum::extract::WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    media_websocket_handler(ws, state.websocket_hub).await
 }

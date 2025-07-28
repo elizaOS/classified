@@ -3,4 +3,4 @@ pub mod http;
 pub mod websocket;
 
 pub use http::HttpServer;
-pub use websocket::WebSocketHub;
+pub use websocket::{WebSocketHub, MediaWebSocketClient};

@@ -1,13 +1,12 @@
 import {
+  logger,
   Service,
   type IAgentRuntime,
   type ServiceTypeName,
-  logger,
   type UUID,
 } from '@elizaos/core';
-import { TodoServiceType } from '../types';
-import type { TodoDataServiceWrapper, TodoData } from './todoDataService';
 import { NotificationManager } from './notificationManager';
+import type { TodoData, TodoDataServiceWrapper } from './todoDataService';
 
 // Define optional rolodex types for enhanced messaging
 interface RolodexService {

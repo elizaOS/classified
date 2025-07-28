@@ -25,7 +25,6 @@
     "@elizaos/plugin-experience": "workspace:*",
     "@elizaos/plugin-goals": "workspace:*",
     "@elizaos/plugin-knowledge": "workspace:*",
-    "@elizaos/plugin-local-embedding": "workspace:*",
     "@elizaos/plugin-ollama": "workspace:*",
     "@elizaos/plugin-openai": "^1.0.0",
     "@elizaos/plugin-personality": "workspace:*",

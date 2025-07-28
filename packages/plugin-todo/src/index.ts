@@ -53,19 +53,3 @@ export const TodoPlugin: Plugin = {
 };
 
 export default TodoPlugin;
-
-// Export discoverable services for external use
-export { TodoReminderService } from './services/reminderService';
-
-// Export internal managers for advanced usage
-export { NotificationManager } from './services/notificationManager';
-
-// Export data service utilities
-export { createTodoDataService } from './services/todoDataService';
-export type { TodoData } from './services/todoDataService';
-
-// Export types
-export type { NotificationData, NotificationPreferences } from './services/notificationManager';
-
-// Export schema
-export { todoSchemaExport as todoSchema } from './schema';
