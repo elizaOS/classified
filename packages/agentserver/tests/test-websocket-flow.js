@@ -4,7 +4,6 @@ console.log('🧪 Testing WebSocket message flow...\n');
 
 // The actual agent ID for ELIZA calculated from stringToUuid('ELIZA')
 const ELIZA_AGENT_ID = '2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f';
-const CHANNEL_ID = 'ce5f41b4-fe24-4c01-9971-aecfed20a6bd'; // Autonomous thoughts room (same as game client)
 
 const ws = new WebSocket('ws://localhost:7777/ws');
 
@@ -15,7 +14,7 @@ ws.on('open', () => {
   const connectMsg = {
     type: 'connect',
     agent_id: ELIZA_AGENT_ID,
-    channel_id: CHANNEL_ID,
+    channel_id: 'test-channel-123',
     client_type: 'test_client',
   };
 
@@ -35,7 +34,7 @@ ws.on('message', (data) => {
       type: 'message',
       content: 'Hello ELIZA, can you hear me?',
       author: 'TestUser',
-      channel_id: CHANNEL_ID,
+      channel_id: 'test-channel-123',
       agent_id: ELIZA_AGENT_ID,
       timestamp: Date.now(),
     };

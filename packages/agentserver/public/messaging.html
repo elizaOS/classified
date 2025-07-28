@@ -277,7 +277,6 @@
       // WebSocket connection
       let ws = null;
       let agentId = '2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f'; // Default agent ID
-      let channelId = 'ce5f41b4-fe24-4c01-9971-aecfed20a6bd'; // Autonomous thoughts room (same as game client)
 
       // Media streams
       let cameraStream = null;
@@ -329,7 +328,7 @@
             const connectMsg = {
               type: 'connect',
               agent_id: agentId,
-              channel_id: channelId,
+              channel_id: 'web-ui-media',
               client_type: 'web_media',
               timestamp: Date.now(),
             };
@@ -403,7 +402,7 @@
         const msgObj = {
           type: 'message',
           content: message,
-          channel_id: channelId,
+          channel_id: 'web-ui-media',
           agent_id: agentId,
           author: 'User',
           timestamp: Date.now(),

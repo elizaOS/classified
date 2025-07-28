@@ -6,9 +6,6 @@ use serde_json;
 use std::sync::Arc;
 use tauri::{Manager, State};
 use tracing::{error, info, warn};
-use tokio::sync::RwLock;
-use tauri::AppHandle;
-use serde_json::json;
 
 // Container management commands
 /// Gets the status of all managed containers.
@@ -823,100 +820,4 @@ pub async fn recover_agent_container(
             }
         }
     }
-}
-
-#[derive(serde::Serialize)]
-pub struct OllamaModelStatus {
-    pub models_ready: bool,
-    pub missing_models: Vec<String>,
-    pub downloading: Option<String>,
-    pub progress: Option<f32>,
-}
-
-#[tauri::command]
-pub async fn check_ollama_models(
-    state: State<'_, Arc<RwLock<AppState>>>,
-) -> Result<OllamaModelStatus, String> {
-    info!("Checking Ollama model status...");
-    
-    // Check if Ollama container is running
-    let state_guard = state.read().await;
-    let manager = state_guard.container_manager.clone();
-    
-    match manager.get_runtime_container_status().await {
-        Ok(status) => {
-            if !status.ollama.is_running || !status.ollama.is_healthy {
-                return Ok(OllamaModelStatus {
-                    models_ready: false,
-                    missing_models: vec!["llama3.2:3b".to_string(), "nomic-embed-text".to_string()],
-                    downloading: None,
-                    progress: None,
-                });
-            }
-        }
-        Err(_) => {
-            return Ok(OllamaModelStatus {
-                models_ready: false,
-                missing_models: vec!["llama3.2:3b".to_string(), "nomic-embed-text".to_string()],
-                downloading: None,
-                progress: None,
-            });
-        }
-    }
-    
-    // Check which models are available
-    let required_models = vec!["llama3.2:3b", "nomic-embed-text"];
-    let mut missing_models = Vec::new();
-    
-    for model in required_models {
-        match manager.check_ollama_model_exists(model).await {
-            Ok(exists) => {
-                if !exists {
-                    missing_models.push(model.to_string());
-                }
-            }
-            Err(_) => {
-                missing_models.push(model.to_string());
-            }
-        }
-    }
-    
-    Ok(OllamaModelStatus {
-        models_ready: missing_models.is_empty(),
-        missing_models,
-        downloading: None,
-        progress: None,
-    })
-}
-
-#[tauri::command]
-pub async fn pull_missing_models(
-    state: State<'_, Arc<RwLock<AppState>>>,
-    app_handle: AppHandle,
-) -> Result<(), String> {
-    info!("Pulling missing Ollama models...");
-    
-    let state_guard = state.read().await;
-    let manager = state_guard.container_manager.clone();
-    
-    // Run model pulling in background
-    tokio::spawn(async move {
-        match manager.pull_ollama_models().await {
-            Ok(_) => {
-                info!("Models pulled successfully");
-                app_handle.emit_all("model-download-complete", json!({
-                    "success": true
-                })).ok();
-            }
-            Err(e) => {
-                error!("Failed to pull models: {}", e);
-                app_handle.emit_all("model-download-complete", json!({
-                    "success": false,
-                    "error": e.to_string()
-                })).ok();
-            }
-        }
-    });
-    
-    Ok(())
 }

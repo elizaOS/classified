@@ -887,13 +887,7 @@ pub fn run() {
             stream_media_frame,
             stream_media_audio,
             start_agent_screen_capture,
-            stop_agent_screen_capture,
-            // Agent recovery commands
-            recover_agent_container,
-            check_and_recover_agent,
-            // Model management commands
-            check_ollama_models,
-            pull_missing_models
+            stop_agent_screen_capture
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");

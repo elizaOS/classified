@@ -2133,9 +2133,11 @@ export const GameInterface: React.FC = () => {
                     ? isConnected
                       ? 'Game API not ready...'
                       : 'Not connected...'
+                    : !modelsReady
+                    ? 'AI models loading...'
                     : ''
                 }
-                disabled={!effectiveIsConnected}
+                disabled={!effectiveIsConnected || !modelsReady}
                 data-testid="message-input"
                 aria-label="Enter command or message"
               />
