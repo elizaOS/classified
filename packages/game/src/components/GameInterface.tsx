@@ -212,6 +212,10 @@ export const GameInterface: React.FC = () => {
   // Game API readiness state
   const [gameApiReady, setGameApiReady] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
+  
+  // Model readiness state
+  const [modelsReady, setModelsReady] = useState(false);
+  const [checkingModels, setCheckingModels] = useState(true);
 
   // Plugin toggles
   const [plugins, setPlugins] = useState<PluginToggleState>({

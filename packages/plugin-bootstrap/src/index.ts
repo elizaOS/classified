@@ -338,7 +338,11 @@ const messageReceivedHandler = async ({
     const startTime = Date.now();
 
     callback({
-      text: '[Message received]',
+      text: '*Agent has received your message, processing*',
+      metadata: {
+        isProcessing: true,
+        type: 'processing-notification'
+      }
     });
 
     // Emit run started event
