@@ -28,13 +28,13 @@ For Windows, this means you will need WSL. https://podman.io/docs/installation
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                ELIZA [CLASSIFIED] Client                 │
-│                  (Tauri Desktop App)                     │
+│                ELIZA [CLASSIFIED] Client                │
+│                  (Tauri Desktop App)                    │
 │  ┌─────────────────┐        ┌────────────────────────┐  │
 │  │   React UI      │        │  Rust Backend (Tauri)  │  │
-│  │  - Chat Interface│◄──────►│  - Container Manager   │  │
-│  │  - Status Panel  │  IPC   │  - WebSocket Client    │  │
-│  │  - Settings      │        │  - Security Layer      │  │
+│  │  - Chat Interface│◄──────►│  - Container Manager  │  │
+│  │  - Status Panel  │  IPC   │  - WebSocket Client   │  │
+│  │  - Settings      │        │  - Security Layer     │  │
 │  └─────────────────┘        └───────────┬────────────┘  │
 └─────────────────────────────────────────┼───────────────┘
                                           │ WebSocket
