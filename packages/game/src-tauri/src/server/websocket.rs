@@ -1,5 +1,6 @@
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::IntoResponse;
+use base64::engine::Engine;
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -281,7 +282,7 @@ pub struct AgentMessage {
 pub enum ConnectionState {
     Disconnected,
     Connecting,
-    Connected,
+    Connected(String),
     Reconnecting,
     #[allow(dead_code)]
     Failed(String),
@@ -312,6 +313,7 @@ impl WebSocketClient {
         }
     }
 
+    /// Connects to the agent server WebSocket
     pub async fn connect(&self, url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("🔌 Connecting to WebSocket at {}", url);
 
@@ -331,59 +333,64 @@ impl WebSocketClient {
 
         info!("📡 Attempting WebSocket connection to: {}", ws_url);
 
-        match connect_async(&ws_url).await {
-            Ok((ws_stream, _)) => {
-                info!("✅ WebSocket connection established");
-                *self.connection_state.write().await = ConnectionState::Connected;
-                *self.reconnect_attempts.lock().await = 0;
+        // Add retry logic
+        let mut retry_count = 0;
+        let max_retries = 3;
+        
+        loop {
+            match connect_async(ws_url.as_str()).await {
+                Ok((ws_stream, _)) => {
+                    info!("✅ WebSocket connection established");
+                    *self.connection_state.write().await = ConnectionState::Connected(ws_url.clone());
+                    *self.reconnect_attempts.lock().await = 0;
 
-                let (mut ws_sender, mut ws_receiver) = ws_stream.split();
-                let (tx, mut rx) = mpsc::unbounded_channel::<TungsteniteMessage>();
+                    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+                    let (tx, mut rx) = mpsc::unbounded_channel::<TungsteniteMessage>();
 
-                // Store sender for outgoing messages
-                *self.sender.lock().await = Some(tx.clone());
+                    // Store sender for outgoing messages
+                    *self.sender.lock().await = Some(tx.clone());
 
-                // Wait a bit before sending initial message to ensure handshake completion
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    // Wait a bit before sending initial message to ensure handshake completion
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-                // Send initial connection message
-                let connect_msg = serde_json::json!({
-                    "type": "connect",
-                    "agent_id": self.agent_id,
-                    "channel_id": self.channel_id,
-                    "client_type": "eliza_game",
-                    "timestamp": chrono::Utc::now().timestamp_millis()
-                });
+                    // Send initial connection message
+                    let connect_msg = serde_json::json!({
+                        "type": "connect",
+                        "agent_id": self.agent_id,
+                        "channel_id": self.channel_id,
+                        "client_type": "eliza_game",
+                        "timestamp": chrono::Utc::now().timestamp_millis()
+                    });
 
-                info!("Sending initial connection message...");
-                if let Err(e) = ws_sender.send(TungsteniteMessage::Text(connect_msg.to_string())).await {
-                    error!("Failed to send connect message: {}", e);
-                    *self.connection_state.write().await = ConnectionState::Failed(format!("Failed to send initial message: {}", e));
-                    return Err(Box::new(e));
-                }
+                    info!("Sending initial connection message...");
+                    if let Err(e) = ws_sender.send(TungsteniteMessage::Text(connect_msg.to_string())).await {
+                        error!("Failed to send connect message: {}", e);
+                        *self.connection_state.write().await = ConnectionState::Failed(format!("Failed to send initial message: {}", e));
+                        return Err(Box::new(e));
+                    }
 
-                // Spawn task to handle outgoing messages
-                let sender_task = {
-                    let connection_state = self.connection_state.clone();
-                    tokio::spawn(async move {
-                        while let Some(message) = rx.recv().await {
-                            if let Err(e) = ws_sender.send(message).await {
-                                error!("Failed to send WebSocket message: {}", e);
-                                *connection_state.write().await =
-                                    ConnectionState::Failed(e.to_string());
-                                break;
+                    // Spawn task to handle outgoing messages
+                    let sender_task = {
+                        let connection_state = self.connection_state.clone();
+                        tokio::spawn(async move {
+                            while let Some(message) = rx.recv().await {
+                                if let Err(e) = ws_sender.send(message).await {
+                                    error!("Failed to send WebSocket message: {}", e);
+                                    *connection_state.write().await =
+                                        ConnectionState::Failed(e.to_string());
+                                    break;
+                                }
                             }
-                        }
-                    })
-                };
+                        })
+                    };
 
-                // Handle incoming messages in current task to avoid lifetime issues
-                let app_handle = self.app_handle.clone();
-                let connection_state = self.connection_state.clone();
-                let channel_id = self.channel_id.clone();
-                
-                let receiver_task = tokio::spawn(async move {
-                    while let Some(msg) = ws_receiver.next().await {
+                    // Handle incoming messages in current task to avoid lifetime issues
+                    let app_handle = self.app_handle.clone();
+                    let connection_state = self.connection_state.clone();
+                    let channel_id = self.channel_id.clone();
+                    
+                    let receiver_task = tokio::spawn(async move {
+                        while let Some(msg) = ws_receiver.next().await {
                             match msg {
                                 Ok(TungsteniteMessage::Text(text)) => {
                                     debug!("📨 Received WebSocket message: {}", text);
@@ -436,10 +443,27 @@ impl WebSocketClient {
                                                     error!("Failed to emit agent message: {}", e);
                                                 }
                                             }
+                                            "agent_screen_frame" => {
+                                                info!("🖥️ Received agent screen frame");
+                                                
+                                                // Emit to frontend for display
+                                                if let Err(e) = app_handle.emit("agent-screen-frame", &parsed_msg) {
+                                                    error!("Failed to emit agent screen frame: {}", e);
+                                                }
+                                            }
                                             "error" => {
-                                                error!("❌ Server error: {}", parsed_msg.get("message")
+                                                let error_msg = parsed_msg.get("message")
                                                     .and_then(|m| m.as_str())
-                                                    .unwrap_or("Unknown error"));
+                                                    .unwrap_or("Unknown error");
+                                                error!("❌ Server error: {}", error_msg);
+                                                
+                                                // Don't immediately disconnect on all errors
+                                                // Some errors might be recoverable
+                                                if error_msg.contains("connection closed") || 
+                                                   error_msg.contains("WebSocket") {
+                                                    *connection_state.write().await = ConnectionState::Failed(error_msg.to_string());
+                                                    break;
+                                                }
                                             }
                                             _ => {
                                                 debug!("📄 Message type '{}': {}", msg_type, text);
@@ -462,16 +486,23 @@ impl WebSocketClient {
                         }
                     });
 
-                // Spawn tasks
-                tokio::spawn(sender_task);
-                tokio::spawn(receiver_task);
+                    // Spawn tasks
+                    tokio::spawn(sender_task);
+                    tokio::spawn(receiver_task);
 
-                Ok(())
-            }
-            Err(e) => {
-                error!("❌ Failed to connect WebSocket: {}", e);
-                *self.connection_state.write().await = ConnectionState::Failed(e.to_string());
-                Err(Box::new(e))
+                    return Ok(());
+                }
+                Err(e) => {
+                    retry_count += 1;
+                    if retry_count >= max_retries {
+                        error!("❌ Failed to connect WebSocket after {} retries: {}", max_retries, e);
+                        *self.connection_state.write().await = ConnectionState::Failed(e.to_string());
+                        return Err(Box::new(e));
+                    }
+                    
+                    warn!("⚠️ WebSocket connection attempt {} failed: {}. Retrying...", retry_count, e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                }
             }
         }
     }
@@ -535,6 +566,117 @@ impl WebSocketClient {
         }
     }
 
+    pub async fn send_binary_message(
+        &self,
+        data: Vec<u8>,
+        media_type: &str,
+        stream_type: Option<&str>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let sender_guard = self.sender.lock().await;
+
+        if let Some(sender) = sender_guard.as_ref() {
+            // Create binary message with metadata prefix
+            // Format: [1 byte type][4 bytes length][metadata JSON][binary data]
+            let metadata = serde_json::json!({
+                "type": "media_stream_binary",
+                "media_type": media_type,
+                "stream_type": stream_type,
+                "timestamp": chrono::Utc::now().timestamp_millis(),
+                "size": data.len()
+            });
+            
+            let metadata_bytes = metadata.to_string().as_bytes().to_vec();
+            let metadata_len = metadata_bytes.len() as u32;
+            
+            // Build complete binary message
+            let mut binary_message = Vec::new();
+            binary_message.push(0x01); // Binary media stream type
+            binary_message.extend_from_slice(&metadata_len.to_be_bytes());
+            binary_message.extend_from_slice(&metadata_bytes);
+            binary_message.extend_from_slice(&data);
+
+            let ws_message = TungsteniteMessage::Binary(binary_message);
+
+            if let Err(e) = sender.send(ws_message) {
+                error!("Failed to queue binary message: {}", e);
+                return Err(Box::new(e));
+            }
+
+            info!("📤 Binary {} data sent: {} bytes", media_type, data.len());
+            Ok(())
+        } else {
+            Err("WebSocket not connected".into())
+        }
+    }
+
+    pub async fn send_media_frame(
+        &self,
+        frame_data: Vec<u8>,
+        stream_type: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // For now, send as JSON-wrapped base64 for compatibility
+        // Can switch to binary format once agent server supports it
+        let sender_guard = self.sender.lock().await;
+
+        if let Some(sender) = sender_guard.as_ref() {
+            let message = serde_json::json!({
+                "type": "media_stream",
+                "media_type": "video",
+                "stream_type": stream_type,
+                "data": base64::engine::general_purpose::STANDARD.encode(&frame_data),
+                "timestamp": chrono::Utc::now().timestamp_millis(),
+                "encoding": "jpeg",
+                "agent_id": self.agent_id,
+                "channel_id": self.channel_id
+            });
+
+            let ws_message = TungsteniteMessage::Text(message.to_string());
+
+            if let Err(e) = sender.send(ws_message) {
+                error!("Failed to queue media frame: {}", e);
+                return Err(Box::new(e));
+            }
+
+            info!("📹 {} frame sent: {} bytes", stream_type, frame_data.len());
+            Ok(())
+        } else {
+            Err("WebSocket not connected".into())
+        }
+    }
+
+    pub async fn send_audio_chunk(
+        &self,
+        audio_data: Vec<u8>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let sender_guard = self.sender.lock().await;
+
+        if let Some(sender) = sender_guard.as_ref() {
+            let message = serde_json::json!({
+                "type": "media_stream",
+                "media_type": "audio",
+                "data": base64::engine::general_purpose::STANDARD.encode(&audio_data),
+                "timestamp": chrono::Utc::now().timestamp_millis(),
+                "encoding": "pcm16",
+                "sample_rate": 44100,
+                "channels": 1,
+                "agent_id": self.agent_id,
+                "channel_id": self.channel_id
+            });
+
+            let ws_message = TungsteniteMessage::Text(message.to_string());
+
+            if let Err(e) = sender.send(ws_message) {
+                error!("Failed to queue audio chunk: {}", e);
+                return Err(Box::new(e));
+            }
+
+            info!("🎤 Audio chunk sent: {} bytes", audio_data.len());
+            Ok(())
+        } else {
+            Err("WebSocket not connected".into())
+        }
+    }
+
     pub async fn get_connection_state(&self) -> ConnectionState {
         self.connection_state.read().await.clone()
     }
@@ -542,7 +684,7 @@ impl WebSocketClient {
     pub async fn is_connected(&self) -> bool {
         matches!(
             *self.connection_state.read().await,
-            ConnectionState::Connected
+            ConnectionState::Connected(_)
         )
     }
 

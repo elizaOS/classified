@@ -82,9 +82,13 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
       if (event.payload.stage === 'waiting_for_config') {
         setShowConfig(true);
         setIsLoading(false);
-      } else if (event.payload.stage === 'complete' || event.payload.stage === 'Ready') {
+      } else if (
+        event.payload.stage === 'complete' ||
+        event.payload.stage === 'Ready' ||
+        event.payload.stage === 'GameAPIReady'
+      ) {
         onComplete();
-      } else if (event.payload.error) {
+      } else if (event.payload.error || event.payload.stage === 'Error') {
         setShowRetry(true);
         setIsLoading(false);
       }
@@ -157,8 +161,15 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
     if (currentStatus.stage === 'waiting_for_config') {
       setShowConfig(true);
       setIsLoading(false);
-    } else if (currentStatus.stage === 'complete' || currentStatus.stage === 'Ready') {
+    } else if (
+      currentStatus.stage === 'complete' ||
+      currentStatus.stage === 'Ready' ||
+      currentStatus.stage === 'GameAPIReady'
+    ) {
       onComplete();
+    } else if (currentStatus.stage === 'Error') {
+      setShowRetry(true);
+      setIsLoading(false);
     }
 
     return () => {
@@ -436,6 +447,14 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
           {status.model_progress && (
             <p>• Currently downloading: {JSON.stringify(status.model_progress)}</p>
           )}
+        </div>
+      )}
+
+      {(status.stage === 'VerifyingGameAPI' || status.stage === 'GameAPIReady') && (
+        <div className="config-info">
+          <p>• Verifying Game API plugin connectivity...</p>
+          <p>• Checking agent communication channels...</p>
+          <p>• Initializing game control interfaces...</p>
         </div>
       )}
     </div>

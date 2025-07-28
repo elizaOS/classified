@@ -3,34 +3,28 @@
  */
 
 import { describe, it, expect, mock, beforeEach, jest } from 'bun:test';
-import { expandTildePath, resolvePgliteDir } from '../index';
+import { expandTildePath, resolvePgliteDir } from '../server';
 import path from 'node:path';
 
-// Mock fs with proper default export
-mock.module('node:fs', async () => {
-  const actual = await import('node:fs');
-  return {
-    ...actual,
-    default: {
-      ...actual,
-      existsSync: jest.fn(),
-    },
-    existsSync: jest.fn(),
-  };
-});
+// Mock fs module
+const fsMock = {
+  existsSync: jest.fn(),
+};
 
-// Mock dotenv with proper structure for default import
-mock.module('dotenv', async () => {
-  const actual = await import('dotenv');
-  const mockConfig = jest.fn();
-  return {
-    ...actual,
-    default: {
-      config: mockConfig,
-    },
-    config: mockConfig,
-  };
-});
+mock.module('node:fs', () => ({
+  default: fsMock,
+  existsSync: fsMock.existsSync,
+}));
+
+// Mock dotenv module
+const dotenvMock = {
+  config: jest.fn(),
+};
+
+mock.module('dotenv', () => ({
+  default: dotenvMock,
+  config: dotenvMock.config,
+}));
 
 // Mock environment module
 mock.module('../api/system/environment', () => ({
@@ -109,6 +103,9 @@ describe('Utility Functions', () => {
     beforeEach(async () => {
       const fs = await import('node:fs');
       (fs.existsSync as any).mockReturnValue(true);
+      
+      // Reset dotenv mock
+      dotenvMock.config.mockClear();
     });
 
     it('should use provided directory', () => {

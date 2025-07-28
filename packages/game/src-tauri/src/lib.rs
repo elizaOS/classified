@@ -12,6 +12,7 @@ mod container;
 mod ipc;
 mod server;
 mod startup;
+mod tests;
 // Export types for external use (tests, etc.)
 pub use backend::{
     AgentConfig, BackendConfig, BackendError, BackendResult, ContainerConfig, ContainerRuntimeType,
@@ -84,7 +85,7 @@ async fn start_callback_server_on_port(port: u16) -> Result<(), Box<dyn std::err
 }
 
 // Helper function to kill processes using a specific port
-async fn kill_processes_on_port(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn kill_processes_on_port(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     info!("🔍 Checking for existing processes on port {}...", port);
 
     let lsof_output = std::process::Command::new("lsof")
@@ -161,77 +162,123 @@ async fn kill_processes_on_port(port: u16) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-async fn route_message_to_agent(message: &str) -> Result<String, Box<dyn std::error::Error>> {
+async fn route_message_to_agent(
+    message: &str,
+    container_manager: Option<Arc<ContainerManager>>,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let client = reqwest::Client::new();
 
     // Use the autonomous thoughts room which exists in the agent
     let room_id = "ce5f41b4-fe24-4c01-9971-aecfed20a6bd"; // Autonomous thoughts room
     let _agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f"; // Agent ID
     
-    // First, ensure the room/channel exists in the messaging system
-    // Create a proper channel entry if needed
-    let channel_url = format!("http://localhost:7777/api/messaging/central-channels/{}", room_id);
-    let channel_check = client.get(&channel_url).send().await;
-    
-    if channel_check.is_err() || !channel_check.unwrap().status().is_success() {
-        info!("Channel doesn't exist in messaging system, creating it...");
+    // First attempt with recovery support
+    let attempt_request = || async {
+        // First, ensure the room/channel exists in the messaging system
+        // Create a proper channel entry if needed
+        let channel_url = format!("http://localhost:7777/api/messaging/central-channels/{}", room_id);
+        let channel_check = client.get(&channel_url).send().await;
         
-        // Try to create the channel
-        let create_channel_url = "http://localhost:7777/api/messaging/central-channels";
-        let _ = client
-            .post(create_channel_url)
+        if channel_check.is_err() || !channel_check.unwrap().status().is_success() {
+            info!("Channel doesn't exist in messaging system, creating it...");
+            
+            // Try to create the channel
+            let create_channel_url = "http://localhost:7777/api/messaging/central-channels";
+            let _ = client
+                .post(create_channel_url)
+                .json(&serde_json::json!({
+                    "id": room_id,
+                    "server_id": "00000000-0000-0000-0000-000000000000",
+                    "name": "Game UI Channel",
+                    "type": "game",
+                    "metadata": {
+                        "source": "eliza_game"
+                    }
+                }))
+                .send()
+                .await;
+        }
+        
+        // Use the ingest-external endpoint which works properly
+        let message_url = "http://localhost:7777/api/messaging/ingest-external";
+        
+        let response = client
+            .post(message_url)
             .json(&serde_json::json!({
-                "id": room_id,
+                "channel_id": room_id,
                 "server_id": "00000000-0000-0000-0000-000000000000",
-                "name": "Game UI Channel",
-                "type": "game",
+                "author_id": "00000000-0000-0000-0000-000000000001", // Fixed user ID
+                "author_display_name": "Admin",
+                "content": message,
+                "source_type": "game_ui",
+                "raw_message": {
+                    "text": message,
+                    "type": "user_message"
+                },
                 "metadata": {
-                    "source": "eliza_game"
+                    "source": "eliza_game",
+                    "userName": "Admin"
                 }
             }))
+            .timeout(std::time::Duration::from_secs(10))
             .send()
-            .await;
-    }
-    
-    // Use the ingest-external endpoint which works properly
-    let message_url = "http://localhost:7777/api/messaging/ingest-external";
-    
-    let response = client
-        .post(message_url)
-        .json(&serde_json::json!({
-            "channel_id": room_id,
-            "server_id": "00000000-0000-0000-0000-000000000000",
-            "author_id": "00000000-0000-0000-0000-000000000001", // Fixed user ID
-            "author_display_name": "Admin",
-            "content": message,
-            "source_type": "game_ui",
-            "raw_message": {
-                "text": message,
-                "type": "user_message"
-            },
-            "metadata": {
-                "source": "eliza_game",
-                "userName": "Admin"
+            .await?;
+
+        if response.status().is_success() {
+            // For the ingest-external endpoint, we get an acknowledgment but not the actual response
+            // The actual response would come through WebSocket or we'd need to poll for it
+            let _response_data: serde_json::Value = response.json().await?;
+
+            // For now, return a confirmation that the message was ingested
+            Ok(format!("Message sent to agent: {}", message)) as Result<String, Box<dyn std::error::Error + Send + Sync>>
+        } else {
+            let status = response.status();
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            Err(format!("Agent responded with status: {} - {}", status, error_text).into()) as Result<String, Box<dyn std::error::Error + Send + Sync>>
+        }
+    };
+
+    // First attempt
+    match attempt_request().await {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            let error_str = e.to_string();
+            
+            // Check if it's a connection error
+            if error_str.contains("Connection refused") || 
+               error_str.contains("tcp connect error") ||
+               error_str.contains("connection closed") {
+                
+                warn!("Agent server appears to be down while routing message: {}", error_str);
+                
+                // If we have a container manager, try to recover
+                if let Some(manager) = container_manager {
+                    warn!("Attempting to recover agent container...");
+                    
+                    // Try to restart the agent container
+                    match manager.restart_container("eliza-agent").await {
+                        Ok(_) => {
+                            info!("Agent container restarted, waiting for it to be ready...");
+                            
+                            // Wait a bit for the container to start up
+                            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                            
+                            // Retry the message after recovery
+                            return attempt_request().await.map_err(|e| e.into());
+                        }
+                        Err(recovery_err) => {
+                            error!("Failed to restart agent container: {}", recovery_err);
+                        }
+                    }
+                }
             }
-        }))
-        .timeout(std::time::Duration::from_secs(10))
-        .send()
-        .await?;
-
-    if response.status().is_success() {
-        // For the ingest-external endpoint, we get an acknowledgment but not the actual response
-        // The actual response would come through WebSocket or we'd need to poll for it
-        let _response_data: serde_json::Value = response.json().await?;
-
-        // For now, return a confirmation that the message was ingested
-        Ok(format!("Message sent to agent: {}", message))
-    } else {
-        let status = response.status();
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error".to_string());
-        Err(format!("Agent responded with status: {} - {}", status, error_text).into())
+            
+            // Return the original error if we couldn't recover
+            Err(e.into())
+        }
     }
 }
 
@@ -273,6 +320,7 @@ async fn submit_user_config(
 async fn send_message_to_agent(
     startup_manager: State<'_, Arc<Mutex<StartupManager>>>,
     native_ws_client: State<'_, Arc<server::websocket::WebSocketClient>>,
+    container_manager: State<'_, Arc<ContainerManager>>,
     message: String,
 ) -> Result<String, String> {
     info!("💬 Received message from frontend: {}", message);
@@ -302,10 +350,39 @@ async fn send_message_to_agent(
 
     // Fallback to HTTP API if WebSocket is not available
     info!("🔄 Falling back to HTTP API for message delivery");
-    match route_message_to_agent(&message).await {
+    match route_message_to_agent(&message, Some(container_manager.inner().clone())).await {
         Ok(response) => Ok(response),
         Err(e) => {
             error!("Failed to route message via HTTP: {}", e);
+            
+            // If it's a connection error, try to recover and retry once more
+            let error_str = e.to_string();
+            if error_str.contains("Connection refused") || 
+               error_str.contains("tcp connect error") {
+                warn!("Detected connection error, attempting container recovery...");
+                
+                // Try to restart the agent container
+                match container_manager.restart_container("eliza-agent").await {
+                    Ok(_) => {
+                        info!("Agent container restarted, waiting for it to be ready...");
+                        
+                        // Wait a bit for the container to start up
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        
+                        // One more try after recovery
+                        match route_message_to_agent(&message, Some(container_manager.inner().clone())).await {
+                            Ok(response) => return Ok(response),
+                            Err(retry_err) => {
+                                error!("Message still failed after recovery: {}", retry_err);
+                            }
+                        }
+                    }
+                    Err(recovery_err) => {
+                        error!("Failed to restart agent container: {}", recovery_err);
+                    }
+                }
+            }
+            
             Err(format!(
                 "Both WebSocket and HTTP communication failed: {}",
                 e
@@ -667,6 +744,66 @@ async fn run_startup_hello_world_test(
     Ok(test_results.join("\n"))
 }
 
+async fn wait_for_agent_server_ready() -> bool {
+    let client = reqwest::Client::new();
+    let url = "http://localhost:7777/api/server/health"; // Health check endpoint
+
+    for attempt in 0..20 { // Retry up to 20 times
+        info!("⏳ Waiting for agent server health check (attempt {}/20)...", attempt + 1);
+        let response = client
+            .get(url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await;
+
+        if let Ok(response) = response {
+            if response.status().is_success() {
+                info!("✅ Agent server health check successful");
+                
+                // Now check if the game API plugin routes are ready
+                info!("🔍 Checking if game API plugin routes are ready...");
+                let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+                let settings_url = format!("http://localhost:7777/api/agents/{}/settings", agent_id);
+                let settings_response = client
+                    .get(&settings_url)
+                    .timeout(std::time::Duration::from_secs(5))
+                    .send()
+                    .await;
+                
+                if let Ok(settings_resp) = settings_response {
+                    if settings_resp.status().is_success() {
+                        info!("✅ Game API plugin routes are ready");
+                        return true;
+                    } else {
+                        warn!("⚠️ Game API plugin routes not ready yet (status: {})", settings_resp.status());
+                    }
+                } else {
+                    warn!("⚠️ Failed to check game API plugin routes");
+                }
+            } else {
+                let status = response.status();
+                let error_text = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Unknown error".to_string());
+                warn!(
+                    "⚠️ Agent server health check failed with status: {} - {}",
+                    status, error_text
+                );
+            }
+        } else {
+            let e = response.unwrap_err();
+            warn!("❌ Failed to send health check request to agent server: {}", e);
+        }
+
+        if attempt < 19 { // Don't sleep on the last attempt
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await; // Wait 5 seconds between retries
+        }
+    }
+    warn!("❌ Agent server did not become ready after multiple attempts.");
+    false
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize logging
@@ -745,7 +882,18 @@ pub fn run() {
             // Socket.IO commands removed - using native WebSocket instead
             // Test commands
             test_native_websocket,
-            run_startup_hello_world_test
+            run_startup_hello_world_test,
+            // Media streaming commands
+            stream_media_frame,
+            stream_media_audio,
+            start_agent_screen_capture,
+            stop_agent_screen_capture,
+            // Agent recovery commands
+            recover_agent_container,
+            check_and_recover_agent,
+            // Model management commands
+            check_ollama_models,
+            pull_missing_models
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");
@@ -842,6 +990,7 @@ pub fn run() {
             let resource_dir_clone = resource_dir.clone();
             let startup_manager_clone = startup_manager_arc.clone();
             let native_ws_clone = native_ws_client.clone();
+            let app_handle_clone = app.handle().clone();
 
             tauri::async_runtime::spawn(async move {
                 let mut manager = startup_manager_clone.lock().await;
@@ -851,6 +1000,28 @@ pub fn run() {
                     error!("❌ Startup initialization failed: {}", e);
                 } else {
                     info!("✅ Startup initialization completed successfully");
+                    
+                    // Wait for agent server to be fully ready before running tests
+                    info!("⏳ Waiting for agent server to be fully ready...");
+                    let agent_ready = wait_for_agent_server_ready().await;
+                    
+                    if !agent_ready {
+                        error!("❌ Agent server failed to become ready after waiting");
+                        std::process::exit(1);
+                    }
+                    
+                    info!("✅ Agent server is ready, running tests...");
+                    
+                    // Run comprehensive runtime tests
+                    drop(manager); // Release the lock before running tests
+                    
+                    // NOTE: run_all_tests will call std::process::exit(1) on test failure
+                    // This ensures the app doesn't start with failing tests
+                    if let Err(e) = crate::tests::run_all_tests(app_handle_clone.clone()).await {
+                        // This code is unreachable if tests fail (app exits), but handles other errors
+                        error!("❌ Runtime tests error: {}", e);
+                        std::process::exit(1);
+                    }
                 }
 
                 // Use native WebSocket client for real-time communication with agent server

@@ -89,7 +89,7 @@
         "type": "string",
         "description": "Specifies which provider to use for generating embeddings (e.g., openai, google). If omitted the code assumes 'openai' through plugin-openai.",
         "required": false,
-        "default": "openai",
+        "default": "ollama",
         "sensitive": false
       },
       "OPENAI_API_KEY": {
@@ -108,7 +108,7 @@
         "type": "string",
         "description": "Embedding model name to use with the configured EMBEDDING_PROVIDER.",
         "required": false,
-        "default": "text-embedding-3-small",
+        "default": "nomic-embed-text",
         "sensitive": false
       },
       "EMBEDDING_DIMENSION": {

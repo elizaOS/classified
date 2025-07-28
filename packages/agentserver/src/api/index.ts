@@ -80,10 +80,22 @@ export function createPluginRouteHandler(agents: Map<UUID, IAgentRuntime>): expr
 
         const routePath = route.path.startsWith('/') ? route.path : `/${route.path}`;
 
-        if (routePath === req.path) {
+        // Use path-to-regexp to match parameterized routes
+        let matcher: MatchFunction<object>;
+        try {
+          matcher = match(routePath, { decode: decodeURIComponent });
+        } catch (err) {
+          logger.error(`Invalid public plugin route path syntax: "${routePath}"`, err);
+          continue;
+        }
+
+        const matched = matcher(req.path);
+        if (matched) {
           logger.debug(
             `Public plugin route matched: [${route.type.toUpperCase()}] ${routePath} (Agent: ${runtime.agentId})`
           );
+          // Merge params from the route match into req.params
+          req.params = { ...(matched.params || {}), ...req.params };
           try {
             route?.handler?.(req, res, runtime);
             return; // Route handled

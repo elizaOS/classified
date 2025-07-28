@@ -6,14 +6,23 @@ import * as fs from 'node:fs';
 import http from 'node:http';
 import path, { basename, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer } from 'ws';
+
 import { randomUUID } from 'crypto';
 import { createApiRouter, createPluginRouteHandler } from './api/index';
 import { apiKeyAuthMiddleware } from './authMiddleware';
 import { ServerDatabaseAdapter } from './database/ServerDatabaseAdapter';
 import { ServerMigrationService } from './database/ServerMigrationService';
 import { jsonToCharacter, loadCharacterTryPath } from './loader';
+
+// Ensure http module is available globally before importing ws
+if (typeof globalThis !== 'undefined' && !(globalThis as any).http) {
+  (globalThis as any).http = http;
+}
+
+// Delay WebSocketServer import until after http polyfill
+import { WebSocketServer } from 'ws';
 import { messageBusConnectorPlugin } from './services/message';
+import { getMediaBuffer } from './game-api-plugin';
 
 import { ChannelType } from '@elizaos/core';
 import {
@@ -603,6 +612,33 @@ export class AgentServer {
       }
     );
 
+    // Store server instance for plugins to access
+    this.app.locals.agentServer = this;
+
+    // Serve the simple messaging UI
+    this.app.get('/messaging', (req, res) => {
+      // Try multiple paths including Docker container path
+      const paths = [
+        path.join(__dirname, '..', 'public', 'messaging.html'), // Development: src/../public
+        path.join(__dirname, 'public', 'messaging.html'), // Production: dist/public
+        path.join(process.cwd(), 'public', 'messaging.html'), // Working directory
+        '/app/public/messaging.html', // Docker container absolute path
+      ];
+
+      logger.debug(`Looking for messaging.html in paths:`, paths);
+
+      for (const htmlPath of paths) {
+        if (fs.existsSync(htmlPath)) {
+          logger.debug(`Found messaging.html at: ${htmlPath}`);
+          res.sendFile(htmlPath);
+          return;
+        }
+      }
+
+      logger.warn(`Messaging UI not found. Checked paths:`, paths);
+      res.status(404).send('Messaging UI not found');
+    });
+
     // Add a catch-all route for API 404s
     this.app.use((req, res, next) => {
       // Check if this is an API route that wasn't handled
@@ -732,6 +768,77 @@ export class AgentServer {
               },
               ws
             );
+            break;
+
+          case 'media_stream':
+            // Handle media stream data
+            const { media_type, stream_type, data, encoding, agent_id: streamAgentId } = message;
+            logger.info(
+              `[WebSocket ${clientId}] Received ${media_type} stream (${stream_type}): ${data?.length || 0} bytes`
+            );
+
+            // Decode base64 data if provided as string
+            let mediaData: Uint8Array;
+            if (typeof data === 'string') {
+              // Assume base64 encoded
+              const buffer = Buffer.from(data, 'base64');
+              mediaData = new Uint8Array(buffer);
+            } else if (Array.isArray(data)) {
+              // Array of bytes
+              mediaData = new Uint8Array(data);
+            } else {
+              mediaData = data as Uint8Array;
+            }
+
+            // Get agent runtime
+            const streamRuntime =
+              this.agents.get(streamAgentId as UUID) || Array.from(this.agents.values())[0];
+            if (streamRuntime) {
+              // Store in media buffer
+              const mediaBuffer = getMediaBuffer(streamRuntime.agentId);
+              if (mediaBuffer) {
+                if (media_type === 'video') {
+                  mediaBuffer.videoFrames.push(mediaData);
+                  if (mediaBuffer.videoFrames.length > mediaBuffer.maxBufferSize) {
+                    mediaBuffer.videoFrames.shift();
+                  }
+                } else if (media_type === 'audio') {
+                  mediaBuffer.audioChunks.push(mediaData);
+                  if (mediaBuffer.audioChunks.length > mediaBuffer.maxBufferSize) {
+                    mediaBuffer.audioChunks.shift();
+                  }
+                }
+              }
+
+              // Notify vision service
+              const visionService =
+                streamRuntime.getService('vision') || streamRuntime.getService('VISION');
+              if (
+                visionService &&
+                typeof (visionService as any).processMediaStream === 'function'
+              ) {
+                await (visionService as any).processMediaStream({
+                  type: media_type,
+                  streamType: stream_type,
+                  data: mediaData,
+                  encoding,
+                  timestamp: Date.now(),
+                });
+              }
+
+              // Send acknowledgment
+              ws.send(
+                JSON.stringify({
+                  type: 'media_stream_ack',
+                  media_type,
+                  stream_type,
+                  size: mediaData.length,
+                  timestamp: Date.now(),
+                })
+              );
+            } else {
+              logger.warn(`[WebSocket ${clientId}] No agent runtime available for media stream`);
+            }
             break;
 
           case 'subscribe_logs':
@@ -1237,7 +1344,7 @@ export class AgentServer {
                 '\x1b[33mWeb UI disabled.\x1b[0m \x1b[32mAPI endpoints available at:\x1b[0m\n' +
                 `  \x1b[1m${baseUrl}/api/server/ping\x1b[22m\x1b[0m\n` +
                 `  \x1b[1m${baseUrl}/api/agents\x1b[22m\x1b[0m\n` +
-                `  \x1b[1m${baseUrl}/api/messaging\x1b[22m\x1b[0m`
+                `  \x1b[1m${baseUrl}/messaging\x1b[22m\x1b[0m`
             );
 
             // Add log for test readiness

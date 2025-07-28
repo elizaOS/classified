@@ -224,7 +224,7 @@ async function buildEverything() {
 
     // Add cache-busting build arg to ensure fresh COPY of binaries
     const buildTimestamp = Date.now();
-    await $`cd ${dockerfileDir} && podman build ${cacheFlag} --build-arg CACHE_BUST=${buildTimestamp} --platform ${platform} -t ${imageName} -f Dockerfile .`;
+    await $`cd ${dockerfileDir} && podman build --format docker ${cacheFlag} --build-arg CACHE_BUST=${buildTimestamp} --platform ${platform} -t ${imageName} -f Dockerfile .`;
 
     // Tag for Rust compatibility
     await $`podman tag ${imageName} eliza-agent:latest`;

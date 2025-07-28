@@ -28,14 +28,31 @@ export function createAgentSettingsRouter(
 
   // Get agent settings
   router.get('/:agentId/settings', async (req, res) => {
-    const agentId = validateUuid(req.params.agentId);
-    if (!agentId) {
-      return sendError(res, 400, 'INVALID_ID', 'Invalid agent ID format');
-    }
+    let agentId: UUID | null = null;
+    let runtime: IAgentRuntime | undefined;
 
-    const runtime = agents.get(agentId);
-    if (!runtime) {
-      return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
+    // Handle "default" as a special case - get the first agent
+    if (req.params.agentId === 'default') {
+      runtime = Array.from(agents.values())[0];
+      if (!runtime) {
+        // Return a minimal response indicating server is ready but no agent yet
+        return sendSuccess(res, {
+          gameApiReady: true,
+          agentReady: false,
+          message: 'Server is running, agent initializing',
+        });
+      }
+      agentId = runtime.agentId;
+    } else {
+      // Validate as UUID for non-default IDs
+      agentId = validateUuid(req.params.agentId);
+      if (!agentId) {
+        return sendError(res, 400, 'INVALID_ID', 'Invalid agent ID format');
+      }
+      runtime = agents.get(agentId);
+      if (!runtime) {
+        return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
+      }
     }
 
     try {
@@ -77,14 +94,26 @@ export function createAgentSettingsRouter(
 
   // Update agent settings
   router.post('/:agentId/settings', async (req, res) => {
-    const agentId = validateUuid(req.params.agentId);
-    if (!agentId) {
-      return sendError(res, 400, 'INVALID_ID', 'Invalid agent ID format');
-    }
+    let agentId: UUID | null = null;
+    let runtime: IAgentRuntime | undefined;
 
-    const runtime = agents.get(agentId);
-    if (!runtime) {
-      return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
+    // Handle "default" as a special case - get the first agent
+    if (req.params.agentId === 'default') {
+      runtime = Array.from(agents.values())[0];
+      if (!runtime) {
+        return sendError(res, 503, 'NO_AGENT', 'No agents available');
+      }
+      agentId = runtime.agentId;
+    } else {
+      // Validate as UUID for non-default IDs
+      agentId = validateUuid(req.params.agentId);
+      if (!agentId) {
+        return sendError(res, 400, 'INVALID_ID', 'Invalid agent ID format');
+      }
+      runtime = agents.get(agentId);
+      if (!runtime) {
+        return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
+      }
     }
 
     const { key, value } = req.body;

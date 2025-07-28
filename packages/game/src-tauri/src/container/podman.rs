@@ -19,6 +19,10 @@ impl PodmanClient {
         Self { podman_path: path }
     }
 
+    pub fn get_path(&self) -> &str {
+        &self.podman_path
+    }
+
     pub async fn create_network(&self, network_name: &str) -> BackendResult<()> {
         info!("Creating container network: {}", network_name);
 
@@ -249,51 +253,76 @@ impl PodmanClient {
 
         if lines.is_empty() {
             return Err(BackendError::Container(format!(
-                "Container {} not found",
-                container_name
+                "Container {container_name} not found"
             )));
         }
 
-        // Parse the first matching line (should only be one)
-        let line = lines[0];
-        let parts: Vec<&str> = line.split(':').collect();
+        // Parse the first matching container
+        if let Some(line) = lines.first() {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 4 {
+                let state = match parts[2] {
+                    "running" => crate::backend::ContainerState::Running,
+                    "paused" => crate::backend::ContainerState::Stopped,
+                    "exited" | "stopped" => crate::backend::ContainerState::Stopped,
+                    "created" => crate::backend::ContainerState::Starting,
+                    _ => crate::backend::ContainerState::Unknown,
+                };
 
-        if parts.len() < 4 {
+                // Simple health status based on state
+                let health = match state {
+                    crate::backend::ContainerState::Running => crate::backend::HealthStatus::Healthy,
+                    _ => crate::backend::HealthStatus::Unknown,
+                };
+
+                return Ok(crate::backend::ContainerStatus {
+                    id: parts[0].to_string(),
+                    name: parts[1].to_string(),
+                    state,
+                    health,
+                    ports: vec![],
+                    started_at: None,
+                    uptime_seconds: 0,
+                    restart_count: 0,
+                });
+            }
+        }
+
+        Err(BackendError::Container(
+            "Failed to parse container status".to_string(),
+        ))
+    }
+
+    pub async fn list_containers_by_pattern(&self, pattern: &str) -> BackendResult<Vec<String>> {
+        info!("Listing containers matching pattern: {}", pattern);
+
+        let output = Command::new(&self.podman_path)
+            .args([
+                "ps",
+                "-a",
+                "--format",
+                "{{.Names}}",
+                "--filter",
+                &format!("name={}", pattern),
+            ])
+            .output()
+            .map_err(|e| BackendError::Container(format!("Failed to list containers: {e}")))?;
+
+        if !output.status.success() {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
             return Err(BackendError::Container(format!(
-                "Invalid container status format: {}",
-                line
+                "Failed to list containers: {error_msg}"
             )));
         }
 
-        let container_id = parts[0].to_string();
-        let name = parts[1].to_string();
-        let state_str = parts[2];
-        let _status_str = parts[3];
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        let names: Vec<String> = output_str
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(|s| s.to_string())
+            .collect();
 
-        let state = crate::backend::ContainerState::from(state_str);
-
-        // Determine health status based on state (simplified)
-        let health = match state {
-            crate::backend::ContainerState::Running => crate::backend::HealthStatus::Healthy,
-            crate::backend::ContainerState::Starting => crate::backend::HealthStatus::Starting,
-            _ => crate::backend::HealthStatus::Unknown,
-        };
-
-        info!(
-            "Container {} status: state={:?}, health={:?}",
-            container_name, state, health
-        );
-
-        Ok(crate::backend::ContainerStatus {
-            id: container_id,
-            name,
-            state,
-            health,
-            ports: vec![],    // We'd need a separate call to get port info
-            started_at: None, // We'd need to parse this from status_str
-            uptime_seconds: 0,
-            restart_count: 0,
-        })
+        Ok(names)
     }
 
     /// Execute a command inside a running container

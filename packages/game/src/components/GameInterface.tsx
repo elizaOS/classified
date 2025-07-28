@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { TauriService, TauriMessage as TauriMsg } from '../services/TauriService';
 import { useTauriChat } from '../hooks/useTauriChat';
 import { v4 as uuidv4 } from 'uuid';
@@ -6,9 +8,6 @@ import { SecurityWarning, SECURITY_CAPABILITIES } from './SecurityWarning';
 import { InputValidator, SecurityLogger } from '../utils/SecurityUtils';
 import { ContainerLogs } from './ContainerLogs';
 import { AgentLogs } from './AgentLogs';
-// Services replaced by TauriService for complete IPC integration
-
-// Tauri environment detection is handled by TauriService
 
 interface OutputLine {
   type: 'user' | 'agent' | 'system' | 'error';
@@ -29,6 +28,18 @@ interface SecurityWarningState {
   isVisible: boolean;
   capability: string;
   onConfirm: () => void;
+}
+
+interface MediaStreams {
+  camera?: MediaStream;
+  screen?: MediaStream;
+  microphone?: MediaStream;
+}
+
+interface StreamingState {
+  camera: boolean;
+  screen: boolean;
+  microphone: boolean;
 }
 
 // Ultra simple buttons - each button triggers API calls and updates backend state
@@ -198,6 +209,10 @@ export const GameInterface: React.FC = () => {
     },
   ]);
 
+  // Game API readiness state
+  const [gameApiReady, setGameApiReady] = useState(false);
+  const [startupError, setStartupError] = useState<string | null>(null);
+
   // Plugin toggles
   const [plugins, setPlugins] = useState<PluginToggleState>({
     autonomy: false, // Default to off since autonomy service is temporarily disabled
@@ -218,7 +233,7 @@ export const GameInterface: React.FC = () => {
 
   // UI state
   const [currentTab, setCurrentTab] = useState<
-    'goals' | 'todos' | 'monologue' | 'files' | 'config' | 'logs'
+    'goals' | 'todos' | 'monologue' | 'files' | 'config' | 'logs' | 'agent-screen'
   >('goals');
   const [logsSubTab, setLogsSubTab] = useState<'agent' | 'container'>('agent');
   // Config dialog removed - not currently used
@@ -229,6 +244,8 @@ export const GameInterface: React.FC = () => {
   const [isResetting, setIsResetting] = useState(false);
   const [pluginConfigs, setPluginConfigs] = useState<any>({});
   const [configValues, setConfigValues] = useState<any>({});
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [monologue, setMonologue] = useState<string[]>([]);
 
   // Security state
   const [securityWarning, setSecurityWarning] = useState<SecurityWarningState>({
@@ -247,6 +264,19 @@ export const GameInterface: React.FC = () => {
     return newId;
   });
 
+  // Media streaming state
+  const [mediaStreams, setMediaStreams] = useState<MediaStreams>({});
+  const [streamingState, setStreamingState] = useState<StreamingState>({
+    camera: false,
+    screen: false,
+    microphone: false,
+  });
+  const [agentScreenActive, setAgentScreenActive] = useState(false);
+  const mediaCanvasRef = useRef<HTMLCanvasElement>(null);
+  const streamIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Refs
+  const terminalRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const historyPosition = useRef<number>(-1);
   const commandHistory = useRef<string[]>([]);
@@ -273,6 +303,64 @@ export const GameInterface: React.FC = () => {
 
     checkTauri();
   }, []);
+
+  // Listen for startup status updates to track Game API readiness
+  useEffect(() => {
+    if (!isRunningInTauri) return;
+
+    let unlistenFn: (() => void) | null = null;
+
+    const setupListener = async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const { invoke } = await import('@tauri-apps/api/core');
+
+        // Get current startup status
+        try {
+          const currentStatus = await invoke('get_startup_status');
+          if (currentStatus && typeof currentStatus === 'object') {
+            const status = currentStatus as any;
+            setGameApiReady(status.game_api_ready || false);
+
+            // Check for error states that affect Game API
+            if (status.stage === 'Error' && status.message?.includes('Game API')) {
+              setStartupError(status.details || 'Game API verification failed');
+            }
+          }
+        } catch (e) {
+          console.error('Failed to get startup status:', e);
+        }
+
+        // Listen for startup status updates
+        const unlisten = await listen('startup-status', (event: any) => {
+          const status = event.payload;
+          if (status) {
+            setGameApiReady(status.game_api_ready || false);
+
+            // Update error state if Game API fails
+            if (status.stage === 'Error' && status.message?.includes('Game API')) {
+              setStartupError(status.details || 'Game API verification failed');
+            } else if (status.stage === 'Ready' || status.stage === 'GameAPIReady') {
+              setStartupError(null);
+            }
+          }
+        });
+
+        unlistenFn = unlisten;
+      } catch (error) {
+        console.error('Failed to setup startup status listener:', error);
+      }
+    };
+
+    setupListener();
+
+    // Cleanup
+    return () => {
+      if (unlistenFn) {
+        unlistenFn();
+      }
+    };
+  }, [isRunningInTauri]);
 
   // Use Tauri chat hook if in Tauri, otherwise show loading or error
   const tauriChatResult = useTauriChat();
@@ -329,8 +417,193 @@ export const GameInterface: React.FC = () => {
     lastProcessedRef.current = messages.length;
   }, [messages]);
 
-  // Connection status is managed by TauriService
-  const effectiveIsConnected = isConnected;
+  // Connection status requires both WebSocket connection AND Game API readiness
+  const effectiveIsConnected = isConnected && gameApiReady;
+
+  // Media capture functions
+  const startCameraCapture = async (): Promise<MediaStream | null> => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+        },
+        audio: false,
+      });
+      return stream;
+    } catch (error) {
+      console.error('Failed to capture camera:', error);
+      return null;
+    }
+  };
+
+  const startScreenCapture = async (): Promise<MediaStream | null> => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 },
+        },
+        audio: false,
+      });
+      return stream;
+    } catch (error) {
+      console.error('Failed to capture screen:', error);
+      return null;
+    }
+  };
+
+  const startMicrophoneCapture = async (): Promise<MediaStream | null> => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+        },
+      });
+      return stream;
+    } catch (error) {
+      console.error('Failed to capture microphone:', error);
+      return null;
+    }
+  };
+
+  // Stop media streams
+  const stopMediaStream = (type: 'camera' | 'screen' | 'microphone') => {
+    const stream = mediaStreams[type];
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+
+      // Clean up audio processor if exists
+      if (type === 'microphone' && (stream as any).audioProcessor) {
+        const { audioContext, source, processor } = (stream as any).audioProcessor;
+        source.disconnect();
+        processor.disconnect();
+        audioContext.close();
+      }
+
+      setMediaStreams((prev) => {
+        const next = { ...prev };
+        delete next[type];
+        return next;
+      });
+
+      setStreamingState((prev) => ({ ...prev, [type]: false }));
+    }
+  };
+
+  // Send frame to Tauri backend
+  const sendFrameToTauri = async (imageData: Uint8Array, type: 'camera' | 'screen') => {
+    try {
+      await invoke('stream_media_frame', {
+        stream_type: type,
+        frame_data: Array.from(imageData), // Convert to array for IPC
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      console.error(`Failed to send ${type} frame to Tauri:`, error);
+    }
+  };
+
+  // Send audio chunk to Tauri backend
+  const sendAudioToTauri = async (audioData: Uint8Array) => {
+    try {
+      await invoke('stream_media_audio', {
+        audio_data: Array.from(audioData), // Convert to array for IPC
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      console.error('Failed to send audio to Tauri:', error);
+    }
+  };
+
+  // Process video streams and send frames
+  const processVideoStream = (stream: MediaStream, type: 'camera' | 'screen') => {
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.play();
+
+    const canvas = mediaCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set canvas size based on stream type
+    if (type === 'camera') {
+      canvas.width = 640;
+      canvas.height = 480;
+    } else {
+      canvas.width = 1280;
+      canvas.height = 720;
+    }
+
+    setStreamingState((prev) => ({ ...prev, [type]: true }));
+
+    const captureFrame = () => {
+      if (!streamingState[type] && mediaStreams[type]) return;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Get image data as JPEG
+      canvas.toBlob(
+        async (blob) => {
+          if (blob) {
+            const arrayBuffer = await blob.arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
+            await sendFrameToTauri(uint8Array, type);
+          }
+        },
+        'image/jpeg',
+        0.8
+      );
+    };
+
+    // Capture frames at 10 FPS
+    const interval = setInterval(captureFrame, 100);
+
+    // Store interval for cleanup
+    if (streamIntervalRef.current) {
+      clearInterval(streamIntervalRef.current);
+    }
+    streamIntervalRef.current = interval;
+  };
+
+  // Process audio stream
+  const processAudioStream = (stream: MediaStream) => {
+    const audioContext = new AudioContext();
+    const source = audioContext.createMediaStreamSource(stream);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+
+    setStreamingState((prev) => ({ ...prev, microphone: true }));
+
+    processor.onaudioprocess = async (event) => {
+      if (!streamingState.microphone) return;
+
+      const inputData = event.inputBuffer.getChannelData(0);
+      const pcmData = new Int16Array(inputData.length);
+
+      // Convert float32 to int16
+      for (let i = 0; i < inputData.length; i++) {
+        const s = Math.max(-1, Math.min(1, inputData[i]));
+        pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+
+      const uint8Array = new Uint8Array(pcmData.buffer);
+      await sendAudioToTauri(uint8Array);
+    };
+
+    // Store processor for cleanup
+    (stream as any).audioProcessor = { audioContext, source, processor };
+  };
 
   // Security-aware capability toggle handler
   const handleCapabilityToggle = async (capability: string) => {
@@ -1060,6 +1333,104 @@ export const GameInterface: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Media streaming state management
+  useEffect(() => {
+    const startMediaStreams = async () => {
+      if (plugins.camera && !mediaStreams.camera) {
+        const stream = await startCameraCapture();
+        if (stream) {
+          setMediaStreams((prev) => ({ ...prev, camera: stream }));
+          processVideoStream(stream, 'camera');
+        }
+      }
+      if (plugins.screen && !mediaStreams.screen) {
+        const stream = await startScreenCapture();
+        if (stream) {
+          setMediaStreams((prev) => ({ ...prev, screen: stream }));
+          processVideoStream(stream, 'screen');
+        }
+      }
+      if (plugins.microphone && !mediaStreams.microphone) {
+        const stream = await startMicrophoneCapture();
+        if (stream) {
+          setMediaStreams((prev) => ({ ...prev, microphone: stream }));
+          processAudioStream(stream);
+        }
+      }
+    };
+
+    const stopMediaStreams = () => {
+      if (mediaStreams.camera) {
+        stopMediaStream('camera');
+      }
+      if (mediaStreams.screen) {
+        stopMediaStream('screen');
+      }
+      if (mediaStreams.microphone) {
+        stopMediaStream('microphone');
+      }
+    };
+
+    startMediaStreams();
+
+    return () => {
+      stopMediaStreams();
+      if (streamIntervalRef.current) {
+        clearInterval(streamIntervalRef.current);
+      }
+    };
+  }, [plugins.camera, plugins.screen, plugins.microphone, mediaStreams]);
+
+  // Listen for agent screen frames from Tauri
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+
+    const setupAgentScreenListener = async () => {
+      try {
+        unsubscribe = await listen('agent-screen-frame', (event: any) => {
+          const { frame_data, width, height, timestamp } = event.payload;
+
+          // Get the agent screen canvas
+          const canvas = document.getElementById('agent-screen-canvas') as HTMLCanvasElement;
+          if (!canvas) return;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+
+          // Set canvas dimensions
+          canvas.width = width;
+          canvas.height = height;
+
+          // Convert frame data back to Uint8Array
+          const imageData = new Uint8Array(frame_data);
+
+          // Create blob and display on canvas
+          const blob = new Blob([imageData], { type: 'image/jpeg' });
+          const url = URL.createObjectURL(blob);
+
+          const img = new Image();
+          img.onload = () => {
+            ctx.drawImage(img, 0, 0, width, height);
+            URL.revokeObjectURL(url);
+          };
+          img.src = url;
+        });
+      } catch (error) {
+        console.error('Failed to setup agent screen listener:', error);
+      }
+    };
+
+    if (isRunningInTauri) {
+      setupAgentScreenListener();
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [isRunningInTauri]);
+
   // Security-aware chat handlers
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1531,6 +1902,69 @@ export const GameInterface: React.FC = () => {
           </div>
         );
 
+      case 'agent-screen':
+        return (
+          <div className="status-content agent-screen-content" data-testid="agent-screen-content">
+            <div className="status-header">
+              <span>◎ AGENT VIRTUAL SCREEN</span>
+              <button
+                className={`agent-screen-toggle ${agentScreenActive ? 'active' : ''}`}
+                onClick={async () => {
+                  try {
+                    if (agentScreenActive) {
+                      await invoke('stop_agent_screen_capture');
+                      setAgentScreenActive(false);
+                    } else {
+                      await invoke('start_agent_screen_capture');
+                      setAgentScreenActive(true);
+                    }
+                  } catch (error) {
+                    console.error('Failed to toggle agent screen capture:', error);
+                  }
+                }}
+                style={{
+                  marginLeft: 'auto',
+                  padding: '4px 12px',
+                  backgroundColor: agentScreenActive ? '#dc2626' : '#059669',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                }}
+              >
+                {agentScreenActive ? 'Stop Capture' : 'Start Capture'}
+              </button>
+            </div>
+            <div className="agent-screen-container">
+              <canvas
+                id="agent-screen-canvas"
+                className="agent-screen-canvas"
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  backgroundColor: '#000',
+                  imageRendering: 'pixelated',
+                }}
+              />
+              <div className="agent-screen-info">
+                {agentScreenActive && (
+                  <span className="stream-indicator">🔴 Agent Screen Active</span>
+                )}
+                {streamingState.camera && (
+                  <span className="stream-indicator">📹 Camera Active</span>
+                )}
+                {streamingState.screen && (
+                  <span className="stream-indicator">🖥️ Screen Sharing</span>
+                )}
+                {streamingState.microphone && (
+                  <span className="stream-indicator">🎤 Mic Active</span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -1586,7 +2020,21 @@ export const GameInterface: React.FC = () => {
         className={`connection-status ${effectiveIsConnected ? 'connected' : 'disconnected'}`}
         data-testid="connection-status"
       >
-        {effectiveIsConnected ? '◉ ONLINE' : '◯ OFFLINE'}
+        {effectiveIsConnected ? (
+          '◉ ONLINE'
+        ) : (
+          <>
+            ◯ OFFLINE
+            {!isConnected && ' (No Connection)'}
+            {isConnected && !gameApiReady && ' (Game API Not Ready)'}
+            {startupError && (
+              <span className="connection-error" title={startupError}>
+                {' '}
+                ⚠️
+              </span>
+            )}
+          </>
+        )}
         <span className="autonomy-status" data-testid="autonomy-status">
           {plugins.autonomy ? 'Active' : 'Paused'}
         </span>
@@ -1656,6 +2104,15 @@ export const GameInterface: React.FC = () => {
                 <span className="chat-content">Connection error: {error}</span>
               </div>
             )}
+            {isConnected && !gameApiReady && (
+              <div className="chat-line chat-error">
+                <span className="chat-prefix">[ERR]</span>
+                <span className="chat-content">
+                  Game API is not ready. Chat is disabled.{' '}
+                  {startupError || 'Waiting for Game API plugin to initialize...'}
+                </span>
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="chat-input-form">
@@ -1671,7 +2128,13 @@ export const GameInterface: React.FC = () => {
                 }}
                 onKeyDown={handleKeyDown}
                 className="chat-input"
-                placeholder=""
+                placeholder={
+                  !effectiveIsConnected
+                    ? isConnected
+                      ? 'Game API not ready...'
+                      : 'Not connected...'
+                    : ''
+                }
                 disabled={!effectiveIsConnected}
                 data-testid="message-input"
                 aria-label="Enter command or message"
@@ -1698,14 +2161,16 @@ export const GameInterface: React.FC = () => {
 
           {/* Status Tabs */}
           <div className="status-tabs">
-            {(['goals', 'todos', 'monologue', 'files', 'config', 'logs'] as const).map((tab) => (
+            {(
+              ['goals', 'todos', 'monologue', 'files', 'config', 'logs', 'agent-screen'] as const
+            ).map((tab) => (
               <button
                 key={tab}
                 className={`tab-btn ${currentTab === tab ? 'active' : ''}`}
                 onClick={() => setCurrentTab(tab)}
                 data-testid={`${tab}-tab`}
               >
-                {tab.toUpperCase()}
+                {tab === 'agent-screen' ? 'AGENT VIEW' : tab.toUpperCase()}
               </button>
             ))}
           </div>
@@ -1804,6 +2269,9 @@ export const GameInterface: React.FC = () => {
         }
         isVisible={securityWarning.isVisible}
       />
+
+      {/* Hidden canvas for media processing */}
+      <canvas ref={mediaCanvasRef} style={{ display: 'none' }} width={1280} height={720} />
     </div>
   );
 };

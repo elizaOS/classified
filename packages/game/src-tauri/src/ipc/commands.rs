@@ -1,9 +1,14 @@
-use crate::{backend::*, container::*};
+use crate::backend::*;
+use crate::container::*;
+use crate::SetupProgress;
 use reqwest;
 use serde_json;
 use std::sync::Arc;
 use tauri::{Manager, State};
 use tracing::{error, info, warn};
+use tokio::sync::RwLock;
+use tauri::AppHandle;
+use serde_json::json;
 
 // Container management commands
 /// Gets the status of all managed containers.
@@ -181,8 +186,11 @@ pub async fn get_autonomy_status() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 pub async fn toggle_capability(capability: String) -> Result<serde_json::Value, String> {
-    let endpoint = format!("/api/agents/default/capabilities/{}/toggle", capability);
-    match make_agent_server_request("POST", &endpoint, None).await {
+    // Use the actual agent ID that's hardcoded in the game
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/agents/{}/capabilities/{}/toggle", agent_id, capability);
+    let body = serde_json::json!({ "enabled": true }); // Add the required body
+    match make_agent_server_request("POST", &endpoint, Some(body)).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to toggle {} capability: {}", capability, e)),
     }
@@ -190,35 +198,37 @@ pub async fn toggle_capability(capability: String) -> Result<serde_json::Value, 
 
 #[tauri::command]
 pub async fn get_capability_status(capability: String) -> Result<serde_json::Value, String> {
-    let endpoint = format!("/api/agents/default/capabilities/{}", capability);
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/agents/{}/capabilities/{}", agent_id, capability);
     match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!(
-            "Failed to get {} capability status: {}",
-            capability, e
-        )),
+        Err(e) => Err(format!("Failed to get {} capability status: {}", capability, e)),
     }
 }
 
 #[tauri::command]
 pub async fn update_agent_setting(
-    key: String,
+    setting_name: String,
     value: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/agents/{}/settings", agent_id);
     let payload = serde_json::json!({
-        "key": key,
+        "key": setting_name,
         "value": value
     });
 
-    match make_agent_server_request("POST", "/api/agents/default/settings", Some(payload)).await {
+    match make_agent_server_request("POST", &endpoint, Some(payload)).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to update setting {}: {}", key, e)),
+        Err(e) => Err(format!("Failed to update agent setting: {}", e)),
     }
 }
 
 #[tauri::command]
 pub async fn get_agent_settings() -> Result<serde_json::Value, String> {
-    match make_agent_server_request("GET", "/api/agents/default/settings", None).await {
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/agents/{}/settings", agent_id);
+    match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to get agent settings: {}", e)),
     }
@@ -246,6 +256,16 @@ async fn make_agent_server_request(
     endpoint: &str,
     body: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    make_agent_server_request_with_timeout(method, endpoint, body, 10).await
+}
+
+// Helper function with custom timeout
+async fn make_agent_server_request_with_timeout(
+    method: &str,
+    endpoint: &str,
+    body: Option<serde_json::Value>,
+    timeout_secs: u64,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let url = format!("http://localhost:7777{}", endpoint);
 
@@ -253,6 +273,7 @@ async fn make_agent_server_request(
         "GET" => client.get(&url),
         "POST" => client.post(&url),
         "PUT" => client.put(&url),
+        "PATCH" => client.patch(&url),
         "DELETE" => client.delete(&url),
         _ => return Err("Invalid HTTP method".into()),
     };
@@ -262,7 +283,7 @@ async fn make_agent_server_request(
     }
 
     let response = request
-        .timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(timeout_secs))
         .send()
         .await?;
 
@@ -283,10 +304,16 @@ async fn make_agent_server_request(
     }
 }
 
+
+
 // Data fetching commands
 #[tauri::command]
 pub async fn fetch_goals() -> Result<serde_json::Value, String> {
-    match make_agent_server_request("GET", "/api/goals", None).await {
+    // Include agent ID as query param to ensure plugin route is used
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/goals?agentId={}", agent_id);
+    
+    match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to fetch goals: {}", e)),
     }
@@ -294,7 +321,11 @@ pub async fn fetch_goals() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 pub async fn fetch_todos() -> Result<serde_json::Value, String> {
-    match make_agent_server_request("GET", "/api/todos", None).await {
+    // Include agent ID as query param to ensure plugin route is used
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/todos?agentId={}", agent_id);
+    
+    match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to fetch todos: {}", e)),
     }
@@ -351,7 +382,7 @@ pub async fn validate_configuration() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 pub async fn test_configuration() -> Result<serde_json::Value, String> {
-    match make_agent_server_request("POST", "/api/config/test", None).await {
+    match make_agent_server_request_with_timeout("POST", "/api/config/test", None, 30).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to test configuration: {}", e)),
     }
@@ -375,6 +406,9 @@ pub async fn fetch_autonomy_status() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 pub async fn fetch_memories(params: serde_json::Value) -> Result<serde_json::Value, String> {
+    // Use the hardcoded agent ID
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    
     // Convert the params object to query string parameters
     let mut query_params = vec![];
 
@@ -397,7 +431,7 @@ pub async fn fetch_memories(params: serde_json::Value) -> Result<serde_json::Val
         format!("?{}", query_params.join("&"))
     };
 
-    let endpoint = format!("/api/memories{}", query_string);
+    let endpoint = format!("/api/memory/{}/memories{}", agent_id, query_string);
 
     match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
@@ -429,61 +463,28 @@ pub async fn upload_knowledge_file(
     content: String,
     mime_type: String,
 ) -> Result<serde_json::Value, String> {
-    use serde_json::Value;
-    use std::io::Write;
-    use tempfile::Builder;
     use base64::{Engine as _, engine::general_purpose};
 
-    // Create a temporary file to store the uploaded content
-    let mut temp_file = Builder::new()
-        .prefix("upload-")
-        .suffix(&format!("-{}", file_name))
-        .tempfile()
-        .map_err(|e| format!("Failed to create temporary file: {}", e))?;
-
-    // Decode base64 content using the new Engine API
+    // Decode base64 content
     let decoded_content = general_purpose::STANDARD
         .decode(&content)
         .map_err(|e| format!("Failed to decode base64 content: {}", e))?;
 
-    // Write content to temp file
-    temp_file
-        .write_all(&decoded_content)
-        .map_err(|e| format!("Failed to write to temporary file: {}", e))?;
-    
-    // Create multipart form
-    let form = reqwest::multipart::Form::new()
-        .part(
-            "file",
-            reqwest::multipart::Part::bytes(decoded_content)
-                .file_name(file_name.clone())
-                .mime_str(&mime_type)
-                .map_err(|e| format!("Failed to set MIME type: {}", e))?,
-        );
+    // Convert decoded content to string
+    let file_content = String::from_utf8(decoded_content)
+        .unwrap_or_else(|e| String::from_utf8_lossy(&e.into_bytes()).to_string());
+
+    // Create JSON payload with file in body
+    let payload = serde_json::json!({
+        "file": file_content,
+        "fileName": file_name,
+        "mimeType": mime_type
+    });
 
     // Make request to upload endpoint
-    let client = reqwest::Client::new();
-    let url = "http://localhost:7777/knowledge/upload";
-    
-    let response = client
-        .post(url)
-        .multipart(form)
-        .timeout(std::time::Duration::from_secs(30))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to upload file: {}", e))?;
-
-    if response.status().is_success() {
-        let data: Value = response.json().await
-            .map_err(|e| format!("Failed to parse upload response: {}", e))?;
-        Ok(data)
-    } else {
-        let status = response.status();
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error".to_string());
-        Err(format!("Upload failed with status {}: {}", status, error_text))
+    match make_agent_server_request("POST", "/knowledge/upload", Some(payload)).await {
+        Ok(response) => Ok(response),
+        Err(e) => Err(format!("Failed to upload knowledge file: {}", e)),
     }
 }
 
@@ -500,7 +501,11 @@ pub async fn create_goal(
         "metadata": metadata.unwrap_or(serde_json::json!({}))
     });
 
-    match make_agent_server_request("POST", "/api/goals", Some(payload)).await {
+    // Include agent ID as query param to ensure plugin route is used
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/goals?agentId={}", agent_id);
+    
+    match make_agent_server_request("POST", &endpoint, Some(payload)).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to create goal: {}", e)),
     }
@@ -514,14 +519,20 @@ pub async fn create_todo(
     priority: Option<i32>,
     todo_type: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    // The plugin todo endpoint expects these fields
     let payload = serde_json::json!({
         "name": name,
-        "description": description,
+        "type": todo_type.unwrap_or_else(|| "one-off".to_string()),
+        "roomId": "ce5f41b4-fe24-4c01-9971-aecfed20a6bd", // Use the autonomous thoughts room
         "priority": priority.unwrap_or(1),
-        "type": todo_type.unwrap_or_else(|| "one-off".to_string())
+        "description": description,
     });
 
-    match make_agent_server_request("POST", "/api/todos", Some(payload)).await {
+    // Include agent ID as query param to ensure plugin route is used
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/todos?agentId={}", agent_id);
+
+    match make_agent_server_request("POST", &endpoint, Some(payload)).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to create todo: {}", e)),
     }
@@ -563,4 +574,349 @@ pub async fn fetch_logs(
             }))
         }
     }
+}
+
+// Media streaming commands
+
+/// Receives video frame data from frontend and forwards it to agent server
+#[tauri::command]
+pub async fn stream_media_frame(
+    native_ws_client: State<'_, Arc<crate::server::websocket::WebSocketClient>>,
+    stream_type: String,
+    frame_data: Vec<u8>,
+    timestamp: u64,
+) -> Result<(), String> {
+    info!("📹 Received {} frame: {} bytes", stream_type, frame_data.len());
+
+    // Forward to agent server via WebSocket with optimized method
+    if native_ws_client.is_connected().await {
+        match native_ws_client.send_media_frame(frame_data.clone(), &stream_type).await {
+            Ok(_) => {
+                info!("✅ Forwarded {} frame to agent server via WebSocket", stream_type);
+                return Ok(());
+            }
+            Err(e) => {
+                warn!("⚠️ WebSocket send failed, falling back to HTTP: {}", e);
+            }
+        }
+    }
+
+    // Fallback to HTTP API
+    let client = reqwest::Client::new();
+    let url = "http://localhost:7777/api/media/stream";
+    
+    match client
+        .post(url)
+        .json(&serde_json::json!({
+            "type": "video",
+            "stream_type": stream_type,
+            "data": frame_data,
+            "timestamp": timestamp,
+            "agentId": "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f" // Default agent ID
+        }))
+        .send()
+        .await
+    {
+        Ok(response) => {
+            if response.status().is_success() {
+                info!("✅ Forwarded {} frame via HTTP API", stream_type);
+                Ok(())
+            } else {
+                Err(format!("HTTP API returned error: {}", response.status()))
+            }
+        }
+        Err(e) => Err(format!("Failed to send via HTTP: {}", e))
+    }
+}
+
+/// Receives audio data from frontend and forwards it to agent server
+#[tauri::command]
+pub async fn stream_media_audio(
+    native_ws_client: State<'_, Arc<crate::server::websocket::WebSocketClient>>,
+    audio_data: Vec<u8>,
+    timestamp: u64,
+) -> Result<(), String> {
+    info!("🎤 Received audio chunk: {} bytes", audio_data.len());
+
+    // Forward to agent server via WebSocket with optimized method
+    if native_ws_client.is_connected().await {
+        match native_ws_client.send_audio_chunk(audio_data.clone()).await {
+            Ok(_) => {
+                info!("✅ Forwarded audio chunk to agent server via WebSocket");
+                return Ok(());
+            }
+            Err(e) => {
+                warn!("⚠️ WebSocket send failed, falling back to HTTP: {}", e);
+            }
+        }
+    }
+
+    // Fallback to HTTP API
+    let client = reqwest::Client::new();
+    let url = "http://localhost:7777/api/media/stream";
+    
+    match client
+        .post(url)
+        .json(&serde_json::json!({
+            "type": "audio", 
+            "data": audio_data,
+            "timestamp": timestamp,
+            "agentId": "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f" // Default agent ID
+        }))
+        .send()
+        .await
+    {
+        Ok(response) => {
+            if response.status().is_success() {
+                info!("✅ Forwarded audio chunk via HTTP API");
+                Ok(())
+            } else {
+                Err(format!("HTTP API returned error: {}", response.status()))
+            }
+        }
+        Err(e) => Err(format!("Failed to send via HTTP: {}", e))
+    }
+}
+
+/// Starts agent screen capture (when agent has virtual screen)
+#[tauri::command]
+pub async fn start_agent_screen_capture() -> Result<(), String> {
+    info!("🖥️ Starting agent screen capture");
+    
+    // Call agent server endpoint to start screen capture
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/agents/{}/screen/start", agent_id);
+    
+    match make_agent_server_request("POST", &endpoint, None).await {
+        Ok(_) => {
+            info!("✅ Agent screen capture started");
+            Ok(())
+        }
+        Err(e) => {
+            error!("❌ Failed to start agent screen capture: {}", e);
+            Err(format!("Failed to start screen capture: {}", e))
+        }
+    }
+}
+
+/// Stops agent screen capture
+#[tauri::command] 
+pub async fn stop_agent_screen_capture() -> Result<(), String> {
+    info!("🛑 Stopping agent screen capture");
+    
+    // Call agent server endpoint to stop screen capture
+    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+    let endpoint = format!("/api/agents/{}/screen/stop", agent_id);
+    
+    match make_agent_server_request("POST", &endpoint, None).await {
+        Ok(_) => {
+            info!("✅ Agent screen capture stopped");
+            Ok(())
+        }
+        Err(e) => {
+            error!("❌ Failed to stop agent screen capture: {}", e);
+            Err(format!("Failed to stop screen capture: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn recover_agent_container(
+    container_manager: State<'_, Arc<ContainerManager>>,
+) -> Result<String, String> {
+    info!("🚨 Starting agent container recovery...");
+    
+    // Check agent container status
+    match container_manager.get_runtime_container_status("eliza-agent").await {
+        Ok(status) => {
+            info!("Agent container status: {:?}", status.state);
+            
+            match status.state {
+                ContainerState::Stopped => {
+                    // Container exists but stopped, restart it
+                    info!("Agent container is stopped, attempting to restart...");
+                    
+                    match container_manager.restart_container("eliza-agent").await {
+                        Ok(_) => {
+                            info!("Agent container restarted successfully");
+                            
+                            // Wait for it to become healthy
+                            if let Err(e) = container_manager.wait_for_container_health("eliza-agent", std::time::Duration::from_secs(30)).await {
+                                error!("Agent container failed health check after restart: {}", e);
+                                
+                                // Get logs for debugging
+                                if let Ok(logs) = container_manager.get_container_logs("eliza-agent", Some(100)).await {
+                                    error!("Recent agent container logs:");
+                                    for line in logs.lines().take(50) {
+                                        error!("  {}", line);
+                                    }
+                                }
+                                
+                                return Err(format!("Agent container unhealthy after restart: {}", e));
+                            }
+                            
+                            Ok("Agent container recovered successfully".to_string())
+                        }
+                        Err(e) => {
+                            error!("Failed to restart agent container: {}", e);
+                            Err(format!("Failed to restart agent container: {}", e))
+                        }
+                    }
+                }
+                ContainerState::Running => {
+                    // Container is running but agent process may have crashed
+                    info!("Container is running but agent process may have crashed");
+                    
+                    // Get logs to see what happened
+                    if let Ok(logs) = container_manager.get_container_logs("eliza-agent", Some(100)).await {
+                        error!("Recent agent container logs:");
+                        for line in logs.lines().take(50) {
+                            error!("  {}", line);
+                        }
+                    }
+                    
+                    // Restart the container to recover
+                    info!("Restarting agent container to recover from crash...");
+                    match container_manager.restart_container("eliza-agent").await {
+                        Ok(_) => {
+                            info!("Agent container restarted after crash");
+                            
+                            // Wait for health
+                            if container_manager.wait_for_container_health("eliza-agent", std::time::Duration::from_secs(30)).await.is_ok() {
+                                Ok("Agent container recovered from crash".to_string())
+                            } else {
+                                Err("Agent container failed to become healthy after recovery".to_string())
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to restart crashed container: {}", e);
+                            Err(format!("Failed to restart crashed container: {}", e))
+                        }
+                    }
+                }
+                _ => {
+                    warn!("Agent container in unexpected state: {:?}", status.state);
+                    Err(format!("Agent container in unexpected state: {:?}", status.state))
+                }
+            }
+        }
+        Err(e) => {
+            warn!("Agent container not found: {}", e);
+            
+            // Container doesn't exist, try to start it
+            info!("Attempting to start agent container...");
+            match container_manager.start_agent().await {
+                Ok(_) => {
+                    info!("Agent container started successfully");
+                    
+                    // Wait for health
+                    if container_manager.wait_for_container_health("eliza-agent", std::time::Duration::from_secs(60)).await.is_ok() {
+                        Ok("Agent container started successfully".to_string())
+                    } else {
+                        Err("Agent container failed to become healthy".to_string())
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to start agent container: {}", e);
+                    Err(format!("Failed to start agent container: {}", e))
+                }
+            }
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+pub struct OllamaModelStatus {
+    pub models_ready: bool,
+    pub missing_models: Vec<String>,
+    pub downloading: Option<String>,
+    pub progress: Option<f32>,
+}
+
+#[tauri::command]
+pub async fn check_ollama_models(
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<OllamaModelStatus, String> {
+    info!("Checking Ollama model status...");
+    
+    // Check if Ollama container is running
+    let state_guard = state.read().await;
+    let manager = state_guard.container_manager.clone();
+    
+    match manager.get_runtime_container_status().await {
+        Ok(status) => {
+            if !status.ollama.is_running || !status.ollama.is_healthy {
+                return Ok(OllamaModelStatus {
+                    models_ready: false,
+                    missing_models: vec!["llama3.2:3b".to_string(), "nomic-embed-text".to_string()],
+                    downloading: None,
+                    progress: None,
+                });
+            }
+        }
+        Err(_) => {
+            return Ok(OllamaModelStatus {
+                models_ready: false,
+                missing_models: vec!["llama3.2:3b".to_string(), "nomic-embed-text".to_string()],
+                downloading: None,
+                progress: None,
+            });
+        }
+    }
+    
+    // Check which models are available
+    let required_models = vec!["llama3.2:3b", "nomic-embed-text"];
+    let mut missing_models = Vec::new();
+    
+    for model in required_models {
+        match manager.check_ollama_model_exists(model).await {
+            Ok(exists) => {
+                if !exists {
+                    missing_models.push(model.to_string());
+                }
+            }
+            Err(_) => {
+                missing_models.push(model.to_string());
+            }
+        }
+    }
+    
+    Ok(OllamaModelStatus {
+        models_ready: missing_models.is_empty(),
+        missing_models,
+        downloading: None,
+        progress: None,
+    })
+}
+
+#[tauri::command]
+pub async fn pull_missing_models(
+    state: State<'_, Arc<RwLock<AppState>>>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    info!("Pulling missing Ollama models...");
+    
+    let state_guard = state.read().await;
+    let manager = state_guard.container_manager.clone();
+    
+    // Run model pulling in background
+    tokio::spawn(async move {
+        match manager.pull_ollama_models().await {
+            Ok(_) => {
+                info!("Models pulled successfully");
+                app_handle.emit_all("model-download-complete", json!({
+                    "success": true
+                })).ok();
+            }
+            Err(e) => {
+                error!("Failed to pull models: {}", e);
+                app_handle.emit_all("model-download-complete", json!({
+                    "success": false,
+                    "error": e.to_string()
+                })).ok();
+            }
+        }
+    });
+    
+    Ok(())
 }

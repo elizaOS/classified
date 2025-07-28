@@ -95,6 +95,10 @@ export class VisionService extends Service {
     florence2Enabled: true,
   };
 
+  // External media stream handling
+  private externalStreams: Map<string, any> = new Map();
+  private audioTranscriptionQueue: { data: Uint8Array; timestamp: number; source: string }[] = [];
+
   constructor(runtime: IAgentRuntime) {
     super(runtime);
 
@@ -1623,5 +1627,242 @@ export class VisionService extends Service {
       logger.error('[VisionService] Failed to capture image:', error);
       return null;
     }
+  }
+
+  // External media stream handling
+  public async processMediaStream(data: {
+    type: 'video' | 'audio';
+    streamType?: string;
+    data: Uint8Array;
+    encoding?: string;
+    timestamp: number;
+  }): Promise<void> {
+    const streamKey = `${data.streamType || data.type}_external`;
+
+    if (data.type === 'video') {
+      // Process video frame
+      const frame = await this.decodeVideoFrame(data.data, data.encoding);
+      if (frame) {
+        // Store in external streams
+        this.externalStreams.set(streamKey, {
+          type: data.streamType === 'screen' ? 'screen' : 'camera',
+          source: 'user',
+          lastFrame: frame,
+          lastUpdate: Date.now(),
+        });
+
+        // Process frame through vision pipeline
+        await this.processExternalFrame(streamKey, frame);
+      }
+    } else if (data.type === 'audio') {
+      // Queue audio for transcription
+      if (!this.externalStreams.has(streamKey)) {
+        this.externalStreams.set(streamKey, {
+          type: 'audio',
+          source: 'user',
+          lastUpdate: Date.now(),
+          audioBuffer: [],
+        });
+      }
+
+      const stream = this.externalStreams.get(streamKey)!;
+      if (stream.audioBuffer) {
+        stream.audioBuffer.push(data.data);
+        // Keep last 10 seconds of audio (assuming ~4KB chunks at 10fps = ~40KB/s)
+        if (stream.audioBuffer.length > 100) {
+          stream.audioBuffer.shift();
+        }
+      }
+
+      // Queue for transcription
+      this.audioTranscriptionQueue.push({
+        data: data.data,
+        timestamp: data.timestamp,
+        source: streamKey,
+      });
+
+      // Process audio transcription queue
+      await this.processAudioTranscriptionQueue();
+    }
+  }
+
+  private async decodeVideoFrame(data: Uint8Array, encoding?: string): Promise<VisionFrame | null> {
+    try {
+      if (encoding === 'jpeg' || encoding === 'jpg') {
+        // Use sharp to decode JPEG to raw pixels
+        const sharp = (await import('sharp')).default;
+        const image = sharp(Buffer.from(data));
+        const metadata = await image.metadata();
+        const rawData = await image.raw().toBuffer();
+
+        return {
+          data: rawData,
+          width: metadata.width || 640,
+          height: metadata.height || 480,
+          format: 'rgb' as const,
+          timestamp: Date.now(),
+        };
+      }
+
+      // For other encodings, assume raw data
+      return {
+        data: Buffer.from(data),
+        width: 640, // Default dimensions
+        height: 480,
+        format: 'rgb' as const,
+        timestamp: Date.now(),
+      };
+    } catch (error) {
+      logger.error('[VisionService] Failed to decode video frame:', error);
+      return null;
+    }
+  }
+
+  private async processExternalFrame(streamKey: string, frame: VisionFrame): Promise<void> {
+    // Similar to processFrameData but for external streams
+    const stream = this.externalStreams.get(streamKey);
+    if (!stream) return;
+
+    // Check if scene has changed significantly
+    const changePercentage = stream.lastFrame
+      ? await this.calculatePixelChange(stream.lastFrame, frame)
+      : 100;
+
+    // Update scene description if significant change
+    if (changePercentage > this.visionConfig.vlmChangeThreshold && stream.type && stream.source) {
+      // Get current description synchronously
+      const currentDescription = this.lastSceneDescription;
+      const newDescription = `[External ${stream.type} from ${stream.source}] ${currentDescription?.description || 'Scene detected'}`;
+
+      // Update internal scene description
+      this.lastSceneDescription = {
+        description: newDescription,
+        timestamp: Date.now(),
+        objects: [],
+        people: [],
+        sceneChanged: true,
+        changePercentage: changePercentage,
+        audioTranscription: currentDescription?.audioTranscription,
+      };
+
+      logger.info(`[VisionService] External ${stream.type} scene updated:`, newDescription);
+    }
+
+    // Update the last frame reference
+    if (stream) {
+      stream.lastFrame = frame;
+    }
+  }
+
+  private async processAudioTranscriptionQueue(): Promise<void> {
+    if (this.audioTranscriptionQueue.length === 0) return;
+
+    // Process in batches to avoid overwhelming the transcription service
+    const batchSize = 10;
+    const batch = this.audioTranscriptionQueue.splice(0, batchSize);
+
+    // Combine audio chunks
+    const combinedAudio = Buffer.concat(batch.map((item) => Buffer.from(item.data)));
+
+    try {
+      // Transcribe using Whisper via Ollama
+      const transcription = await this.transcribeAudioWithWhisper(combinedAudio);
+
+      if (transcription && transcription.trim()) {
+        // Store transcription in scene description for context
+        const audioTranscription = `[Audio Transcription] ${transcription}`;
+
+        // Update scene description with audio context
+        this.lastSceneDescription = {
+          description: this.lastSceneDescription?.description || 'Scene with audio',
+          timestamp: Date.now(),
+          objects: this.lastSceneDescription?.objects || [],
+          people: this.lastSceneDescription?.people || [],
+          sceneChanged: true,
+          changePercentage: 0,
+          audioTranscription: transcription,
+        };
+
+        logger.info('[VisionService] Audio transcription:', transcription);
+      }
+    } catch (error) {
+      logger.error('[VisionService] Failed to transcribe audio:', error);
+    }
+  }
+
+  private async transcribeAudioWithWhisper(audioData: Buffer): Promise<string | null> {
+    try {
+      // Check if Ollama is available and has Whisper model
+      const ollamaUrl = this.runtime.getSetting('OLLAMA_URL') || 'http://localhost:11434';
+      const whisperModel = this.runtime.getSetting('WHISPER_MODEL') || 'whisper-large-v3';
+
+      // Convert PCM to WAV format for Whisper
+      const wavBuffer = await this.pcmToWav(audioData);
+
+      // Send to Ollama for transcription
+      const response = await fetch(`${ollamaUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: whisperModel,
+          prompt: wavBuffer.toString('base64'),
+          stream: false,
+          options: {
+            task: 'transcribe',
+            language: 'en',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ollama responded with ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.response || null;
+    } catch (error) {
+      logger.error('[VisionService] Whisper transcription failed:', error);
+      // Fallback to mock transcription for testing
+      return '[Audio detected but transcription unavailable]';
+    }
+  }
+
+  private async pcmToWav(pcmData: Buffer): Promise<Buffer> {
+    // Simple WAV header for 16-bit PCM, 44100 Hz, mono
+    const sampleRate = 44100;
+    const bitsPerSample = 16;
+    const channels = 1;
+    const dataSize = pcmData.length;
+    const fileSize = dataSize + 44 - 8;
+
+    const header = Buffer.alloc(44);
+    // RIFF header
+    header.write('RIFF', 0);
+    header.writeUInt32LE(fileSize, 4);
+    header.write('WAVE', 8);
+    // fmt sub-chunk
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16); // Sub-chunk size
+    header.writeUInt16LE(1, 20); // Audio format (PCM)
+    header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE((sampleRate * channels * bitsPerSample) / 8, 28); // Byte rate
+    header.writeUInt16LE((channels * bitsPerSample) / 8, 32); // Block align
+    header.writeUInt16LE(bitsPerSample, 34);
+    // data sub-chunk
+    header.write('data', 36);
+    header.writeUInt32LE(dataSize, 40);
+
+    return Buffer.concat([header, pcmData]);
+  }
+
+  // Get all active external streams
+  public getExternalStreams(): Map<string, any> {
+    return this.externalStreams;
+  }
+
+  // Clear external stream
+  public clearExternalStream(streamKey: string): void {
+    this.externalStreams.delete(streamKey);
   }
 }

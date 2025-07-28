@@ -2,6 +2,12 @@
 
 echo "[STARTUP] ElizaOS Agent Server starting..."
 
+# Start VNC terminal environment if script exists
+if [ -f "/app/vnc-autostart.sh" ]; then
+    echo "[STARTUP] Starting VNC terminal environment..."
+    bash /app/vnc-autostart.sh &
+fi
+
 # Check if database reset is requested
 if [ "$RESET_DB" = "true" ]; then
     echo "[STARTUP] Database reset requested (RESET_DB=true)"

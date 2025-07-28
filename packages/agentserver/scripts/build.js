@@ -200,6 +200,28 @@ const require = __createRequire(import.meta.url);
     });
 
     console.log('Backend build complete!');
+
+    // Copy public folder to dist
+    const fs = require('fs');
+    const publicDir = path.join(__dirname, '..', 'public');
+    const distPublicDir = path.join(__dirname, '..', 'dist', 'public');
+
+    if (fs.existsSync(publicDir)) {
+      // Create dist/public directory if it doesn't exist
+      if (!fs.existsSync(distPublicDir)) {
+        fs.mkdirSync(distPublicDir, { recursive: true });
+      }
+
+      // Copy files from public to dist/public
+      const files = fs.readdirSync(publicDir);
+      files.forEach((file) => {
+        const srcPath = path.join(publicDir, file);
+        const destPath = path.join(distPublicDir, file);
+        fs.copyFileSync(srcPath, destPath);
+      });
+
+      console.log('Public folder copied to dist/public');
+    }
   } catch (error) {
     console.error('Build failed:', error);
     process.exit(1);

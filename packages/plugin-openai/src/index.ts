@@ -418,7 +418,7 @@ export const openaiPlugin: Plugin = {
         'text-embedding-3-small'
       );
       const embeddingDimension = Number.parseInt(
-        getSetting(runtime, 'OPENAI_EMBEDDING_DIMENSIONS', '1536') || '1536',
+        getSetting(runtime, 'OPENAI_EMBEDDING_DIMENSIONS', '768') || '768',
         10
       ) as (typeof VECTOR_DIMS)[keyof typeof VECTOR_DIMS];
 

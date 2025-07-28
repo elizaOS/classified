@@ -184,8 +184,6 @@ impl DockerClient {
         &self,
         container_name: &str,
     ) -> BackendResult<crate::backend::ContainerStatus> {
-        warn!("Docker get_container_status implementation is basic");
-
         let output = std::process::Command::new("docker")
             .args([
                 "ps",
@@ -215,7 +213,7 @@ impl DockerClient {
             )));
         }
 
-        // Parse the first matching line (should only be one)
+        // Parse the first matching line
         let line = lines[0];
         let parts: Vec<&str> = line.split(':').collect();
 
@@ -226,22 +224,22 @@ impl DockerClient {
             )));
         }
 
-        let container_id = parts[0].to_string();
-        let name = parts[1].to_string();
-        let state_str = parts[2];
+        let state = match parts[2] {
+            "running" => crate::backend::ContainerState::Running,
+            "paused" => crate::backend::ContainerState::Stopped,
+            "exited" => crate::backend::ContainerState::Stopped,
+            "created" => crate::backend::ContainerState::Starting,
+            _ => crate::backend::ContainerState::Unknown,
+        };
 
-        let state = crate::backend::ContainerState::from(state_str);
-
-        // Determine health status based on state (simplified)
         let health = match state {
             crate::backend::ContainerState::Running => crate::backend::HealthStatus::Healthy,
-            crate::backend::ContainerState::Starting => crate::backend::HealthStatus::Starting,
             _ => crate::backend::HealthStatus::Unknown,
         };
 
         Ok(crate::backend::ContainerStatus {
-            id: container_id,
-            name,
+            id: parts[0].to_string(),
+            name: parts[1].to_string(),
             state,
             health,
             ports: vec![],
@@ -249,6 +247,36 @@ impl DockerClient {
             uptime_seconds: 0,
             restart_count: 0,
         })
+    }
+
+    pub async fn list_containers_by_pattern(&self, pattern: &str) -> BackendResult<Vec<String>> {
+        let output = std::process::Command::new("docker")
+            .args([
+                "ps",
+                "-a",
+                "--format",
+                "{{.Names}}",
+                "--filter",
+                &format!("name={}", pattern),
+            ])
+            .output()
+            .map_err(|e| BackendError::Container(format!("Failed to list containers: {e}")))?;
+
+        if !output.status.success() {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
+            return Err(BackendError::Container(format!(
+                "Failed to list containers: {error_msg}"
+            )));
+        }
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        let names: Vec<String> = output_str
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(|s| s.to_string())
+            .collect();
+
+        Ok(names)
     }
 
     pub async fn container_exists(&self, container_name: &str) -> BackendResult<bool> {

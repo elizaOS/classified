@@ -67,6 +67,46 @@ async function ensureModelAvailable(
 }
 
 /**
+ * Converts a messages array to a prompt string
+ */
+function messagesToPrompt(messages: any[]): string {
+  if (!Array.isArray(messages)) {
+    return '';
+  }
+
+  return messages
+    .map((msg) => {
+      if (typeof msg === 'string') {
+        return msg;
+      }
+
+      // Handle standard message format
+      if (msg.role && msg.content) {
+        const role =
+          msg.role === 'user' ? 'User' : msg.role === 'assistant' ? 'Assistant' : msg.role;
+
+        // Handle content that's an array of parts
+        if (Array.isArray(msg.content)) {
+          const textParts = msg.content
+            .filter((part: any) => part.type === 'text')
+            .map((part: any) => part.text)
+            .join(' ');
+          return `${role}: ${textParts}`;
+        }
+
+        // Handle content that's a string
+        if (typeof msg.content === 'string') {
+          return `${role}: ${msg.content}`;
+        }
+      }
+
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
  * Generates text from the Ollama API using the specified model and parameters.
  *
  * Returns the generated text, or an error message if generation fails.
@@ -230,21 +270,31 @@ export const ollamaPlugin: Plugin = {
           return testVector;
         }
 
-        const text =
-          typeof params === 'string'
-            ? params
-            : params
-              ? (params as TextEmbeddingParams).text || ''
-              : '';
-
-        if (!text) {
-          logger.error('No text provided for embedding');
-          // Return empty embedding with correct dimension
+        let text: string;
+        if (typeof params === 'string') {
+          text = params;
+        } else if (typeof params === 'object' && params && 'text' in params) {
+          text = params.text || '';
+        } else {
+          logger.warn('Invalid input format for embedding');
           const embeddingDimension = parseInt(
             runtime.getSetting('EMBEDDING_DIMENSION') || '768',
             10
           );
-          return Array(embeddingDimension).fill(0);
+          const fallbackVector = Array(embeddingDimension).fill(0);
+          fallbackVector[0] = 0.2; // Different marker for invalid format
+          return fallbackVector;
+        }
+
+        if (!text.trim()) {
+          logger.warn('Empty text for embedding');
+          const embeddingDimension = parseInt(
+            runtime.getSetting('EMBEDDING_DIMENSION') || '768',
+            10
+          );
+          const emptyVector = Array(embeddingDimension).fill(0);
+          emptyVector[0] = 0.3; // Different marker for empty text
+          return emptyVector;
         }
 
         // Use ollama.embedding() as shown in the docs
@@ -269,7 +319,7 @@ export const ollamaPlugin: Plugin = {
         return Array(embeddingDimension).fill(0);
       }
     },
-    [ModelType.TEXT_SMALL]: async (runtime, { prompt, stopSequences = [] }: GenerateTextParams) => {
+    [ModelType.TEXT_SMALL]: async (runtime, params: any) => {
       try {
         const temperature = 0.7;
         const frequency_penalty = 0.7;
@@ -288,6 +338,18 @@ export const ollamaPlugin: Plugin = {
 
         logger.log(`[Ollama] Using TEXT_SMALL model: ${model}`);
         await ensureModelAvailable(runtime, model, baseURL);
+
+        // Handle both prompt and messages format
+        let prompt = params.prompt;
+        if (!prompt && params.messages) {
+          prompt = messagesToPrompt(params.messages);
+        }
+
+        if (!prompt) {
+          logger.error('No prompt or messages provided');
+          return 'Error: No prompt provided';
+        }
+
         logger.log('generating text');
         logger.log(prompt);
 
@@ -298,24 +360,14 @@ export const ollamaPlugin: Plugin = {
           maxTokens: max_response_length,
           frequencyPenalty: frequency_penalty,
           presencePenalty: presence_penalty,
-          stopSequences,
+          stopSequences: params.stopSequences || [],
         });
       } catch (error) {
         logger.error('Error in TEXT_SMALL model:', error);
         return 'Error generating text. Please try again later.';
       }
     },
-    [ModelType.TEXT_LARGE]: async (
-      runtime,
-      {
-        prompt,
-        stopSequences = [],
-        maxTokens = 8192,
-        temperature = 0.7,
-        frequencyPenalty = 0.7,
-        presencePenalty = 0.7,
-      }: GenerateTextParams
-    ) => {
+    [ModelType.TEXT_LARGE]: async (runtime, params: any) => {
       try {
         const model =
           runtime.getSetting('OLLAMA_LARGE_MODEL') ||
@@ -327,16 +379,27 @@ export const ollamaPlugin: Plugin = {
           baseURL,
         });
 
+        // Handle both prompt and messages format
+        let prompt = params.prompt;
+        if (!prompt && params.messages) {
+          prompt = messagesToPrompt(params.messages);
+        }
+
+        if (!prompt) {
+          logger.error('No prompt or messages provided');
+          return 'Error: No prompt provided';
+        }
+
         logger.log(`[Ollama] Using TEXT_LARGE model: ${model}`);
         await ensureModelAvailable(runtime, model, baseURL);
         return await generateOllamaText(ollama, model, {
           prompt,
           system: runtime.character?.system || undefined,
-          temperature,
-          maxTokens,
-          frequencyPenalty,
-          presencePenalty,
-          stopSequences,
+          temperature: params.temperature || 0.7,
+          maxTokens: params.maxTokens || 8192,
+          frequencyPenalty: params.frequencyPenalty || 0.7,
+          presencePenalty: params.presencePenalty || 0.7,
+          stopSequences: params.stopSequences || [],
         });
       } catch (error) {
         logger.error('Error in TEXT_LARGE model:', error);
@@ -440,7 +503,17 @@ export const ollamaPlugin: Plugin = {
           fn: async (runtime) => {
             try {
               const text = await runtime.useModel(ModelType.TEXT_LARGE, {
-                prompt: 'What is the nature of reality in 10 words?',
+                messages: [
+                  {
+                    role: 'user' as const,
+                    content: [
+                      {
+                        type: 'text' as const,
+                        text: 'What is the nature of reality in 10 words?',
+                      },
+                    ],
+                  },
+                ],
               });
               if (text.length === 0) {
                 logger.error('Failed to generate text');

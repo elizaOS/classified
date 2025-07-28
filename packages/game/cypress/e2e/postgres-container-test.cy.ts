@@ -41,7 +41,7 @@ describe('PostgreSQL Container Integration', () => {
               name: 'eliza-postgres',
               state: 'Starting',
               health: 'Starting',
-              ports: [{ host_port: 7771, container_port: 5432 }],
+              ports: [{ host_port: 5432, container_port: 5432 }],
               started_at: Date.now() / 1000,
               uptime_seconds: 0,
               restart_count: 0,
@@ -53,7 +53,7 @@ describe('PostgreSQL Container Integration', () => {
                 name: 'eliza-postgres',
                 state: 'Running',
                 health: 'Healthy',
-                ports: [{ host_port: 7771, container_port: 5432 }],
+                ports: [{ host_port: 5432, container_port: 5432 }],
                 started_at: Date.now() / 1000,
                 uptime_seconds: 30,
                 restart_count: 0,
@@ -150,7 +150,7 @@ describe('PostgreSQL Container Integration', () => {
               name: 'eliza-postgres',
               state: 'Running',
               health: 'Unhealthy',
-              ports: [{ host_port: 7771, container_port: 5432 }],
+              ports: [{ host_port: 5432, container_port: 5432 }],
               started_at: Date.now() / 1000,
               uptime_seconds: 5,
               restart_count: 0,
@@ -164,7 +164,7 @@ describe('PostgreSQL Container Integration', () => {
                 name: 'eliza-postgres',
                 state: 'Running',
                 health,
-                ports: [{ host_port: 7771, container_port: 5432 }],
+                ports: [{ host_port: 5432, container_port: 5432 }],
                 started_at: Date.now() / 1000,
                 uptime_seconds: healthCallCount * 10,
                 restart_count: 0,
@@ -235,7 +235,7 @@ describe('PostgreSQL Container Integration', () => {
                 name: 'eliza-postgres',
                 state: 'Running',
                 health: 'Healthy',
-                ports: [{ host_port: 7771, container_port: 5432 }],
+                ports: [{ host_port: 5432, container_port: 5432 }],
                 started_at: Date.now() / 1000,
                 uptime_seconds: 120,
                 restart_count: 0,
@@ -248,7 +248,7 @@ describe('PostgreSQL Container Integration', () => {
                 name: 'eliza-postgres',
                 state: 'Starting',
                 health: 'Starting',
-                ports: [{ host_port: 7771, container_port: 5432 }],
+                ports: [{ host_port: 5432, container_port: 5432 }],
                 started_at: Date.now() / 1000,
                 uptime_seconds: 0,
                 restart_count: 1,
@@ -298,7 +298,7 @@ describe('PostgreSQL Container Integration', () => {
                 name: 'eliza-postgres',
                 state: 'Stopped',
                 health: 'Unknown',
-                ports: [{ host_port: 7771, container_port: 5432 }],
+                ports: [{ host_port: 5432, container_port: 5432 }],
                 started_at: Date.now() / 1000,
                 uptime_seconds: 0,
                 restart_count: 0,
@@ -472,7 +472,7 @@ describe('PostgreSQL Container Edge Cases', () => {
 
       tauriInvoke.callsFake((command: string, ..._args: any[]) => {
         if (command === 'start_postgres_container') {
-          return Promise.reject(new Error('Port 7771 is already in use'));
+          return Promise.reject(new Error('Port 5432 is already in use'));
         }
         return Promise.resolve({});
       });
@@ -480,7 +480,7 @@ describe('PostgreSQL Container Edge Cases', () => {
 
     cy.window().then((win) => {
       return (win as any).__TAURI__.invoke('start_postgres_container').catch((error) => {
-        expect(error.message).to.include('Port 7771 is already in use');
+        expect(error.message).to.include('Port 5432 is already in use');
         return { error: error.message };
       });
     });

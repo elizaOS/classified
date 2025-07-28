@@ -832,7 +832,7 @@ impl ContainerManager {
         if !image_exists {
             warn!("ElizaOS Agent image '{}' not found", image_name);
             return Err(BackendError::Container(
-                "Agent container image not found. Please build the image first with: cd packages/agentserver && bun run build:binary linux && podman build -f Dockerfile.standalone -t eliza-agent:latest .".to_string()
+                "Agent container image not found. Please build the image first with: cd packages/agentserver && bun run build:binary linux && podman build --format docker -f Dockerfile.standalone -t eliza-agent:latest .".to_string()
             ));
         }
 
@@ -864,14 +864,14 @@ impl ContainerManager {
             "TEXT_PROVIDER=ollama".to_string(),
             "EMBEDDING_PROVIDER=ollama".to_string(),
             "TEXT_EMBEDDING_MODEL=nomic-embed-text".to_string(),
-            "LANGUAGE_MODEL=llama3.2:1b".to_string(),
-            "OLLAMA_MODEL=llama3.2:1b".to_string(),
-            "OLLAMA_SMALL_MODEL=llama3.2:1b".to_string(),
-            "OLLAMA_LARGE_MODEL=llama3.2:1b".to_string(),
-            "SMALL_MODEL=llama3.2:1b".to_string(),
-            "LARGE_MODEL=llama3.2:1b".to_string(),
-            "TEXT_SMALL_MODEL=llama3.2:1b".to_string(),
-            "TEXT_LARGE_MODEL=llama3.2:1b".to_string(),
+            "LANGUAGE_MODEL=llama3.2:3b".to_string(),
+            "OLLAMA_MODEL=llama3.2:3b".to_string(),
+            "OLLAMA_SMALL_MODEL=llama3.2:3b".to_string(),
+            "OLLAMA_LARGE_MODEL=llama3.2:3b".to_string(),
+            "SMALL_MODEL=llama3.2:3b".to_string(),
+            "LARGE_MODEL=llama3.2:3b".to_string(),
+            "TEXT_SMALL_MODEL=llama3.2:3b".to_string(),
+            "TEXT_LARGE_MODEL=llama3.2:3b".to_string(),
             // Plugin configuration
             "AUTONOMY_ENABLED=true".to_string(),
             "AUTONOMY_AUTO_START=true".to_string(),
@@ -1397,6 +1397,48 @@ impl ContainerManager {
         }
 
         info!("All containers stopped");
+        Ok(())
+    }
+
+    /// Cleans up all containers matching a name pattern (using podman/docker ps)
+    /// This is more aggressive than stop_containers as it finds and removes
+    /// containers even if they're not tracked by our manager.
+    ///
+    /// # Errors
+    /// 
+    /// Returns an error if the container runtime command fails.
+    pub async fn cleanup_containers_by_pattern(&self, pattern: &str) -> BackendResult<()> {
+        info!("🧹 Cleaning up all containers matching pattern: {}", pattern);
+
+        // First, list all containers matching the pattern
+        let names = match &self.runtime {
+            ContainerRuntime::Podman(client) => client.list_containers_by_pattern(pattern).await?,
+            ContainerRuntime::Docker(client) => client.list_containers_by_pattern(pattern).await?,
+        };
+
+        if names.is_empty() {
+            info!("No containers found matching pattern: {}", pattern);
+            return Ok(());
+        }
+
+        info!("Found {} containers to clean up: {:?}", names.len(), names);
+
+        // Stop and remove each container
+        for container_name in names {
+            info!("🔨 Stopping and removing container: {}", container_name);
+            
+            // Force stop
+            if let Err(e) = self.stop_container(&container_name).await {
+                warn!("Failed to stop container {}: {}", container_name, e);
+            }
+
+            // Force remove
+            if let Err(e) = self.remove_container(&container_name).await {
+                warn!("Failed to remove container {}: {}", container_name, e);
+            }
+        }
+
+        info!("✅ Container cleanup completed for pattern: {}", pattern);
         Ok(())
     }
 
@@ -2352,6 +2394,52 @@ impl ContainerManager {
         match &self.runtime {
             ContainerRuntime::Podman(client) => client.container_exists(container_name).await,
             ContainerRuntime::Docker(client) => client.container_exists(container_name).await,
+        }
+    }
+
+    /// Get recent container logs for debugging
+    pub async fn get_container_logs(&self, container_name: &str, lines: Option<usize>) -> BackendResult<String> {
+        info!("Getting recent logs for container: {}", container_name);
+        
+        let line_count = lines.unwrap_or(100);
+        
+        match &self.runtime {
+            ContainerRuntime::Podman(client) => {
+                let mut cmd = tokio::process::Command::new(client.get_path());
+                cmd.args(["logs", "--tail", &line_count.to_string(), container_name]);
+                
+                let output = cmd.output().await.map_err(|e| {
+                    BackendError::Container(format!("Failed to get logs for {}: {}", container_name, e))
+                })?;
+                
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(BackendError::Container(format!(
+                        "Failed to get logs for {}: {}",
+                        container_name, stderr
+                    )));
+                }
+                
+                Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            }
+            ContainerRuntime::Docker(_client) => {
+                let mut cmd = tokio::process::Command::new("docker");
+                cmd.args(["logs", "--tail", &line_count.to_string(), container_name]);
+                
+                let output = cmd.output().await.map_err(|e| {
+                    BackendError::Container(format!("Failed to get logs for {}: {}", container_name, e))
+                })?;
+                
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(BackendError::Container(format!(
+                        "Failed to get logs for {}: {}",
+                        container_name, stderr
+                    )));
+                }
+                
+                Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            }
         }
     }
 }

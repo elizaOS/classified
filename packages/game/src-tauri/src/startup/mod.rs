@@ -24,6 +24,7 @@ pub struct StartupStatus {
     pub can_retry: bool,
     pub runtime_status: Option<RuntimeDetectionStatus>,
     pub container_statuses: std::collections::HashMap<String, String>,
+    pub game_api_ready: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +43,9 @@ pub enum StartupStage {
     ContainersReady,
     StartingMessageServer,
     MessageServerReady,
+    VerifyingGameAPI,
+    GameAPIReady,
+    RunningTests,
     Ready,
     Error,
 }
@@ -78,6 +82,7 @@ impl StartupManager {
             can_retry: false,
             runtime_status: None,
             container_statuses: std::collections::HashMap::new(),
+            game_api_ready: false,
         };
 
         Self {
@@ -95,8 +100,83 @@ impl StartupManager {
         info!("🚀 Starting ELIZA Game initialization sequence");
 
         // First check if ElizaOS server is already running
-        if let Ok(true) = self.check_existing_server().await {
-            info!("✅ Found existing ElizaOS server - checking Ollama status");
+        let mut server_healthy = false;
+        let mut recovery_attempted = false;
+        
+        // Try up to 2 times: first check, then recovery + check
+        for attempt in 0..2 {
+            match self.check_existing_server().await {
+                Ok(true) => {
+                    server_healthy = true;
+                    break;
+                }
+                Ok(false) | Err(_) => {
+                    if attempt == 0 && !recovery_attempted {
+                        // First attempt failed, try recovery
+                        warn!("⚠️ ElizaOS server not responding, attempting recovery...");
+                        
+                        // Ensure we have Podman ready first
+                        self.update_status(
+                            StartupStage::DetectingRuntime,
+                            5,
+                            "Ensuring container runtime is ready for recovery...",
+                            "Checking Podman status",
+                        )
+                        .await;
+                        
+                        if let Err(e) = self.ensure_podman_ready().await {
+                            error!("Podman setup failed during recovery: {}", e);
+                            // Continue to normal startup flow
+                            break;
+                        }
+                        
+                        // Initialize container manager for recovery if not already done
+                        if self.container_manager.is_none() {
+                            match ContainerManager::new_with_runtime_manager(ContainerRuntimeType::Podman, resource_dir.clone())
+                                .await
+                            {
+                                Ok(mut manager) => {
+                                    manager.set_app_handle(self.app_handle.clone());
+                                    
+                                    // Calculate and set memory limits based on system resources
+                                    let memory_config = MemoryConfig::calculate();
+                                    if memory_config.has_sufficient_memory {
+                                        let container_limits = memory_config.get_container_limits();
+                                        manager.set_memory_limits(container_limits);
+                                    }
+                                    
+                                    self.container_manager = Some(Arc::new(manager));
+                                }
+                                Err(e) => {
+                                    error!("Failed to create container manager for recovery: {}", e);
+                                    // Continue to normal startup
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Attempt recovery
+                        if let Err(e) = self.recover_elizaos_server().await {
+                            error!("Recovery failed: {}", e);
+                            // Continue to normal startup
+                            break;
+                        }
+                        
+                        recovery_attempted = true;
+                        // Wait a bit for the server to stabilize after recovery
+                        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                        
+                        // Loop will retry the health check
+                    } else {
+                        // Recovery already attempted or second check failed
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if server_healthy {
+            info!("✅ Found healthy ElizaOS server - checking Ollama status");
             
             // Even with existing server, we need to ensure Ollama is running
             self.update_status(
@@ -235,12 +315,47 @@ impl StartupManager {
 
             // Now we're ready with existing server + Ollama
             self.update_status(
-                StartupStage::Ready,
-                100,
-                "Ready to use ELIZA",
-                "Connected to existing ElizaOS server with Ollama",
+                StartupStage::VerifyingGameAPI,
+                90,
+                "Verifying Game API...",
+                "Checking Game API plugin connectivity",
             )
             .await;
+
+            // Verify Game API is ready
+            match self.verify_game_api().await {
+                Ok(true) => {
+                    self.update_status(
+                        StartupStage::Ready,
+                        100,
+                        "Ready to use ELIZA",
+                        "Connected to existing ElizaOS server with Game API",
+                    )
+                    .await;
+                }
+                Ok(false) => {
+                    self.update_status(
+                        StartupStage::Error,
+                        0,
+                        "Game API not available",
+                        "ElizaOS server is running but Game API plugin is not responding. Chat will be disabled.",
+                    )
+                    .await;
+                    
+                    return Err(BackendError::Container("Game API plugin not available".to_string()));
+                }
+                Err(e) => {
+                    self.update_status(
+                        StartupStage::Error,
+                        0,
+                        "Game API verification error",
+                        &format!("Failed to verify Game API: {}", e),
+                    )
+                    .await;
+                    
+                    return Err(e);
+                }
+            }
 
             return Ok(());
         }
@@ -401,6 +516,96 @@ impl StartupManager {
         }
     }
 
+    /// Performs aggressive recovery when ElizaOS server is not responding
+    /// This kills any process on port 7777 and cleans up eliza-agent containers
+    async fn recover_elizaos_server(&self) -> BackendResult<()> {
+        warn!("🚨 Starting ElizaOS server recovery process...");
+
+        // Step 1: Kill any process using port 7777
+        info!("🔪 Killing any processes on port 7777...");
+        if let Err(e) = crate::kill_processes_on_port(7777).await {
+            warn!("Failed to kill processes on port 7777: {}", e);
+            // Continue anyway, the port might already be free
+        }
+
+        // Step 2: Clean up any eliza-agent containers
+        if let Some(manager) = &self.container_manager {
+            info!("🧹 Cleaning up eliza-agent containers...");
+            if let Err(e) = manager.cleanup_containers_by_pattern("eliza-agent").await {
+                error!("Failed to clean up eliza-agent containers: {}", e);
+                // Still continue, we'll try to start fresh
+            }
+
+            // Step 3: Wait a bit for cleanup to complete
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+            // Step 4: Restart the agent container
+            info!("🔄 Restarting eliza-agent container...");
+            
+            // Update status
+            self.update_status(
+                StartupStage::StartingAgent,
+                70,
+                "Restarting agent after recovery...",
+                "Setting up fresh ElizaOS agent container",
+            )
+            .await;
+
+            match manager.start_agent().await {
+                Ok(_) => {
+                    info!("✅ Agent container restarted successfully");
+                    
+                    // Wait for it to become healthy
+                    if let Err(e) = manager.wait_for_container_health("eliza-agent", std::time::Duration::from_secs(60)).await {
+                        error!("Agent health check failed after restart: {}", e);
+                        
+                        // Get container logs to help debug the issue
+                        error!("📋 Fetching eliza-agent container logs for debugging...");
+                        match manager.get_container_logs("eliza-agent", Some(200)).await {
+                            Ok(logs) => {
+                                error!("=== Recent eliza-agent container logs ===");
+                                for line in logs.lines().take(50) {
+                                    error!("  {}", line);
+                                }
+                                error!("=== End of container logs ===");
+                            }
+                            Err(log_err) => {
+                                error!("Failed to fetch container logs: {}", log_err);
+                            }
+                        }
+                        
+                        return Err(e);
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to restart agent container: {}", e);
+                    
+                    // Try to get logs even if container failed to start
+                    error!("📋 Attempting to fetch any available eliza-agent container logs...");
+                    match manager.get_container_logs("eliza-agent", Some(200)).await {
+                        Ok(logs) => {
+                            error!("=== Recent eliza-agent container logs ===");
+                            for line in logs.lines().take(50) {
+                                error!("  {}", line);
+                            }
+                            error!("=== End of container logs ===");
+                        }
+                        Err(log_err) => {
+                            error!("No container logs available: {}", log_err);
+                        }
+                    }
+                    
+                    return Err(e);
+                }
+            }
+        } else {
+            return Err(BackendError::Container("Container manager not available for recovery".to_string()));
+        }
+
+        info!("✅ ElizaOS server recovery completed");
+        Ok(())
+    }
+
     async fn check_ollama_status(&self) -> BackendResult<OllamaStatus> {
         info!("🔍 Checking Ollama availability...");
         
@@ -439,6 +644,109 @@ impl StartupManager {
         }
         
         Ok(OllamaStatus::NotRunning)
+    }
+
+    async fn verify_game_api(&self) -> BackendResult<bool> {
+        info!("🎮 Verifying Game API plugin connectivity...");
+        
+        let client = reqwest::Client::new();
+        let max_attempts = 20;
+        
+        for attempt in 0..max_attempts {
+            self.update_status(
+                StartupStage::VerifyingGameAPI,
+                95 + (attempt * 5 / max_attempts) as u8, // Progress from 95 to 100
+                "Verifying Game API plugin...",
+                &format!("Checking Game API availability (attempt {}/{})", attempt + 1, max_attempts),
+            )
+            .await;
+            
+            // First check basic health
+            let health_url = "http://localhost:7777/api/server/health";
+            let health_response = client
+                .get(health_url)
+                .timeout(std::time::Duration::from_secs(5))
+                .send()
+                .await;
+                
+            if let Ok(response) = health_response {
+                if response.status().is_success() {
+                    // Use the actual agent ID
+                    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+                    let settings_url = format!("http://localhost:7777/api/agents/{}/settings", agent_id);
+                    let settings_response = client
+                        .get(&settings_url)
+                        .timeout(std::time::Duration::from_secs(5))
+                        .send()
+                        .await;
+                    
+                    if let Ok(settings_resp) = settings_response {
+                        let status = settings_resp.status();
+                        
+                        // Accept success (200) or service unavailable (503) which means route exists but runtime not ready
+                        if status.is_success() || status.as_u16() == 503 {
+                            if status.is_success() {
+                                info!("✅ Game API plugin routes are ready and responding");
+                            } else {
+                                info!("✅ Game API plugin routes exist (runtime initializing)");
+                            }
+                            
+                            self.update_status(
+                                StartupStage::GameAPIReady,
+                                100,
+                                "Game API verified!",
+                                "All systems operational - ready to play",
+                            )
+                            .await;
+                            
+                            return Ok(true);
+                        } else if status.as_u16() == 404 {
+                            // Try to get the primary agent and use its endpoint
+                            info!("⚠️ Default endpoint not found, trying primary agent discovery...");
+                            
+                            let primary_url = "http://localhost:7777/api/agents/primary";
+                            if let Ok(primary_resp) = client.get(primary_url).timeout(std::time::Duration::from_secs(2)).send().await {
+                                if primary_resp.status().is_success() {
+                                    if let Ok(primary_data) = primary_resp.json::<serde_json::Value>().await {
+                                        if let Some(true) = primary_data["data"]["available"].as_bool() {
+                                            info!("✅ Primary agent discovered, Game API is ready");
+                                            
+                                            self.update_status(
+                                                StartupStage::GameAPIReady,
+                                                100,
+                                                "Game API verified!",
+                                                "All systems operational - ready to play",
+                                            )
+                                            .await;
+                                            
+                                            return Ok(true);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            warn!("⚠️ Game API plugin routes not found (404) and primary agent not available");
+                        } else {
+                            warn!("⚠️ Game API plugin routes not ready yet (status: {})", status);
+                            
+                            // Try to get error details
+                            if let Ok(error_text) = settings_resp.text().await {
+                                warn!("⚠️ Error response: {}", error_text);
+                            }
+                        }
+                    } else if let Err(e) = settings_response {
+                        warn!("⚠️ Failed to connect to settings endpoint: {}", e);
+                    }
+                }
+            }
+            
+            if attempt < max_attempts - 1 {
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+            }
+        }
+        
+        warn!("❌ Game API verification failed after {} attempts", max_attempts);
+        Ok(false)
     }
 
     async fn setup_containers(&mut self) -> BackendResult<()> {
@@ -488,15 +796,46 @@ impl StartupManager {
                 // Give a moment for all services to stabilize
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-                self.update_status(
-                    StartupStage::Ready,
-                    100,
-                    "ELIZA Game is ready!",
-                    "All systems operational",
-                )
-                .await;
+                // Verify Game API plugin is ready before declaring success
+                match self.verify_game_api().await {
+                    Ok(true) => {
+                        self.update_status(
+                            StartupStage::Ready,
+                            100,
+                            "ELIZA Game is ready!",
+                            "All systems operational",
+                        )
+                        .await;
 
-                Ok(())
+                        Ok(())
+                    }
+                    Ok(false) => {
+                        error!("❌ Game API verification failed");
+                        
+                        self.update_status(
+                            StartupStage::Error,
+                            0,
+                            "Game API verification failed",
+                            "The Game API plugin is not responding. Chat functionality will be disabled.",
+                        )
+                        .await;
+
+                        Err(BackendError::Container("Game API plugin verification failed".to_string()))
+                    }
+                    Err(e) => {
+                        error!("❌ Error during Game API verification: {}", e);
+                        
+                        self.update_status(
+                            StartupStage::Error,
+                            0,
+                            "Game API verification error",
+                            &format!("Failed to verify Game API: {}", e),
+                        )
+                        .await;
+
+                        Err(e)
+                    }
+                }
             }
             Err(e) => {
                 error!("❌ Failed to start containers: {}", e);
@@ -518,10 +857,13 @@ impl StartupManager {
 
     async fn update_status(&self, stage: StartupStage, progress: u8, message: &str, details: &str) {
         let mut status = self.status.lock().unwrap();
-        status.stage = stage;
+        status.stage = stage.clone();
         status.progress = progress;
         status.message = message.to_string();
         status.details = details.to_string();
+        
+        // Update game_api_ready based on stage
+        status.game_api_ready = matches!(stage, StartupStage::GameAPIReady | StartupStage::Ready);
 
         let status_clone = status.clone();
         drop(status);

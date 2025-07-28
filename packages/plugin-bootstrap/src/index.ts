@@ -453,7 +453,22 @@ const messageReceivedHandler = async ({
             prompt,
           });
 
+          logger.info('[Bootstrap] Raw LLM response:', responseString);
+
           const responseContent = parseKeyValueXml(responseString) as Content;
+          
+          if (!responseContent) {
+            logger.error('[Bootstrap] Failed to parse response as XML. Raw response:', responseString);
+            // Fallback response
+            const fallbackResponse = {
+              text: "I apologize, but I'm having trouble processing your message right now. Please try again.",
+              thought: "Failed to parse LLM response",
+              actions: ['REPLY'] as string[],
+              providers: [] as string[],
+            };
+            await callback(fallbackResponse);
+            return;
+          }
 
           logger.debug(
             `[Bootstrap] Generated response for ${runtime.character.name} in room ${

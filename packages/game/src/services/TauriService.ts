@@ -100,6 +100,20 @@ export interface MemoryResult {
   metadata?: any;
 }
 
+export interface OllamaModelStatus {
+  models_ready: boolean;
+  missing_models: string[];
+  downloading: string | null;
+  progress: number | null;
+}
+
+export interface ModelDownloadProgress {
+  model: string;
+  progress: number;
+  status: 'downloading' | 'completed' | 'failed';
+  error?: string;
+}
+
 class TauriServiceClass {
   private tauriInvoke: any = null;
   private tauriListen: any = null;
@@ -534,19 +548,33 @@ class TauriServiceClass {
     });
 
     // Handle different response formats
-    let memories = response;
+    let memories: any[] = [];
 
     // If response is wrapped in an object (e.g., { memories: [...] } or { data: [...] })
     if (response && typeof response === 'object' && !Array.isArray(response)) {
-      memories = response.memories || response.data || [];
-    }
-
-    // Ensure memories is an array
-    if (!Array.isArray(memories)) {
+      // Extract memories from the wrapper object
+      if (response.memories && Array.isArray(response.memories)) {
+        memories = response.memories;
+      } else if (response.data && Array.isArray(response.data)) {
+        memories = response.data;
+      } else {
+        // Only warn if we couldn't extract an array from the object
+        console.warn(
+          '[TauriService] fetchMemoriesFromRoom: Expected array or object with memories/data array but got:',
+          typeof response,
+          response
+        );
+        return [];
+      }
+    } else if (Array.isArray(response)) {
+      // Direct array response
+      memories = response;
+    } else {
+      // Unexpected format
       console.warn(
-        '[TauriService] fetchMemoriesFromRoom: Expected array but got:',
-        typeof memories,
-        memories
+        '[TauriService] fetchMemoriesFromRoom: Unexpected response format:',
+        typeof response,
+        response
       );
       return [];
     }
@@ -747,6 +775,52 @@ class TauriServiceClass {
       return response.data.content || '';
     }
     return '';
+  }
+
+  /**
+   * Check if Ollama models are loaded and ready
+   */
+  async checkOllamaModels(): Promise<OllamaModelStatus> {
+    try {
+      return await this.tauriInvoke('check_ollama_models');
+    } catch (error) {
+      console.error('Failed to check Ollama models:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Pull missing Ollama models
+   */
+  async pullMissingModels(): Promise<void> {
+    try {
+      await this.tauriInvoke('pull_missing_models');
+    } catch (error) {
+      console.error('Failed to pull missing models:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Listen for model download progress
+   */
+  async onModelDownloadProgress(
+    callback: (progress: ModelDownloadProgress) => void
+  ): Promise<() => void> {
+    return await this.tauriListen('model-download-progress', (event: any) => {
+      callback(event.payload as ModelDownloadProgress);
+    });
+  }
+
+  /**
+   * Listen for model download completion
+   */
+  async onModelDownloadComplete(
+    callback: (result: { success: boolean; error?: string }) => void
+  ): Promise<() => void> {
+    return await this.tauriListen('model-download-complete', (event: any) => {
+      callback(event.payload);
+    });
   }
 }
 

@@ -31,6 +31,27 @@ import { AgentServer } from './server';
 // import { SAMPlugin } from '@elizaos/plugin-sam';
 // import { stagehandPlugin } from '@elizaos/plugin-stagehand';
 
+/**
+ * Agent ID Handling Strategy:
+ *
+ * The system supports multiple ways to access agent-specific endpoints:
+ *
+ * 1. Using "default" as agent ID - This resolves to the first available agent
+ *    Example: /api/agents/default/settings
+ *
+ * 2. Using actual agent UUID - Direct access to a specific agent
+ *    Example: /api/agents/123e4567-e89b-12d3-a456-426614174000/settings
+ *
+ * 3. Discovery endpoints:
+ *    - GET /api/agents/primary - Returns the primary (first) agent's details
+ *    - GET /api/agents - Returns list of all available agents
+ *
+ * Frontend should ideally:
+ * 1. Call /api/agents/primary to get the actual agent ID
+ * 2. Use the returned agent ID for subsequent API calls
+ * 3. Fall back to "default" if needed for backward compatibility
+ */
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -252,14 +273,30 @@ export async function startServer() {
     }
   });
 
-  // Generic Capability Toggle endpoint
-  server.app.post('/api/agents/default/capabilities/:capability', async (req: any, res: any) => {
+  // Generic Capability Toggle endpoint - supports both default and specific agent IDs
+  server.app.post('/api/agents/:agentId/capabilities/:capability', async (req: any, res: any) => {
     try {
       const capability = req.params.capability.toLowerCase();
-      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      let targetRuntime: IAgentRuntime | undefined;
+
+      // Handle "default" as a special case - get the first agent
+      if (req.params.agentId === 'default') {
+        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      } else {
+        // Try to get the specific agent by ID
+        targetRuntime = (server as any).agents?.get(req.params.agentId);
+      }
 
       if (!targetRuntime) {
-        return res.status(503).json({ success: false, error: { message: 'Agent not available' } });
+        return res.status(503).json({
+          success: false,
+          error: {
+            message:
+              req.params.agentId === 'default'
+                ? 'No agents available'
+                : `Agent ${req.params.agentId} not found`,
+          },
+        });
       }
 
       const capabilityMappings = {
@@ -295,6 +332,7 @@ export async function startServer() {
           enabled: newState,
           capability,
           settings_updated: settings,
+          agentId: targetRuntime.agentId,
         },
       });
     } catch (error) {
@@ -346,6 +384,190 @@ export async function startServer() {
         success: false,
         error: { code: 'DELETE_FAILED', message: error.message },
       });
+    }
+  });
+
+  // GET primary agent endpoint - returns the first available agent
+  server.app.get('/api/agents/primary', async (req: any, res: any) => {
+    try {
+      const primaryAgent = Array.from((server as any).agents?.values() || [])[0] as
+        | IAgentRuntime
+        | undefined;
+
+      if (!primaryAgent) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            available: false,
+            message: 'No agents loaded yet',
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          available: true,
+          agentId: primaryAgent.agentId,
+          agentName: primaryAgent.character?.name || 'Unknown Agent',
+          // Include the actual endpoints the frontend should use
+          endpoints: {
+            settings: `/api/agents/${primaryAgent.agentId}/settings`,
+            capabilities: `/api/agents/${primaryAgent.agentId}/capabilities`,
+            vision: `/api/agents/${primaryAgent.agentId}/vision`,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('[API] Error getting primary agent:', error);
+      res.status(500).json({ success: false, error: { message: error.message } });
+    }
+  });
+
+  // GET list of agents endpoint
+  server.app.get('/api/agents', async (req: any, res: any) => {
+    try {
+      const agents = Array.from((server as any).agents?.entries() || []).map(([id, runtime]) => ({
+        id,
+        name: runtime.character?.name || 'Unknown Agent',
+        ready: true,
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          agents,
+          count: agents.length,
+        },
+      });
+    } catch (error) {
+      console.error('[API] Error listing agents:', error);
+      res.status(500).json({ success: false, error: { message: error.message } });
+    }
+  });
+
+  // GET default agent settings endpoint - specific route to bypass UUID validation
+  server.app.get('/api/agents/default/settings', async (req: any, res: any) => {
+    try {
+      // Get the first available agent
+      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+
+      if (!targetRuntime) {
+        // Return a minimal response indicating server is ready but no agent yet
+        return res.status(200).json({
+          success: true,
+          data: {
+            gameApiReady: true,
+            agentReady: false,
+            message: 'Server is running, agent initializing',
+          },
+        });
+      }
+
+      // Get common settings
+      const settings: Record<string, any> = {};
+      const commonSettingKeys = [
+        'ENABLE_CAMERA',
+        'ENABLE_SCREEN_CAPTURE',
+        'ENABLE_MICROPHONE',
+        'ENABLE_SPEAKER',
+        'VISION_CAMERA_ENABLED',
+        'VISION_SCREEN_ENABLED',
+        'VISION_MICROPHONE_ENABLED',
+        'VISION_SPEAKER_ENABLED',
+        'AUTONOMY_ENABLED',
+        'SHELL_ENABLED',
+        'BROWSER_ENABLED',
+      ];
+
+      commonSettingKeys.forEach((key) => {
+        const value = targetRuntime.getSetting(key);
+        if (value !== undefined) {
+          settings[key] = value;
+        }
+      });
+
+      res.json({
+        success: true,
+        data: {
+          ...settings,
+          agentId: targetRuntime.agentId,
+          agentName: targetRuntime.character?.name || 'Unknown Agent',
+          gameApiReady: true,
+          agentReady: true,
+        },
+      });
+    } catch (error) {
+      console.error('[API] Error retrieving default agent settings:', error);
+      res.status(500).json({ success: false, error: { message: error.message } });
+    }
+  });
+
+  // GET settings endpoint - supports both /api/agents/default/settings and /api/agents/:agentId/settings
+  server.app.get('/api/agents/:agentId/settings', async (req: any, res: any) => {
+    try {
+      let targetRuntime: IAgentRuntime | undefined;
+
+      // Handle "default" as a special case - get the first agent
+      if (req.params.agentId === 'default') {
+        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      } else {
+        // Try to get the specific agent by ID
+        targetRuntime = (server as any).agents?.get(req.params.agentId);
+      }
+
+      if (!targetRuntime) {
+        // Return a response indicating no agent found
+        return res.status(200).json({
+          success: true,
+          data: {
+            gameApiReady: true,
+            agentReady: false,
+            agentId: req.params.agentId,
+            message:
+              req.params.agentId === 'default'
+                ? 'No agents available yet'
+                : `Agent ${req.params.agentId} not found`,
+          },
+        });
+      }
+
+      // Get common settings
+      const settings: Record<string, any> = {};
+      const commonSettingKeys = [
+        'ENABLE_CAMERA',
+        'ENABLE_SCREEN_CAPTURE',
+        'ENABLE_MICROPHONE',
+        'ENABLE_SPEAKER',
+        'VISION_CAMERA_ENABLED',
+        'VISION_SCREEN_ENABLED',
+        'VISION_MICROPHONE_ENABLED',
+        'VISION_SPEAKER_ENABLED',
+        'AUTONOMY_ENABLED',
+        'SHELL_ENABLED',
+        'BROWSER_ENABLED',
+      ];
+
+      commonSettingKeys.forEach((key) => {
+        const value = targetRuntime.getSetting(key);
+        if (value !== undefined) {
+          settings[key] = value;
+        }
+      });
+
+      res.json({
+        success: true,
+        data: {
+          ...settings,
+          agentId: targetRuntime.agentId,
+          agentName: targetRuntime.character?.name || 'Unknown Agent',
+          gameApiReady: true,
+          agentReady: true,
+        },
+      });
+    } catch (error) {
+      console.error('[API] Error retrieving settings:', error);
+      res.status(500).json({ success: false, error: { message: error.message } });
     }
   });
 

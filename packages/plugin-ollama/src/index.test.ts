@@ -15,9 +15,13 @@ describe('ollamaPlugin', () => {
     expect(typeof ollamaPlugin.init).toBe('function');
   });
 
-  it('should have providers array', () => {
-    expect(ollamaPlugin.providers).toBeDefined();
-    expect(Array.isArray(ollamaPlugin.providers)).toBe(true);
+  it('should have a description', () => {
+    expect(ollamaPlugin.description).toBeDefined();
+    expect(typeof ollamaPlugin.description).toBe('string');
+  });
+
+  it('should have config', () => {
+    expect(ollamaPlugin.config).toBeDefined();
+    expect(typeof ollamaPlugin.config).toBe('object');
   });
 });
-EOF < /dev/llnu;
