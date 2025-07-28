@@ -8,17 +8,17 @@ import {
   stringToUuid,
 } from '@elizaos/core';
 // import anthropicPlugin from '@elizaos/plugin-anthropic';
-// import { autonomyPlugin } from '@elizaos/plugin-autonomy';
+import { autonomyPlugin } from '@elizaos/plugin-autonomy';
 import { bootstrapPlugin } from '@elizaos/plugin-bootstrap';
-// import { experiencePlugin } from '@elizaos/plugin-experience';
-// import { GoalsPlugin } from '@elizaos/plugin-goals';
-// import { knowledgePlugin } from '@elizaos/plugin-knowledge';
+import GoalsPlugin from '@elizaos/plugin-goals';
+import TodoPlugin from '@elizaos/plugin-todo';
+import shellPlugin from '@elizaos/plugin-shell';
+import { knowledgePlugin } from '@elizaos/plugin-knowledge';
 import { ollamaPlugin } from '@elizaos/plugin-ollama';
 // import openaiPlugin from '@elizaos/plugin-openai';
-// import PersonalityPlugin from '@elizaos/plugin-personality';
-// import { shellPlugin } from '@elizaos/plugin-shell';
+import PersonalityPlugin from '@elizaos/plugin-personality';
 import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
-// import { TodoPlugin } from '@elizaos/plugin-todo';
+import { experiencePlugin } from '@elizaos/plugin-experience';
 // import { visionPlugin } from '@elizaos/plugin-vision';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
@@ -65,14 +65,14 @@ const plugins: Plugin[] = [
   // ...(modelProvider === 'openai' || modelProvider === 'all' ? [openaiPlugin] : []),
   // ...(modelProvider === 'anthropic' || modelProvider === 'all' ? [anthropicPlugin] : []),
   // localEmbeddingPlugin,
-  // autonomyPlugin,
-  // GoalsPlugin,
-  // TodoPlugin,
-  // PersonalityPlugin,
-  // experiencePlugin,
-  // knowledgePlugin,
-  // shellPlugin,
-  // stagehandPlugin,
+  autonomyPlugin,
+  GoalsPlugin,
+  TodoPlugin,
+  PersonalityPlugin, // commented - not imported
+  experiencePlugin, // commented - not imported
+  knowledgePlugin, // commented - not imported
+  shellPlugin,
+  // stagehandPlugin, // commented - not imported
   gameAPIPlugin,
   // visionPlugin,
 ].filter(Boolean);

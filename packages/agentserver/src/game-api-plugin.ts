@@ -2137,11 +2137,13 @@ const gameAPIRoutes: Route[] = [
         });
       }
 
-      res.json(successResponse({
-        received: true,
-        type,
-        size: data.length,
-      }));
+      res.json(
+        successResponse({
+          received: true,
+          type,
+          size: data.length,
+        })
+      );
     },
   },
 
@@ -2156,19 +2158,23 @@ const gameAPIRoutes: Route[] = [
       const buffer = mediaBuffers.get(agentId);
 
       if (!buffer) {
-        return res.json(successResponse({
-          hasBuffer: false,
-          videoFrames: 0,
-          audioChunks: 0,
-        }));
+        return res.json(
+          successResponse({
+            hasBuffer: false,
+            videoFrames: 0,
+            audioChunks: 0,
+          })
+        );
       }
 
-      res.json(successResponse({
-        hasBuffer: true,
-        videoFrames: buffer.videoFrames.length,
-        audioChunks: buffer.audioChunks.length,
-        maxBufferSize: buffer.maxBufferSize,
-      }));
+      res.json(
+        successResponse({
+          hasBuffer: true,
+          videoFrames: buffer.videoFrames.length,
+          audioChunks: buffer.audioChunks.length,
+          maxBufferSize: buffer.maxBufferSize,
+        })
+      );
     },
   },
 ];

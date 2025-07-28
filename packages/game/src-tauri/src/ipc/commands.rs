@@ -422,59 +422,6 @@ pub async fn health_check() -> Result<String, String> {
     Ok(health_status.to_string())
 }
 
-// Media WebSocket commands
-use crate::MediaWebSocketClient;
-
-#[tauri::command]
-pub async fn connect_media_websocket(
-    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
-    url: String,
-) -> Result<(), String> {
-    media_ws_client
-        .connect(&url)
-        .await
-        .map_err(|e| format!("Failed to connect media WebSocket: {}", e))
-}
-
-#[tauri::command]
-pub async fn disconnect_media_websocket(
-    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
-) -> Result<(), String> {
-    media_ws_client
-        .disconnect()
-        .await
-        .map_err(|e| format!("Failed to disconnect media WebSocket: {}", e))
-}
-
-#[tauri::command]
-pub async fn is_media_websocket_connected(
-    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
-) -> Result<bool, String> {
-    Ok(media_ws_client.is_connected().await)
-}
-
-#[tauri::command]
-pub async fn send_video_frame(
-    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
-    frame_data: Vec<u8>,
-) -> Result<(), String> {
-    media_ws_client
-        .send_video_frame(frame_data)
-        .await
-        .map_err(|e| format!("Failed to send video frame: {}", e))
-}
-
-#[tauri::command]
-pub async fn send_audio_chunk(
-    media_ws_client: State<'_, Arc<MediaWebSocketClient>>,
-    audio_data: Vec<u8>,
-) -> Result<(), String> {
-    media_ws_client
-        .send_audio_chunk(audio_data)
-        .await
-        .map_err(|e| format!("Failed to send audio chunk: {}", e))
-}
-
 // Knowledge management commands
 #[tauri::command]
 pub async fn upload_knowledge_file(

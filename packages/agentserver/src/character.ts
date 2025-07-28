@@ -136,7 +136,7 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
     OLLAMA_LARGE_MODEL:
       process.env.OLLAMA_LARGE_MODEL || process.env.LANGUAGE_MODEL || 'llama3.2:3b',
     OLLAMA_EMBEDDING_MODEL: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text',
-    EMBEDDING_DIMENSION: '1536', // text-embedding-3-small has 1536 dimensions
+    EMBEDDING_DIMENSION: '768', // nomic-embed-text has 768 dimensions
     USE_SMALL_MODELS: process.env.USE_SMALL_MODELS || 'true',
     KNOWLEDGE_PATH: '/app/knowledge', // Load from knowledge folder in container
   },

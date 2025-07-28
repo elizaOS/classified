@@ -19,7 +19,7 @@ pub use backend::{
 };
 pub use container::{ContainerManager, HealthMonitor, RuntimeDetectionStatus};
 pub use ipc::commands::*;
-pub use server::{HttpServer, WebSocketHub, MediaWebSocketClient};
+pub use server::{HttpServer, WebSocketHub};
 pub use startup::{AiProvider, StartupManager, StartupStage, StartupStatus, UserConfig};
 
 #[tauri::command]
@@ -745,13 +745,7 @@ pub fn run() {
             // Socket.IO commands removed - using native WebSocket instead
             // Test commands
             test_native_websocket,
-            run_startup_hello_world_test,
-            // Media WebSocket commands
-            connect_media_websocket,
-            disconnect_media_websocket,
-            is_media_websocket_connected,
-            send_video_frame,
-            send_audio_chunk
+            run_startup_hello_world_test
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");
@@ -805,13 +799,6 @@ pub fn run() {
                 "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f".to_string(), // Default agent ID
             ));
             app.manage(native_ws_client.clone());
-
-            // Initialize Media WebSocket client for audio/video streaming
-            let media_ws_client = Arc::new(MediaWebSocketClient::new(
-                app.handle().clone(),
-                "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f".to_string(), // Default agent ID
-            ));
-            app.manage(media_ws_client.clone());
 
             // Start the callback server for receiving real-time updates on available port
             tauri::async_runtime::spawn(async move {

@@ -392,9 +392,7 @@ const messageReceivedHandler = async ({
         logger.debug('[Bootstrap] Saving message to memory and embeddings');
 
         // Add the embedding to the message
-        logger.info('[Bootstrap] Temporarily skipping embeddings to test response flow...');
-        // const memory = await runtime.addEmbeddingToMemory(message);
-        const memory = message; // Use message directly without embedding
+        const memory = await runtime.addEmbeddingToMemory(message);
 
         logger.info('[Bootstrap] About to call createMemory...');
         await runtime.createMemory(memory, 'messages');
