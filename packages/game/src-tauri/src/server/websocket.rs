@@ -80,7 +80,7 @@ impl WebSocketHub {
     pub fn join_room(&self, client_id: Uuid, room: &str) {
         self.rooms
             .entry(room.to_string())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(client_id);
         info!("Client {} joined room {}", client_id, room);
     }

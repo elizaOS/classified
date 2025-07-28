@@ -46,8 +46,8 @@ async function build() {
         // Additional playwright dependencies that might cause issues
         'playwright-core/lib/server/electron/loader.js',
         'playwright/lib/server/electron/loader.js',
-        // WebSocket library (will be bundled in plugin, not needed in server)
-        'ws',
+        // WebSocket library - REMOVED from external to bundle it
+        // 'ws',
         // Ensure the plugin's browser automation deps are external
         '@elizaos/plugin-stagehand/stagehand-server',
         // Vision plugin dependencies that should remain external

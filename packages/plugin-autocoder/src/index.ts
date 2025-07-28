@@ -5,25 +5,22 @@ import { ProjectPlanningService } from './services/ProjectPlanningService';
 import { generateCodeAction } from './actions/generate-code';
 import { createProjectAction } from './actions/create-project';
 import { projectsProvider } from './providers/projects-provider';
+import testSuites from './__tests__/e2e/index';
 
 // Export types
-export * from './types';
+export * from './types/index';
 
 // Export services
-export {
-  CodeGenerationService,
-  type CodeGenerationRequest,
-  type GenerationResult,
-} from './services/CodeGenerationService';
+export { CodeGenerationService } from './services/CodeGenerationService';
 export { ProjectPlanningService } from './services/ProjectPlanningService';
-// SandboxBridge is deprecated - use E2B service directly
 export { SecretsManagerService } from './services/SecretsManagerService';
 
 // Export actions
-export { generateCodeAction, createProjectAction };
+export { generateCodeAction } from './actions/generate-code';
+export { createProjectAction } from './actions/create-project';
 
-// Export provider
-export { projectsProvider };
+// Export providers
+export { projectsProvider } from './providers/projects-provider';
 
 /**
  * AutoCoder Plugin for ElizaOS
@@ -54,7 +51,7 @@ export const autocoderPlugin: Plugin = {
   testDependencies: ['@elizaos/plugin-forms'],
 
   // E2E Test Suites - Real runtime integration tests
-  tests: [],
+  tests: testSuites,
 };
 
 // Default export

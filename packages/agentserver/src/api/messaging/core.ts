@@ -89,14 +89,14 @@ export function createMessagingCoreRouter(serverInstance: AgentServer): express.
           {
             type: 'agent_message',
             id: createdMessage.id,
-            content: content,
+            content,
             author: metadata?.agentName || 'Agent',
-            channel_id: channel_id,
+            channel_id,
             timestamp: new Date(createdMessage.createdAt).getTime(),
             source: createdMessage.source_type,
             thought: raw_message?.thought,
             actions: raw_message?.actions,
-            metadata: metadata,
+            metadata,
           },
           channel_id
         );

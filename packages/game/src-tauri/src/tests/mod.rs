@@ -1,9 +1,13 @@
 pub mod runtime_tests;
 pub mod media_streaming_tests;
+pub mod screen_sharing_tests;
 
 use crate::startup::StartupStatus;
 use tauri::{AppHandle, Emitter};
 use tracing::{info, error};
+
+// Common constants available for tests if needed
+// pub use crate::common::{AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER};
 
 pub async fn run_all_tests(app_handle: AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     info!("🧪 Starting comprehensive runtime test suite...");
@@ -34,6 +38,16 @@ pub async fn run_all_tests(app_handle: AppHandle) -> Result<(), Box<dyn std::err
         }
         Err(e) => {
             // The test returned an error string, wrap it in a Box
+            all_results.push(Err(e.into()));
+        }
+    }
+    
+    // Run screen sharing tests
+    match screen_sharing_tests::test_screen_sharing(app_handle.clone()).await {
+        Ok(_) => {
+            all_results.push(Ok("Screen sharing tests passed".to_string()));
+        }
+        Err(e) => {
             all_results.push(Err(e.into()));
         }
     }

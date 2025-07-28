@@ -343,3 +343,49 @@ if (typeof globalThis.location === 'undefined') {
 if (typeof globalThis.self !== 'undefined' && typeof globalThis.self.location === 'undefined') {
   (globalThis.self as any).location = globalThis.location;
 }
+
+// CRITICAL FIX: Ensure http module is available for ws module in Bun
+// This must be done AFTER all other polyfills but BEFORE any module that uses ws
+(function fixHttpForWebSocket() {
+  const httpModule = require('node:http');
+
+  // Create a comprehensive STATUS_CODES object
+  const STATUS_CODES = {
+    100: 'Continue',
+    101: 'Switching Protocols',
+    200: 'OK',
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not Found',
+    426: 'Upgrade Required',
+    500: 'Internal Server Error',
+    503: 'Service Unavailable',
+  };
+
+  // Ensure STATUS_CODES exists on the http module
+  if (!httpModule.STATUS_CODES) {
+    httpModule.STATUS_CODES = STATUS_CODES;
+  }
+
+  // Make http available globally with STATUS_CODES
+  const httpWithStatusCodes = {
+    ...httpModule,
+    STATUS_CODES: httpModule.STATUS_CODES || STATUS_CODES,
+  };
+
+  // Set it globally
+  (globalThis as any).http = httpWithStatusCodes;
+
+  // Override require to always return our patched http
+  const Module = require('module');
+  const originalRequire = Module.prototype.require;
+  Module.prototype.require = function (id: string) {
+    if (id === 'http' || id === 'node:http') {
+      return httpWithStatusCodes;
+    }
+    return originalRequire.apply(this, arguments);
+  };
+
+  console.log('[WS-HTTP-FIX] ✅ HTTP module patched for WebSocket compatibility');
+})();

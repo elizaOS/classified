@@ -45,10 +45,9 @@ async fn test_websocket_message_flow_end_to_end() {
                 .expect("Failed to send connection message");
             
             // Wait for connection acknowledgment
-            if let Ok(Some(Ok(msg))) = timeout(Duration::from_secs(5), ws_stream.next()).await {
-                if let Message::Text(text) = msg {
-                    let response: serde_json::Value = serde_json::from_str(&text)
-                        .expect("Failed to parse response");
+            if let Ok(Some(Ok(Message::Text(text)))) = timeout(Duration::from_secs(5), ws_stream.next()).await {
+                let response: serde_json::Value = serde_json::from_str(&text)
+                    .expect("Failed to parse response");
                     
                     if response["type"] == "connection_ack" {
                         println!("✅ Connection acknowledged");
@@ -68,41 +67,36 @@ async fn test_websocket_message_flow_end_to_end() {
                         println!("📤 Sent test message");
                         
                         // Wait for message acknowledgment
-                        if let Ok(Some(Ok(msg))) = timeout(Duration::from_secs(5), ws_stream.next()).await {
-                            if let Message::Text(text) = msg {
-                                let response: serde_json::Value = serde_json::from_str(&text)
-                                    .expect("Failed to parse response");
+                        if let Ok(Some(Ok(Message::Text(text)))) = timeout(Duration::from_secs(5), ws_stream.next()).await {
+                            let response: serde_json::Value = serde_json::from_str(&text)
+                                .expect("Failed to parse response");
+                            
+                            if response["type"] == "message_ack" {
+                                println!("✅ Message acknowledged by server");
                                 
-                                if response["type"] == "message_ack" {
-                                    println!("✅ Message acknowledged by server");
-                                    
-                                    // Wait for agent response
-                                    let mut received_agent_response = false;
-                                    let start_time = std::time::Instant::now();
-                                    
-                                    while start_time.elapsed() < Duration::from_secs(30) {
-                                        if let Ok(Some(Ok(msg))) = timeout(Duration::from_secs(5), ws_stream.next()).await {
-                                            if let Message::Text(text) = msg {
-                                                let response: serde_json::Value = serde_json::from_str(&text)
-                                                    .expect("Failed to parse response");
-                                                
-                                                if response["type"] == "agent_message" || response["type"] == "agent_response" {
-                                                    println!("🤖 Received agent response: {}", response["content"]);
-                                                    received_agent_response = true;
-                                                    break;
-                                                }
-                                            }
+                                // Wait for agent response
+                                let mut received_agent_response = false;
+                                let start_time = std::time::Instant::now();
+                                
+                                while start_time.elapsed() < Duration::from_secs(30) {
+                                    if let Ok(Some(Ok(Message::Text(text)))) = timeout(Duration::from_secs(5), ws_stream.next()).await {
+                                        let response: serde_json::Value = serde_json::from_str(&text)
+                                            .expect("Failed to parse response");
+                                        
+                                        if response["type"] == "agent_message" || response["type"] == "agent_response" {
+                                            println!("🤖 Received agent response: {}", response["content"]);
+                                            received_agent_response = true;
+                                            break;
                                         }
                                     }
-                                    
-                                    assert!(received_agent_response, "Did not receive agent response within timeout");
-                                    println!("✅ WebSocket message flow test passed!");
                                 }
+                                
+                                assert!(received_agent_response, "Did not receive agent response within timeout");
+                                println!("✅ WebSocket message flow test passed!");
                             }
                         }
                     }
                 }
-            }
             
             // Close connection
             let _ = ws_stream.close(None).await;

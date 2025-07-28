@@ -126,6 +126,7 @@ class TauriServiceClass {
   private agentId: string = '2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f';
   private isInitialized = false;
   private processedMessageIds: Set<string> = new Set();
+  private recentMessages: Array<{ content: string; type: string; timestamp: number }> = [];
 
   constructor() {
     this.userId = localStorage.getItem('game-user-id') || uuidv4();
@@ -149,7 +150,7 @@ class TauriServiceClass {
       // Set up event listeners
       await this.setupEventListeners();
       this.isInitialized = true;
-    } catch (error) {
+    } catch (_error) {
       // Import failed - not in Tauri environment
       this.isTauri = false;
       this.isInitialized = false;
@@ -166,26 +167,67 @@ class TauriServiceClass {
 
   private async setupEventListeners(): Promise<void> {
     // Helper function to emit message with deduplication
-    const emitMessage = (message: TauriMessage, _source: string) => {
+    const emitMessage = (message: TauriMessage, source: string) => {
       // Ensure message has an ID
       if (!message.id) {
         message.id = uuidv4();
       }
 
-      // Check if we've already processed this message
+      // Check if we've already processed this message by ID
       if (this.processedMessageIds.has(message.id)) {
+        console.debug(
+          `[TauriService] Skipping duplicate message by ID from ${source}:`,
+          message.id
+        );
         return;
       }
 
-      // Add to processed set
-      this.processedMessageIds.add(message.id);
+      // Check for duplicate content within a 2-second window
+      const now = Date.now();
+      const messageTimestamp =
+        message.timestamp instanceof Date
+          ? message.timestamp.getTime()
+          : new Date(message.timestamp).getTime();
 
-      // Clean up old message IDs to prevent memory leak (keep last 1000)
+      // Check if we've seen this exact message content very recently (within 2 seconds)
+      const isDuplicate = this.recentMessages.some(
+        (recent) =>
+          recent.content === message.content &&
+          recent.type === message.type &&
+          Math.abs(recent.timestamp - messageTimestamp) < 2000
+      );
+
+      if (isDuplicate) {
+        console.debug(
+          `[TauriService] Skipping duplicate message by content from ${source}:`,
+          message.content.substring(0, 50)
+        );
+        return;
+      }
+
+      // Add to processed set and recent messages
+      this.processedMessageIds.add(message.id);
+      this.recentMessages.push({
+        content: message.content,
+        type: message.type,
+        timestamp: messageTimestamp,
+      });
+
+      // Clean up old entries
       if (this.processedMessageIds.size > 1000) {
         const idsArray = Array.from(this.processedMessageIds);
         const toRemove = idsArray.slice(0, idsArray.length - 1000);
         toRemove.forEach((id) => this.processedMessageIds.delete(id));
       }
+
+      // Clean up recent messages older than 5 seconds
+      this.recentMessages = this.recentMessages.filter((msg) => now - msg.timestamp < 5000);
+
+      console.debug(`[TauriService] Emitting message from ${source}:`, {
+        id: message.id,
+        type: message.type,
+        content: `${message.content.substring(0, 50)}...`,
+      });
 
       this.messageListeners.forEach((listener) => listener(message));
     };

@@ -4,6 +4,7 @@ import express, { Request, Response } from 'express';
 import helmet from 'helmet';
 import * as fs from 'node:fs';
 import http from 'node:http';
+import https from 'node:https';
 import path, { basename, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,10 +15,63 @@ import { ServerDatabaseAdapter } from './database/ServerDatabaseAdapter';
 import { ServerMigrationService } from './database/ServerMigrationService';
 import { jsonToCharacter, loadCharacterTryPath } from './loader';
 
-// Ensure http module is available globally before importing ws
-if (typeof globalThis !== 'undefined' && !(globalThis as any).http) {
-  (globalThis as any).http = http;
-}
+// CRITICAL: Ensure http module is available globally before importing ws
+// This fixes Bun bundling issues with the ws module
+const setupHttpForWs = () => {
+  const g = globalThis as any;
+  g.http = http;
+  if (typeof global !== 'undefined') {
+    (global as any).http = http;
+  }
+
+  // Also add STATUS_CODES directly to the global object
+  if (!g.http || !g.http.STATUS_CODES) {
+    // Define STATUS_CODES if missing
+    const STATUS_CODES = {
+      100: 'Continue',
+      101: 'Switching Protocols',
+      102: 'Processing',
+      200: 'OK',
+      201: 'Created',
+      202: 'Accepted',
+      204: 'No Content',
+      301: 'Moved Permanently',
+      302: 'Found',
+      304: 'Not Modified',
+      400: 'Bad Request',
+      401: 'Unauthorized',
+      403: 'Forbidden',
+      404: 'Not Found',
+      405: 'Method Not Allowed',
+      409: 'Conflict',
+      500: 'Internal Server Error',
+      501: 'Not Implemented',
+      502: 'Bad Gateway',
+      503: 'Service Unavailable',
+    };
+    if (!g.http) {
+      g.http = { STATUS_CODES };
+    } else if (!g.http.STATUS_CODES) {
+      g.http.STATUS_CODES = STATUS_CODES;
+    }
+  }
+
+  // Override require to ensure http is always available
+  try {
+    const Module = require('module');
+    const originalRequire = Module.prototype.require;
+    Module.prototype.require = function (id: string) {
+      if (id === 'http' || id === 'node:http') {
+        return http;
+      }
+      return originalRequire.apply(this, arguments);
+    };
+  } catch (_e) {
+    // Ignore if Module is not available
+  }
+};
+
+setupHttpForWs();
 
 // Delay WebSocketServer import until after http polyfill
 import { WebSocketServer } from 'ws';
@@ -667,7 +721,7 @@ export class AgentServer {
     this.server = http.createServer(this.app);
 
     // Initialize native WebSocket server for Tauri client compatibility
-    this.setupWebSocketServer();
+    this.setupWebSocketServer(this.server);
 
     // Setup log streaming integration
     this.setupLogStreaming();
@@ -707,11 +761,11 @@ export class AgentServer {
    * Sets up the native WebSocket server for real-time communication
    * This provides the /ws endpoint that Tauri clients expect
    */
-  private setupWebSocketServer(): void {
+  private setupWebSocketServer(server: http.Server | https.Server) {
     logger.info('[WebSocket] Setting up native WebSocket server...');
 
     this.webSocketServer = new WebSocketServer({
-      server: this.server,
+      server,
       path: '/ws',
     });
 

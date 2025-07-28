@@ -24,7 +24,9 @@ async function main() {
     } catch {
       // Ollama not installed, try to install it
       if (isWindows) {
-        console.log('Windows detected. Please download and install Ollama from: https://ollama.com/download/windows');
+        console.log(
+          'Windows detected. Please download and install Ollama from: https://ollama.com/download/windows'
+        );
         console.log('After installation, run: ollama pull nomic-embed-text');
         return;
       } else if (isMac || isLinux) {
@@ -38,7 +40,9 @@ async function main() {
           return;
         }
       } else {
-        console.log('Unsupported platform. Please install Ollama manually from: https://ollama.com/download');
+        console.log(
+          'Unsupported platform. Please install Ollama manually from: https://ollama.com/download'
+        );
         return;
       }
     }
@@ -49,9 +53,10 @@ async function main() {
       await $`ollama pull nomic-embed-text`;
       console.log('Successfully pulled nomic-embed-text model!');
     } catch (error) {
-      console.log('Could not pull model. You may need to run "ollama pull nomic-embed-text" manually after starting Ollama.');
+      console.log(
+        'Could not pull model. You may need to run "ollama pull nomic-embed-text" manually after starting Ollama.'
+      );
     }
-    
   } catch (error) {
     console.error('Unexpected error:', error.message);
   }

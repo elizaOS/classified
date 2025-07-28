@@ -3,7 +3,6 @@ import { logger, Service, ServiceTypeName } from '@elizaos/core';
 import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import { todosTable, todoTagsTable } from '../schema';
 import type { TodoMetadata } from '../types';
-import { TodoServiceType } from '../types';
 
 /**
  * Core todo data structure

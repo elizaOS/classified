@@ -1,5 +1,6 @@
 use crate::backend::{BackendError, BackendResult, ContainerRuntimeType};
 use crate::container::{ContainerManager, RuntimeDetectionStatus};
+use crate::common::{AGENT_CONTAINER, OLLAMA_CONTAINER, POSTGRES_CONTAINER, NETWORK_NAME};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
@@ -9,6 +10,7 @@ mod memory;
 pub use memory::{MemoryConfig, ContainerMemoryLimits};
 
 #[derive(Debug, Clone)]
+#[allow(clippy::enum_variant_names)]
 enum OllamaStatus {
     ContainerizedRunning,  // Our containerized Ollama on port 17777
     NativeRunning,         // Native Ollama installation on port 11434
@@ -261,7 +263,7 @@ impl StartupManager {
                     
                     if let Some(manager) = &self.container_manager {
                         // Create network if it doesn't exist
-                        if let Err(e) = manager.ensure_network_exists("eliza-network").await {
+                        if let Err(e) = manager.ensure_network_exists(crate::common::NETWORK_NAME).await {
                             warn!("Failed to ensure network exists: {}", e);
                         }
                         
@@ -271,7 +273,7 @@ impl StartupManager {
                                 info!("✅ Containerized Ollama started successfully on eliza-network");
                                 
                                 // Wait for health check
-                                if let Err(e) = manager.wait_for_container_health("eliza-ollama", std::time::Duration::from_secs(60)).await {
+                                if let Err(e) = manager.wait_for_container_health(OLLAMA_CONTAINER, std::time::Duration::from_secs(60)).await {
                                     error!("Ollama health check failed: {}", e);
                                     self.update_status(
                                         StartupStage::Error,
@@ -523,7 +525,7 @@ impl StartupManager {
 
         // Step 1: Kill any process using port 7777
         info!("🔪 Killing any processes on port 7777...");
-        if let Err(e) = crate::kill_processes_on_port(7777).await {
+                    if let Err(e) = crate::common::kill_processes_on_port(7777).await {
             warn!("Failed to kill processes on port 7777: {}", e);
             // Continue anyway, the port might already be free
         }
@@ -531,7 +533,7 @@ impl StartupManager {
         // Step 2: Clean up any eliza-agent containers
         if let Some(manager) = &self.container_manager {
             info!("🧹 Cleaning up eliza-agent containers...");
-            if let Err(e) = manager.cleanup_containers_by_pattern("eliza-agent").await {
+            if let Err(e) = manager.cleanup_containers_by_pattern(AGENT_CONTAINER).await {
                 error!("Failed to clean up eliza-agent containers: {}", e);
                 // Still continue, we'll try to start fresh
             }
@@ -556,12 +558,12 @@ impl StartupManager {
                     info!("✅ Agent container restarted successfully");
                     
                     // Wait for it to become healthy
-                    if let Err(e) = manager.wait_for_container_health("eliza-agent", std::time::Duration::from_secs(60)).await {
+                    if let Err(e) = manager.wait_for_container_health(AGENT_CONTAINER, std::time::Duration::from_secs(60)).await {
                         error!("Agent health check failed after restart: {}", e);
                         
                         // Get container logs to help debug the issue
                         error!("📋 Fetching eliza-agent container logs for debugging...");
-                        match manager.get_container_logs("eliza-agent", Some(200)).await {
+                        match manager.get_container_logs(AGENT_CONTAINER, Some(200)).await {
                             Ok(logs) => {
                                 error!("=== Recent eliza-agent container logs ===");
                                 for line in logs.lines().take(50) {
@@ -582,7 +584,7 @@ impl StartupManager {
                     
                     // Try to get logs even if container failed to start
                     error!("📋 Attempting to fetch any available eliza-agent container logs...");
-                    match manager.get_container_logs("eliza-agent", Some(200)).await {
+                    match manager.get_container_logs(AGENT_CONTAINER, Some(200)).await {
                         Ok(logs) => {
                             error!("=== Recent eliza-agent container logs ===");
                             for line in logs.lines().take(50) {
@@ -611,7 +613,7 @@ impl StartupManager {
         
         // Check if our containerized Ollama is running
         if let Some(manager) = &self.container_manager {
-            match manager.get_container_status("eliza-ollama").await {
+            match manager.get_container_status(OLLAMA_CONTAINER).await {
                 Ok(status) if matches!(status.health, crate::backend::HealthStatus::Healthy) => {
                     info!("✅ Found containerized Ollama (eliza-ollama) running and healthy");
                     return Ok(OllamaStatus::ContainerizedRunning);

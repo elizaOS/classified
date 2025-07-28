@@ -8,7 +8,6 @@ pub struct TestContext {
 }
 
 #[allow(dead_code)]
-
 impl TestContext {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         // Try to create a container manager

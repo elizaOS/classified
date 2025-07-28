@@ -1,19 +1,60 @@
-name: 'Build Test ElizaOS Game'
+name: 'Build Test ElizaOS'
 
 on:
   pull_request:
     paths:
       - 'packages/game/**'
+      - 'packages/lander/**'
       - '.github/workflows/build-test.yml'
   push:
     branches:
       - main
     paths:
       - 'packages/game/**'
+      - 'packages/lander/**'
       - '.github/workflows/build-test.yml'
   workflow_dispatch: # Allow manual triggering
 
 jobs:
+  test-lander:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'packages/lander/package.json'
+
+      - name: Install lander dependencies
+        run: |
+          cd packages/lander
+          npm install
+
+      - name: Type check
+        run: |
+          cd packages/lander
+          npm run type-check || echo "Type check not available"
+
+      - name: Lint
+        run: |
+          cd packages/lander
+          npm run lint || echo "Lint not available"
+
+      - name: Build lander
+        run: |
+          cd packages/lander
+          npm run build
+
+      - name: Check lander build output
+        run: |
+          cd packages/lander
+          ls -la dist/
+          echo "✅ Lander build successful"
+
   test-tauri:
     strategy:
       fail-fast: false

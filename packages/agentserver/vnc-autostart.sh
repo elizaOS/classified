@@ -5,13 +5,32 @@
 
 echo "[VNC] Setting up default terminal environment..."
 
-# Wait for display to be ready
-sleep 3
+# Ensure DISPLAY is set
+export DISPLAY=:99
 
-# Check if DISPLAY is set
-if [ -z "$DISPLAY" ]; then
-    export DISPLAY=:99
+# Wait for X server to be ready
+echo "[VNC] Waiting for X server..."
+# Give X server time to start
+sleep 2
+if pgrep Xvfb > /dev/null; then
+    echo "[VNC] X server is ready"
+else
+    echo "[VNC] Warning: X server may not be ready yet"
 fi
+
+# Wait for window manager to be ready
+echo "[VNC] Waiting for window manager..."
+for i in {1..10}; do
+    if pgrep fluxbox > /dev/null; then
+        echo "[VNC] Window manager is ready"
+        break
+    fi
+    echo "[VNC] Waiting for window manager... ($i/10)"
+    sleep 1
+done
+
+# Skip setting background color as xsetroot may not be available
+echo "[VNC] Skipping background color (xsetroot not available)"
 
 # Create a tmux configuration if it doesn't exist
 if [ ! -f ~/.tmux.conf ]; then
@@ -48,9 +67,16 @@ unbind %
 EOF
 fi
 
+# Create a test pattern window to verify display is working
+echo "[VNC] Creating test pattern window..."
+xterm -hold -geometry 80x10+10+10 \
+    -bg '#00ff00' -fg black \
+    -title "VNC TEST - Display Working" \
+    -e "bash -c 'echo \"===== VNC DISPLAY TEST =====\"; echo \"If you can see this, VNC is working!\"; echo \"Time: \$(date)\"; echo \"Display: $DISPLAY\"; echo \"============================\"; sleep 5 && exit'" &
+
 # Start xterm with tmux session
-echo "[VNC] Starting xterm with tmux session..."
-DISPLAY=:99 xterm -geometry 140x40+50+50 \
+echo "[VNC] Starting main terminal..."
+xterm -hold -geometry 140x40+100+100 \
     -fa 'Monospace' -fs 12 \
     -bg black -fg white \
     -title "ElizaOS Agent Terminal" \
@@ -61,10 +87,16 @@ sleep 2
 
 # Start a second terminal for logs
 echo "[VNC] Starting log viewer terminal..."
-DISPLAY=:99 xterm -geometry 140x20+50+550 \
+xterm -hold -geometry 140x20+100+600 \
     -fa 'Monospace' -fs 10 \
     -bg '#1a1a1a' -fg '#00ff00' \
     -title "ElizaOS Agent Logs" \
-    -e "bash -c 'echo Monitoring ElizaOS Agent Logs...; echo; tail -f /app/logs/*.log 2>/dev/null || echo No logs available yet.'" &
+    -e "bash -c 'echo Monitoring ElizaOS Agent Logs...; echo; tail -f /app/logs/*.log 2>/dev/null || (echo No logs available yet.; sleep infinity)'" &
+
+# List created windows
+echo "[VNC] Terminal windows created:"
+sleep 1
+ps aux | grep xterm | grep -v grep | wc -l | xargs echo "  - Total xterm windows:"
+ps aux | grep tmux | grep -v grep | wc -l | xargs echo "  - Tmux sessions:"
 
 echo "[VNC] VNC terminal environment setup complete!" 

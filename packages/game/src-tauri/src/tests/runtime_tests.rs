@@ -101,8 +101,8 @@ async fn test_container_management(app_handle: &AppHandle) -> TestResult {
     let container_manager = app_handle.state::<std::sync::Arc<crate::container::ContainerManager>>();
     
     // Check specific containers directly from runtime
-    let postgres_status = container_manager.get_runtime_container_status("eliza-postgres").await;
-    let agent_status = container_manager.get_runtime_container_status("eliza-agent").await;
+    let postgres_status = container_manager.get_runtime_container_status(crate::common::POSTGRES_CONTAINER).await;
+    let agent_status = container_manager.get_runtime_container_status(crate::common::AGENT_CONTAINER).await;
     
     info!("PostgreSQL container status: {:?}", postgres_status);
     info!("Agent container status: {:?}", agent_status);

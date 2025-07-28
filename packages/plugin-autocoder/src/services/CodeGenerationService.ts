@@ -1,11 +1,13 @@
 import { elizaLogger, IAgentRuntime, ModelType, Service } from '@elizaos/core';
 import { FormsService } from '@elizaos/plugin-forms';
 
+import type { ProjectType } from '../types/index';
+
 // Define types that were imported before
 export interface CodeGenerationRequest {
   projectName: string;
   description: string;
-  targetType: 'plugin' | 'agent';
+  targetType: ProjectType;
   requirements: string[];
   apis: string[];
   testScenarios?: string[];
@@ -85,7 +87,7 @@ interface ResearchResult {
 
 export class CodeGenerationService extends Service {
   static serviceName: string = 'code-generation';
-  static serviceType: string = 'code-generation';
+  static serviceType = 'code-generation' as any;
   protected runtime: IAgentRuntime;
   private formsService: FormsService | null = null;
   // Make these optional since we removed the imports

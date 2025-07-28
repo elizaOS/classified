@@ -7,7 +7,6 @@ import {
   logger,
   stringToUuid,
 } from '@elizaos/core';
-// import anthropicPlugin from '@elizaos/plugin-anthropic';
 import { autonomyPlugin } from '@elizaos/plugin-autonomy';
 import { bootstrapPlugin } from '@elizaos/plugin-bootstrap';
 import GoalsPlugin from '@elizaos/plugin-goals';
@@ -15,11 +14,9 @@ import TodoPlugin from '@elizaos/plugin-todo';
 import shellPlugin from '@elizaos/plugin-shell';
 import { knowledgePlugin } from '@elizaos/plugin-knowledge';
 import { ollamaPlugin } from '@elizaos/plugin-ollama';
-// import openaiPlugin from '@elizaos/plugin-openai';
 import PersonalityPlugin from '@elizaos/plugin-personality';
 import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
 import { experiencePlugin } from '@elizaos/plugin-experience';
-// import { visionPlugin } from '@elizaos/plugin-vision';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -27,9 +24,6 @@ import { fileURLToPath } from 'url';
 import { terminalCharacter } from './character';
 import { gameAPIPlugin } from './game-api-plugin.ts';
 import { AgentServer } from './server';
-// import { pluginManagerPlugin } from '@elizaos/plugin-plugin-manager';
-// import { SAMPlugin } from '@elizaos/plugin-sam';
-// import { stagehandPlugin } from '@elizaos/plugin-stagehand';
 
 /**
  * Agent ID Handling Strategy:
@@ -83,19 +77,14 @@ const plugins: Plugin[] = [
   bootstrapPlugin,
   // Only load model provider plugins that are being used
   ...(modelProvider === 'ollama' || modelProvider === 'all' ? [ollamaPlugin] : []),
-  // ...(modelProvider === 'openai' || modelProvider === 'all' ? [openaiPlugin] : []),
-  // ...(modelProvider === 'anthropic' || modelProvider === 'all' ? [anthropicPlugin] : []),
-  // localEmbeddingPlugin,
   autonomyPlugin,
   GoalsPlugin,
   TodoPlugin,
-  PersonalityPlugin, // commented - not imported
-  experiencePlugin, // commented - not imported
-  knowledgePlugin, // commented - not imported
+  PersonalityPlugin,
+  experiencePlugin,
+  knowledgePlugin,
   shellPlugin,
-  // stagehandPlugin, // commented - not imported
   gameAPIPlugin,
-  // visionPlugin,
 ].filter(Boolean);
 
 // Function to start an agent runtime - called by server.ts

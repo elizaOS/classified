@@ -1,5 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import './StartupFlow.css';
+
+declare global {
+  interface Window {
+    __TAURI_INTERNALS__?: any;
+  }
+}
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 

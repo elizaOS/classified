@@ -1,5 +1,6 @@
 use std::time::Duration;
 use tokio::time::timeout;
+use app_lib::{POSTGRES_CONTAINER, OLLAMA_CONTAINER, AGENT_CONTAINER};
 
 mod helpers;
 use helpers::{TestContext, unique_container_name};
@@ -17,17 +18,17 @@ async fn test_full_container_stack_integration() {
     };
 
     // Clean up any existing containers first
-    ctx.ensure_container_not_running("eliza-postgres").await;
-    ctx.ensure_container_not_running("eliza-ollama").await;
-    ctx.ensure_container_not_running("eliza-agent").await;
+    ctx.ensure_container_not_running(POSTGRES_CONTAINER).await;
+    ctx.ensure_container_not_running(OLLAMA_CONTAINER).await;
+    ctx.ensure_container_not_running(AGENT_CONTAINER).await;
 
     // Start containers in the correct order
     println!("📦 Starting PostgreSQL...");
     match ctx.container_manager.start_postgres().await {
         Ok(status) => {
-            assert_eq!(status.name, "eliza-postgres");
+            assert_eq!(status.name, POSTGRES_CONTAINER);
             println!("✅ PostgreSQL started successfully");
-            ctx.register_for_cleanup("eliza-postgres".to_string()).await;
+            ctx.register_for_cleanup(POSTGRES_CONTAINER.to_string()).await;
 
             // Wait for PostgreSQL to be ready
             tokio::time::sleep(Duration::from_secs(5)).await;
@@ -35,9 +36,9 @@ async fn test_full_container_stack_integration() {
             println!("📦 Starting Ollama...");
             match ctx.container_manager.start_ollama().await {
                 Ok(status) => {
-                    assert_eq!(status.name, "eliza-ollama");
+                    assert_eq!(status.name, OLLAMA_CONTAINER);
                     println!("✅ Ollama started successfully");
-                    ctx.register_for_cleanup("eliza-ollama".to_string()).await;
+                    ctx.register_for_cleanup(OLLAMA_CONTAINER.to_string()).await;
 
                     // Wait for Ollama to be ready
                     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -45,9 +46,9 @@ async fn test_full_container_stack_integration() {
                     println!("📦 Starting Agent...");
                     match ctx.container_manager.start_agent().await {
                         Ok(status) => {
-                            assert_eq!(status.name, "eliza-agent");
+                            assert_eq!(status.name, AGENT_CONTAINER);
                             println!("✅ Agent started successfully");
-                            ctx.register_for_cleanup("eliza-agent".to_string()).await;
+                            ctx.register_for_cleanup(AGENT_CONTAINER.to_string()).await;
 
                             // Wait for containers to fully start
                             println!("\n⏳ Waiting for containers to be fully running...");
@@ -85,11 +86,11 @@ async fn test_full_container_stack_integration() {
                                 }
                                 
                                 let postgres_running = all_statuses.iter()
-                                    .any(|s| s.name == "eliza-postgres" && matches!(s.state, app_lib::ContainerState::Running));
+                                    .any(|s| s.name == POSTGRES_CONTAINER && matches!(s.state, app_lib::ContainerState::Running));
                                 let ollama_running = all_statuses.iter()
-                                    .any(|s| s.name == "eliza-ollama" && matches!(s.state, app_lib::ContainerState::Running));
+                                    .any(|s| s.name == OLLAMA_CONTAINER && matches!(s.state, app_lib::ContainerState::Running));
                                 let agent_running = all_statuses.iter()
-                                    .any(|s| s.name == "eliza-agent" && matches!(s.state, app_lib::ContainerState::Running));
+                                    .any(|s| s.name == AGENT_CONTAINER && matches!(s.state, app_lib::ContainerState::Running));
                                 
                                 all_running = postgres_running && ollama_running && agent_running;
                                 retries += 1;
@@ -100,11 +101,11 @@ async fn test_full_container_stack_integration() {
                                 .expect("Failed to get container statuses");
                             
                             let postgres_running = all_statuses.iter()
-                                .any(|s| s.name == "eliza-postgres" && matches!(s.state, app_lib::ContainerState::Running));
+                                .any(|s| s.name == POSTGRES_CONTAINER && matches!(s.state, app_lib::ContainerState::Running));
                             let ollama_running = all_statuses.iter()
-                                .any(|s| s.name == "eliza-ollama" && matches!(s.state, app_lib::ContainerState::Running));
+                                .any(|s| s.name == OLLAMA_CONTAINER && matches!(s.state, app_lib::ContainerState::Running));
                             let agent_running = all_statuses.iter()
-                                .any(|s| s.name == "eliza-agent" && matches!(s.state, app_lib::ContainerState::Running));
+                                .any(|s| s.name == AGENT_CONTAINER && matches!(s.state, app_lib::ContainerState::Running));
 
                             // For now, we'll only require PostgreSQL and Ollama to be running
                             // The agent container requires proper database setup which may not be available in tests
@@ -181,22 +182,22 @@ async fn test_container_restart_functionality() {
     };
 
     // Ensure clean state
-    ctx.ensure_container_not_running("eliza-postgres").await;
+    ctx.ensure_container_not_running(POSTGRES_CONTAINER).await;
 
     // Start a container
     match ctx.container_manager.start_postgres().await {
         Ok(initial_status) => {
             println!("✅ Container started: {}", initial_status.id);
-            ctx.register_for_cleanup("eliza-postgres".to_string()).await;
+            ctx.register_for_cleanup(POSTGRES_CONTAINER.to_string()).await;
 
             // Wait for it to stabilize
             tokio::time::sleep(Duration::from_secs(2)).await;
 
             // Test restart
-            match ctx.container_manager.restart_container("eliza-postgres").await {
+            match ctx.container_manager.restart_container(POSTGRES_CONTAINER).await {
                 Ok(restart_status) => {
                     println!("✅ Container restarted successfully");
-                    assert_eq!(restart_status.name, "eliza-postgres");
+                    assert_eq!(restart_status.name, POSTGRES_CONTAINER);
                     assert_eq!(restart_status.restart_count, 1);
                 }
                 Err(e) => {

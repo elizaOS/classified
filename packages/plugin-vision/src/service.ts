@@ -1741,7 +1741,7 @@ export class VisionService extends Service {
         objects: [],
         people: [],
         sceneChanged: true,
-        changePercentage: changePercentage,
+        changePercentage,
         audioTranscription: currentDescription?.audioTranscription,
       };
 
@@ -1770,8 +1770,6 @@ export class VisionService extends Service {
 
       if (transcription && transcription.trim()) {
         // Store transcription in scene description for context
-        const audioTranscription = `[Audio Transcription] ${transcription}`;
-
         // Update scene description with audio context
         this.lastSceneDescription = {
           description: this.lastSceneDescription?.description || 'Scene with audio',

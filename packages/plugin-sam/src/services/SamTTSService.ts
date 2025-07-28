@@ -1,4 +1,4 @@
-import { Service, ServiceType, type IAgentRuntime } from '@elizaos/core';
+import { Service, type IAgentRuntime } from '@elizaos/core';
 import SamJs from 'sam-js';
 import { SAMServiceType } from '../types';
 

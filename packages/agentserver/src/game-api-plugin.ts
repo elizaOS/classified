@@ -1,7 +1,7 @@
 import type { IAgentRuntime, Plugin, Route } from '@elizaos/core';
 import { logger, ModelType, type UUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
-import { execSync, exec } from 'child_process';
+import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);

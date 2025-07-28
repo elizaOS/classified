@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod ollama_container_tests {
-    use app_lib::{ContainerManager, ContainerRuntimeType};
-    use tokio;
+    use app_lib::{ContainerManager, ContainerRuntimeType, OLLAMA_CONTAINER};
+    
 
     #[tokio::test]
     async fn test_ollama_container_config() {
@@ -19,7 +19,7 @@ mod ollama_container_tests {
 
         match result {
             Ok(status) => {
-                assert_eq!(status.name, "eliza-ollama");
+                assert_eq!(status.name, OLLAMA_CONTAINER);
                 
                 // Ports may not be populated immediately
                 if !status.ports.is_empty() {
@@ -31,7 +31,7 @@ mod ollama_container_tests {
                 println!("✅ Ollama container configuration test passed");
 
                 // Clean up - stop the container
-                let _ = manager.stop_container("eliza-ollama").await;
+                let _ = manager.stop_container(OLLAMA_CONTAINER).await;
             }
             Err(e) => {
                 // This is expected if no container runtime is available or images aren't present

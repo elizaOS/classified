@@ -136,7 +136,6 @@ describe('AutoCoder Scenario Integration', () => {
 
       // Verify dependencies for real-world scenarios
       expect(autocoderPlugin.dependencies).toContain('@elizaos/plugin-forms');
-      expect(autocoderPlugin.dependencies).toContain('@elizaos/plugin-e2b');
 
       // Verify test suites are included
       expect(autocoderPlugin.tests).toBeDefined();
@@ -441,7 +440,6 @@ describe('AutoCoder Scenario Integration', () => {
       // Check plugin structure supports these components
       expect(autocoderPlugin.services).toBeDefined();
       expect(autocoderPlugin.actions).toBeDefined();
-      expect(autocoderPlugin.dependencies).toContain('@elizaos/plugin-e2b');
     });
 
     it('should support real API key integration', () => {

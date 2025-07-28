@@ -48,27 +48,27 @@ export const ContainerLogs: React.FC = () => {
   };
 
   const isPostgresError = (log: ContainerLog): boolean => {
-    return log.container.toLowerCase().includes('postgres') && isErrorLog(log.message);
+    return log.service.toLowerCase().includes('postgres') && isErrorLog(log.message);
   };
 
   const filteredLogs = logs.filter((log) => {
     // Filter by container
-    if (filter === 'agentserver' && !log.container.toLowerCase().includes('agentserver')) {
+    if (filter === 'agentserver' && !log.service.toLowerCase().includes('agentserver')) {
       return false;
     }
-    if (filter === 'postgres' && !log.container.toLowerCase().includes('postgres')) {
+    if (filter === 'postgres' && !log.service.toLowerCase().includes('postgres')) {
       return false;
     }
 
     // For postgres, only show errors
-    if (log.container.toLowerCase().includes('postgres') && !isPostgresError(log)) {
+    if (log.service.toLowerCase().includes('postgres') && !isPostgresError(log)) {
       return false;
     }
 
     // For other containers, show all logs unless showOnlyErrors is true
     if (
       showOnlyErrors &&
-      !log.container.toLowerCase().includes('postgres') &&
+      !log.service.toLowerCase().includes('postgres') &&
       !isErrorLog(log.message)
     ) {
       return false;
@@ -83,21 +83,19 @@ export const ContainerLogs: React.FC = () => {
 
   const getLogClass = (log: ContainerLog): string => {
     if (isErrorLog(log.message)) return 'log-error';
-    if (log.stream === 'stderr') return 'log-stderr';
+    if (log.level === 'error') return 'log-stderr';
     if (log.message.includes('WARN')) return 'log-warn';
     if (log.message.includes('INFO')) return 'log-info';
     if (log.message.includes('DEBUG')) return 'log-debug';
     return 'log-default';
   };
 
-  const formatTimestamp = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', {
+  const formatTimestamp = (timestamp: Date): string => {
+    return timestamp.toLocaleTimeString('en-US', {
       hour12: false,
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      fractionalSecondDigits: 3,
     });
   };
 
@@ -137,7 +135,7 @@ export const ContainerLogs: React.FC = () => {
           filteredLogs.map((log, index) => (
             <div key={index} className={`log-entry ${getLogClass(log)}`}>
               <span className="log-timestamp">{formatTimestamp(log.timestamp)}</span>
-              <span className="log-container">[{log.container}]</span>
+              <span className="log-container">[{log.service}]</span>
               <span className="log-message">{log.message}</span>
             </div>
           ))

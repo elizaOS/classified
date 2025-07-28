@@ -1,7 +1,7 @@
 use crate::backend::*;
+use crate::common::{agent_server_request, send_media_data, AGENT_CONTAINER};
 use crate::container::*;
 use crate::SetupProgress;
-use reqwest;
 use serde_json;
 use std::sync::Arc;
 use tauri::{Manager, State};
@@ -248,12 +248,13 @@ pub async fn refresh_vision_service() -> Result<serde_json::Value, String> {
 }
 
 // Helper function to make requests to the agent server
+// Helper function that wraps the common agent_server_request
 async fn make_agent_server_request(
     method: &str,
     endpoint: &str,
     body: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    make_agent_server_request_with_timeout(method, endpoint, body, 10).await
+    agent_server_request(method, endpoint, body, None).await
 }
 
 // Helper function with custom timeout
@@ -263,42 +264,7 @@ async fn make_agent_server_request_with_timeout(
     body: Option<serde_json::Value>,
     timeout_secs: u64,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
-    let url = format!("http://localhost:7777{}", endpoint);
-
-    let mut request = match method {
-        "GET" => client.get(&url),
-        "POST" => client.post(&url),
-        "PUT" => client.put(&url),
-        "PATCH" => client.patch(&url),
-        "DELETE" => client.delete(&url),
-        _ => return Err("Invalid HTTP method".into()),
-    };
-
-    if let Some(json_body) = body {
-        request = request.json(&json_body);
-    }
-
-    let response = request
-        .timeout(std::time::Duration::from_secs(timeout_secs))
-        .send()
-        .await?;
-
-    if response.status().is_success() {
-        let data: serde_json::Value = response.json().await?;
-        Ok(data)
-    } else {
-        let status = response.status();
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error".to_string());
-        Err(format!(
-            "Agent server responded with status: {} - {}",
-            status, error_text
-        )
-        .into())
-    }
+    agent_server_request(method, endpoint, body, Some(timeout_secs)).await
 }
 
 
@@ -598,29 +564,17 @@ pub async fn stream_media_frame(
         }
     }
 
-    // Fallback to HTTP API
-    let client = reqwest::Client::new();
-    let url = "http://localhost:7777/api/media/stream";
-    
-    match client
-        .post(url)
-        .json(&serde_json::json!({
-            "type": "video",
-            "stream_type": stream_type,
-            "data": frame_data,
-            "timestamp": timestamp,
-            "agentId": "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f" // Default agent ID
-        }))
-        .send()
-        .await
-    {
-        Ok(response) => {
-            if response.status().is_success() {
-                info!("✅ Forwarded {} frame via HTTP API", stream_type);
-                Ok(())
-            } else {
-                Err(format!("HTTP API returned error: {}", response.status()))
-            }
+    // Fallback to HTTP API using shared utility
+    match send_media_data(
+        "video",
+        Some(&stream_type),
+        frame_data,
+        timestamp,
+        "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f" // Default agent ID
+    ).await {
+        Ok(_) => {
+            info!("✅ Forwarded {} frame via HTTP API", stream_type);
+            Ok(())
         }
         Err(e) => Err(format!("Failed to send via HTTP: {}", e))
     }
@@ -648,28 +602,17 @@ pub async fn stream_media_audio(
         }
     }
 
-    // Fallback to HTTP API
-    let client = reqwest::Client::new();
-    let url = "http://localhost:7777/api/media/stream";
-    
-    match client
-        .post(url)
-        .json(&serde_json::json!({
-            "type": "audio", 
-            "data": audio_data,
-            "timestamp": timestamp,
-            "agentId": "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f" // Default agent ID
-        }))
-        .send()
-        .await
-    {
-        Ok(response) => {
-            if response.status().is_success() {
-                info!("✅ Forwarded audio chunk via HTTP API");
-                Ok(())
-            } else {
-                Err(format!("HTTP API returned error: {}", response.status()))
-            }
+    // Fallback to HTTP API using shared utility
+    match send_media_data(
+        "audio",
+        None,
+        audio_data,
+        timestamp,
+        "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f" // Default agent ID
+    ).await {
+        Ok(_) => {
+            info!("✅ Forwarded audio chunk via HTTP API");
+            Ok(())
         }
         Err(e) => Err(format!("Failed to send via HTTP: {}", e))
     }
@@ -724,7 +667,7 @@ pub async fn recover_agent_container(
     info!("🚨 Starting agent container recovery...");
     
     // Check agent container status
-    match container_manager.get_runtime_container_status("eliza-agent").await {
+    match container_manager.get_runtime_container_status(AGENT_CONTAINER).await {
         Ok(status) => {
             info!("Agent container status: {:?}", status.state);
             
@@ -733,16 +676,16 @@ pub async fn recover_agent_container(
                     // Container exists but stopped, restart it
                     info!("Agent container is stopped, attempting to restart...");
                     
-                    match container_manager.restart_container("eliza-agent").await {
+                    match container_manager.restart_container(AGENT_CONTAINER).await {
                         Ok(_) => {
                             info!("Agent container restarted successfully");
                             
                             // Wait for it to become healthy
-                            if let Err(e) = container_manager.wait_for_container_health("eliza-agent", std::time::Duration::from_secs(30)).await {
+                            if let Err(e) = container_manager.wait_for_container_health(AGENT_CONTAINER, std::time::Duration::from_secs(30)).await {
                                 error!("Agent container failed health check after restart: {}", e);
                                 
                                 // Get logs for debugging
-                                if let Ok(logs) = container_manager.get_container_logs("eliza-agent", Some(100)).await {
+                                if let Ok(logs) = container_manager.get_container_logs(AGENT_CONTAINER, Some(100)).await {
                                     error!("Recent agent container logs:");
                                     for line in logs.lines().take(50) {
                                         error!("  {}", line);
@@ -765,7 +708,7 @@ pub async fn recover_agent_container(
                     info!("Container is running but agent process may have crashed");
                     
                     // Get logs to see what happened
-                    if let Ok(logs) = container_manager.get_container_logs("eliza-agent", Some(100)).await {
+                    if let Ok(logs) = container_manager.get_container_logs(AGENT_CONTAINER, Some(100)).await {
                         error!("Recent agent container logs:");
                         for line in logs.lines().take(50) {
                             error!("  {}", line);
@@ -774,12 +717,12 @@ pub async fn recover_agent_container(
                     
                     // Restart the container to recover
                     info!("Restarting agent container to recover from crash...");
-                    match container_manager.restart_container("eliza-agent").await {
+                    match container_manager.restart_container(AGENT_CONTAINER).await {
                         Ok(_) => {
                             info!("Agent container restarted after crash");
                             
                             // Wait for health
-                            if container_manager.wait_for_container_health("eliza-agent", std::time::Duration::from_secs(30)).await.is_ok() {
+                            if container_manager.wait_for_container_health(AGENT_CONTAINER, std::time::Duration::from_secs(30)).await.is_ok() {
                                 Ok("Agent container recovered from crash".to_string())
                             } else {
                                 Err("Agent container failed to become healthy after recovery".to_string())
@@ -807,7 +750,7 @@ pub async fn recover_agent_container(
                     info!("Agent container started successfully");
                     
                     // Wait for health
-                    if container_manager.wait_for_container_health("eliza-agent", std::time::Duration::from_secs(60)).await.is_ok() {
+                    if container_manager.wait_for_container_health(AGENT_CONTAINER, std::time::Duration::from_secs(60)).await.is_ok() {
                         Ok("Agent container started successfully".to_string())
                     } else {
                         Err("Agent container failed to become healthy".to_string())
@@ -821,3 +764,36 @@ pub async fn recover_agent_container(
         }
     }
 }
+
+// VNC commands temporarily disabled - vnc_tests module not available
+/*
+#[tauri::command]
+pub async fn test_vnc_display() -> Result<bool, String> {
+    use crate::tests::vnc_tests::VncTests;
+    
+    info!("Testing VNC display functionality...");
+    
+    match VncTests::test_vnc_display().await {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            error!("VNC test failed: {}", e);
+            Err(e.to_string())
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn restart_vnc_display() -> Result<(), String> {
+    use crate::tests::vnc_tests::VncTests;
+    
+    info!("Restarting VNC display...");
+    
+    match VncTests::run_vnc_autostart().await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            error!("Failed to restart VNC: {}", e);
+            Err(e.to_string())
+        }
+    }
+}
+*/

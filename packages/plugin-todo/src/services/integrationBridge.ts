@@ -1,17 +1,13 @@
-import { Service, type IAgentRuntime, type ServiceTypeName, logger } from '@elizaos/core';
+import { Service, type IAgentRuntime, logger } from '@elizaos/core';
 import '../types'; // Import to register service types
 
 /**
  * Integration bridge service for connecting with other plugins
  */
 export class TodoIntegrationBridge extends Service {
-  static serviceType: ServiceTypeName = 'TODO_INTEGRATION_BRIDGE';
+  static serviceType = 'TODO_INTEGRATION_BRIDGE' as any;
   static serviceName = 'TODO_INTEGRATION_BRIDGE';
   capabilityDescription = 'Bridges todo plugin with other plugins for enhanced functionality';
-
-  get serviceName(): string {
-    return 'TODO_INTEGRATION_BRIDGE';
-  }
 
   static async start(runtime: IAgentRuntime): Promise<TodoIntegrationBridge> {
     logger.info('Starting TodoIntegrationBridge...');

@@ -105,9 +105,7 @@ impl MediaStreamingTests {
         info!("🧪 Test 3: Testing agent screen capture commands");
 
         // Test start command
-        match tauri::async_runtime::block_on(async {
-            start_agent_screen_capture().await
-        }) {
+        match start_agent_screen_capture().await {
             Ok(_) => info!("✅ Agent screen capture start command works"),
             Err(e) => info!("⚠️ Agent screen capture start failed (expected if no Xvfb): {}", e),
         }
@@ -116,9 +114,7 @@ impl MediaStreamingTests {
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
         // Test stop command
-        match tauri::async_runtime::block_on(async {
-            stop_agent_screen_capture().await
-        }) {
+        match stop_agent_screen_capture().await {
             Ok(_) => info!("✅ Agent screen capture stop command works"),
             Err(e) => info!("⚠️ Agent screen capture stop failed: {}", e),
         }
@@ -131,33 +127,25 @@ impl MediaStreamingTests {
         info!("🧪 Test 4: Testing media streaming toggle functionality");
 
         // Test enabling camera capability
-        match tauri::async_runtime::block_on(async {
-            toggle_capability("camera".to_string()).await
-        }) {
+        match toggle_capability("camera".to_string()).await {
             Ok(_) => info!("✅ Camera capability toggle works"),
             Err(e) => info!("⚠️ Camera capability toggle failed: {}", e),
         }
 
         // Test enabling screen capability
-        match tauri::async_runtime::block_on(async {
-            toggle_capability("screen".to_string()).await
-        }) {
+        match toggle_capability("screen".to_string()).await {
             Ok(_) => info!("✅ Screen capability toggle works"),
             Err(e) => info!("⚠️ Screen capability toggle failed: {}", e),
         }
 
         // Test enabling microphone capability
-        match tauri::async_runtime::block_on(async {
-            toggle_capability("microphone".to_string()).await
-        }) {
+        match toggle_capability("microphone".to_string()).await {
             Ok(_) => info!("✅ Microphone capability toggle works"),
             Err(e) => info!("⚠️ Microphone capability toggle failed: {}", e),
         }
 
         // Get capability status
-        match tauri::async_runtime::block_on(async {
-            get_capability_status("camera".to_string()).await
-        }) {
+        match get_capability_status("camera".to_string()).await {
             Ok(status) => info!("✅ Camera capability status: {:?}", status),
             Err(e) => info!("⚠️ Failed to get camera capability status: {}", e),
         }

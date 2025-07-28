@@ -8,6 +8,7 @@ use tracing::{error, info, warn};
 
 // New Rust backend modules
 mod backend;
+mod common;
 mod container;
 mod ipc;
 mod server;
@@ -84,83 +85,7 @@ async fn start_callback_server_on_port(port: u16) -> Result<(), Box<dyn std::err
     Ok(())
 }
 
-// Helper function to kill processes using a specific port
-pub async fn kill_processes_on_port(port: u16) -> Result<(), Box<dyn std::error::Error>> {
-    info!("🔍 Checking for existing processes on port {}...", port);
 
-    let lsof_output = std::process::Command::new("lsof")
-        .args(["-ti", &format!(":{}", port)])
-        .output();
-
-    match lsof_output {
-        Ok(output) => {
-            if output.status.success() && !output.stdout.is_empty() {
-                let pids_str = String::from_utf8_lossy(&output.stdout);
-                let pids: Vec<&str> = pids_str.trim().split('\n').collect();
-
-                if !pids.is_empty() && !pids[0].is_empty() {
-                    info!(
-                        "🚫 Found {} process(es) using port {}: {:?}",
-                        pids.len(),
-                        port,
-                        pids
-                    );
-
-                    for pid in pids {
-                        if !pid.trim().is_empty() {
-                            info!("🔪 Killing process with PID: {}", pid.trim());
-
-                            // Try SIGTERM first
-                            let kill_result = std::process::Command::new("kill")
-                                .args(["-TERM", pid.trim()])
-                                .output();
-
-                            match kill_result {
-                                Ok(kill_output) => {
-                                    if kill_output.status.success() {
-                                        info!("✅ Successfully terminated process {}", pid.trim());
-                                    } else {
-                                        // If SIGTERM failed, try SIGKILL
-                                        warn!(
-                                            "⚠️ SIGTERM failed for PID {}, trying SIGKILL...",
-                                            pid.trim()
-                                        );
-                                        let force_kill = std::process::Command::new("kill")
-                                            .args(["-KILL", pid.trim()])
-                                            .output();
-
-                                        if let Ok(force_output) = force_kill {
-                                            if force_output.status.success() {
-                                                info!("✅ Force killed process {}", pid.trim());
-                                            } else {
-                                                warn!(
-                                                    "❌ Failed to force kill process {}",
-                                                    pid.trim()
-                                                );
-                                            }
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    warn!("❌ Failed to kill process {}: {}", pid.trim(), e);
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    info!("✅ No processes found using port {}", port);
-                }
-            } else {
-                info!("✅ No processes found using port {}", port);
-            }
-        }
-        Err(e) => {
-            warn!("⚠️ Failed to check processes on port {}: {}", port, e);
-        }
-    }
-
-    Ok(())
-}
 
 async fn route_message_to_agent(
     message: &str,
@@ -259,7 +184,7 @@ async fn route_message_to_agent(
                     warn!("Attempting to recover agent container...");
                     
                     // Try to restart the agent container
-                    match manager.restart_container("eliza-agent").await {
+                    match manager.restart_container(common::AGENT_CONTAINER).await {
                         Ok(_) => {
                             info!("Agent container restarted, waiting for it to be ready...");
                             
@@ -267,7 +192,7 @@ async fn route_message_to_agent(
                             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                             
                             // Retry the message after recovery
-                            return attempt_request().await.map_err(|e| e.into());
+                            return attempt_request().await;
                         }
                         Err(recovery_err) => {
                             error!("Failed to restart agent container: {}", recovery_err);
@@ -277,7 +202,7 @@ async fn route_message_to_agent(
             }
             
             // Return the original error if we couldn't recover
-            Err(e.into())
+            Err(e)
         }
     }
 }
@@ -362,7 +287,7 @@ async fn send_message_to_agent(
                 warn!("Detected connection error, attempting container recovery...");
                 
                 // Try to restart the agent container
-                match container_manager.restart_container("eliza-agent").await {
+                match container_manager.restart_container(common::AGENT_CONTAINER).await {
                     Ok(_) => {
                         info!("Agent container restarted, waiting for it to be ready...");
                         
@@ -887,7 +812,10 @@ pub fn run() {
             stream_media_frame,
             stream_media_audio,
             start_agent_screen_capture,
-            stop_agent_screen_capture
+            stop_agent_screen_capture,
+            // VNC commands
+            test_vnc_display,
+            restart_vnc_display
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");
@@ -956,7 +884,7 @@ pub fn run() {
                     );
 
                     // First, try to kill any existing processes on this port
-                    if let Err(e) = kill_processes_on_port(port).await {
+                    if let Err(e) = common::kill_processes_on_port(port).await {
                         warn!("⚠️ Failed to clean up port {}: {}", port, e);
                     }
 

@@ -3,6 +3,9 @@ use crate::backend::{
     HealthCheckConfig, HealthStatus, ModelDownloadProgress, ModelDownloadStatus, PortMapping,
     SetupProgress, VolumeMount,
 };
+use crate::common::{
+    AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER,
+};
 use crate::container::runtime_manager::RuntimeType;
 use crate::container::retry::{retry_with_backoff, RetryConfig, is_retryable_error};
 use dashmap::DashMap;
@@ -228,7 +231,7 @@ impl ContainerManager {
             .unwrap_or_else(|| "2g".to_string());
 
         let config = ContainerConfig {
-            name: "eliza-postgres".to_string(),
+            name: POSTGRES_CONTAINER.to_string(),
             image: "pgvector/pgvector:pg16".to_string(),
             ports: vec![PortMapping::new(5432, 5432)],
             environment: vec![
@@ -242,7 +245,7 @@ impl ContainerManager {
                 VolumeMount::new("eliza-postgres-init", "/docker-entrypoint-initdb.d"),
             ],
             health_check: Some(HealthCheckConfig::postgres_default()),
-            network: Some("eliza-network".to_string()),
+            network: Some(NETWORK_NAME.to_string()),
             memory_limit: Some(memory_limit),
         };
 
@@ -250,7 +253,7 @@ impl ContainerManager {
         
         // Start streaming container logs to the Tauri app logs
         info!("🔍 Starting log streaming for eliza-postgres container");
-        if let Err(e) = self.stream_container_logs("eliza-postgres").await {
+        if let Err(e) = self.stream_container_logs(POSTGRES_CONTAINER).await {
             warn!("⚠️ Failed to start log streaming for eliza-postgres: {}", e);
             // Don't fail the container start if log streaming fails
         }
@@ -277,13 +280,13 @@ impl ContainerManager {
 
         // Start our Ollama container on the eliza-network with standard port 11434
         let config = ContainerConfig {
-            name: "eliza-ollama".to_string(),
+            name: OLLAMA_CONTAINER.to_string(),
             image: "ollama/ollama:latest".to_string(),
             ports: vec![PortMapping::new(11434, 11434)], // Standard Ollama port for compatibility
             environment: vec!["OLLAMA_PORT=11434".to_string()],
             volumes: vec![VolumeMount::new("eliza-ollama-data", "/root/.ollama")],
             health_check: Some(HealthCheckConfig::ollama_default()),
-            network: Some("eliza-network".to_string()),
+            network: Some(NETWORK_NAME.to_string()),
             memory_limit: Some(memory_limit),
         };
 
@@ -308,7 +311,7 @@ impl ContainerManager {
             ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
                 .args([
                     "exec",
-                    "eliza-ollama",
+                    OLLAMA_CONTAINER,
                     "curl",
                     "-s",
                     "http://localhost:11434/api/show",
@@ -323,7 +326,7 @@ impl ContainerManager {
             ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
                 .args([
                     "exec",
-                    "eliza-ollama",
+                    OLLAMA_CONTAINER,
                     "curl",
                     "-s",
                     "http://localhost:11434/api/show",
@@ -368,14 +371,14 @@ impl ContainerManager {
         // Always use containerized Ollama
         let output = match &self.runtime {
             ContainerRuntime::Podman(_) => tokio::process::Command::new("podman")
-                .args(["exec", "eliza-ollama", "ollama", "list"])
+                .args(["exec", OLLAMA_CONTAINER, "ollama", "list"])
                 .output()
                 .await
                 .map_err(|e| {
                     BackendError::Container(format!("Failed to list ollama models: {}", e))
                 })?,
             ContainerRuntime::Docker(_) => tokio::process::Command::new("docker")
-                .args(["exec", "eliza-ollama", "ollama", "list"])
+                .args(["exec", OLLAMA_CONTAINER, "ollama", "list"])
                 .output()
                 .await
                 .map_err(|e| {
@@ -429,11 +432,8 @@ impl ContainerManager {
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                 
                 // Verify connection is working
-                match &self.runtime {
-                    ContainerRuntime::Podman(client) => {
-                        client.is_available().await?;
-                    }
-                    _ => {}
+                if let ContainerRuntime::Podman(client) = &self.runtime {
+                    client.is_available().await?;
                 }
                 
                 Ok(())
@@ -592,41 +592,17 @@ impl ContainerManager {
 
         info!("Starting to pull Ollama model: {}", model);
 
-        // Start a background task to periodically check download progress via API
-        let model_clone = model.to_string();
-        let self_clone = self.clone();
-        let base_progress_clone = base_progress;
-
+        // Note: We're now getting real-time progress from stderr output instead of polling API
+        // This provides more accurate and responsive progress updates
         let progress_task = tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
-                // Try to get progress from API
-                if let Ok(Some(progress)) =
-                    self_clone.get_ollama_download_progress(&model_clone).await
-                {
-                    debug!("API Progress for {}: {}%", model_clone, progress.percentage);
-
-                    // Calculate overall progress
-                    let overall_progress = base_progress_clone + (progress.percentage / 4);
-
-                    self_clone
-                        .update_progress_with_model(
-                            "models",
-                            overall_progress,
-                            &format!("Downloading {}: {}%", model_clone, progress.percentage),
-                            &format!("{:.1}MB/{:.1}MB", progress.current_mb, progress.total_mb),
-                            Some(progress),
-                        )
-                        .await;
-                }
-            }
+            // Just a placeholder task that does nothing
+            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
         });
 
         // Always use containerized Ollama
         let mut child = match &self.runtime {
             ContainerRuntime::Podman(_) => Command::new("podman")
-                .args(["exec", "eliza-ollama", "ollama", "pull", model])
+                .args(["exec", OLLAMA_CONTAINER, "ollama", "pull", model])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
@@ -634,7 +610,7 @@ impl ContainerManager {
                     BackendError::Container(format!("Failed to start ollama pull: {}", e))
                 })?,
             ContainerRuntime::Docker(_) => Command::new("docker")
-                .args(["exec", "eliza-ollama", "ollama", "pull", model])
+                .args(["exec", OLLAMA_CONTAINER, "ollama", "pull", model])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
@@ -662,6 +638,10 @@ impl ContainerManager {
         let mut current_layer = String::new();
 
         // First read from stderr in a separate task (Ollama often outputs to stderr)
+        let model_clone2 = model.to_string();
+        let self_clone2 = self.clone();
+        let base_progress_clone2 = base_progress;
+        
         let stderr_task = tokio::spawn(async move {
             let mut err_line = String::new();
             while let Ok(bytes_read) = stderr_reader.read_line(&mut err_line).await {
@@ -671,6 +651,27 @@ impl ContainerManager {
                 let trimmed = err_line.trim();
                 if !trimmed.is_empty() {
                     info!("Ollama stderr: {}", trimmed);
+                    
+                    // Parse progress from stderr line
+                    if let Some(model_progress) = self_clone2.parse_ollama_progress(&model_clone2, trimmed) {
+                        // Calculate overall progress (base_progress + model progress within 25% range)
+                        let overall_progress = base_progress_clone2 + (model_progress.percentage / 4);
+
+                        self_clone2
+                            .update_progress_with_model(
+                                "models",
+                                overall_progress,
+                                &format!("Downloading {}: {}%", model_clone2, model_progress.percentage),
+                                &format!(
+                                    "{:.1}MB/{:.1}MB at {:.1}MB/s",
+                                    model_progress.current_mb,
+                                    model_progress.total_mb,
+                                    model_progress.speed_mbps
+                                ),
+                                Some(model_progress),
+                            )
+                            .await;
+                    }
                 }
                 err_line.clear();
             }
@@ -908,7 +909,7 @@ impl ContainerManager {
         }
 
         let config = ContainerConfig {
-            name: "eliza-agent".to_string(),
+            name: AGENT_CONTAINER.to_string(),
             image: image_name,
             ports: vec![PortMapping::new(7777, 7777)], // Agent API port
             environment,
@@ -918,7 +919,7 @@ impl ContainerManager {
                 VolumeMount::new("eliza-agent-knowledge", "/app/knowledge"),
             ],
             health_check: Some(HealthCheckConfig::agent_default()),
-            network: Some("eliza-network".to_string()),
+            network: Some(NETWORK_NAME.to_string()),
             memory_limit: Some(self.memory_limits
                 .as_ref()
                 .map(|limits| limits.agent_limit_str())
@@ -929,7 +930,7 @@ impl ContainerManager {
         
         // Start streaming container logs to the Tauri app logs
         info!("🔍 Starting log streaming for eliza-agent container");
-        if let Err(e) = self.stream_container_logs("eliza-agent").await {
+        if let Err(e) = self.stream_container_logs(AGENT_CONTAINER).await {
             warn!("⚠️ Failed to start log streaming for eliza-agent: {}", e);
             // Don't fail the container start if log streaming fails
         }
@@ -1013,8 +1014,8 @@ impl ContainerManager {
         .await;
 
         match &self.runtime {
-            ContainerRuntime::Podman(client) => client.create_network("eliza-network").await?,
-            ContainerRuntime::Docker(client) => client.create_network("eliza-network").await?,
+            ContainerRuntime::Podman(client) => client.create_network(NETWORK_NAME).await?,
+            ContainerRuntime::Docker(client) => client.create_network(NETWORK_NAME).await?,
         }
 
         // Start PostgreSQL first (no dependencies)
@@ -1029,7 +1030,7 @@ impl ContainerManager {
         match self.start_postgres().await {
             Ok(_) => {
                 // Wait for PostgreSQL to be healthy
-                if let Err(e) = self.wait_for_container_health("eliza-postgres", Duration::from_secs(60)).await {
+                if let Err(e) = self.wait_for_container_health(POSTGRES_CONTAINER, Duration::from_secs(60)).await {
                     error!("PostgreSQL failed health check: {}", e);
                     return Err(e);
                 }
@@ -1038,7 +1039,7 @@ impl ContainerManager {
                 // Try to recover and retry
                 self.handle_podman_connection_error(&e).await?;
                 self.start_postgres().await?;
-                self.wait_for_container_health("eliza-postgres", Duration::from_secs(60)).await?;
+                self.wait_for_container_health(POSTGRES_CONTAINER, Duration::from_secs(60)).await?;
             }
             Err(e) => return Err(e),
         }
@@ -1055,7 +1056,7 @@ impl ContainerManager {
         match self.start_ollama().await {
             Ok(_) => {
                 // Wait for Ollama container to be healthy
-                if let Err(e) = self.wait_for_container_health("eliza-ollama", Duration::from_secs(60)).await {
+                if let Err(e) = self.wait_for_container_health(OLLAMA_CONTAINER, Duration::from_secs(60)).await {
                     error!("Ollama container failed health check: {}", e);
                     return Err(e);
                 }
@@ -1064,7 +1065,7 @@ impl ContainerManager {
                 // Try to recover and retry
                 self.handle_podman_connection_error(&e).await?;
                 self.start_ollama().await?;
-                self.wait_for_container_health("eliza-ollama", Duration::from_secs(60)).await?;
+                self.wait_for_container_health(OLLAMA_CONTAINER, Duration::from_secs(60)).await?;
             }
             Err(e) => return Err(e),
         }
@@ -1095,7 +1096,7 @@ impl ContainerManager {
         match self.start_agent().await {
             Ok(_) => {
                 // Wait for agent to be healthy
-                if let Err(e) = self.wait_for_container_health("eliza-agent", Duration::from_secs(120)).await {
+                if let Err(e) = self.wait_for_container_health(AGENT_CONTAINER, Duration::from_secs(120)).await {
                     error!("Agent failed health check: {}", e);
                     return Err(e);
                 }
@@ -1104,7 +1105,7 @@ impl ContainerManager {
                 // Try to recover and retry
                 self.handle_podman_connection_error(&e).await?;
                 self.start_agent().await?;
-                self.wait_for_container_health("eliza-agent", Duration::from_secs(120)).await?;
+                self.wait_for_container_health(AGENT_CONTAINER, Duration::from_secs(120)).await?;
             }
             Err(e) => return Err(e),
         }
@@ -1485,8 +1486,8 @@ impl ContainerManager {
 
         // Create the eliza network for container communication
         match &self.runtime {
-            ContainerRuntime::Podman(client) => client.create_network("eliza-network").await?,
-            ContainerRuntime::Docker(client) => client.create_network("eliza-network").await?,
+            ContainerRuntime::Podman(client) => client.create_network(NETWORK_NAME).await?,
+            ContainerRuntime::Docker(client) => client.create_network(NETWORK_NAME).await?,
         }
 
         self.update_progress(
@@ -1718,68 +1719,75 @@ impl ContainerManager {
         let mut speed_mbps = 0.0;
         let mut eta_seconds = 0;
 
-        // Find size pattern like "516 MB/2.0 GB" or "1.8 GB/2.0 GB"
-        for i in 0..size_parts.len() {
-            // Look for patterns like "X MB/Y" or "X GB/Y"
-            if i + 1 < size_parts.len() && (size_parts[i + 1] == "MB/" || size_parts[i + 1] == "GB/") {
-                if let Ok(current) = size_parts[i].parse::<f64>() {
-                    current_mb = if size_parts[i + 1] == "GB/" {
-                        current * 1024.0 // Convert GB to MB
-                    } else {
-                        current // Already in MB
-                    };
-                    debug!("Found current size: {} {}", current, size_parts[i + 1].trim_end_matches('/'));
-                }
-            }
-            // Look for "X.X MB/Y.Y GB" pattern
-            else if i + 3 < size_parts.len() && size_parts[i + 1].ends_with("/") {
-                if let Ok(current) = size_parts[i].parse::<f64>() {
-                    let unit = size_parts[i + 1].trim_end_matches('/');
-                    current_mb = if unit == "GB" {
-                        current * 1024.0
-                    } else {
-                        current
-                    };
-                    debug!("Found current size: {} {}", current, unit);
-                }
-                if i + 3 < size_parts.len() {
-                    if let Ok(total) = size_parts[i + 2].parse::<f64>() {
-                        let unit = size_parts.get(i + 3).unwrap_or(&"GB");
-                        total_mb = if unit == &"GB" {
-                            total * 1024.0
-                        } else {
-                            total
-                        };
-                        debug!("Found total size: {} {}", total, unit);
-                    }
-                }
-            }
-            // Check for patterns like "1.8GB/2.0GB" or "516MB/2.0GB"
-            else if size_parts[i].contains('/') && (size_parts[i].contains("GB") || size_parts[i].contains("MB")) {
-                let parts: Vec<&str> = size_parts[i].split('/').collect();
-                if parts.len() == 2 {
+        // Look for size pattern in the entire line using regex-like approach
+        // Common patterns: "182 MB/2.0 GB", "1.8GB/2.0GB", "182MB/2GB"
+        for part in &size_parts {
+            if part.contains('/') {
+                debug!("Checking part with slash: {}", part);
+                let size_split: Vec<&str> = part.split('/').collect();
+                if size_split.len() == 2 {
                     // Parse current size
-                    if parts[0].ends_with("GB") {
-                        if let Ok(current) = parts[0].replace("GB", "").parse::<f64>() {
-                            current_mb = current * 1024.0;
-                            debug!("Found current size: {} GB = {} MB", current, current_mb);
+                    let current_str = size_split[0];
+                    let total_str = size_split[1];
+                    
+                    // Handle current size (might have unit attached)
+                    if current_str.ends_with("GB") {
+                        if let Ok(val) = current_str.trim_end_matches("GB").parse::<f64>() {
+                            current_mb = val * 1024.0;
+                            debug!("Parsed current: {} GB = {} MB", val, current_mb);
                         }
-                    } else if parts[0].ends_with("MB") {
-                        if let Ok(current) = parts[0].replace("MB", "").parse::<f64>() {
-                            current_mb = current;
-                            debug!("Found current size: {} MB", current_mb);
+                    } else if current_str.ends_with("MB") {
+                        if let Ok(val) = current_str.trim_end_matches("MB").parse::<f64>() {
+                            current_mb = val;
+                            debug!("Parsed current: {} MB", current_mb);
                         }
                     }
-                    // Parse total size
-                    if parts[1].ends_with("GB") {
-                        if let Ok(total) = parts[1].replace("GB", "").parse::<f64>() {
-                            total_mb = total * 1024.0;
-                            debug!("Found total size: {} GB = {} MB", total, total_mb);
+                    
+                    // Handle total size
+                    if total_str.ends_with("GB") {
+                        if let Ok(val) = total_str.trim_end_matches("GB").parse::<f64>() {
+                            total_mb = val * 1024.0;
+                            debug!("Parsed total: {} GB = {} MB", val, total_mb);
                         }
-                    } else if parts[1].ends_with("MB") {
-                        if let Ok(total) = parts[1].replace("MB", "").parse::<f64>() {
-                            total_mb = total;
-                            debug!("Found total size: {} MB", total_mb);
+                    } else if total_str.ends_with("MB") {
+                        if let Ok(val) = total_str.trim_end_matches("MB").parse::<f64>() {
+                            total_mb = val;
+                            debug!("Parsed total: {} MB", total_mb);
+                        }
+                    }
+                }
+            }
+        }
+
+        // If we didn't find sizes in combined format, look for separate patterns
+        if current_mb == 0.0 || total_mb == 0.0 {
+            // Find size pattern like "516 MB/2.0 GB" or "1.8 GB/2.0 GB"
+            for i in 0..size_parts.len() {
+                // Look for patterns where size and unit are separate
+                if i + 2 < size_parts.len() && size_parts[i + 1].ends_with("/") {
+                    if let Ok(current) = size_parts[i].parse::<f64>() {
+                        let unit = size_parts[i + 1].trim_end_matches('/');
+                        if current_mb == 0.0 {
+                            current_mb = if unit == "GB" {
+                                current * 1024.0
+                            } else {
+                                current
+                            };
+                            debug!("Found current size (separate): {} {}", current, unit);
+                        }
+                    }
+                    // Check for total size after the slash
+                    if i + 3 < size_parts.len() {
+                        if let Ok(total) = size_parts[i + 2].parse::<f64>() {
+                            let unit = size_parts.get(i + 3).unwrap_or(&"GB");
+                            if total_mb == 0.0 {
+                                total_mb = if unit == &"GB" {
+                                    total * 1024.0
+                                } else {
+                                    total
+                                };
+                                debug!("Found total size (separate): {} {}", total, unit);
+                            }
                         }
                     }
                 }
@@ -1789,7 +1797,7 @@ impl ContainerManager {
         // Find speed pattern "X.X MB/s" or "X.XMB/s"
         for i in 0..size_parts.len() {
             if size_parts[i].ends_with("MB/s") {
-                if let Ok(speed) = size_parts[i].replace("MB/s", "").parse::<f64>() {
+                if let Ok(speed) = size_parts[i].trim_end_matches("MB/s").parse::<f64>() {
                     speed_mbps = speed;
                     debug!("Found speed: {} MB/s", speed_mbps);
                 }
@@ -1819,6 +1827,12 @@ impl ContainerManager {
                 }
             }
         }
+
+        // Log what we found for debugging
+        info!(
+            "Parsed Ollama progress - percentage: {}%, current: {:.1}MB, total: {:.1}MB, speed: {:.1}MB/s, eta: {}s",
+            percentage, current_mb, total_mb, speed_mbps, eta_seconds
+        );
 
         let progress = Some(ModelDownloadProgress {
             model_name: model_name.to_string(),

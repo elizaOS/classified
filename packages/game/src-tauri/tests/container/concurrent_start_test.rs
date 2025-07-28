@@ -1,5 +1,6 @@
 use app_lib::{
     BackendError, BackendResult, ContainerManager, ContainerRuntimeType,
+    POSTGRES_CONTAINER, OLLAMA_CONTAINER,
 };
 use std::sync::Arc;
 
@@ -74,10 +75,10 @@ async fn test_concurrent_container_starts() -> BackendResult<()> {
 
     // Clean up - stop and remove test containers
     println!("\n🧹 Cleaning up test containers...");
-    let _ = manager.stop_container("eliza-postgres").await;
-    let _ = manager.remove_container("eliza-postgres").await;
-    let _ = manager.stop_container("eliza-ollama").await;
-    let _ = manager.remove_container("eliza-ollama").await;
+    let _ = manager.stop_container(POSTGRES_CONTAINER).await;
+    let _ = manager.remove_container(POSTGRES_CONTAINER).await;
+    let _ = manager.stop_container(OLLAMA_CONTAINER).await;
+    let _ = manager.remove_container(OLLAMA_CONTAINER).await;
 
     // Verify results
     if success_count > 0 {

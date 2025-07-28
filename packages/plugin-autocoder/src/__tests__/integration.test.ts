@@ -9,8 +9,7 @@ import {
   type Memory,
   type State,
 } from '@elizaos/core';
-import { e2bPlugin } from '../../../plugin-e2b';
-import { formsPlugin } from '../../../plugin-forms/src';
+import { formsPlugin } from '@elizaos/plugin-forms';
 import { autocoderPlugin } from '../index';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -93,7 +92,6 @@ const createRealRuntime = async () => {
   };
 
   // Register plugins in correct order
-  await runtime.registerPlugin(e2bPlugin);
   await runtime.registerPlugin(formsPlugin);
   await runtime.registerPlugin(autocoderPlugin);
 
@@ -102,7 +100,6 @@ const createRealRuntime = async () => {
 
   // Log service status
   elizaLogger.info('Runtime initialized', {
-    hasE2b: runtime.getService('e2b') !== undefined,
     hasForms: runtime.getService('forms') !== undefined,
     hasCodeGen: runtime.getService('code-generation') !== undefined,
   });

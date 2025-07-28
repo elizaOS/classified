@@ -341,8 +341,8 @@ const messageReceivedHandler = async ({
       text: '*Agent has received your message, processing*',
       metadata: {
         isProcessing: true,
-        type: 'processing-notification'
-      }
+        type: 'processing-notification',
+      },
     });
 
     // Emit run started event
@@ -460,13 +460,16 @@ const messageReceivedHandler = async ({
           logger.info('[Bootstrap] Raw LLM response:', responseString);
 
           const responseContent = parseKeyValueXml(responseString) as Content;
-          
+
           if (!responseContent) {
-            logger.error('[Bootstrap] Failed to parse response as XML. Raw response:', responseString);
+            logger.error(
+              '[Bootstrap] Failed to parse response as XML. Raw response:',
+              responseString
+            );
             // Fallback response
             const fallbackResponse = {
               text: "I apologize, but I'm having trouble processing your message right now. Please try again.",
-              thought: "Failed to parse LLM response",
+              thought: 'Failed to parse LLM response',
               actions: ['REPLY'] as string[],
               providers: [] as string[],
             };

@@ -103,7 +103,7 @@ describe('Utility Functions', () => {
     beforeEach(async () => {
       const fs = await import('node:fs');
       (fs.existsSync as any).mockReturnValue(true);
-      
+
       // Reset dotenv mock
       dotenvMock.config.mockClear();
     });

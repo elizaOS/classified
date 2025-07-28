@@ -168,7 +168,12 @@ export const createTodoAction: Action = {
   ): Promise<ActionResult> => {
     let todo: TodoTaskInput | null = null;
 
-    const state = stateFromTrigger || {};
+    // Ensure state has the required State properties
+    const state: State = stateFromTrigger || {
+      values: {},
+      data: {},
+      text: '',
+    };
 
     try {
       // Step 1: Check if this is part of a confirmation flow

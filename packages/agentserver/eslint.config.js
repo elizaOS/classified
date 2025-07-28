@@ -16,8 +16,12 @@ export default [
       ...standardIgnores,
       // Agentserver specific ignores (from .eslintignore)
       'dist/',
-      'dist/',
+      'dist-backend/',
       'dist-binaries/',
+      'node_modules/',
+      '*.log',
+      'coverage/',
+      '.turbo/',
     ],
   },
   {

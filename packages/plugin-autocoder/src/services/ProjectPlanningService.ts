@@ -88,7 +88,7 @@ interface EffortEstimate {
 
 export class ProjectPlanningService extends Service {
   static serviceName: string = 'project-planning';
-  static serviceType: string = 'project-planning';
+  static serviceType = 'project-planning' as any;
 
   protected runtime: IAgentRuntime;
   private formsService?: FormsService;

@@ -2,7 +2,7 @@ import { Service, elizaLogger, type IAgentRuntime } from '@elizaos/core';
 
 export class SecretsManagerService extends Service {
   static serviceName: string = 'secrets-manager';
-  static serviceType: string = 'secrets-manager';
+  static serviceType = 'secrets-manager' as any;
   protected runtime: IAgentRuntime;
   private secrets: Map<string, string> = new Map();
 

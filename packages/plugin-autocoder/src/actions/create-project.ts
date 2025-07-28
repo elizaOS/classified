@@ -9,15 +9,7 @@ import {
   elizaLogger,
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
-
-interface ProjectMetadata {
-  id: string;
-  name: string;
-  type: 'plugin' | 'agent' | 'workflow' | 'mcp' | 'app';
-  description: string;
-  createdAt: Date;
-  status: string;
-}
+import type { ProjectMetadata, ProjectType } from '../types/index';
 
 /**
  * Extract project name from user message
@@ -51,7 +43,7 @@ function extractProjectName(text: string): string | null {
 /**
  * Extract project type from user message
  */
-function extractProjectType(text: string): 'plugin' | 'agent' | 'workflow' | 'mcp' | 'app' {
+function extractProjectType(text: string): ProjectType {
   const lower = text.toLowerCase();
 
   if (lower.includes('plugin')) {
@@ -67,7 +59,7 @@ function extractProjectType(text: string): 'plugin' | 'agent' | 'workflow' | 'mc
     return 'mcp';
   }
   if (lower.includes('app') || lower.includes('application')) {
-    return 'app';
+    return 'full-stack';
   }
 
   // Default to plugin for ElizaOS
@@ -324,12 +316,13 @@ export const createProjectAction: Action = {
 
     // Store project metadata
     const projectMetadata: ProjectMetadata = {
-      id: projectId,
+      id: projectId as UUID,
       name: suggestedName || 'Unnamed Project',
       type: projectType,
       description: message.content.text || '',
-      createdAt: new Date(),
-      status: 'gathering_requirements',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      status: 'planning',
     };
 
     await runtime.createMemory(

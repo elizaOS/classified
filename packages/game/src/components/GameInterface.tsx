@@ -8,11 +8,16 @@ import { SecurityWarning, SECURITY_CAPABILITIES } from './SecurityWarning';
 import { InputValidator, SecurityLogger } from '../utils/SecurityUtils';
 import { ContainerLogs } from './ContainerLogs';
 import { AgentLogs } from './AgentLogs';
+import {
+  checkScreenCaptureCapabilities,
+  getScreenCaptureErrorMessage,
+} from '../utils/screenCapture';
 
 interface OutputLine {
   type: 'user' | 'agent' | 'system' | 'error';
   content: string;
   timestamp: Date;
+  metadata?: any;
 }
 
 interface PluginToggleState {
@@ -212,10 +217,8 @@ export const GameInterface: React.FC = () => {
   // Game API readiness state
   const [gameApiReady, setGameApiReady] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
-  
+
   // Model readiness state
-  const [modelsReady, setModelsReady] = useState(false);
-  const [checkingModels, setCheckingModels] = useState(true);
 
   // Plugin toggles
   const [plugins, setPlugins] = useState<PluginToggleState>({
@@ -248,8 +251,6 @@ export const GameInterface: React.FC = () => {
   const [isResetting, setIsResetting] = useState(false);
   const [pluginConfigs, setPluginConfigs] = useState<any>({});
   const [configValues, setConfigValues] = useState<any>({});
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [monologue, setMonologue] = useState<string[]>([]);
 
   // Security state
   const [securityWarning, setSecurityWarning] = useState<SecurityWarningState>({
@@ -280,7 +281,6 @@ export const GameInterface: React.FC = () => {
   const streamIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Refs
-  const terminalRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const historyPosition = useRef<number>(-1);
   const commandHistory = useRef<string[]>([]);
@@ -306,6 +306,13 @@ export const GameInterface: React.FC = () => {
     };
 
     checkTauri();
+
+    // Check screen capture capabilities on startup
+    const capabilities = checkScreenCaptureCapabilities();
+    console.log('🖥️ Screen capture capabilities:', capabilities);
+    if (!capabilities.displayMedia) {
+      console.warn('⚠️ Screen capture not available:', capabilities.error);
+    }
   }, []);
 
   // Listen for startup status updates to track Game API readiness
@@ -397,6 +404,7 @@ export const GameInterface: React.FC = () => {
           type: message.type,
           content: message.content,
           timestamp: messageTimestamp,
+          metadata: message.metadata,
         },
       ]);
 
@@ -1392,7 +1400,7 @@ export const GameInterface: React.FC = () => {
     const setupAgentScreenListener = async () => {
       try {
         unsubscribe = await listen('agent-screen-frame', (event: any) => {
-          const { frame_data, width, height, timestamp } = event.payload;
+          const { frame_data, width, height } = event.payload;
 
           // Get the agent screen canvas
           const canvas = document.getElementById('agent-screen-canvas') as HTMLCanvasElement;
@@ -1412,7 +1420,7 @@ export const GameInterface: React.FC = () => {
           const blob = new Blob([imageData], { type: 'image/jpeg' });
           const url = URL.createObjectURL(blob);
 
-          const img = new Image();
+          const img = new window.Image();
           img.onload = () => {
             ctx.drawImage(img, 0, 0, width, height);
             URL.revokeObjectURL(url);
@@ -1910,35 +1918,116 @@ export const GameInterface: React.FC = () => {
         return (
           <div className="status-content agent-screen-content" data-testid="agent-screen-content">
             <div className="status-header">
-              <span>◎ AGENT VIRTUAL SCREEN</span>
-              <button
-                className={`agent-screen-toggle ${agentScreenActive ? 'active' : ''}`}
-                onClick={async () => {
-                  try {
-                    if (agentScreenActive) {
-                      await invoke('stop_agent_screen_capture');
-                      setAgentScreenActive(false);
-                    } else {
-                      await invoke('start_agent_screen_capture');
-                      setAgentScreenActive(true);
+              <span>◎ SCREEN SHARING</span>
+              <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                <button
+                  className={`agent-screen-toggle ${agentScreenActive ? 'active' : ''}`}
+                  onClick={async () => {
+                    try {
+                      if (agentScreenActive) {
+                        await invoke('stop_agent_screen_capture');
+                        setAgentScreenActive(false);
+                      } else {
+                        await invoke('start_agent_screen_capture');
+                        setAgentScreenActive(true);
+                      }
+                    } catch (error) {
+                      console.error('Failed to toggle agent screen capture:', error);
+                      setOutput((prev) => [
+                        ...prev,
+                        {
+                          type: 'error',
+                          content: `Agent screen capture failed: ${error}`,
+                          timestamp: new Date(),
+                        },
+                      ]);
                     }
-                  } catch (error) {
-                    console.error('Failed to toggle agent screen capture:', error);
-                  }
-                }}
-                style={{
-                  marginLeft: 'auto',
-                  padding: '4px 12px',
-                  backgroundColor: agentScreenActive ? '#dc2626' : '#059669',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                }}
-              >
-                {agentScreenActive ? 'Stop Capture' : 'Start Capture'}
-              </button>
+                  }}
+                  style={{
+                    padding: '4px 12px',
+                    backgroundColor: agentScreenActive ? '#dc2626' : '#059669',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                  }}
+                  title="View agent's screen"
+                >
+                  {agentScreenActive ? '🔴 Agent Screen' : '👁️ Agent Screen'}
+                </button>
+                <button
+                  className={`screen-share-toggle ${streamingState.screen ? 'active' : ''}`}
+                  onClick={async () => {
+                    if (streamingState.screen) {
+                      stopMediaStream('screen');
+                      setOutput((prev) => [
+                        ...prev,
+                        {
+                          type: 'system',
+                          content: 'Screen sharing stopped',
+                          timestamp: new Date(),
+                        },
+                      ]);
+                    } else {
+                      try {
+                        const stream = await startScreenCapture();
+                        if (stream) {
+                          setMediaStreams((prev) => ({ ...prev, screen: stream }));
+                          setStreamingState((prev) => ({ ...prev, screen: true }));
+
+                          // Start capturing frames
+                          processVideoStream(stream, 'screen');
+
+                          // Handle stream end
+                          stream.getVideoTracks()[0].onended = () => {
+                            stopMediaStream('screen');
+                            setOutput((prev) => [
+                              ...prev,
+                              {
+                                type: 'system',
+                                content: 'Screen sharing ended by user',
+                                timestamp: new Date(),
+                              },
+                            ]);
+                          };
+
+                          setOutput((prev) => [
+                            ...prev,
+                            {
+                              type: 'system',
+                              content: 'Screen sharing started',
+                              timestamp: new Date(),
+                            },
+                          ]);
+                        }
+                      } catch (error: any) {
+                        const errorMsg = getScreenCaptureErrorMessage(error);
+                        setOutput((prev) => [
+                          ...prev,
+                          {
+                            type: 'error',
+                            content: errorMsg,
+                            timestamp: new Date(),
+                          },
+                        ]);
+                      }
+                    }
+                  }}
+                  style={{
+                    padding: '4px 12px',
+                    backgroundColor: streamingState.screen ? '#dc2626' : '#0ea5e9',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                  }}
+                  title="Share your screen with agent"
+                >
+                  {streamingState.screen ? '🔴 Stop Sharing' : '🖥️ Share Screen'}
+                </button>
+              </div>
             </div>
             <div className="agent-screen-container">
               <canvas
@@ -2080,7 +2169,14 @@ export const GameInterface: React.FC = () => {
                         ? '[SYS]'
                         : '[ERR]'}
                 </span>
-                <span className="chat-content">{line.content}</span>
+                <span
+                  className="chat-content"
+                  style={
+                    line.metadata?.isProcessing ? { color: '#666', fontStyle: 'italic' } : undefined
+                  }
+                >
+                  {line.content}
+                </span>
                 <div
                   className="message-actions"
                   data-testid="message-actions"
@@ -2137,11 +2233,9 @@ export const GameInterface: React.FC = () => {
                     ? isConnected
                       ? 'Game API not ready...'
                       : 'Not connected...'
-                    : !modelsReady
-                    ? 'AI models loading...'
                     : ''
                 }
-                disabled={!effectiveIsConnected || !modelsReady}
+                disabled={!effectiveIsConnected}
                 data-testid="message-input"
                 aria-label="Enter command or message"
               />

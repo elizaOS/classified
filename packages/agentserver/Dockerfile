@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     fluxbox \
     tmux \
     htop \
+    x11-utils \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1001 eliza \
     && useradd -u 1001 -g eliza -m eliza
