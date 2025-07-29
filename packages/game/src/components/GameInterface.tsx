@@ -47,11 +47,12 @@ interface StreamingState {
   microphone: boolean;
 }
 
-// Ultra simple buttons - each button triggers API calls and updates backend state
+// Enhanced capability buttons with progression support
 const UltraSimpleButtons: React.FC<{
   states: PluginToggleState;
   onToggle: (capability: string) => Promise<void>;
-}> = ({ states, onToggle }) => {
+  progressionStatus?: any;
+}> = ({ states, onToggle, progressionStatus }) => {
   const [isTogglingState, setIsTogglingState] = useState({
     autonomy: false,
     camera: false,
@@ -61,14 +62,37 @@ const UltraSimpleButtons: React.FC<{
     browser: false,
   });
 
-  const buttonStyle = (isActive: boolean, isToggling: boolean) => ({
+  // Check if a capability is unlocked based on progression
+  const isCapabilityUnlocked = (capability: string): boolean => {
+    if (!progressionStatus?.unlockedCapabilities) {
+      // Fallback: if no progression data, allow all capabilities
+      return true;
+    }
+    
+    // Map UI capability names to progression capability names
+    const capabilityMap: Record<string, string[]> = {
+      'shell': ['shell', 'naming'],
+      'browser': ['browser', 'stagehand'],
+      'camera': ['camera', 'advanced_vision'],
+      'screen': ['vision', 'screen_capture'],
+      'microphone': ['microphone', 'sam', 'audio'],
+      'autonomy': ['autonomy'],
+    };
+    
+    const progressionCapabilities = capabilityMap[capability] || [capability];
+    return progressionCapabilities.some(cap => 
+      progressionStatus.unlockedCapabilities.includes(cap)
+    );
+  };
+
+  const buttonStyle = (isActive: boolean, isToggling: boolean, isUnlocked: boolean) => ({
     flex: '1 1 0',
     height: '40px',
-    backgroundColor: isActive ? '#00ff00' : '#1a1a1a',
-    color: isActive ? '#000000' : '#00ff00',
-    cursor: isToggling ? 'wait' : 'pointer',
+    backgroundColor: !isUnlocked ? '#333333' : isActive ? '#00ff00' : '#1a1a1a',
+    color: !isUnlocked ? '#666666' : isActive ? '#000000' : '#00ff00',
+    cursor: !isUnlocked ? 'not-allowed' : isToggling ? 'wait' : 'pointer',
     textAlign: 'center' as const,
-    border: `1px solid ${isActive ? '#00ff00' : '#333333'}`,
+    border: `1px solid ${!isUnlocked ? '#555555' : isActive ? '#00ff00' : '#333333'}`,
     fontSize: '9px',
     fontFamily: 'monospace',
     fontWeight: 'bold',
@@ -80,13 +104,20 @@ const UltraSimpleButtons: React.FC<{
     flexDirection: 'column' as const,
     gap: '2px',
     minWidth: 0,
-    opacity: isToggling ? 0.7 : 1,
+    opacity: !isUnlocked ? 0.5 : isToggling ? 0.7 : 1,
+    position: 'relative' as const,
   });
 
   const handleClick = async (capability: string) => {
     if (isTogglingState[capability as keyof typeof isTogglingState]) {
       return;
     } // Prevent double clicks
+
+    // Check if capability is unlocked
+    if (!isCapabilityUnlocked(capability)) {
+      console.log(`Capability ${capability} is locked. Progression required.`);
+      return;
+    }
 
     setIsTogglingState((prev) => ({ ...prev, [capability]: true }));
     try {
@@ -98,91 +129,44 @@ const UltraSimpleButtons: React.FC<{
     }
   };
 
+  // Render capability button with lock indicator
+  const renderCapabilityButton = (
+    capability: string, 
+    state: boolean, 
+    isToggling: boolean, 
+    label: string, 
+    testId: string
+  ) => {
+    const isUnlocked = isCapabilityUnlocked(capability);
+    
+    return (
+      <div
+        style={buttonStyle(state, isToggling, isUnlocked)}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log(`CLICKED: ${capability}`);
+          handleClick(capability);
+        }}
+        data-testid={testId}
+        title={!isUnlocked ? `🔒 ${label} - Complete progression requirements to unlock` : undefined}
+      >
+        <span data-testid={`${capability}-toggle-status`}>
+          {!isUnlocked ? '🔒' : state ? '●' : '○'}
+        </span>
+        <span>{isToggling ? '...' : label}</span>
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', gap: '2px', width: '100%' }}>
-      <div
-        style={buttonStyle(states.autonomy, isTogglingState.autonomy)}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('CLICKED: autonomy');
-          handleClick('autonomy');
-        }}
-        data-testid="autonomy-toggle"
-      >
-        <span data-testid="autonomy-toggle-status">{states.autonomy ? '●' : '○'}</span>
-        <span>{isTogglingState.autonomy ? '...' : 'AUTO'}</span>
-      </div>
-
-      <div
-        style={buttonStyle(states.camera, isTogglingState.camera)}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('CLICKED: camera');
-          handleClick('camera');
-        }}
-        data-testid="camera-toggle"
-      >
-        <span data-testid="camera-toggle-status">{states.camera ? '●' : '○'}</span>
-        <span>{isTogglingState.camera ? '...' : 'CAM'}</span>
-      </div>
-
-      <div
-        style={buttonStyle(states.screen, isTogglingState.screen)}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('CLICKED: screen');
-          handleClick('screen');
-        }}
-        data-testid="screen-toggle"
-      >
-        <span data-testid="screen-toggle-status">{states.screen ? '●' : '○'}</span>
-        <span>{isTogglingState.screen ? '...' : 'SCR'}</span>
-      </div>
-
-      <div
-        style={buttonStyle(states.microphone, isTogglingState.microphone)}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('CLICKED: microphone');
-          handleClick('microphone');
-        }}
-        data-testid="microphone-toggle"
-      >
-        <span data-testid="microphone-toggle-status">{states.microphone ? '●' : '○'}</span>
-        <span>{isTogglingState.microphone ? '...' : 'MIC'}</span>
-      </div>
-
-      <div
-        style={buttonStyle(states.shell, isTogglingState.shell)}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('CLICKED: shell');
-          handleClick('shell');
-        }}
-        data-testid="shell-toggle"
-      >
-        <span data-testid="shell-toggle-status">{states.shell ? '●' : '○'}</span>
-        <span>{isTogglingState.shell ? '...' : 'SH'}</span>
-      </div>
-
-      <div
-        style={buttonStyle(states.browser, isTogglingState.browser)}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('CLICKED: browser');
-          handleClick('browser');
-        }}
-        data-testid="browser-toggle"
-      >
-        <span data-testid="browser-toggle-status">{states.browser ? '●' : '○'}</span>
-        <span>{isTogglingState.browser ? '...' : 'WWW'}</span>
-      </div>
+      {renderCapabilityButton('autonomy', states.autonomy, isTogglingState.autonomy, 'AUTO', 'autonomy-toggle')}
+      {renderCapabilityButton('camera', states.camera, isTogglingState.camera, 'CAM', 'camera-toggle')}
+      {renderCapabilityButton('screen', states.screen, isTogglingState.screen, 'SCR', 'screen-toggle')}
+      {renderCapabilityButton('microphone', states.microphone, isTogglingState.microphone, 'MIC', 'microphone-toggle')}
+      {renderCapabilityButton('shell', states.shell, isTogglingState.shell, 'SH', 'shell-toggle')}
+      {renderCapabilityButton('browser', states.browser, isTogglingState.browser, 'WWW', 'browser-toggle')}
     </div>
   );
 };
@@ -217,6 +201,9 @@ export const GameInterface: React.FC = () => {
   // Game API readiness state
   const [gameApiReady, setGameApiReady] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
+  
+  // Progression state
+  const [progressionStatus, setProgressionStatus] = useState<any>(null);
 
   // Model readiness state
 
@@ -1306,6 +1293,21 @@ export const GameInterface: React.FC = () => {
     }
   }, [output]);
 
+  const fetchProgressionStatus = async () => {
+    console.log('[PROGRESSION] Fetching progression status...');
+    try {
+      const response = await TauriService.makeApiCall('/api/agents/default/progression');
+      if (response.success && response.data.progressionReady) {
+        setProgressionStatus(response.data);
+        console.log('[PROGRESSION] Status updated:', response.data);
+      } else {
+        console.log('[PROGRESSION] Not ready yet:', response.data.message);
+      }
+    } catch (error) {
+      console.error('[PROGRESSION] Error fetching progression status:', error);
+    }
+  };
+
   // Initial state fetching for capabilities
   const fetchAllCapabilityStates = async () => {
     console.log('[FETCH] Fetching all capability states...');
@@ -1318,6 +1320,8 @@ export const GameInterface: React.FC = () => {
       await fetchShellSettings();
       // Fetch browser settings
       await fetchBrowserSettings();
+      // Fetch progression status
+      await fetchProgressionStatus();
     } catch (error) {
       console.error('[FETCH] Error fetching capability states:', error);
     }
@@ -1571,6 +1575,85 @@ export const GameInterface: React.FC = () => {
                     </div>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+        );
+
+      case 'progression':
+        return (
+          <div className="status-content" data-testid="progression-content">
+            <div className="status-header">
+              <span>◎ PROGRESSION</span>
+            </div>
+            <div className="scrollable-content">
+              {!progressionStatus ? (
+                <div className="empty-state">Loading progression status...</div>
+              ) : (
+                <div className="progression-info">
+                  <div className="progression-item">
+                    <div className="status-title">Current Level</div>
+                    <div className="status-desc">
+                      Level {progressionStatus.currentLevel} - {
+                        progressionStatus.availableLevels?.[progressionStatus.currentLevel]?.name || 'Unknown'
+                      }
+                    </div>
+                  </div>
+                  
+                  <div className="progression-item">
+                    <div className="status-title">Agent Status</div>
+                    <div className="status-desc">
+                      {progressionStatus.agentNamed ? `✓ Named: ${progressionStatus.agentName}` : '○ Needs to choose a name'}
+                    </div>
+                  </div>
+
+                  <div className="progression-item">
+                    <div className="status-title">Unlocked Capabilities</div>
+                    <div className="status-desc">
+                      {progressionStatus.unlockedCapabilities?.length ? (
+                        progressionStatus.unlockedCapabilities.map((cap: string) => (
+                          <span key={cap} className="capability-tag">
+                            {cap}
+                          </span>
+                        ))
+                      ) : (
+                        'None yet'
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="progression-item">
+                    <div className="status-title">Available Levels</div>
+                    <div className="status-desc">
+                      {progressionStatus.availableLevels?.map((level: any) => (
+                        <div key={level.id} className="level-item">
+                          <span className="level-status">
+                            {level.isUnlocked ? '✓' : '🔒'}
+                          </span>
+                          <span className="level-name">
+                            {level.name}
+                          </span>
+                          <div className="level-capabilities">
+                            {level.capabilities.join(', ')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="progression-item">
+                    <div className="status-title">Completed Actions</div>
+                    <div className="status-desc">
+                      {progressionStatus.completedActions?.length ? (
+                        progressionStatus.completedActions.map((action: string) => (
+                          <div key={action} className="action-item">✓ {action}</div>
+                        ))
+                      ) : (
+                        'None yet'
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -2256,13 +2339,17 @@ export const GameInterface: React.FC = () => {
           {/* Plugin Controls - Ultra Simple */}
           <div className="controls-section">
             <div className="controls-header">◆ CAPABILITIES</div>
-            <UltraSimpleButtons states={plugins} onToggle={handleCapabilityToggle} />
+            <UltraSimpleButtons 
+              states={plugins} 
+              onToggle={handleCapabilityToggle} 
+              progressionStatus={progressionStatus}
+            />
           </div>
 
           {/* Status Tabs */}
           <div className="status-tabs">
             {(
-              ['goals', 'todos', 'monologue', 'files', 'config', 'logs', 'agent-screen'] as const
+              ['goals', 'todos', 'progression', 'monologue', 'files', 'config', 'logs', 'agent-screen'] as const
             ).map((tab) => (
               <button
                 key={tab}
