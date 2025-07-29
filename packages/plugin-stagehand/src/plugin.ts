@@ -14,9 +14,11 @@ import {
 import { z } from 'zod';
 import { StagehandService } from './service.js';
 import {
+  BrowserActionError,
   BrowserNavigationError,
   BrowserSecurityError,
   BrowserServiceNotAvailableError,
+  BrowserSessionError,
   StagehandError,
   handleBrowserError,
 } from './errors.js';
@@ -247,6 +249,749 @@ const browserNavigateAction: Action = {
   ],
 };
 
+// BROWSER_CLICK action implementation
+const browserClickAction: Action = {
+  name: 'BROWSER_CLICK',
+  similes: ['CLICK_ELEMENT', 'TAP', 'PRESS_BUTTON'],
+  description: 'Click on an element on the webpage',
+  examples: [
+    [
+      {
+        name: '{{user}}',
+        content: { text: 'Click on the search button' },
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: "I've clicked on the search button.",
+          actions: ['BROWSER_CLICK'],
+        },
+      },
+    ],
+  ],
+  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State) => {
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
+    if (!browserEnabled) {
+      return false;
+    }
+
+    const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+    if (!service) {
+      return false;
+    }
+
+    const text = message.content?.text?.toLowerCase() || '';
+    return text.includes('click') || text.includes('tap') || text.includes('press');
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+    _options?: { [key: string]: unknown },
+    callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    try {
+      const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+      if (!service) {
+        const error = new BrowserServiceNotAvailableError();
+        handleBrowserError(error, callback, 'click on element');
+        return {
+          text: 'Browser service is not available',
+          success: false,
+          data: {
+            actionName: 'BROWSER_CLICK',
+            error: 'service_not_available',
+          },
+          values: {
+            success: false,
+            errorType: 'service_not_available',
+          },
+        };
+      }
+
+      const session = await service.getOrCreateSession();
+      if (!session) {
+        const error = new BrowserSessionError('No active browser session');
+        handleBrowserError(error, callback, 'click on element');
+        return {
+          text: 'No active browser session',
+          success: false,
+          data: {
+            actionName: 'BROWSER_CLICK',
+            error: 'no_session',
+          },
+          values: {
+            success: false,
+            errorType: 'no_session',
+          },
+        };
+      }
+
+      const text = message.content?.text || '';
+      // Extract what to click from the message
+      const match = text.match(/click (?:on |the )?(.+)$/i);
+      const description = match ? match[1] : 'element';
+
+      const result = await service.getClient().click(session.id, description);
+      if (!result.success) {
+        throw new BrowserActionError(
+          'click',
+          description,
+          new Error(result.error || 'Click failed')
+        );
+      }
+
+      const responseContent: Content = {
+        text: `I've successfully clicked on "${description}"`,
+        actions: ['BROWSER_CLICK'],
+        source: message.content?.source || 'action',
+      };
+
+      await callback?.(responseContent);
+      return {
+        text: responseContent.text,
+        success: true,
+        data: {
+          actionName: 'BROWSER_CLICK',
+          element: description,
+          sessionId: session.id,
+        },
+        values: {
+          success: true,
+          element: description,
+        },
+      };
+    } catch (error) {
+      logger.error('Error in BROWSER_CLICK action:', error);
+
+      if (error instanceof StagehandError) {
+        handleBrowserError(error, callback);
+      } else {
+        const browserError = new BrowserActionError('click', 'element', error as Error);
+        handleBrowserError(browserError, callback);
+      }
+      return {
+        text: 'Failed to click on the requested element',
+        success: false,
+        data: {
+          actionName: 'BROWSER_CLICK',
+          error: error instanceof Error ? error.message : 'unknown_error',
+        },
+        values: {
+          success: false,
+          errorType: 'click_error',
+        },
+      };
+    }
+  },
+};
+
+// BROWSER_TYPE action implementation
+const browserTypeAction: Action = {
+  name: 'BROWSER_TYPE',
+  similes: ['TYPE_TEXT', 'INPUT', 'ENTER_TEXT'],
+  description: 'Type text into an input field on the webpage',
+  examples: [
+    [
+      {
+        name: '{{user}}',
+        content: { text: 'Type "hello world" in the search box' },
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: 'I\'ve typed "hello world" in the search box.',
+          actions: ['BROWSER_TYPE'],
+        },
+      },
+    ],
+  ],
+  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State) => {
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
+    if (!browserEnabled) {
+      return false;
+    }
+
+    const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+    if (!service) {
+      return false;
+    }
+
+    const text = message.content?.text?.toLowerCase() || '';
+    return text.includes('type') || text.includes('input') || text.includes('enter');
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+    _options?: { [key: string]: unknown },
+    callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    try {
+      const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+      if (!service) {
+        const error = new BrowserServiceNotAvailableError();
+        handleBrowserError(error, callback, 'type text');
+        return {
+          text: 'Browser service is not available',
+          success: false,
+          data: {
+            actionName: 'BROWSER_TYPE',
+            error: 'service_not_available',
+          },
+          values: {
+            success: false,
+            errorType: 'service_not_available',
+          },
+        };
+      }
+
+      const session = await service.getOrCreateSession();
+      if (!session) {
+        const error = new BrowserSessionError('No active browser session');
+        handleBrowserError(error, callback, 'type text');
+        return {
+          text: 'No active browser session',
+          success: false,
+          data: {
+            actionName: 'BROWSER_TYPE',
+            error: 'no_session',
+          },
+          values: {
+            success: false,
+            errorType: 'no_session',
+          },
+        };
+      }
+
+      const text = message.content?.text || '';
+      // Extract what to type from the message (in quotes)
+      const match = text.match(/["']([^"']+)["']/);
+      const textToType = match ? match[1] : '';
+
+      // Extract where to type (after "in" or "into")
+      const fieldMatch = text.match(/(?:in|into) (?:the )?(.+)$/i);
+      const field = fieldMatch ? fieldMatch[1] : 'input field';
+
+      if (!textToType) {
+        throw new BrowserActionError('type', field, new Error('No text specified to type'));
+      }
+
+      const result = await service.getClient().type(session.id, textToType, field);
+      if (!result.success) {
+        throw new BrowserActionError('type', field, new Error(result.error || 'Type failed'));
+      }
+
+      const responseContent: Content = {
+        text: `I've typed "${textToType}" in the ${field}`,
+        actions: ['BROWSER_TYPE'],
+        source: message.content?.source || 'action',
+      };
+
+      await callback?.(responseContent);
+      return {
+        text: responseContent.text,
+        success: true,
+        data: {
+          actionName: 'BROWSER_TYPE',
+          textTyped: textToType,
+          field,
+          sessionId: session.id,
+        },
+        values: {
+          success: true,
+          textTyped: textToType,
+          field,
+        },
+      };
+    } catch (error) {
+      logger.error('Error in BROWSER_TYPE action:', error);
+
+      if (error instanceof StagehandError) {
+        handleBrowserError(error, callback);
+      } else {
+        const browserError = new BrowserActionError('type', 'input field', error as Error);
+        handleBrowserError(browserError, callback);
+      }
+      return {
+        text: 'Failed to type text',
+        success: false,
+        data: {
+          actionName: 'BROWSER_TYPE',
+          error: error instanceof Error ? error.message : 'unknown_error',
+        },
+        values: {
+          success: false,
+          errorType: 'type_error',
+        },
+      };
+    }
+  },
+};
+
+// BROWSER_SELECT action implementation
+const browserSelectAction: Action = {
+  name: 'BROWSER_SELECT',
+  similes: ['SELECT_OPTION', 'CHOOSE', 'PICK'],
+  description: 'Select an option from a dropdown on the webpage',
+  examples: [
+    [
+      {
+        name: '{{user}}',
+        content: { text: 'Select "United States" from the country dropdown' },
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: 'I\'ve selected "United States" from the country dropdown.',
+          actions: ['BROWSER_SELECT'],
+        },
+      },
+    ],
+  ],
+  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State) => {
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
+    if (!browserEnabled) {
+      return false;
+    }
+
+    const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+    if (!service) {
+      return false;
+    }
+
+    const text = message.content?.text?.toLowerCase() || '';
+    return text.includes('select') || text.includes('choose') || text.includes('pick');
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+    _options?: { [key: string]: unknown },
+    callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    try {
+      const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+      if (!service) {
+        const error = new BrowserServiceNotAvailableError();
+        handleBrowserError(error, callback, 'select option');
+        return {
+          text: 'Browser service is not available',
+          success: false,
+          data: {
+            actionName: 'BROWSER_SELECT',
+            error: 'service_not_available',
+          },
+          values: {
+            success: false,
+            errorType: 'service_not_available',
+          },
+        };
+      }
+
+      const session = await service.getOrCreateSession();
+      if (!session) {
+        const error = new BrowserSessionError('No active browser session');
+        handleBrowserError(error, callback, 'select option');
+        return {
+          text: 'No active browser session',
+          success: false,
+          data: {
+            actionName: 'BROWSER_SELECT',
+            error: 'no_session',
+          },
+          values: {
+            success: false,
+            errorType: 'no_session',
+          },
+        };
+      }
+
+      const text = message.content?.text || '';
+      // Extract what to select (in quotes)
+      const match = text.match(/["']([^"']+)["']/);
+      const option = match ? match[1] : '';
+
+      // Extract from where (after "from")
+      const dropdownMatch = text.match(/from (?:the )?(.+)$/i);
+      const dropdown = dropdownMatch ? dropdownMatch[1] : 'dropdown';
+
+      if (!option) {
+        throw new BrowserActionError(
+          'select',
+          dropdown,
+          new Error('No option specified to select')
+        );
+      }
+
+      const result = await service.getClient().select(session.id, option, dropdown);
+      if (!result.success) {
+        throw new BrowserActionError(
+          'select',
+          dropdown,
+          new Error(result.error || 'Select failed')
+        );
+      }
+
+      const responseContent: Content = {
+        text: `I've selected "${option}" from the ${dropdown}`,
+        actions: ['BROWSER_SELECT'],
+        source: message.content?.source || 'action',
+      };
+
+      await callback?.(responseContent);
+      return {
+        text: responseContent.text,
+        success: true,
+        data: {
+          actionName: 'BROWSER_SELECT',
+          option,
+          dropdown,
+          sessionId: session.id,
+        },
+        values: {
+          success: true,
+          option,
+          dropdown,
+        },
+      };
+    } catch (error) {
+      logger.error('Error in BROWSER_SELECT action:', error);
+
+      if (error instanceof StagehandError) {
+        handleBrowserError(error, callback);
+      } else {
+        const browserError = new BrowserActionError('select', 'dropdown', error as Error);
+        handleBrowserError(browserError, callback);
+      }
+      return {
+        text: 'Failed to select option',
+        success: false,
+        data: {
+          actionName: 'BROWSER_SELECT',
+          error: error instanceof Error ? error.message : 'unknown_error',
+        },
+        values: {
+          success: false,
+          errorType: 'select_error',
+        },
+      };
+    }
+  },
+};
+
+// BROWSER_EXTRACT action implementation
+const browserExtractAction: Action = {
+  name: 'BROWSER_EXTRACT',
+  similes: ['EXTRACT_DATA', 'GET_TEXT', 'SCRAPE'],
+  description: 'Extract data from the webpage',
+  examples: [
+    [
+      {
+        name: '{{user}}',
+        content: { text: 'Extract the main heading from the page' },
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: 'I extracted the main heading: "Welcome to Our Website"',
+          actions: ['BROWSER_EXTRACT'],
+        },
+      },
+    ],
+  ],
+  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State) => {
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
+    if (!browserEnabled) {
+      return false;
+    }
+
+    const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+    if (!service) {
+      return false;
+    }
+
+    const text = message.content?.text?.toLowerCase() || '';
+    return (
+      text.includes('extract') ||
+      text.includes('get') ||
+      text.includes('scrape') ||
+      text.includes('find') ||
+      text.includes('read')
+    );
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+    _options?: { [key: string]: unknown },
+    callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    try {
+      const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+      if (!service) {
+        const error = new BrowserServiceNotAvailableError();
+        handleBrowserError(error, callback, 'extract data');
+        return {
+          text: 'Browser service is not available',
+          success: false,
+          data: {
+            actionName: 'BROWSER_EXTRACT',
+            error: 'service_not_available',
+          },
+          values: {
+            success: false,
+            errorType: 'service_not_available',
+          },
+        };
+      }
+
+      const session = await service.getOrCreateSession();
+      if (!session) {
+        const error = new BrowserSessionError('No active browser session');
+        handleBrowserError(error, callback, 'extract data');
+        return {
+          text: 'No active browser session',
+          success: false,
+          data: {
+            actionName: 'BROWSER_EXTRACT',
+            error: 'no_session',
+          },
+          values: {
+            success: false,
+            errorType: 'no_session',
+          },
+        };
+      }
+
+      const text = message.content?.text || '';
+      // Extract what to extract/find
+      const match = text.match(/(?:extract|get|find|scrape|read) (?:the )?(.+?)(?:\s+from|\s*$)/i);
+      const instruction = match ? match[1] : text;
+
+      const result = await service.getClient().extract(session.id, instruction);
+      if (!result.success) {
+        throw new BrowserActionError(
+          'extract',
+          'page',
+          new Error(result.error || 'Extraction failed')
+        );
+      }
+
+      const extractedData = result.data;
+      const foundText = extractedData?.data || 'No data found';
+      const found = extractedData?.found || false;
+
+      const responseContent: Content = {
+        text: found
+          ? `I found the ${instruction}: "${foundText}"`
+          : `I couldn't find the requested ${instruction} on the page.`,
+        actions: ['BROWSER_EXTRACT'],
+        source: message.content?.source || 'action',
+      };
+
+      await callback?.(responseContent);
+      return {
+        text: responseContent.text,
+        success: true,
+        data: {
+          actionName: 'BROWSER_EXTRACT',
+          instruction,
+          found,
+          data: foundText,
+          sessionId: session.id,
+        },
+        values: {
+          success: true,
+          found,
+          data: foundText,
+        },
+      };
+    } catch (error) {
+      logger.error('Error in BROWSER_EXTRACT action:', error);
+
+      if (error instanceof StagehandError) {
+        handleBrowserError(error, callback);
+      } else {
+        const browserError = new BrowserActionError('extract', 'page', error as Error);
+        handleBrowserError(browserError, callback);
+      }
+      return {
+        text: 'Failed to extract data from the page',
+        success: false,
+        data: {
+          actionName: 'BROWSER_EXTRACT',
+          error: error instanceof Error ? error.message : 'unknown_error',
+        },
+        values: {
+          success: false,
+          errorType: 'extract_error',
+        },
+      };
+    }
+  },
+};
+
+// BROWSER_SCREENSHOT action implementation
+const browserScreenshotAction: Action = {
+  name: 'BROWSER_SCREENSHOT',
+  similes: ['TAKE_SCREENSHOT', 'CAPTURE_PAGE', 'SCREENSHOT'],
+  description: 'Take a screenshot of the current page',
+  examples: [
+    [
+      {
+        name: '{{user}}',
+        content: { text: 'Take a screenshot of the page' },
+      },
+      {
+        name: '{{agent}}',
+        content: {
+          text: "I've taken a screenshot of the page.",
+          actions: ['BROWSER_SCREENSHOT'],
+        },
+      },
+    ],
+  ],
+  validate: async (runtime: IAgentRuntime, message: Memory, _state?: State) => {
+    const browserEnabled =
+      runtime.getSetting('ENABLE_BROWSER') === 'true' ||
+      runtime.getSetting('BROWSER_ENABLED') === 'true';
+
+    if (!browserEnabled) {
+      return false;
+    }
+
+    const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+    if (!service) {
+      return false;
+    }
+
+    const text = message.content?.text?.toLowerCase() || '';
+    return text.includes('screenshot') || text.includes('capture') || text.includes('snap');
+  },
+  handler: async (
+    runtime: IAgentRuntime,
+    message: Memory,
+    _state?: State,
+    _options?: { [key: string]: unknown },
+    callback?: HandlerCallback
+  ): Promise<ActionResult> => {
+    try {
+      const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+      if (!service) {
+        const error = new BrowserServiceNotAvailableError();
+        handleBrowserError(error, callback, 'take screenshot');
+        return {
+          text: 'Browser service is not available',
+          success: false,
+          data: {
+            actionName: 'BROWSER_SCREENSHOT',
+            error: 'service_not_available',
+          },
+          values: {
+            success: false,
+            errorType: 'service_not_available',
+          },
+        };
+      }
+
+      const session = await service.getOrCreateSession();
+      if (!session) {
+        const error = new BrowserSessionError('No active browser session');
+        handleBrowserError(error, callback, 'take screenshot');
+        return {
+          text: 'No active browser session',
+          success: false,
+          data: {
+            actionName: 'BROWSER_SCREENSHOT',
+            error: 'no_session',
+          },
+          values: {
+            success: false,
+            errorType: 'no_session',
+          },
+        };
+      }
+
+      const result = await service.getClient().screenshot(session.id);
+      if (!result.success) {
+        throw new BrowserActionError(
+          'screenshot',
+          'page',
+          new Error(result.error || 'Screenshot failed')
+        );
+      }
+
+      const screenshotData = result.data;
+      const url = screenshotData?.url || 'unknown';
+      const title = screenshotData?.title || 'Untitled';
+
+      const responseContent: Content = {
+        text: `I've taken a screenshot of the page "${title}" at ${url}`,
+        actions: ['BROWSER_SCREENSHOT'],
+        source: message.content?.source || 'action',
+        data: {
+          screenshot: screenshotData?.screenshot,
+          mimeType: screenshotData?.mimeType || 'image/png',
+          url,
+          title,
+        },
+      };
+
+      await callback?.(responseContent);
+      return {
+        text: responseContent.text,
+        success: true,
+        data: {
+          actionName: 'BROWSER_SCREENSHOT',
+          url,
+          title,
+          sessionId: session.id,
+          screenshot: screenshotData?.screenshot,
+        },
+        values: {
+          success: true,
+          url,
+          title,
+        },
+      };
+    } catch (error) {
+      logger.error('Error in BROWSER_SCREENSHOT action:', error);
+
+      if (error instanceof StagehandError) {
+        handleBrowserError(error, callback);
+      } else {
+        const browserError = new BrowserActionError('screenshot', 'page', error as Error);
+        handleBrowserError(browserError, callback);
+      }
+      return {
+        text: 'Failed to take screenshot',
+        success: false,
+        data: {
+          actionName: 'BROWSER_SCREENSHOT',
+          error: error instanceof Error ? error.message : 'unknown_error',
+        },
+        values: {
+          success: false,
+          errorType: 'screenshot_error',
+        },
+      };
+    }
+  },
+};
+
 // Browser state provider
 const browserStateProvider: Provider = {
   name: 'BROWSER_STATE',
@@ -305,6 +1050,54 @@ const browserStateProvider: Provider = {
 // In the full implementation, all actions from the original plugin would be converted
 // to use the WebSocket client instead of direct Stagehand calls.
 
+// Test function to verify Stagehand works
+async function testStagehandConnection(runtime: IAgentRuntime): Promise<void> {
+  try {
+    logger.info('[Stagehand] Running Google.com test to verify browser automation...');
+
+    const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+    if (!service) {
+      logger.warn('[Stagehand] Service not available for test');
+      return;
+    }
+
+    // Wait a bit for service to be fully initialized
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Create a test session
+    const sessionId = `test-google-${Date.now()}`;
+    const session = await service.createSession(sessionId);
+
+    // Navigate to Google
+    const client = service.getClient();
+    const result = await client.navigate(session.id, 'https://www.google.com');
+
+    logger.info('[Stagehand] Successfully navigated to Google.com:', {
+      url: result.url,
+      title: result.title,
+    });
+
+    // Clean up test session
+    await service.destroySession(sessionId);
+
+    logger.info(
+      '[Stagehand] Google.com test completed successfully! Browser automation is working.'
+    );
+  } catch (error) {
+    logger.error('[Stagehand] Google.com test failed:', error);
+  }
+}
+
+// Export actions for testing
+export {
+  browserNavigateAction,
+  browserClickAction,
+  browserTypeAction,
+  browserSelectAction,
+  browserExtractAction,
+  browserScreenshotAction,
+};
+
 export const stagehandPlugin: Plugin = {
   name: 'plugin-stagehand',
   description:
@@ -320,7 +1113,7 @@ export const stagehandPlugin: Plugin = {
     CAPSOLVER_API_KEY: process.env.CAPSOLVER_API_KEY,
     STAGEHAND_SERVER_PORT: process.env.STAGEHAND_SERVER_PORT,
   },
-  async init(config: Record<string, string>) {
+  async init(config: Record<string, string>, runtime: IAgentRuntime) {
     logger.info('Initializing Stagehand browser automation plugin');
     try {
       const validatedConfig = await configSchema.parseAsync(config);
@@ -330,6 +1123,13 @@ export const stagehandPlugin: Plugin = {
           process.env[key] = String(value);
         }
       }
+
+      // Schedule the Google test to run after a short delay to ensure service is ready
+      setTimeout(() => {
+        testStagehandConnection(runtime).catch((error) => {
+          logger.error('[Stagehand] Init test error:', error);
+        });
+      }, 5000); // 5 second delay to ensure everything is initialized
     } catch (error) {
       if (error instanceof z.ZodError) {
         throw new Error(
@@ -342,7 +1142,12 @@ export const stagehandPlugin: Plugin = {
   services: [StagehandService],
   actions: [
     browserNavigateAction,
-    // TODO: Add all other browser actions here
+    browserClickAction,
+    browserTypeAction,
+    browserSelectAction,
+    browserExtractAction,
+    browserScreenshotAction,
+    // TODO: Add back, forward, refresh actions
   ],
   providers: [browserStateProvider],
 };

@@ -221,10 +221,12 @@ async function buildEverything() {
 
     console.log(`📦 Building container for platform: ${platform}${cacheMsg}`);
     const dockerfileDir = path.join(__dirname, '..');
+    const rootDir = path.join(__dirname, '..', '..', '..');
 
     // Add cache-busting build arg to ensure fresh COPY of binaries
     const buildTimestamp = Date.now();
-    await $`cd ${dockerfileDir} && podman build --format docker ${cacheFlag} --build-arg CACHE_BUST=${buildTimestamp} --platform ${platform} -t ${imageName} -f Dockerfile .`;
+    // Build from root directory with correct context
+    await $`cd ${rootDir} && podman build --format docker ${cacheFlag} --build-arg CACHE_BUST=${buildTimestamp} --platform ${platform} -t ${imageName} -f packages/agentserver/Dockerfile .`;
 
     // Tag for Rust compatibility
     await $`podman tag ${imageName} eliza-agent:latest`;

@@ -41,14 +41,23 @@ function parseFileOperation(
   let secondaryTarget: string | undefined = undefined;
 
   // Simple keywords for operations
-  const readCmds = ['cat', 'less', 'more', 'head', 'tail'];
+  const readCmds = ['cat', 'less', 'more', 'head', 'tail', 'type']; // 'type' is Windows equivalent of 'cat'
   const writeCmds = ['touch']; // 'echo >'/'>>' are harder to parse simply, vim/nano are "edit"
-  const editCmds = ['vim', 'nano', 'vi', 'code', 'subl', 'pico']; // Common editors
-  const deleteCmds = ['rm', 'unlink'];
-  const createDirCmds = ['mkdir'];
-  const deleteDirCmds = ['rmdir'];
-  const moveCmds = ['mv'];
-  const copyCmds = ['cp'];
+  const editCmds = [
+    'vim',
+    'nano',
+    'vi',
+    'code',
+    'subl',
+    'pico',
+    'notepad',
+    'notepad++',
+  ]; // Common editors including Windows
+  const deleteCmds = ['rm', 'unlink', 'del', 'erase']; // 'del' and 'erase' are Windows
+  const createDirCmds = ['mkdir', 'md']; // 'md' is Windows short form
+  const deleteDirCmds = ['rmdir', 'rd']; // 'rd' is Windows short form
+  const moveCmds = ['mv', 'move']; // 'move' is Windows
+  const copyCmds = ['cp', 'copy', 'xcopy']; // 'copy' and 'xcopy' are Windows
 
   if (readCmds.includes(cmd) && parts.length > 1) {
     operationType = 'read';
@@ -144,7 +153,9 @@ export class ShellService extends Service {
     const options: ExecSyncOptions = {
       cwd: this.currentWorkingDirectory,
       encoding: 'utf-8',
-      shell: process.env.SHELL || '/bin/bash', // Use user's shell or default bash
+      shell:
+        process.env.SHELL ||
+        (process.platform === 'win32' ? 'cmd.exe' : '/bin/bash'), // Cross-platform shell
     };
 
     try {
@@ -159,7 +170,8 @@ export class ShellService extends Service {
           // Attempt to change directory
           // process.chdir will throw if path is invalid
           // To make it robust, we test if the path is valid by trying to execute a simple command in it.
-          execSync('pwd', { ...options, cwd: resolvedNewDir }); // Test command
+          const testCmd = process.platform === 'win32' ? 'cd' : 'pwd';
+          execSync(testCmd, { ...options, cwd: resolvedNewDir }); // Test command
           this.currentWorkingDirectory = resolvedNewDir;
           output = `Changed directory to ${this.currentWorkingDirectory}`;
           logger.debug(

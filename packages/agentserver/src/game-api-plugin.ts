@@ -86,7 +86,7 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
 // Stop capturing agent's virtual screen
 async function stopAgentScreenCapture(): Promise<void> {
   if (screenCaptureInterval) {
-    clearInterval(screenCaptureInterval);
+    clearInterval(screenCaptureInterval as any);
     screenCaptureInterval = null;
   }
   screenCaptureActive = false;
@@ -196,14 +196,13 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   const maxRetries = 10;
   const retryDelay = 3000; // 3 seconds between retries
 
-  // Wait for Goals service to be available - try both 'Goal' and 'goals' for compatibility
+  // Wait for Goals service to be available - use lowercase 'goals'
   let goalService: any = null;
   while (!goalService && retries < maxRetries) {
-    goalService = runtime.getService('Goals') || runtime.getService('goals');
+    goalService = runtime.getService('goals');
     if (!goalService) {
       console.log(`[GAME-API] Waiting for Goals service... attempt ${retries + 1}/${maxRetries}`);
       console.log('[GAME-API] Current services:', Array.from(services.keys()));
-      console.log('[GAME-API] Available service types:', runtime.getRegisteredServiceTypes());
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
       retries++;
     }
@@ -264,15 +263,14 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   // Create starter todos using the Todo plugin service
   console.log('[GAME-API] Creating todos using Todo plugin API...');
 
-  // Wait for Todo service to be available - try both 'Todo' and 'todo' for compatibility
+  // Wait for Todo service to be available - use uppercase 'TODO'
   let todoDataService: any = null;
   retries = 0;
   while (!todoDataService && retries < maxRetries) {
-    todoDataService = runtime.getService('Todo') || runtime.getService('todo');
+    todoDataService = runtime.getService('TODO');
     if (!todoDataService) {
       console.log(`[GAME-API] Waiting for Todo service... attempt ${retries + 1}/${maxRetries}`);
       console.log('[GAME-API] Current services:', Array.from(services.keys()));
-      console.log('[GAME-API] Available service types:', runtime.getRegisteredServiceTypes());
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
       retries++;
     }
@@ -354,30 +352,21 @@ const gameAPIRoutes: Route[] = [
       // Agent status is informational, not a requirement
       const agentStatus = runtime ? 'connected' : 'no_agent';
 
-      // Check if critical services are available - using lowercase service names
-      const goalService = runtime.getService('goals'); // Changed from 'GOALS'
-      const todoService = runtime.getService('todo'); // Changed from 'TODO'
-      const autonomyService = runtime.getService('AUTONOMY'); // Use uppercase AUTONOMY
+      // Check if critical services are available - using correct service names
+      const goalService = runtime.getService('goals'); // lowercase 'goals'
+      const todoService = runtime.getService('TODO'); // uppercase 'TODO'
+      const autonomyService = runtime.getService('AUTONOMY'); // uppercase 'AUTONOMY'
 
       // Debug: Log service lookup results
       console.log('[HEALTH] Service lookup results:');
       console.log('  - goals:', !!goalService);
-      console.log('  - todo:', !!todoService);
+      console.log('  - TODO:', !!todoService);
       console.log('  - AUTONOMY:', !!autonomyService);
 
-      // Try alternative names
-      const goalAlt = runtime.getService('Goals');
-      const todoAlt = runtime.getService('Todo');
-      const autonomyAlt = runtime.getService('Autonomy');
-      console.log('[HEALTH] Alternative name lookup:');
-      console.log('  - Goal:', !!goalAlt);
-      console.log('  - Todo:', !!todoAlt);
-      console.log('  - Autonomy:', !!autonomyAlt);
-
       const services = {
-        goals: !!goalService || !!goalAlt,
-        todos: !!todoService || !!todoAlt,
-        autonomy: !!autonomyService || !!autonomyAlt,
+        goals: !!goalService,
+        todos: !!todoService,
+        autonomy: !!autonomyService,
       };
 
       res.json(
@@ -478,7 +467,7 @@ const gameAPIRoutes: Route[] = [
       Object.keys(settings).forEach((key) => {
         const value = runtime.getSetting(key);
         if (value !== undefined) {
-          settings[key] = String(value);
+          (settings as any)[key] = String(value);
         }
       });
 
@@ -730,22 +719,23 @@ const gameAPIRoutes: Route[] = [
         autonomy: ['AUTONOMY_ENABLED', 'ENABLE_AUTONOMY'],
       };
 
-      if (!capabilityMappings[capability]) {
+      if (!capabilityMappings[capability as keyof typeof capabilityMappings]) {
         return res
           .status(400)
           .json(errorResponse('UNKNOWN_CAPABILITY', `Unknown capability: ${capability}`));
       }
 
       // Get current state
-      const settings = capabilityMappings[capability];
+      const settings = capabilityMappings[capability as keyof typeof capabilityMappings];
       const currentlyEnabled = settings.some(
-        (setting) => runtime.getSetting(setting) === 'true' || runtime.getSetting(setting) === true
+        (setting: string) =>
+          runtime.getSetting(setting) === 'true' || runtime.getSetting(setting) === true
       );
 
       const newState = !currentlyEnabled;
 
       // Update all related settings
-      settings.forEach((setting) => {
+      settings.forEach((setting: string) => {
         runtime.setSetting(setting, newState.toString());
       });
 
@@ -1624,9 +1614,9 @@ const gameAPIRoutes: Route[] = [
       console.log('[GAME-API] Game startup initialization requested');
 
       try {
-        // Check if services are available
-        const goalService = runtime.getService('goals');
-        const todoService = runtime.getService('todo');
+        // Check if services are available - use correct service names
+        const goalService = runtime.getService('goals'); // lowercase
+        const todoService = runtime.getService('TODO'); // uppercase
 
         const servicesReady = !!goalService && !!todoService;
         let goalsCreated = false;
@@ -1691,14 +1681,14 @@ const gameAPIRoutes: Route[] = [
       console.log('[GAME-API] Manual initialization of goals and todos requested');
 
       try {
-        // Check if services are available first
-        const goalService = runtime.getService('goals');
-        const todoService = runtime.getService('todo');
+        // Check if services are available first - use correct service names
+        const goalService = runtime.getService('goals'); // lowercase
+        const todoService = runtime.getService('TODO'); // uppercase
 
         if (!goalService || !todoService) {
           const missing = [];
           if (!goalService) missing.push('goals');
-          if (!todoService) missing.push('todo');
+          if (!todoService) missing.push('TODO');
 
           return res
             .status(503)
@@ -1873,7 +1863,7 @@ const gameAPIRoutes: Route[] = [
         });
 
         if (testResponse.ok) {
-          const testData = await testResponse.json();
+          const testData = (await testResponse.json()) as any;
           logger.info(
             `[OLLAMA] ✅ Connectivity test successful: ${testData.response?.substring(0, 50) || 'Response received'}`
           );
@@ -1890,12 +1880,12 @@ const gameAPIRoutes: Route[] = [
         const versionResponse = await fetch(`${ollamaUrl}/api/version`);
 
         if (versionResponse.ok) {
-          const versionData = await versionResponse.json();
+          const versionData = (await versionResponse.json()) as any;
 
           // Check if model is available
           const modelsResponse = await fetch(`${ollamaUrl}/api/tags`);
           if (modelsResponse.ok) {
-            const modelsData = await modelsResponse.json();
+            const modelsData = (await modelsResponse.json()) as any;
             const hasModel = modelsData.models?.some(
               (m: any) => m.name === ollamaModel || m.name.startsWith(`${ollamaModel}:`)
             );
@@ -2376,9 +2366,9 @@ export const gameAPIPlugin: Plugin = {
       console.log('[GAME-API] Checking if initial goals/todos need to be created...');
       try {
         // Check if agent exists and has no goals yet
-        const agent = await runtime.getAgent?.(runtime.agentId);
+        const agent = await runtime.db?.getAgent?.(runtime.agentId);
         if (agent) {
-          const goalService = runtime.getService('Goals') || runtime.getService('goals');
+          const goalService = runtime.getService('goals'); // lowercase
           if (goalService) {
             const existingGoals = await (goalService as any).getAllGoalsForOwner(
               'agent',
@@ -2387,7 +2377,11 @@ export const gameAPIPlugin: Plugin = {
             if (!existingGoals || existingGoals.length === 0) {
               console.log('[GAME-API] No existing goals found, creating initial set...');
               await createInitialTodosAndGoals(runtime);
+            } else {
+              console.log(`[GAME-API] Agent already has ${existingGoals.length} goals`);
             }
+          } else {
+            console.log('[GAME-API] Goals service not yet available, will retry later');
           }
         }
       } catch (error) {

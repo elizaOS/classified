@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "user": {
+    "id": "user-123",
+    "email": "test@example.com",
+    "name": "Test User",
+    "organizationId": "org-123",
+    "role": "admin"
+  }
+}

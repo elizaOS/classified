@@ -1,0 +1,149 @@
+{
+  "success": true,
+  "data": {
+    "totalRequests": 15420,
+    "totalSpent": 847.32,
+    "totalTokens": 2847392,
+    "averageRequestCost": 0.055,
+    "totalBaseCost": 706.1,
+    "totalMarkup": 141.22,
+    "successRate": 98.7,
+    "averageLatency": 845,
+    "topProviders": [
+      {
+        "name": "OpenAI",
+        "requests": 8420,
+        "spent": 456.78,
+        "tokens": 1547392,
+        "percentage": 54.6
+      },
+      {
+        "name": "Anthropic",
+        "requests": 4230,
+        "spent": 245.67,
+        "tokens": 847392,
+        "percentage": 27.4
+      },
+      {
+        "name": "Google",
+        "requests": 2100,
+        "spent": 98.45,
+        "tokens": 325600,
+        "percentage": 13.6
+      },
+      {
+        "name": "Groq",
+        "requests": 520,
+        "spent": 32.15,
+        "tokens": 95008,
+        "percentage": 3.4
+      },
+      {
+        "name": "Ollama",
+        "requests": 150,
+        "spent": 14.27,
+        "tokens": 32000,
+        "percentage": 1.0
+      }
+    ],
+    "timeSeriesData": [
+      {
+        "date": "2025-01-19",
+        "requests": 1200,
+        "spent": 67.85,
+        "tokens": 245000
+      },
+      {
+        "date": "2025-01-20",
+        "requests": 1580,
+        "spent": 89.12,
+        "tokens": 325000
+      },
+      {
+        "date": "2025-01-21",
+        "requests": 1890,
+        "spent": 102.45,
+        "tokens": 380000
+      },
+      {
+        "date": "2025-01-22",
+        "requests": 2150,
+        "spent": 125.78,
+        "tokens": 425000
+      },
+      {
+        "date": "2025-01-23",
+        "requests": 2890,
+        "spent": 164.32,
+        "tokens": 580000
+      },
+      {
+        "date": "2025-01-24",
+        "requests": 3210,
+        "spent": 187.91,
+        "tokens": 642000
+      },
+      {
+        "date": "2025-01-25",
+        "requests": 2500,
+        "spent": 109.89,
+        "tokens": 450392
+      }
+    ],
+    "requestsByModel": [
+      {
+        "model": "OpenAI/gpt-4o-mini",
+        "requests": 6420,
+        "spent": 234.56,
+        "tokens": 1247392
+      },
+      {
+        "model": "Anthropic/claude-3-5-sonnet",
+        "requests": 3230,
+        "spent": 189.45,
+        "tokens": 647392
+      },
+      {
+        "model": "OpenAI/gpt-4o",
+        "requests": 2000,
+        "spent": 222.22,
+        "tokens": 300000
+      },
+      {
+        "model": "Google/gemini-1.5-pro",
+        "requests": 1890,
+        "spent": 87.32,
+        "tokens": 295600
+      },
+      {
+        "model": "Anthropic/claude-3-haiku",
+        "requests": 1000,
+        "spent": 56.22,
+        "tokens": 200000
+      },
+      {
+        "model": "Groq/llama-3.1-70b",
+        "requests": 520,
+        "spent": 32.15,
+        "tokens": 95008
+      },
+      {
+        "model": "Google/gemini-1.5-flash",
+        "requests": 210,
+        "spent": 11.13,
+        "tokens": 30000
+      },
+      {
+        "model": "Ollama/llama-3.1-8b",
+        "requests": 150,
+        "spent": 14.27,
+        "tokens": 32000
+      }
+    ],
+    "trends": {
+      "requestsChange": 12.5,
+      "spentChange": 8.7,
+      "tokensChange": 15.2
+    }
+  }
+}

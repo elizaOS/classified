@@ -4,7 +4,7 @@ use crate::container::*;
 use crate::SetupProgress;
 use serde_json;
 use std::sync::Arc;
-use tauri::{Manager, State};
+use tauri::{Manager, State, Emitter};
 use tracing::{error, info, warn};
 
 // Container management commands
@@ -34,7 +34,16 @@ pub async fn get_container_status_new(
 #[tauri::command]
 pub async fn start_postgres_container(
     state: State<'_, Arc<ContainerManager>>,
+    op_lock: State<'_, Arc<OperationLock>>,
 ) -> Result<ContainerStatus, String> {
+    // Acquire operation lock
+    let _guard = op_lock
+        .try_lock("start_postgres", "Starting PostgreSQL container")
+        .map_err(|e| {
+            warn!("Operation already in progress: {}", e.message);
+            e.message.clone()
+        })?;
+    
     match state.start_postgres().await {
         Ok(status) => {
             info!("PostgreSQL container started successfully");
@@ -50,7 +59,16 @@ pub async fn start_postgres_container(
 #[tauri::command]
 pub async fn start_ollama_container(
     state: State<'_, Arc<ContainerManager>>,
+    op_lock: State<'_, Arc<OperationLock>>,
 ) -> Result<ContainerStatus, String> {
+    // Acquire operation lock
+    let _guard = op_lock
+        .try_lock("start_ollama", "Starting Ollama AI service")
+        .map_err(|e| {
+            warn!("Operation already in progress: {}", e.message);
+            e.message.clone()
+        })?;
+    
     match state.start_ollama().await {
         Ok(status) => {
             info!("Ollama container started successfully");
@@ -66,7 +84,16 @@ pub async fn start_ollama_container(
 #[tauri::command]
 pub async fn start_agent_container(
     state: State<'_, Arc<ContainerManager>>,
+    op_lock: State<'_, Arc<OperationLock>>,
 ) -> Result<ContainerStatus, String> {
+    // Acquire operation lock
+    let _guard = op_lock
+        .try_lock("start_agent", "Starting ElizaOS Agent")
+        .map_err(|e| {
+            warn!("Operation already in progress: {}", e.message);
+            e.message.clone()
+        })?;
+    
     match state.start_agent().await {
         Ok(status) => {
             info!("ElizaOS Agent container started successfully");
@@ -763,6 +790,55 @@ pub async fn recover_agent_container(
             }
         }
     }
+}
+
+
+/// Gracefully shuts down the application by stopping all containers first
+#[tauri::command]
+pub async fn shutdown_application(
+    app: tauri::AppHandle,
+    container_manager: State<'_, Arc<ContainerManager>>,
+    crash_file: State<'_, crate::CrashFile>,
+) -> Result<(), String> {
+    info!("🔄 Starting application shutdown sequence...");
+    
+    // Hide the main window during shutdown
+    if let Some(main_window) = app.get_webview_window("main") {
+        let _ = main_window.hide();
+    }
+    
+    // Emit shutdown progress event
+    app.emit("shutdown-progress", "Stopping containers...").unwrap();
+    
+    // Stop all containers
+    info!("📦 Stopping all containers...");
+    match container_manager.stop_containers().await {
+        Ok(()) => {
+            info!("✅ All containers stopped successfully");
+            app.emit("shutdown-progress", "Containers stopped successfully").unwrap();
+        }
+        Err(e) => {
+            error!("❌ Failed to stop containers: {}", e);
+            app.emit("shutdown-progress", &format!("Error stopping containers: {}", e)).unwrap();
+            // Continue with shutdown even if container stop fails
+        }
+    }
+    
+    // Remove crash recovery file on clean shutdown
+    if let Err(e) = std::fs::remove_file(&crash_file.0) {
+        warn!("Failed to remove crash recovery file: {}", e);
+    } else {
+        info!("✅ Removed crash recovery file");
+    }
+    
+    // Give a moment for the UI to update
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    
+    // Exit the application
+    info!("👋 Exiting application...");
+    app.exit(0);
+    
+    Ok(())
 }
 
 

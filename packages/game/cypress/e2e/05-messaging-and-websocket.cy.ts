@@ -98,7 +98,7 @@ describe('Messaging and WebSocket', () => {
       const testMessage = {
         text: `Test message at ${Date.now()}`,
         userId: 'test-user-cypress',
-        roomId: `test-room-${Date.now()}`,
+        roomId: '550e8400-e29b-41d4-a716-446655440003',
         messageId: `msg-${Date.now()}`,
       };
 
@@ -116,7 +116,7 @@ describe('Messaging and WebSocket', () => {
       cy.window().then((win: any) => {
         const client = win.elizaClient;
         const messageText = `WebSocket test ${Date.now()}`;
-        const roomId = `ws-test-room-${Date.now()}`;
+        const roomId = '550e8400-e29b-41d4-a716-446655440004';
 
         // Listen for response
         let responseReceived = false;
@@ -336,7 +336,7 @@ describe('Messaging and WebSocket', () => {
         // Trigger some activity
         client.sendMessage({
           text: 'Status update test',
-          roomId: `status-test-${Date.now()}`,
+          roomId: '550e8400-e29b-41d4-a716-446655440005',
           userId: 'test-user',
         });
 

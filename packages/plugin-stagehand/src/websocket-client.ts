@@ -1,103 +1,77 @@
-import WebSocket from 'ws';
-import { EventEmitter } from 'events';
 import { logger } from '@elizaos/core';
 
-export interface StagehandClientConfig {
-  serverUrl?: string;
-  reconnectInterval?: number;
-  maxReconnectAttempts?: number;
+// Dynamic import to handle both Node.js and bundled environments
+let WebSocket: typeof import('ws').default;
+if (typeof window !== 'undefined' && typeof window.WebSocket !== 'undefined') {
+  // Browser environment
+  WebSocket = window.WebSocket as any;
+} else {
+  // Node.js environment
+  WebSocket = require('ws');
 }
 
-export interface RequestMessage {
+export interface StagehandMessage {
   type: string;
-  requestId: string;
-  sessionId?: string;
-  data?: any;
+  requestId?: string;
+  [key: string]: any;
 }
 
-export interface ResponseMessage {
-  type: string;
-  requestId: string;
-  success: boolean;
-  data?: any;
-  error?: string;
-}
-
-export class StagehandClient extends EventEmitter {
-  private ws: WebSocket | null = null;
-  private serverUrl: string;
-  private reconnectInterval: number;
-  private maxReconnectAttempts: number;
+export class StagehandWebSocketClient {
+  private ws: any = null; // Using any to avoid TypeScript issues with ws module
+  private messageHandlers = new Map<string, (response: StagehandMessage) => void>();
+  private connected = false;
   private reconnectAttempts = 0;
-  private isConnected = false;
-  private pendingRequests = new Map<
-    string,
-    {
-      resolve: (value: ResponseMessage) => void;
-      reject: (error: Error) => void;
-      timeout: NodeJS.Timeout;
-    }
-  >();
-  private clientId: string | null = null;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
 
-  constructor(config: StagehandClientConfig = {}) {
-    super();
-    this.serverUrl = config.serverUrl || 'ws://localhost:3456';
-    this.reconnectInterval = config.reconnectInterval || 5000;
-    this.maxReconnectAttempts = config.maxReconnectAttempts || 10;
-  }
+  constructor(private serverUrl: string) {}
 
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(this.serverUrl);
+        this.ws = new (WebSocket as any)(this.serverUrl);
 
         this.ws.on('open', () => {
-          logger.info(`Connected to Stagehand server at ${this.serverUrl}`);
-          this.isConnected = true;
+          this.connected = true;
           this.reconnectAttempts = 0;
-          this.emit('connected');
+          logger.info(`[Stagehand] Connected to server at ${this.serverUrl}`);
           resolve();
         });
 
-        this.ws.on('message', (data) => {
+        this.ws.on('message', (data: any) => {
           try {
-            const message = JSON.parse(data.toString()) as ResponseMessage;
+            const message = JSON.parse(data.toString()) as StagehandMessage;
 
-            // Handle connection message
-            if (message.type === 'connected') {
-              this.clientId = (message as any).clientId;
-              return;
+            // Handle response messages with requestId
+            if (message.requestId && this.messageHandlers.has(message.requestId)) {
+              const handler = this.messageHandlers.get(message.requestId)!;
+              this.messageHandlers.delete(message.requestId);
+              handler(message);
             }
 
-            // Handle request responses
-            const pending = this.pendingRequests.get(message.requestId);
-            if (pending) {
-              clearTimeout(pending.timeout);
-              this.pendingRequests.delete(message.requestId);
-
-              if (message.success) {
-                pending.resolve(message);
-              } else {
-                pending.reject(new Error(message.error || 'Request failed'));
-              }
+            // Log other messages
+            if (message.type === 'connected') {
+              logger.info(`[Stagehand] Server connected: ${JSON.stringify(message)}`);
             }
           } catch (error) {
-            logger.error('Error parsing WebSocket message:', error);
+            logger.error('[Stagehand] Error parsing message:', error);
+          }
+        });
+
+        this.ws.on('error', (error: any) => {
+          logger.error('[Stagehand] WebSocket error:', error);
+          if (!this.connected) {
+            reject(error);
           }
         });
 
         this.ws.on('close', () => {
-          logger.warn('Disconnected from Stagehand server');
-          this.isConnected = false;
-          this.emit('disconnected');
-          this.handleReconnect();
-        });
+          this.connected = false;
+          logger.info('[Stagehand] Disconnected from server');
 
-        this.ws.on('error', (error) => {
-          logger.error('WebSocket error:', error);
-          if (!this.isConnected) {
-            reject(error);
+          // Attempt reconnection if not explicitly disconnected
+          if (this.ws && this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.attemptReconnect();
           }
         });
       } catch (error) {
@@ -106,139 +80,77 @@ export class StagehandClient extends EventEmitter {
     });
   }
 
-  private handleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      logger.error('Max reconnection attempts reached');
-      this.emit('reconnectFailed');
-      return;
-    }
-
+  private async attemptReconnect(): Promise<void> {
     this.reconnectAttempts++;
     logger.info(
-      `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`
+      `[Stagehand] Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`
     );
 
-    setTimeout(() => {
-      this.connect().catch((error) => {
-        logger.error('Reconnection failed:', error);
-      });
-    }, this.reconnectInterval);
+    await new Promise((resolve) =>
+      setTimeout(resolve, this.reconnectDelay * this.reconnectAttempts)
+    );
+
+    try {
+      await this.connect();
+    } catch (error) {
+      logger.error('[Stagehand] Reconnection failed:', error);
+    }
   }
 
-  async sendRequest(request: Omit<RequestMessage, 'requestId'>): Promise<ResponseMessage> {
-    if (!this.isConnected || !this.ws) {
+  async sendMessage(type: string, data: any): Promise<StagehandMessage> {
+    if (!this.ws || !this.connected) {
       throw new Error('Not connected to Stagehand server');
     }
 
     const requestId = `req-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    const fullRequest: RequestMessage = { ...request, requestId };
+    const message: StagehandMessage = {
+      type,
+      requestId,
+      ...data,
+    };
 
     return new Promise((resolve, reject) => {
-      // Set timeout for request
       const timeout = setTimeout(() => {
-        this.pendingRequests.delete(requestId);
-        reject(new Error('Request timeout'));
+        this.messageHandlers.delete(requestId);
+        reject(new Error(`Request timeout for ${type}`));
       }, 30000); // 30 second timeout
 
-      // Store pending request
-      this.pendingRequests.set(requestId, { resolve, reject, timeout });
+      this.messageHandlers.set(requestId, (response) => {
+        clearTimeout(timeout);
+        if (response.type === 'error') {
+          reject(new Error(response.error || 'Unknown error'));
+        } else {
+          resolve(response);
+        }
+      });
 
-      // Send request
-      this.ws!.send(JSON.stringify(fullRequest));
+      this.ws!.send(JSON.stringify(message));
+      logger.debug(`[Stagehand] Sent message: ${type} (${requestId})`);
     });
   }
 
-  async createSession(): Promise<string> {
-    const response = await this.sendRequest({
-      type: 'createSession',
-    });
-    return response.data.sessionId;
+  disconnect(): void {
+    this.reconnectAttempts = this.maxReconnectAttempts; // Prevent reconnection
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.connected = false;
+    logger.info('[Stagehand] Client disconnected');
   }
 
-  async destroySession(sessionId: string): Promise<void> {
-    await this.sendRequest({
-      type: 'destroySession',
-      sessionId,
-    });
+  isConnected(): boolean {
+    return this.connected;
   }
+
+  // Convenience methods for specific actions
 
   async navigate(sessionId: string, url: string): Promise<{ url: string; title: string }> {
-    const response = await this.sendRequest({
-      type: 'navigate',
+    const response = await this.sendMessage('navigate', {
       sessionId,
       data: { url },
     });
-    return response.data;
-  }
-
-  async goBack(sessionId: string): Promise<{ url: string; title: string }> {
-    const response = await this.sendRequest({
-      type: 'goBack',
-      sessionId,
-    });
-    return response.data;
-  }
-
-  async goForward(sessionId: string): Promise<{ url: string; title: string }> {
-    const response = await this.sendRequest({
-      type: 'goForward',
-      sessionId,
-    });
-    return response.data;
-  }
-
-  async refresh(sessionId: string): Promise<{ url: string; title: string }> {
-    const response = await this.sendRequest({
-      type: 'refresh',
-      sessionId,
-    });
-    return response.data;
-  }
-
-  async click(sessionId: string, description: string): Promise<void> {
-    await this.sendRequest({
-      type: 'click',
-      sessionId,
-      data: { description },
-    });
-  }
-
-  async type(sessionId: string, text: string, field: string): Promise<void> {
-    await this.sendRequest({
-      type: 'type',
-      sessionId,
-      data: { text, field },
-    });
-  }
-
-  async select(sessionId: string, option: string, dropdown: string): Promise<void> {
-    await this.sendRequest({
-      type: 'select',
-      sessionId,
-      data: { option, dropdown },
-    });
-  }
-
-  async extract(sessionId: string, instruction: string): Promise<{ data: string; found: boolean }> {
-    const response = await this.sendRequest({
-      type: 'extract',
-      sessionId,
-      data: { instruction },
-    });
-    return response.data;
-  }
-
-  async screenshot(sessionId: string): Promise<{
-    screenshot: string;
-    mimeType: string;
-    url: string;
-    title: string;
-  }> {
-    const response = await this.sendRequest({
-      type: 'screenshot',
-      sessionId,
-    });
-    return response.data;
+    return response.data || { url, title: '' };
   }
 
   async getState(sessionId: string): Promise<{
@@ -247,37 +159,65 @@ export class StagehandClient extends EventEmitter {
     sessionId: string;
     createdAt: Date;
   }> {
-    const response = await this.sendRequest({
-      type: 'getState',
-      sessionId,
-    });
-    return response.data;
-  }
-
-  async solveCaptcha(sessionId: string): Promise<{
-    captchaDetected: boolean;
-    captchaType: string | null;
-    siteKey: string | null;
-  }> {
-    const response = await this.sendRequest({
-      type: 'solveCaptcha',
-      sessionId,
-    });
-    return response.data;
-  }
-
-  disconnect(): void {
-    if (this.ws) {
-      // Clear pending requests
-      for (const [_requestId, pending] of this.pendingRequests) {
-        clearTimeout(pending.timeout);
-        pending.reject(new Error('Client disconnected'));
+    const response = await this.sendMessage('getState', { sessionId });
+    return (
+      response.data || {
+        url: '',
+        title: '',
+        sessionId,
+        createdAt: new Date(),
       }
-      this.pendingRequests.clear();
+    );
+  }
 
-      this.ws.close();
-      this.ws = null;
-      this.isConnected = false;
-    }
+  async goBack(sessionId: string): Promise<{ url: string; title: string }> {
+    const response = await this.sendMessage('goBack', { sessionId });
+    return response.data || { url: '', title: '' };
+  }
+
+  async goForward(sessionId: string): Promise<{ url: string; title: string }> {
+    const response = await this.sendMessage('goForward', { sessionId });
+    return response.data || { url: '', title: '' };
+  }
+
+  async refresh(sessionId: string): Promise<{ url: string; title: string }> {
+    const response = await this.sendMessage('refresh', { sessionId });
+    return response.data || { url: '', title: '' };
+  }
+
+  async click(sessionId: string, description: string): Promise<StagehandMessage> {
+    return await this.sendMessage('click', {
+      sessionId,
+      data: { description },
+    });
+  }
+
+  async type(sessionId: string, text: string, field: string): Promise<StagehandMessage> {
+    return await this.sendMessage('type', {
+      sessionId,
+      data: { text, field },
+    });
+  }
+
+  async select(sessionId: string, option: string, dropdown: string): Promise<StagehandMessage> {
+    return await this.sendMessage('select', {
+      sessionId,
+      data: { option, dropdown },
+    });
+  }
+
+  async extract(sessionId: string, instruction: string): Promise<StagehandMessage> {
+    return await this.sendMessage('extract', {
+      sessionId,
+      data: { instruction },
+    });
+  }
+
+  async screenshot(sessionId: string): Promise<StagehandMessage> {
+    return await this.sendMessage('screenshot', { sessionId });
+  }
+
+  async solveCaptcha(sessionId: string): Promise<StagehandMessage> {
+    return await this.sendMessage('solveCaptcha', { sessionId });
   }
 }

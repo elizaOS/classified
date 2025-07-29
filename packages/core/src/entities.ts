@@ -304,7 +304,7 @@ export async function findEntityByName(
  * @param {UUID|string} baseUserId - The base user ID to use in generating the UUID.
  * @returns {UUID} - The unique UUID generated based on the runtime and base user ID.
  */
-export const createUniqueUuid = (runtime, baseUserId: UUID | string): UUID => {
+export const createUniqueUuid = (runtime: IAgentRuntime, baseUserId: UUID | string): UUID => {
   // If the base user ID is the agent ID, return it directly
   if (baseUserId === runtime.agentId) {
     return runtime.agentId;

@@ -47,7 +47,7 @@
   },
   "peerDependencies": {},
   "devDependencies": {
-    "@elizaos/cli": "^1.2.12",
+    "@elizaos/cli": "^1.3.0",
     "@types/ws": "^8.5.10",
     "dotenv": "16.4.5",
     "prettier": "3.5.3",
@@ -62,7 +62,9 @@
     "build:server": "cd stagehand-server && npm run build",
     "dev": "tsup --watch",
     "start": "echo 'Plugin package, use with ElizaOS'",
-    "test": "bun test",
+    "test": "bun test --bail=false src/__tests__/simple.test.ts src/__tests__/provider.test.ts src/__tests__/actions.test.ts src/__tests__/security.test.ts src/__tests__/capsolver.test.ts",
+    "test:e2e": "bun test --bail=false src/__tests__/e2e-browser.test.ts",
+    "test:all": "bun test --bail=false",
     "lint": "eslint src --fix && prettier --write ./src",
     "clean": "rm -rf dist && rm -rf .turbo && rm -rf stagehand-server/dist",
     "typecheck": "tsc --noEmit"

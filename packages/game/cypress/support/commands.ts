@@ -35,6 +35,14 @@ declare global {
       toggleCapability(capability: string): Chainable<void>;
       getCapabilityStatus(capability: string): Chainable<boolean>;
 
+      // Message Helpers
+      sendMessage(message: {
+        text: string;
+        userId: string;
+        roomId: string;
+        messageId?: string;
+      }): Chainable<Cypress.Response<any>>;
+
       // Database Helpers
       authenticateDb(username?: string, password?: string): Chainable<string>;
       getDbTables(): Chainable<any[]>;
@@ -111,6 +119,28 @@ Cypress.Commands.add('setupApiKey', (provider: 'openai' | 'anthropic', key: stri
   cy.get('button').contains('Continue').click();
   cy.wait(3000);
 });
+
+// Message Helper Commands
+Cypress.Commands.add(
+  'sendMessage',
+  (message: { text: string; userId: string; roomId: string; messageId?: string }) => {
+    const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
+
+    // Convert to new API format
+    const messagePayload = {
+      channel_id: message.roomId,
+      server_id: '00000000-0000-0000-0000-000000000000', // Default server
+      author_id: message.userId,
+      author_display_name: message.userId,
+      content: message.text,
+      source_type: 'test',
+      raw_message: { text: message.text, messageId: message.messageId },
+      metadata: { test: true, originalMessageId: message.messageId },
+    };
+
+    return cy.request('POST', `${BACKEND_URL}/api/messaging/ingest-external`, messagePayload);
+  }
+);
 
 // UI Helper Commands
 Cypress.Commands.add('elementExists', (selector: string) => {

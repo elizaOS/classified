@@ -36,32 +36,26 @@ export function createAgentTodosRouter(
     }
 
     try {
-      // In a full implementation, this would fetch from database
-      // For now, return some example todos
-      const todos: Todo[] = [
-        {
-          id: '1',
-          task: 'Review recent conversation patterns',
-          completed: false,
-          priority: 'high',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          task: 'Update knowledge base with new information',
-          completed: false,
-          priority: 'medium',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: '3',
-          task: 'Test new conversation capabilities',
-          completed: true,
-          priority: 'low',
-          createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-        },
-      ];
+      // Get the Todo service (uppercase 'TODO')
+      const todoService = runtime.getService('TODO');
+      if (!todoService) {
+        logger.warn('[TODOS GET] Todo service not available');
+        return sendSuccess(res, { todos: [] });
+      }
+
+      // Get all todos for this agent
+      const todosData = await (todoService as any).getTodos({ agentId });
+
+      // Transform to the expected format
+      const todos: Todo[] = todosData.map((todo: any) => ({
+        id: todo.id,
+        task: todo.name,
+        completed: todo.isCompleted || false,
+        priority: todo.priority === 1 ? 'high' : todo.priority === 2 ? 'medium' : 'low',
+        dueDate: todo.dueDate ? new Date(todo.dueDate).toISOString() : undefined,
+        createdAt: todo.createdAt || new Date().toISOString(),
+        completedAt: todo.completedAt ? new Date(todo.completedAt).toISOString() : undefined,
+      }));
 
       sendSuccess(res, { todos });
     } catch (error) {
@@ -95,8 +89,44 @@ export function createAgentTodosRouter(
     }
 
     try {
-      const newTodo: Todo = {
-        id: Date.now().toString(), // Simple ID generation
+      // Get the Todo service
+      const todoService = runtime.getService('TODO');
+      if (!todoService) {
+        return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'Todo service not available');
+      }
+
+      // Map priority string to number
+      const priorityMap: Record<string, number> = { high: 1, medium: 2, low: 3 };
+      const priorityNum = priorityMap[priority as string] || 2;
+
+      // Create the todo using the service
+      const todoId = await (todoService as any).createTodo({
+        agentId,
+        worldId: agentId, // Using agentId as worldId fallback
+        roomId: agentId, // Using agentId as roomId fallback
+        entityId: agentId,
+        name: task,
+        description: req.body.description || '',
+        type: 'one-off' as const,
+        priority: priorityNum,
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+        metadata: req.body.metadata || {},
+        tags: req.body.tags || [],
+      });
+
+      if (!todoId) {
+        return sendError(res, 500, 'TODO_CREATE_FAILED', 'Failed to create todo');
+      }
+
+      // Fetch the created todo to return full details
+      const createdTodos = await (todoService as any).getTodos({
+        agentId,
+        limit: 1,
+      });
+      const createdTodo = createdTodos.find((t: any) => t.id === todoId);
+
+      const todo: Todo = {
+        id: todoId,
         task,
         completed: false,
         priority: priority || 'medium',
@@ -105,9 +135,7 @@ export function createAgentTodosRouter(
       };
 
       logger.info(`[TODOS CREATE] Created todo "${task}" for agent ${runtime.character.name}`);
-
-      // In a full implementation, this would save to database
-      sendSuccess(res, { todo: newTodo }, 201);
+      sendSuccess(res, { todo }, 201);
     } catch (error) {
       logger.error('[TODOS CREATE] Error creating todo:', error);
       sendError(
@@ -136,19 +164,67 @@ export function createAgentTodosRouter(
     const updates = req.body;
 
     try {
-      // In a full implementation, this would update in database
-      const updatedTodo: Todo = {
-        id: todoId,
-        task: updates.task || 'Updated task',
-        completed: updates.completed || false,
-        priority: updates.priority || 'medium',
-        dueDate: updates.dueDate,
-        createdAt: updates.createdAt || new Date().toISOString(),
-        completedAt: updates.completed ? new Date().toISOString() : undefined,
+      // Get the Todo service
+      const todoService = runtime.getService('TODO');
+      if (!todoService) {
+        return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'Todo service not available');
+      }
+
+      // Map priority string to number if provided
+      let priorityNum = undefined;
+      if (updates.priority) {
+        const priorityMap: Record<string, number> = { high: 1, medium: 2, low: 3 };
+        priorityNum = priorityMap[updates.priority as string];
+      }
+
+      // Update the todo using the service
+      const success = await (todoService as any).updateTodo(todoId, {
+        name: updates.task,
+        description: updates.description,
+        priority: priorityNum,
+        dueDate: updates.dueDate ? new Date(updates.dueDate) : undefined,
+        metadata: updates.metadata,
+        tags: updates.tags,
+      });
+
+      if (!success) {
+        return sendError(res, 500, 'TODO_UPDATE_FAILED', 'Failed to update todo');
+      }
+
+      // Handle completion status
+      if (updates.completed === true) {
+        await (todoService as any).completeTodo(todoId);
+      }
+
+      // Fetch the updated todo to return full details
+      const todosData = await (todoService as any).getTodos({ agentId });
+      const updatedTodoData = todosData.find((t: any) => t.id === todoId);
+
+      if (!updatedTodoData) {
+        return sendError(res, 404, 'TODO_NOT_FOUND', 'Todo not found');
+      }
+
+      const todo: Todo = {
+        id: updatedTodoData.id,
+        task: updatedTodoData.name,
+        completed: updatedTodoData.isCompleted || false,
+        priority:
+          updatedTodoData.priority === 1
+            ? 'high'
+            : updatedTodoData.priority === 2
+              ? 'medium'
+              : 'low',
+        dueDate: updatedTodoData.dueDate
+          ? new Date(updatedTodoData.dueDate).toISOString()
+          : undefined,
+        createdAt: updatedTodoData.createdAt || new Date().toISOString(),
+        completedAt: updatedTodoData.completedAt
+          ? new Date(updatedTodoData.completedAt).toISOString()
+          : undefined,
       };
 
       logger.info(`[TODOS UPDATE] Updated todo ${todoId} for agent ${runtime.character.name}`);
-      sendSuccess(res, { todo: updatedTodo });
+      sendSuccess(res, { todo });
     } catch (error) {
       logger.error('[TODOS UPDATE] Error updating todo:', error);
       sendError(
@@ -176,9 +252,21 @@ export function createAgentTodosRouter(
     const { todoId } = req.params;
 
     try {
-      // In a full implementation, this would delete from database
+      // Get the Todo service
+      const todoService = runtime.getService('TODO');
+      if (!todoService) {
+        return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'Todo service not available');
+      }
+
+      // Cancel the todo using the service
+      const success = await (todoService as any).cancelTodo(todoId);
+
+      if (!success) {
+        return sendError(res, 500, 'TODO_DELETE_FAILED', 'Failed to delete todo');
+      }
+
       logger.info(`[TODOS DELETE] Deleted todo ${todoId} for agent ${runtime.character.name}`);
-      sendSuccess(res, { message: 'Todo deleted successfully' });
+      sendSuccess(res, { message: 'Todo deleted successfully', todoId });
     } catch (error) {
       logger.error('[TODOS DELETE] Error deleting todo:', error);
       sendError(

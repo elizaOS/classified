@@ -5,6 +5,7 @@
 # Build artifacts
 **/dist
 **/dist-*
+!packages/agentserver/dist-binaries
 **/build
 **/target
 **/node_modules

@@ -1,14 +1,21 @@
 import { logger } from '@elizaos/core';
 
 export class StagehandError extends Error {
+  public recoverable: boolean;
+  public details?: any;
+
   constructor(
     message: string,
     public code: string,
     public userMessage: string,
-    public isRetryable: boolean = false
+    isRetryable: boolean = true,
+    details?: any
   ) {
     super(message);
     this.name = 'StagehandError';
+    this.recoverable = isRetryable;
+    this.isRetryable = isRetryable;
+    this.details = details;
   }
 }
 
@@ -24,45 +31,59 @@ export class BrowserServiceNotAvailableError extends StagehandError {
 }
 
 export class BrowserSessionError extends StagehandError {
-  constructor(message: string) {
+  constructor(message: string, details?: any) {
     super(
       message,
-      'SESSION_ERROR',
+      'BROWSER_SESSION_ERROR',
       'There was an error with the browser session. Please try again.',
-      true
+      true,
+      details
     );
   }
 }
 
 export class BrowserNavigationError extends StagehandError {
-  constructor(url: string, originalError: Error) {
+  constructor(url: string, originalError?: Error) {
+    const message = originalError
+      ? `Failed to navigate to ${url}: ${originalError.message}`
+      : `Failed to navigate to ${url}`;
+
     super(
-      `Failed to navigate to ${url}: ${originalError.message}`,
+      message,
       'NAVIGATION_ERROR',
       "I couldn't navigate to the requested page. Please check the URL and try again.",
-      true
+      true,
+      { url, originalError: originalError?.message }
     );
   }
 }
 
 export class BrowserActionError extends StagehandError {
-  constructor(action: string, target: string, originalError: Error) {
+  constructor(action: string, target: string, originalError?: Error) {
+    const message = originalError
+      ? `Failed to ${action} on ${target}: ${originalError.message}`
+      : `Failed to ${action} on ${target}`;
+
     super(
-      `Failed to ${action} on ${target}: ${originalError.message}`,
+      message,
       'ACTION_ERROR',
       `I couldn't ${action} on the requested element. Please check if the element exists and try again.`,
-      true
+      true,
+      { action, target, originalError: originalError?.message }
     );
   }
 }
 
 export class BrowserSecurityError extends StagehandError {
-  constructor(message: string) {
+  public details?: any;
+
+  constructor(message: string, details?: any) {
     super(message, 'SECURITY_ERROR', 'This action was blocked for security reasons.', false);
+    this.details = details;
   }
 }
 
-export function handleBrowserError(error: Error, callback?: any, action?: string): void {
+export function handleBrowserError(error: Error, callback?: any, action?: string): [] {
   if (error instanceof StagehandError) {
     logger.error(`Stagehand error [${error.code}]:`, error.message);
     callback?.({
@@ -78,4 +99,5 @@ export function handleBrowserError(error: Error, callback?: any, action?: string
       error: true,
     });
   }
+  return [];
 }

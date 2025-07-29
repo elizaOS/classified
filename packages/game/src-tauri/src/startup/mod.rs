@@ -101,6 +101,20 @@ impl StartupManager {
     ) -> BackendResult<()> {
         info!("🚀 Starting ELIZA Game initialization sequence");
 
+        // Clean up any orphaned containers from previous runs
+        self.update_status(
+            StartupStage::Initializing,
+            2,
+            "Cleaning up...",
+            "Checking for orphaned containers from previous runs",
+        )
+        .await;
+        
+        if let Err(e) = self.cleanup_orphaned_containers(&resource_dir).await {
+            warn!("Failed to cleanup orphaned containers: {}", e);
+            // Continue anyway - this is not critical
+        }
+
         // First check if ElizaOS server is already running
         let mut server_healthy = false;
         let mut recovery_attempted = false;
@@ -888,6 +902,38 @@ impl StartupManager {
 
     pub fn get_container_manager(&self) -> Option<Arc<ContainerManager>> {
         self.container_manager.clone()
+    }
+
+    /// Clean up any orphaned containers from previous runs
+    async fn cleanup_orphaned_containers(&mut self, resource_dir: &std::path::Path) -> BackendResult<()> {
+        info!("🧹 Checking for orphaned containers from previous runs...");
+
+        // First ensure we have a container manager
+        if self.container_manager.is_none() {
+            // Try to create a minimal container manager just for cleanup
+            match ContainerManager::new_with_runtime_manager(ContainerRuntimeType::Podman, resource_dir.to_path_buf())
+                .await
+            {
+                Ok(mut manager) => {
+                    manager.set_app_handle(self.app_handle.clone());
+                    self.container_manager = Some(Arc::new(manager));
+                }
+                Err(e) => {
+                    warn!("Could not create container manager for cleanup: {}", e);
+                    return Ok(()); // Not critical, continue
+                }
+            }
+        }
+
+        if let Some(manager) = &self.container_manager {
+            // Clean up any eliza-* containers that might be left over
+            match manager.cleanup_containers_by_pattern("eliza-").await {
+                Ok(()) => info!("✅ Orphaned container cleanup completed"),
+                Err(e) => warn!("⚠️ Failed to cleanup some containers: {}", e),
+            }
+        }
+
+        Ok(())
     }
 
 

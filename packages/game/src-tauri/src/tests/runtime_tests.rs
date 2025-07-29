@@ -20,6 +20,10 @@ pub async fn run_all_endpoint_tests(app_handle: &AppHandle) -> Vec<TestResult> {
     info!("╚══════════════════════════════════════════════════════╝");
     info!("");
     
+    // Give the agent server a moment to fully initialize
+    info!("⏳ Waiting for agent server to fully initialize...");
+    sleep(Duration::from_secs(5)).await;
+    
     // Test 1: Health Check
     info!("🧪 Test 1/13: Health Check...");
     results.push(test_health_check(app_handle).await);
@@ -164,7 +168,10 @@ async fn test_goals_crud(_app_handle: &AppHandle) -> TestResult {
     
     // Verify creation
     if !create_response["success"].as_bool().unwrap_or(false) {
-        return Err("Failed to create goal".into());
+        let error_msg = create_response["error"].as_str().unwrap_or("Unknown error");
+        error!("Goal creation failed: {}", error_msg);
+        error!("Full response: {:?}", create_response);
+        return Err(format!("Failed to create goal: {}", error_msg).into());
     }
     
     // Fetch goals again to verify

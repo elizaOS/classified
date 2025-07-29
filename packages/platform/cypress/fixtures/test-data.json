@@ -1,0 +1,86 @@
+{
+  "users": {
+    "testUser": {
+      "id": "test-user-123",
+      "email": "test@elizaos.ai",
+      "firstName": "Test",
+      "lastName": "User",
+      "organizationId": "test-org-123",
+      "role": "owner"
+    },
+    "adminUser": {
+      "id": "admin-user-456",
+      "email": "admin@elizaos.ai",
+      "firstName": "Admin",
+      "lastName": "User",
+      "organizationId": "test-org-123",
+      "role": "admin"
+    }
+  },
+  "organizations": {
+    "testOrg": {
+      "id": "test-org-123",
+      "name": "Test Organization",
+      "slug": "test-org",
+      "subscriptionTier": "pro",
+      "creditBalance": "250.00"
+    }
+  },
+  "agents": {
+    "testAgent": {
+      "id": "agent-123",
+      "name": "Test Agent",
+      "description": "A test agent for E2E testing",
+      "status": "active",
+      "visibility": "public",
+      "plugins": ["openai", "web-search"],
+      "model": "gpt-4",
+      "organizationId": "test-org-123"
+    }
+  },
+  "apiKeys": {
+    "testApiKey": {
+      "id": "api-key-123",
+      "name": "Test API Key",
+      "key": "sk_test_1234567890abcdef",
+      "maskedKey": "sk_test_...cdef",
+      "permissions": ["agents:*", "inference:*"],
+      "expiresAt": null
+    }
+  },
+  "billing": {
+    "creditPackages": [
+      { "amount": 10, "price": 10, "bonus": 0 },
+      { "amount": 25, "price": 25, "bonus": 5 },
+      { "amount": 50, "price": 50, "bonus": 15 },
+      { "amount": 100, "price": 100, "bonus": 40 }
+    ],
+    "subscriptionPlans": [
+      {
+        "name": "Free",
+        "price": 0,
+        "features": ["1 agent", "1000 API calls/month", "Community support"]
+      },
+      {
+        "name": "Pro",
+        "price": 29,
+        "features": [
+          "10 agents",
+          "100k API calls/month",
+          "Priority support",
+          "Advanced analytics"
+        ]
+      },
+      {
+        "name": "Enterprise",
+        "price": 299,
+        "features": [
+          "Unlimited agents",
+          "Unlimited API calls",
+          "Dedicated support",
+          "Custom integrations"
+        ]
+      }
+    ]
+  }
+}

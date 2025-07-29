@@ -62,6 +62,9 @@ tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 # File system utilities
 walkdir = "2"
 
+# Text processing
+regex = "1.10"
+
 # System information
 sysinfo = "0.31"
 

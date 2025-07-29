@@ -20,26 +20,43 @@ export class StagehandProcessManager {
     // Get the directory where this module is located
     const moduleDir = dirname(fileURLToPath(import.meta.url));
 
+    // Check if we're in a Docker container
+    const isDocker = process.env.DOCKER_CONTAINER === 'true' || existsSync('/.dockerenv');
+
     // Possible locations for the binary
     const possiblePaths = [
+      // Docker/container paths first
+      ...(isDocker
+        ? [
+            '/usr/local/bin/stagehand-server',
+            '/usr/local/bin/stagehand-server-linux',
+            '/app/stagehand-server',
+            `/app/binaries/${this.getBinaryName()}`,
+          ]
+        : []),
       // When running from plugin directory
       join(moduleDir, '../stagehand-server/binaries', this.getBinaryName()),
       // When packaged with agentserver
       join(moduleDir, '../../../stagehand-server', this.getBinaryName()),
-      // In docker/production environment
-      '/usr/local/bin/stagehand-server',
       // Development fallback - run via node
       join(moduleDir, '../stagehand-server/dist/index.js'),
+      // Docker fallback - if binary not found, try JS file
+      ...(isDocker
+        ? [
+            '/app/packages/plugin-stagehand/stagehand-server/dist/index.js',
+            '/app/stagehand-server/dist/index.js',
+          ]
+        : []),
     ];
 
     for (const path of possiblePaths) {
       if (existsSync(path)) {
-        logger.info(`Found Stagehand server binary at: ${path}`);
+        logger.info(`Found Stagehand server at: ${path}`);
         return path;
       }
     }
 
-    logger.error('Could not find Stagehand server binary');
+    logger.error('Could not find Stagehand server binary or JS file');
     return null;
   }
 
@@ -112,13 +129,57 @@ export class StagehandProcessManager {
         this.isRunning = false;
       });
 
-      // Give it some time to start
-      setTimeout(() => {
-        if (!this.isRunning) {
-          reject(new Error('Stagehand server failed to start in time'));
-        }
-      }, 10000); // 10 second timeout
+      // Wait for server to be ready
+      this.waitForServer()
+        .then(() => resolve())
+        .catch((error) => {
+          this.isRunning = false;
+          if (this.process) {
+            this.process.kill('SIGTERM');
+          }
+          reject(error);
+        });
     });
+  }
+
+  async waitForServer(): Promise<void> {
+    const maxAttempts = 30;
+    const delay = 1000;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        // Try to establish WebSocket connection for health check
+        const ws = require('ws');
+        const wsConnection = new ws(`ws://localhost:${this.serverPort}`);
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            wsConnection.close();
+            reject(new Error('Connection timeout'));
+          }, 5000);
+
+          wsConnection.on('open', () => {
+            clearTimeout(timeout);
+            wsConnection.close();
+            resolve();
+          });
+
+          wsConnection.on('error', (error: any) => {
+            clearTimeout(timeout);
+            reject(error);
+          });
+        });
+
+        logger.info('Stagehand server is ready');
+        return;
+      } catch (error) {
+        // Server not ready yet, continue waiting
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+
+    throw new Error('Stagehand server failed to start');
   }
 
   async stop(): Promise<void> {

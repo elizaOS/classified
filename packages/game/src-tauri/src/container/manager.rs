@@ -8,6 +8,8 @@ use crate::common::{
 };
 use crate::container::runtime_manager::RuntimeType;
 use crate::container::retry::{retry_with_backoff, RetryConfig, is_retryable_error};
+use crate::container::resource_check::ResourceChecker;
+use crate::container::user_error::handle_user_error;
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::process::Stdio;
@@ -278,11 +280,77 @@ impl ContainerManager {
             .map(|limits| limits.ollama_limit_str())
             .unwrap_or_else(|| "8g".to_string());
 
-        // Start our Ollama container on the eliza-network with standard port 11434
+        // Check if port 11434 is available
+        if !crate::common::is_port_available(11434) {
+            info!("Port 11434 is in use, checking if it's native Ollama...");
+            
+            // Try to detect if it's native Ollama
+            match reqwest::get("http://localhost:11434/api/version").await {
+                Ok(resp) if resp.status().is_success() => {
+                    warn!("Native Ollama detected on port 11434. Attempting to stop it...");
+                    
+                    // Try to stop native Ollama service
+                    #[cfg(target_os = "macos")]
+                    {
+                        let _ = tokio::process::Command::new("pkill")
+                            .arg("-f")
+                            .arg("ollama")
+                            .output()
+                            .await;
+                    }
+                    
+                    #[cfg(target_os = "linux")]
+                    {
+                        let _ = tokio::process::Command::new("systemctl")
+                            .arg("stop")
+                            .arg("ollama")
+                            .output()
+                            .await;
+                            
+                        // Also try pkill as backup
+                        let _ = tokio::process::Command::new("pkill")
+                            .arg("-f")
+                            .arg("ollama")
+                            .output()
+                            .await;
+                    }
+                    
+                    #[cfg(target_os = "windows")]
+                    {
+                        let _ = tokio::process::Command::new("taskkill")
+                            .args(&["/F", "/IM", "ollama.exe"])
+                            .output()
+                            .await;
+                    }
+                    
+                    // Wait a moment for the port to be released
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                    
+                    // Check again
+                    if !crate::common::is_port_available(11434) {
+                        let backend_error = BackendError::Container(
+                            "Port 11434 is still in use after attempting to stop native Ollama. Please manually stop any process using port 11434.".to_string()
+                        );
+                        let user_error = crate::container::user_error::handle_user_error(backend_error, self.app_handle.as_ref()).await;
+                        return Err(BackendError::Container(user_error.message));
+                    }
+                }
+                _ => {
+                    // Something else is using the port
+                    let backend_error = BackendError::Container(
+                        "Port 11434 is in use by an unknown process. Please stop any process using port 11434.".to_string()
+                    );
+                    let user_error = crate::container::user_error::handle_user_error(backend_error, self.app_handle.as_ref()).await;
+                    return Err(BackendError::Container(user_error.message));
+                }
+            }
+        }
+
+        // Start our Ollama container on the eliza-network with standard port
         let config = ContainerConfig {
             name: OLLAMA_CONTAINER.to_string(),
             image: "ollama/ollama:latest".to_string(),
-            ports: vec![PortMapping::new(11434, 11434)], // Standard Ollama port for compatibility
+            ports: vec![PortMapping::new(11434, 11434)], // Standard Ollama port
             environment: vec!["OLLAMA_PORT=11434".to_string()],
             volumes: vec![VolumeMount::new("eliza-ollama-data", "/root/.ollama")],
             health_check: Some(HealthCheckConfig::ollama_default()),
@@ -779,6 +847,43 @@ impl ContainerManager {
     /// - Environment configuration is invalid
     pub async fn start_agent(&self) -> BackendResult<ContainerStatus> {
         info!("Starting ElizaOS Agent container");
+        
+        // Verify dependencies are running
+        info!("Checking agent dependencies...");
+        
+        // Check if PostgreSQL is running
+        let postgres_status = self.get_container_status(POSTGRES_CONTAINER).await;
+        match postgres_status {
+            Ok(status) if matches!(status.state, crate::backend::ContainerState::Running) => {
+                info!("✅ PostgreSQL is running");
+            }
+            _ => {
+                error!("PostgreSQL is not running - cannot start agent");
+                return Err(BackendError::Container(
+                    "Cannot start agent: PostgreSQL container is not running. Please start PostgreSQL first.".to_string()
+                ));
+            }
+        }
+        
+        // Check if Ollama is running (optional but warn if not)
+        let ollama_status = self.get_container_status(OLLAMA_CONTAINER).await;
+        match ollama_status {
+            Ok(status) if matches!(status.state, crate::backend::ContainerState::Running) => {
+                info!("✅ Ollama is running");
+            }
+            _ => {
+                warn!("⚠️ Ollama is not running - agent will start but AI features may be limited");
+                // Don't fail here as Ollama might be optional for some configurations
+            }
+        }
+        
+        // Ensure network exists
+        if let Err(e) = self.ensure_network_exists(NETWORK_NAME).await {
+            error!("Failed to ensure network exists: {}", e);
+            return Err(BackendError::Container(
+                format!("Cannot start agent: Failed to create or verify network '{}'. {}", NETWORK_NAME, e)
+            ));
+        }
 
         // Determine which agent image to use or build
         let (image_name, image_exists) = match &self.runtime {
@@ -1003,6 +1108,42 @@ impl ContainerManager {
     /// Start containers with proper dependencies and health checks
     pub async fn start_containers_with_dependencies(&self) -> BackendResult<()> {
         info!("🚀 Starting containers with dependency management...");
+
+        // Pre-flight resource checks
+        self.update_progress(
+            "checking",
+            5,
+            "Checking system resources...",
+            "Verifying memory, disk space, and port availability",
+        )
+        .await;
+
+        let mut resource_checker = ResourceChecker::new();
+        let requirements = crate::container::ResourceRequirements::for_container_startup();
+        
+        match resource_checker.check_resources(&requirements).await {
+            Ok(result) => {
+                if !result.passed {
+                    let error_details = result.errors.join("; ");
+                    let backend_error = BackendError::Resource(error_details);
+                    let user_error = handle_user_error(backend_error, self.app_handle.as_ref()).await;
+                    return Err(BackendError::Resource(user_error.message));
+                }
+                
+                // Emit warnings to UI if any
+                if !result.warnings.is_empty() {
+                    if let Some(app_handle) = &self.app_handle {
+                        let _ = app_handle.emit("resource-warnings", &result.warnings);
+                    }
+                }
+                
+                info!("✅ Resource checks passed");
+            }
+            Err(e) => {
+                error!("Resource check failed: {}", e);
+                return Err(e);
+            }
+        }
 
         // First, ensure network exists
         self.update_progress(

@@ -128,7 +128,6 @@ export class AgentRuntime implements IAgentRuntime {
     }>;
   };
   private maxWorkingMemoryEntries: number = 50; // Default value, can be overridden
-  private _pluginsInitialized = false;
   private agentEntityId?: UUID;
 
   constructor(opts: {
@@ -1228,7 +1227,7 @@ export class AgentRuntime implements IAgentRuntime {
     metadata?: Record<string, any>;
   }) {
     if (!worldId && serverId) {
-      worldId = createUniqueUuid(this.agentId + serverId, serverId);
+      worldId = createUniqueUuid(this, serverId);
     }
     const names = [name, userName].filter(Boolean);
     const entityMetadata = {

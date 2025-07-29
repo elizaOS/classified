@@ -285,21 +285,21 @@ describe('Capabilities', () => {
   describe('Concurrent Capability Management', () => {
     it('should handle multiple capability toggles concurrently', () => {
       const capabilities = ['shell', 'browser'];
-      const promises = capabilities.map((cap) =>
+      const requests = capabilities.map((cap) =>
         cy.request(
           'POST',
           `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/capabilities/${cap}/toggle`
         )
       );
 
-      cy.wrap(Promise.all(promises)).then((responses: any[]) => {
-        responses.forEach((response) => {
+      requests.forEach((request) => {
+        request.then((response) => {
           expect(response.status).to.eq(200);
           expect(response.body.success).to.be.true;
         });
-
-        cy.log(`✅ Handled ${capabilities.length} concurrent toggles`);
       });
+
+      cy.log(`✅ Handled ${capabilities.length} concurrent toggles`);
     });
 
     it('should handle rapid toggling without race conditions', () => {
@@ -373,12 +373,12 @@ describe('Capabilities', () => {
       };
 
       // Update multiple settings
-      const promises = Object.entries(settings).map(([key, value]) =>
+      const requests = Object.entries(settings).map(([key, value]) =>
         cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/settings`, { key, value })
       );
 
-      cy.wrap(Promise.all(promises)).then((responses: any[]) => {
-        responses.forEach((response) => {
+      requests.forEach((request) => {
+        request.then((response) => {
           expect(response.status).to.eq(200);
           expect(response.body.success).to.be.true;
         });

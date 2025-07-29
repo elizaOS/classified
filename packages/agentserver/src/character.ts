@@ -139,6 +139,10 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
     EMBEDDING_DIMENSION: '768', // nomic-embed-text has 768 dimensions
     USE_SMALL_MODELS: process.env.USE_SMALL_MODELS || 'true',
     KNOWLEDGE_PATH: '/app/knowledge', // Load from knowledge folder in container
+
+    // Enable shell capability for the agent
+    ENABLE_SHELL: 'true',
+    SHELL_ENABLED: 'true',
   },
 
   // Essential plugins for the ELIZA Terminal game

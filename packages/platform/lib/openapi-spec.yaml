@@ -1,0 +1,1561 @@
+openapi: 3.0.3
+info:
+  title: ElizaOS Platform API
+  description: |
+    The ElizaOS Platform API provides programmatic access to manage AI agents, organizations, API keys, and billing.
+
+    ## Authentication
+
+    The API supports two authentication methods:
+
+    1. **Bearer Token (JWT)**: Include the access token in the Authorization header
+       ```
+       Authorization: Bearer <access_token>
+       ```
+
+    2. **API Key**: Include your API key in the X-API-Key header
+       ```
+       X-API-Key: pk_live_...
+       ```
+  version: 1.0.0
+  contact:
+    email: support@elizaos.ai
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3333/api/v1
+    description: Development server
+  - url: https://api.elizaos.ai/v1
+    description: Production server
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Authentication
+    description: Authentication and session management
+  - name: Users
+    description: User profile management
+  - name: Organizations
+    description: Organization management
+  - name: API Keys
+    description: API key management
+  - name: Billing
+    description: Subscription and billing management
+  - name: Analytics
+    description: AI inference analytics and cost tracking
+  - name: Webhooks
+    description: Webhook endpoints
+
+paths:
+  /auth/login:
+    get:
+      tags:
+        - Authentication
+      summary: Initiate SSO login
+      description: Get the WorkOS SSO authorization URL to start the login flow
+      operationId: initiateLogin
+      security: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: Organization ID for SSO (optional)
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          description: Custom redirect URI after authentication
+          schema:
+            type: string
+            format: uri
+      responses:
+        '200':
+          description: Login URL generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/callback:
+    post:
+      tags:
+        - Authentication
+      summary: OAuth callback
+      description: Handle OAuth callback from WorkOS after user authentication
+      operationId: handleOAuthCallback
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  description: Authorization code from WorkOS
+                state:
+                  type: string
+                  description: State parameter for CSRF protection
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthCallbackResponse'
+          headers:
+            Set-Cookie:
+              description: HTTP cookies for access_token and refresh_token
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Exchange a refresh token for a new access token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: The refresh token
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user
+      description: Get the authenticated user's profile and organization
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout
+      description: Logout and revoke the current session
+      operationId: logout
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/sessions:
+    get:
+      tags:
+        - Authentication
+      summary: List sessions
+      description: Get all active sessions for the current user
+      operationId: listSessions
+      responses:
+        '200':
+          description: Active sessions list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/sessions/{sessionId}:
+    delete:
+      tags:
+        - Authentication
+      summary: Revoke session
+      description: Revoke a specific session
+      operationId: revokeSession
+      parameters:
+        - $ref: '#/components/parameters/sessionId'
+      responses:
+        '200':
+          description: Session revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/profile:
+    get:
+      tags:
+        - Users
+      summary: Get user profile
+      description: Get the current user's profile
+      operationId: getUserProfile
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      tags:
+        - Users
+      summary: Update user profile
+      description: Update the current user's profile
+      operationId: updateUserProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /organizations:
+    get:
+      tags:
+        - Organizations
+      summary: List organizations
+      description: List all organizations the user is a member of
+      operationId: listOrganizations
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Organizations list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Organizations
+      summary: Create organization
+      description: Create a new organization
+      operationId: createOrganization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Organization created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /organizations/{organizationId}:
+    get:
+      tags:
+        - Organizations
+      summary: Get organization
+      description: Get organization details
+      operationId: getOrganization
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+      responses:
+        '200':
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Organizations
+      summary: Update organization
+      description: Update organization details
+      operationId: updateOrganization
+      parameters:
+        - $ref: '#/components/parameters/organizationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationRequest'
+      responses:
+        '200':
+          description: Organization updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api-keys:
+    get:
+      tags:
+        - API Keys
+      summary: List API keys
+      description: List all API keys for the current user
+      operationId: listApiKeys
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: API keys list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeysListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - API Keys
+      summary: Create API key
+      description: Create a new API key
+      operationId: createApiKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: API key created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCreatedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api-keys/{apiKeyId}:
+    get:
+      tags:
+        - API Keys
+      summary: Get API key
+      description: Get API key details
+      operationId: getApiKey
+      parameters:
+        - $ref: '#/components/parameters/apiKeyId'
+      responses:
+        '200':
+          description: API key details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - API Keys
+      summary: Update API key
+      description: Update API key name or permissions
+      operationId: updateApiKey
+      parameters:
+        - $ref: '#/components/parameters/apiKeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApiKeyRequest'
+      responses:
+        '200':
+          description: API key updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - API Keys
+      summary: Delete API key
+      description: Delete an API key
+      operationId: deleteApiKey
+      parameters:
+        - $ref: '#/components/parameters/apiKeyId'
+      responses:
+        '204':
+          description: API key deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api-keys/{apiKeyId}/usage:
+    get:
+      tags:
+        - API Keys
+      summary: Get API key usage
+      description: Get usage statistics for an API key
+      operationId: getApiKeyUsage
+      parameters:
+        - $ref: '#/components/parameters/apiKeyId'
+        - name: period
+          in: query
+          description: Time period for usage stats
+          schema:
+            type: string
+            enum: [hour, day, week, month]
+            default: day
+      responses:
+        '200':
+          description: API key usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyUsageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /billing/subscription:
+    get:
+      tags:
+        - Billing
+      summary: Get subscription
+      description: Get current subscription details
+      operationId: getSubscription
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Billing
+      summary: Create subscription
+      description: Create a new subscription
+      operationId: createSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Subscription created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      tags:
+        - Billing
+      summary: Update subscription
+      description: Update subscription plan or cancel
+      operationId: updateSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /analytics/overview:
+    get:
+      tags:
+        - Analytics
+      summary: Get analytics overview
+      description: Get AI inference analytics overview with cost and usage metrics
+      operationId: getAnalyticsOverview
+      parameters:
+        - name: timeRange
+          in: query
+          description: Time range for analytics data
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+            default: daily
+        - name: provider
+          in: query
+          description: Filter by AI provider (e.g., OpenAI, Anthropic, Google)
+          schema:
+            type: string
+        - name: model
+          in: query
+          description: Filter by specific AI model
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Analytics overview data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsOverviewResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analytics/config:
+    get:
+      tags:
+        - Analytics
+      summary: Get analytics configuration
+      description: Get current analytics configuration including markup percentage
+      operationId: getAnalyticsConfig
+      responses:
+        '200':
+          description: Analytics configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsConfigResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Analytics
+      summary: Update analytics configuration
+      description: Update analytics configuration such as markup percentage
+      operationId: updateAnalyticsConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAnalyticsConfigRequest'
+      responses:
+        '200':
+          description: Configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /analytics/export:
+    get:
+      tags:
+        - Analytics
+      summary: Export analytics data
+      description: Export analytics data in CSV or JSON format
+      operationId: exportAnalyticsData
+      parameters:
+        - name: timeRange
+          in: query
+          description: Time range for export
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+            default: daily
+        - name: format
+          in: query
+          description: Export format
+          schema:
+            type: string
+            enum: [csv, json]
+            default: csv
+        - name: provider
+          in: query
+          description: Filter by AI provider
+          schema:
+            type: string
+        - name: model
+          in: query
+          description: Filter by specific AI model
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exported analytics data
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: CSV formatted analytics data
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AnalyticsExportEntry'
+          headers:
+            Content-Disposition:
+              description: Attachment filename for download
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /webhooks/workos:
+    post:
+      tags:
+        - Webhooks
+      summary: WorkOS webhook
+      description: Receive webhook events from WorkOS
+      operationId: handleWorkOSWebhook
+      security: []
+      parameters:
+        - name: WorkOS-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: WorkOS webhook signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkOSWebhookEvent'
+      responses:
+        '200':
+          description: Webhook processed successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /webhooks/stripe:
+    post:
+      tags:
+        - Webhooks
+      summary: Stripe webhook
+      description: Receive webhook events from Stripe
+      operationId: handleStripeWebhook
+      security: []
+      parameters:
+        - name: Stripe-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Stripe webhook signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StripeWebhookEvent'
+      responses:
+        '200':
+          description: Webhook processed successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token obtained from login or refresh endpoints
+
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key starting with 'pk_'
+
+  parameters:
+    page:
+      name: page
+      in: query
+      description: Page number (1-based)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    limit:
+      name: limit
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    sessionId:
+      name: sessionId
+      in: path
+      required: true
+      description: Session ID
+      schema:
+        type: string
+
+    organizationId:
+      name: organizationId
+      in: path
+      required: true
+      description: Organization ID
+      schema:
+        type: string
+
+    apiKeyId:
+      name: apiKeyId
+      in: path
+      required: true
+      description: API Key ID
+      schema:
+        type: string
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+
+    ApiResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        error:
+          $ref: '#/components/schemas/Error'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        avatar:
+          type: string
+          format: uri
+        emailVerified:
+          type: boolean
+        lastLoginAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        domain:
+          type: string
+        subscriptionTier:
+          type: string
+          enum: [free, pro, premium, enterprise]
+        maxAgents:
+          type: integer
+        maxUsers:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+        ipAddress:
+          type: string
+        userAgent:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        isActive:
+          type: boolean
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        keyPreview:
+          type: string
+          description: Masked preview of the API key
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeyPermission'
+        organizationId:
+          type: string
+        lastUsedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    ApiKeyPermission:
+      type: object
+      required:
+        - resource
+        - actions
+      properties:
+        resource:
+          type: string
+        actions:
+          type: array
+          items:
+            type: string
+        conditions:
+          type: object
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+        organizationId:
+          type: string
+        tier:
+          type: string
+          enum: [free, pro, premium, enterprise]
+        status:
+          type: string
+          enum: [active, canceled, past_due, trialing]
+        currentPeriodEnd:
+          type: string
+          format: date-time
+        cancelAtPeriodEnd:
+          type: boolean
+        features:
+          type: array
+          items:
+            type: string
+        usage:
+          type: object
+          properties:
+            apiCalls:
+              type: integer
+            storage:
+              type: integer
+            users:
+              type: integer
+
+    AnalyticsOverview:
+      type: object
+      properties:
+        totalRequests:
+          type: integer
+          description: Total number of AI inference requests
+        totalSpent:
+          type: number
+          format: double
+          description: Total cost including markup
+        totalTokens:
+          type: integer
+          description: Total tokens processed
+        averageRequestCost:
+          type: number
+          format: double
+          description: Average cost per request
+        totalBaseCost:
+          type: number
+          format: double
+          description: Total base cost before markup
+        totalMarkup:
+          type: number
+          format: double
+          description: Total markup amount
+        successRate:
+          type: number
+          format: double
+          description: Success rate percentage
+        averageLatency:
+          type: number
+          format: double
+          description: Average latency in milliseconds
+        topProviders:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderUsage'
+        timeSeriesData:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeSeriesEntry'
+        requestsByModel:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelUsage'
+        trends:
+          $ref: '#/components/schemas/AnalyticsTrends'
+
+    ProviderUsage:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Provider name (e.g., OpenAI, Anthropic, Google)
+        requests:
+          type: integer
+          description: Number of requests for this provider
+        spent:
+          type: number
+          format: double
+          description: Total cost for this provider
+        tokens:
+          type: integer
+          description: Total tokens for this provider
+        percentage:
+          type: number
+          format: double
+          description: Percentage of total usage
+
+    ModelUsage:
+      type: object
+      properties:
+        model:
+          type: string
+          description: Model identifier (e.g., OpenAI/gpt-4o-mini)
+        requests:
+          type: integer
+          description: Number of requests for this model
+        spent:
+          type: number
+          format: double
+          description: Total cost for this model
+        tokens:
+          type: integer
+          description: Total tokens for this model
+
+    TimeSeriesEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          description: Date for this data point
+        requests:
+          type: integer
+          description: Number of requests on this date
+        spent:
+          type: number
+          format: double
+          description: Total cost on this date
+        tokens:
+          type: integer
+          description: Total tokens on this date
+
+    AnalyticsTrends:
+      type: object
+      properties:
+        requestsChange:
+          type: number
+          format: double
+          description: Percentage change in requests
+        spentChange:
+          type: number
+          format: double
+          description: Percentage change in spending
+        tokensChange:
+          type: number
+          format: double
+          description: Percentage change in tokens
+
+    AnalyticsConfig:
+      type: object
+      properties:
+        markupPercentage:
+          type: number
+          format: double
+          description: Current markup percentage applied to base costs
+          minimum: 0
+          maximum: 100
+
+    AnalyticsExportEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        requests:
+          type: integer
+        spent:
+          type: number
+          format: double
+        tokens:
+          type: integer
+        averageLatency:
+          type: number
+          format: double
+        averageCostPerRequest:
+          type: number
+          format: double
+        averageTokensPerRequest:
+          type: number
+          format: double
+
+    # Request schemas
+    UpdateUserRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 50
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 50
+        avatar:
+          type: string
+          format: uri
+
+    CreateOrganizationRequest:
+      type: object
+      required:
+        - name
+        - slug
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        slug:
+          type: string
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+          minLength: 3
+          maxLength: 50
+        domain:
+          type: string
+        subscriptionTier:
+          type: string
+          enum: [free, pro, premium, enterprise]
+
+    UpdateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        domain:
+          type: string
+
+    CreateApiKeyRequest:
+      type: object
+      required:
+        - name
+        - permissions
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeyPermission'
+        expiresAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+
+    UpdateApiKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeyPermission'
+
+    CreateSubscriptionRequest:
+      type: object
+      required:
+        - priceId
+      properties:
+        priceId:
+          type: string
+        paymentMethodId:
+          type: string
+
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        priceId:
+          type: string
+        cancelAtPeriodEnd:
+          type: boolean
+
+    UpdateAnalyticsConfigRequest:
+      type: object
+      required:
+        - markupPercentage
+      properties:
+        markupPercentage:
+          type: number
+          format: double
+          description: Markup percentage to apply to base costs
+          minimum: 0
+          maximum: 100
+
+    # Response schemas
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                authUrl:
+                  type: string
+                  format: uri
+                state:
+                  type: string
+
+    AuthCallbackResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+                organization:
+                  $ref: '#/components/schemas/Organization'
+                accessToken:
+                  type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+
+    RefreshTokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                accessToken:
+                  type: string
+                refreshToken:
+                  type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+
+    CurrentUserResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+                organization:
+                  $ref: '#/components/schemas/Organization'
+
+    UserProfileResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/User'
+
+    SessionsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                sessions:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Session'
+
+    OrganizationsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                organizations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Organization'
+
+    OrganizationResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                organization:
+                  $ref: '#/components/schemas/Organization'
+
+    ApiKeysListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                apiKeys:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ApiKey'
+
+    ApiKeyResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                apiKey:
+                  $ref: '#/components/schemas/ApiKey'
+
+    ApiKeyCreatedResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                apiKey:
+                  allOf:
+                    - $ref: '#/components/schemas/ApiKey'
+                    - type: object
+                      properties:
+                        key:
+                          type: string
+                          description: The full API key (only shown once)
+
+    ApiKeyUsageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                usage:
+                  type: object
+                  properties:
+                    totalRequests:
+                      type: integer
+                    requestsByEndpoint:
+                      type: object
+                      additionalProperties:
+                        type: integer
+                    requestsByStatus:
+                      type: object
+                      additionalProperties:
+                        type: integer
+
+    SubscriptionResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                subscription:
+                  $ref: '#/components/schemas/Subscription'
+
+    AnalyticsOverviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AnalyticsOverview'
+
+    AnalyticsConfigResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AnalyticsConfig'
+
+    SuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                message:
+                  type: string
+
+    WorkOSWebhookEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        event:
+          type: string
+        data:
+          type: object
+        created_at:
+          type: string
+
+    StripeWebhookEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        type:
+          type: string
+        data:
+          type: object
+        created:
+          type: integer
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            error:
+              code: VALIDATION_ERROR
+              message: Invalid request data
+              details:
+                - field: email
+                  message: Invalid email format
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            error:
+              code: AUTHENTICATION_REQUIRED
+              message: Authentication is required
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            error:
+              code: INSUFFICIENT_PERMISSIONS
+              message: Insufficient permissions
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            error:
+              code: RESOURCE_NOT_FOUND
+              message: Resource not found
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse'
+          example:
+            success: false
+            error:
+              code: INTERNAL_SERVER_ERROR
+              message: An unexpected error occurred

@@ -864,6 +864,23 @@ class TauriServiceClass {
       callback(event.payload);
     });
   }
+
+  /**
+   * Gracefully shut down the application
+   */
+  async shutdownApplication(): Promise<void> {
+    if (!this.isTauri || !this.tauriInvoke) {
+      throw new Error('Not in Tauri environment');
+    }
+
+    try {
+      console.log('[TauriService] Initiating application shutdown...');
+      await this.tauriInvoke('shutdown_application');
+    } catch (error) {
+      console.error('[TauriService] Failed to shutdown application:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

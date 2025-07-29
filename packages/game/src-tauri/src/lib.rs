@@ -2,7 +2,8 @@
 // This replaces the Node.js backend with a high-performance Rust backend
 
 use std::sync::Arc;
-use tauri::{Manager, State};
+use std::path::PathBuf;
+use tauri::{Manager, State, Emitter};
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
@@ -26,6 +27,9 @@ pub use container::{ContainerManager, HealthMonitor, RuntimeDetectionStatus};
 pub use ipc::commands::*;
 pub use server::{HttpServer, WebSocketHub};
 pub use startup::{AiProvider, StartupManager, StartupStage, StartupStatus, UserConfig};
+
+// Store crash recovery file path
+pub struct CrashFile(PathBuf);
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -816,10 +820,63 @@ pub fn run() {
             stream_media_audio,
             start_agent_screen_capture,
             stop_agent_screen_capture,
+            // Application lifecycle
+            shutdown_application,
 
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");
+
+            // Set up crash recovery file
+            let crash_file = match app.path().app_data_dir() {
+                Ok(dir) => {
+                    // Ensure directory exists
+                    let _ = std::fs::create_dir_all(&dir);
+                    dir.join(".crash_recovery")
+                }
+                Err(e) => {
+                    warn!("Failed to get app data dir for crash recovery: {}", e);
+                    std::env::temp_dir().join("eliza_crash_recovery")
+                }
+            };
+
+            // If crash file exists, we crashed last time
+            if crash_file.exists() {
+                warn!("🚨 Detected previous crash, running recovery...");
+                
+                // Store container manager reference for recovery
+                let recovery_container_manager = match ContainerManager::new(crate::backend::ContainerRuntimeType::Podman) {
+                    Ok(manager) => Some(Arc::new(manager)),
+                    Err(e) => {
+                        warn!("Failed to create container manager for recovery: {}", e);
+                        None
+                    }
+                };
+
+                // Run recovery in blocking context
+                if let Some(manager) = recovery_container_manager {
+                    tauri::async_runtime::block_on(async {
+                        // Stop all containers
+                        let _ = manager.stop_containers().await;
+                        
+                        // Clean up orphaned containers
+                        let _ = manager.cleanup_containers_by_pattern("eliza-").await;
+                        
+                        info!("✅ Crash recovery completed");
+                    });
+                }
+                
+                // Remove crash file
+                let _ = std::fs::remove_file(&crash_file);
+            }
+
+            // Create crash file (removed on clean shutdown)
+            if let Err(e) = std::fs::write(&crash_file, "crashed") {
+                warn!("Failed to create crash recovery file: {}", e);
+            }
+            
+            // Store crash file path for cleanup on shutdown
+            app.manage(CrashFile(crash_file));
 
             // Get resource directory for runtime detection
             let resource_dir = match app.path().resource_dir() {
@@ -863,6 +920,10 @@ pub fn run() {
                     }
                 };
             app.manage(initial_container_manager.clone());
+
+            // Initialize operation lock manager
+            let operation_lock = Arc::new(crate::container::OperationLock::new());
+            app.manage(operation_lock.clone());
 
             // Initialize Native WebSocket client (App Store friendly)
             let native_ws_client = Arc::new(server::websocket::WebSocketClient::new(
@@ -935,15 +996,21 @@ pub fn run() {
                     
                     info!("✅ Agent server is ready, running tests...");
                     
-                    // Run comprehensive runtime tests
+                    // Run comprehensive runtime tests only if explicitly requested
                     drop(manager); // Release the lock before running tests
                     
-                    // NOTE: run_all_tests will call std::process::exit(1) on test failure
-                    // This ensures the app doesn't start with failing tests
-                    if let Err(e) = crate::tests::run_all_tests(app_handle_clone.clone()).await {
-                        // This code is unreachable if tests fail (app exits), but handles other errors
-                        error!("❌ Runtime tests error: {}", e);
-                        std::process::exit(1);
+                    if std::env::var("RUN_TAURI_TESTS").unwrap_or_default() == "true" {
+                        info!("🧪 RUN_TAURI_TESTS=true detected, running runtime tests...");
+                        
+                        // NOTE: run_all_tests will call std::process::exit(1) on test failure
+                        // This ensures the app doesn't start with failing tests
+                        if let Err(e) = crate::tests::run_all_tests(app_handle_clone.clone()).await {
+                            // This code is unreachable if tests fail (app exits), but handles other errors
+                            error!("❌ Runtime tests error: {}", e);
+                            std::process::exit(1);
+                        }
+                    } else {
+                        info!("🚀 Skipping runtime tests (set RUN_TAURI_TESTS=true to run them)");
                     }
                 }
 
@@ -1003,11 +1070,16 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 if let Some(main_window) = app.get_webview_window("main") {
+                    let app_handle = app.handle().clone();
                     main_window.on_window_event(move |event| {
-                        if let tauri::WindowEvent::CloseRequested { .. } = event {
-                            info!("App closing - containers will continue running for development");
-                            // Note: We intentionally do not stop containers here to avoid tokio runtime panic
-                            // Containers can be stopped manually if needed, or will be cleaned up by podman
+                        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                            info!("Close requested - initiating graceful shutdown");
+                            
+                            // Prevent the default close behavior
+                            api.prevent_close();
+                            
+                            // Emit an event to trigger the shutdown process
+                            let _ = app_handle.emit("request-shutdown", ());
                         }
                     });
                 }

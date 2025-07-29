@@ -27,6 +27,9 @@ async function build() {
       format: 'esm',
       outfile: path.join(__dirname, '..', 'dist', 'server.js'),
       external: [
+        // File compression libraries - have native dependencies
+        'adm-zip',
+        'archiver',
         // Canvas has native dependencies that can't be bundled
         'canvas',
         'pino-pretty',

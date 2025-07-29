@@ -2,7 +2,7 @@ import type { IAgentRuntime } from '@elizaos/core';
 import { Service, logger } from '@elizaos/core';
 import { StagehandProcessManager } from './process-manager.js';
 import { StagehandServiceType } from './types';
-import { StagehandClient } from './websocket-client.js';
+import { StagehandWebSocketClient } from './websocket-client.js';
 
 export class BrowserSession {
   constructor(
@@ -18,14 +18,14 @@ export class StagehandService extends Service {
   private sessions: Map<string, BrowserSession> = new Map();
   private currentSessionId: string | null = null;
   private processManager: StagehandProcessManager;
-  private client: StagehandClient;
+  private client: StagehandWebSocketClient;
   private isInitialized = false;
 
   constructor(protected runtime: IAgentRuntime) {
     super(runtime);
     const port = parseInt(runtime.getSetting('STAGEHAND_SERVER_PORT') || '3456', 10);
     this.processManager = new StagehandProcessManager(port);
-    this.client = new StagehandClient({ serverUrl: `ws://localhost:${port}` });
+    this.client = new StagehandWebSocketClient(`ws://localhost:${port}`);
   }
 
   static async start(runtime: IAgentRuntime) {
@@ -82,7 +82,11 @@ export class StagehandService extends Service {
       throw new Error('Stagehand service not initialized');
     }
 
-    const serverSessionId = await this.client.createSession();
+    const response = await this.client.sendMessage('createSession', {});
+    const serverSessionId = response.data?.sessionId;
+    if (!serverSessionId) {
+      throw new Error('Failed to create session on server');
+    }
     const session = new BrowserSession(serverSessionId);
     this.sessions.set(sessionId, session);
     this.currentSessionId = sessionId;
@@ -101,10 +105,22 @@ export class StagehandService extends Service {
     return this.sessions.get(this.currentSessionId);
   }
 
+  async getOrCreateSession(): Promise<BrowserSession> {
+    // Try to get current session first
+    const currentSession = await this.getCurrentSession();
+    if (currentSession) {
+      return currentSession;
+    }
+
+    // Create a new session if none exists
+    const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    return this.createSession(sessionId);
+  }
+
   async destroySession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (session) {
-      await this.client.destroySession(session.id);
+      await this.client.sendMessage('destroySession', { sessionId: session.id });
       this.sessions.delete(sessionId);
       if (this.currentSessionId === sessionId) {
         this.currentSessionId = null;
@@ -112,7 +128,7 @@ export class StagehandService extends Service {
     }
   }
 
-  getClient(): StagehandClient {
+  getClient(): StagehandWebSocketClient {
     if (!this.isInitialized) {
       throw new Error('Stagehand service not initialized');
     }

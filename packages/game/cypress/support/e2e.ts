@@ -14,6 +14,7 @@
 // ***********************************************************
 
 // Import commands.js using ES2015 syntax:
+import './commands';
 import './test-commands';
 
 // Global configuration

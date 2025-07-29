@@ -250,13 +250,31 @@ export const runShellCommandAction: Action = {
           'bash',
           'zsh',
           'sh',
+          // Windows commands
+          'dir',
+          'type',
+          'copy',
+          'move',
+          'del',
+          'erase',
+          'md',
+          'rd',
+          'rmdir',
+          'xcopy',
+          'powershell',
+          'cmd',
+          'ipconfig',
+          'ping',
+          'tracert',
+          'nslookup',
         ];
         const firstWord = directCommand.split(' ')[0];
 
         if (
           commonShellCommands.includes(firstWord) ||
           directCommand.startsWith('./') ||
-          directCommand.startsWith('/')
+          directCommand.startsWith('/') ||
+          /^[a-zA-Z]:\\/.test(directCommand) // Windows absolute paths like C:\
         ) {
           commandToRun = directCommand;
         } else {
