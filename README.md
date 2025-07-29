@@ -92,8 +92,8 @@ For Windows, this means you will need WSL. https://podman.io/docs/installation
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/elizaos/eliza.git
-cd eliza
+git clone https://github.com/elizaos/classified.git
+cd classified
 ```
 
 2. Install dependencies:
