@@ -10,7 +10,6 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import { createWriteStream } from 'fs';
-import { mkdir } from 'fs/promises';
 import { readFileSync } from 'fs';
 
 // Get the directory name for ES modules
@@ -87,7 +86,7 @@ async function startBackend() {
       try {
         const logContent = readFileSync(join(__dirname, 'backend.log'), 'utf8');
         console.log('Last output:', logContent.slice(-500));
-      } catch (err) {
+      } catch {
         console.log('Could not read backend log');
       }
 
@@ -104,7 +103,7 @@ async function startBackend() {
           console.log(`${colors.green}✓ Backend started successfully${colors.reset}`);
           resolve();
         }
-      } catch (error) {
+      } catch {
         process.stdout.write('.');
       }
     }, 1000);
@@ -154,7 +153,12 @@ async function startFrontend() {
         resolve();
       } else {
         console.log(`\n${colors.red}✗ Frontend failed to start${colors.reset}`);
-        console.log('Last output:', output.slice(-500));
+        try {
+          const logContent = readFileSync(join(__dirname, 'frontend.log'), 'utf8');
+          console.log('Last output:', logContent.slice(-500));
+        } catch {
+          console.log('Could not read frontend log');
+        }
         reject(new Error('Frontend failed to start'));
       }
     });

@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/eliza-game
+  IMAGE_NAME: ${{ github.repository }}/eliza-agent
 
 jobs:
   build-and-push:
@@ -57,7 +57,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: packages/game/src-backend/Dockerfile
+          file: packages/agentserver/Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}

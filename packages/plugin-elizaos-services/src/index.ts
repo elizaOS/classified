@@ -88,14 +88,6 @@ function getSetting(
   return runtime.getSetting(key) ?? process.env[key] ?? defaultValue;
 }
 
-function getAPIUrl(runtime: IAgentRuntime): string {
-  return getSetting(runtime, 'ELIZAOS_API_URL', 'https://api.elizaos.ai') as string;
-}
-
-function getAPIKey(runtime: IAgentRuntime): string | undefined {
-  return getSetting(runtime, 'ELIZAOS_API_KEY');
-}
-
 function getStorageConfig(runtime: IAgentRuntime) {
   return {
     endpoint: getSetting(runtime, 'ELIZAOS_STORAGE_ENDPOINT'),

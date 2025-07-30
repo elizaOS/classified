@@ -9,7 +9,7 @@
   "scripts": {
     "start": "turbo run start --filter=./packages/game",
     "dev": "turbo run dev --filter=./packages/game",
-    "build": "turbo run build --filter=!@elizaos/game",
+    "build": "CI=true turbo run build --filter=!@elizaos/game",
     "test": "turbo run test --concurrency 3",
     "lint": "turbo run lint --filter=./packages/* && prettier --check .",
     "lint:fix": "turbo run lint:fix --filter=./packages/* && prettier --write .",

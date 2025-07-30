@@ -59,7 +59,7 @@ async function testAPI() {
       return;
     }
 
-    const selectData = await selectResponse.json();
+    await selectResponse.json();
     console.log('✅ Set selected provider successful');
     console.log('');
 
@@ -77,7 +77,7 @@ async function testAPI() {
       return;
     }
 
-    const prefData = await prefResponse.json();
+    await prefResponse.json();
     console.log('✅ Set preferences successful');
     console.log('');
 
@@ -108,7 +108,7 @@ async function checkServer() {
     } else {
       console.log(`❌ Server responded with ${response.status}: ${response.statusText}`);
     }
-  } catch (error) {
+  } catch {
     console.log('❌ Cannot connect to server');
     console.log('💡 Make sure the agent server is running on port 3000');
     console.log('   Run: bun run dev');

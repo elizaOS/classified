@@ -12,6 +12,7 @@
     "build:backend": "cd ../agentserver && bun scripts/build.js",
     "build:ci": "cd ../agentserver && bun scripts/build.js && cd ../game && vite build",
     "build:tauri": "vite build && cd src-tauri && cargo tauri build",
+    "tauri": "cd src-tauri && cargo tauri",
     "clean": "cd ../agentserver && bun run clean",
     "test:open": "cypress open",
     "test": "./run-all-tests.sh",

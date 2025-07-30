@@ -245,40 +245,42 @@ async function initializeProviders(runtime: IAgentRuntime) {
   }
 
   // Initialize all providers in parallel, but handle failures gracefully
-  const initPromises = Array.from(state.providers.entries()).map(async ([providerName, providerInfo]) => {
-    // Skip local_embedding as it's already initialized above
-    if (providerName === InferenceProvider.LOCAL_EMBEDDING) {
-      return;
-    }
-    
-    try {
-      // First, try to initialize the plugin
-      if (providerInfo.plugin.init) {
-        try {
-          await providerInfo.plugin.init(providerInfo.plugin.config || {}, runtime);
-          logger.debug(`[INFERENCE] Successfully initialized ${providerName}`);
-        } catch (initError) {
-          // If init fails, mark as error but don't throw
-          logger.warn(`[INFERENCE] Failed to initialize ${providerName}:`, initError);
-          providerInfo.status = 'error';
-          providerInfo.message =
-            initError instanceof Error ? initError.message : 'Initialization failed';
-          return; // Continue with next provider
-        }
+  const initPromises = Array.from(state.providers.entries()).map(
+    async ([providerName, providerInfo]) => {
+      // Skip local_embedding as it's already initialized above
+      if (providerName === InferenceProvider.LOCAL_EMBEDDING) {
+        return;
       }
 
-      // Then check if it's valid
-      const isValid = await checkProviderValidity(runtime, providerName, providerInfo);
-      providerInfo.status = isValid ? 'available' : 'not_configured';
-      providerInfo.message = isValid ? 'Ready' : getProviderConfigMessage(providerName);
+      try {
+        // First, try to initialize the plugin
+        if (providerInfo.plugin.init) {
+          try {
+            await providerInfo.plugin.init(providerInfo.plugin.config || {}, runtime);
+            logger.debug(`[INFERENCE] Successfully initialized ${providerName}`);
+          } catch (initError) {
+            // If init fails, mark as error but don't throw
+            logger.warn(`[INFERENCE] Failed to initialize ${providerName}:`, initError);
+            providerInfo.status = 'error';
+            providerInfo.message =
+              initError instanceof Error ? initError.message : 'Initialization failed';
+            return; // Continue with next provider
+          }
+        }
 
-      logger.info(`[INFERENCE] Provider ${providerName}: ${providerInfo.status}`);
-    } catch (error) {
-      logger.error(`[INFERENCE] Error checking provider ${providerName}:`, error);
-      providerInfo.status = 'error';
-      providerInfo.message = error instanceof Error ? error.message : 'Unknown error';
+        // Then check if it's valid
+        const isValid = await checkProviderValidity(runtime, providerName, providerInfo);
+        providerInfo.status = isValid ? 'available' : 'not_configured';
+        providerInfo.message = isValid ? 'Ready' : getProviderConfigMessage(providerName);
+
+        logger.info(`[INFERENCE] Provider ${providerName}: ${providerInfo.status}`);
+      } catch (error) {
+        logger.error(`[INFERENCE] Error checking provider ${providerName}:`, error);
+        providerInfo.status = 'error';
+        providerInfo.message = error instanceof Error ? error.message : 'Unknown error';
+      }
     }
-  });
+  );
 
   // Wait for all providers to initialize (failures won't stop the process)
   await Promise.allSettled(initPromises);
@@ -303,7 +305,7 @@ async function initializeProviders(runtime: IAgentRuntime) {
   const availableProviders = Array.from(state.providers.entries())
     .filter(([_, info]) => info.status === 'available')
     .map(([name, _]) => name);
-  
+
   if (availableProviders.length === 0) {
     logger.warn('[INFERENCE] No providers are available. Please configure at least one provider.');
   } else {
@@ -450,10 +452,12 @@ async function routeToProvider<T>(
   // Check if the provider supports this model type
   if (!provider.plugin.models || !provider.plugin.models[modelType]) {
     // Try to find another provider that supports this model type
-    logger.warn(`Provider ${provider.name} does not support model type ${modelType}, searching for alternative...`);
-    
+    logger.warn(
+      `Provider ${provider.name} does not support model type ${modelType}, searching for alternative...`
+    );
+
     await initializeProviders(runtime);
-    
+
     // Search through all available providers for one that supports this model type
     for (const providerName of state.preferences) {
       const alternativeProvider = state.providers.get(providerName);
@@ -463,7 +467,9 @@ async function routeToProvider<T>(
         alternativeProvider.plugin.models &&
         alternativeProvider.plugin.models[modelType]
       ) {
-        logger.info(`[INFERENCE] Found alternative provider ${providerName} for model type ${modelType}`);
+        logger.info(
+          `[INFERENCE] Found alternative provider ${providerName} for model type ${modelType}`
+        );
         try {
           return await alternativeProvider.plugin.models[modelType](runtime, params);
         } catch (error) {
@@ -472,7 +478,7 @@ async function routeToProvider<T>(
         }
       }
     }
-    
+
     // If no provider supports this model type, throw an error
     throw new Error(`No available provider supports model type ${modelType}`);
   }
@@ -567,16 +573,15 @@ export async function setProviderPreferences(
  */
 export const inferencePlugin: Plugin = {
   name: 'inference',
-  description:
-    'Dynamic model provider routing with automatic fallback and cascade initialization',
+  description: 'Dynamic model provider routing with automatic fallback and cascade initialization',
   priority: -1, // Lower priority to ensure it loads after other model providers
 
   async init(_config, runtime) {
     logger.info('[INFERENCE] Initializing inference plugin...');
-    
+
     // Ensure local embedding is initialized for embedding support
     await initializeProviders(runtime);
-    
+
     logger.info('[INFERENCE] Inference plugin initialized successfully');
   },
 

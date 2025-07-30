@@ -34,7 +34,6 @@ export const visionDescribeAction: Action = {
   ],
   handler: async (runtime: IAgentRuntime, memory: Memory, state?: State): Promise<ActionResult> => {
     const { model = 'cogvlm' } = state?.values || {};
-    const input = memory.content;
     const visionService = runtime.getService<VisionService>('vision');
     if (!visionService) {
       return { success: false, error: 'Vision service not available' };
@@ -45,11 +44,11 @@ export const visionDescribeAction: Action = {
       success: true,
       data: {
         description: 'Image description would go here',
-        model: model,
+        model,
       },
     };
   },
-  validate: async (runtime: IAgentRuntime, memory: Memory) => {
+  validate: async () => {
     return true;
   },
 };
@@ -297,7 +296,6 @@ export const visionAnalyzeAction: Action = {
   ],
   handler: async (runtime: IAgentRuntime, memory: Memory, state?: State): Promise<ActionResult> => {
     const { operation = 'identify', model = 'cogvlm' } = state?.values || {};
-    const input = memory.content;
     const visionService = runtime.getService<VisionService>('vision');
     if (!visionService) {
       return { success: false, error: 'Vision service not available' };
@@ -308,11 +306,11 @@ export const visionAnalyzeAction: Action = {
       success: true,
       data: {
         result: `Analysis result for operation: ${operation}`,
-        model: model,
+        model,
       },
     };
   },
-  validate: async (runtime: IAgentRuntime, memory: Memory) => {
+  validate: async () => {
     return true;
   },
 };

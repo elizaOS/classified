@@ -124,7 +124,6 @@ export function createAgentCrudRouter(
       }
 
       if (character.settings && character.settings.secrets) {
-        const salt = getSalt();
         if (
           typeof character.settings.secrets === 'object' &&
           character.settings.secrets !== null &&
@@ -190,7 +189,6 @@ export function createAgentCrudRouter(
 
     try {
       if (updates.settings?.secrets) {
-        const salt = getSalt();
         const encryptedSecrets: Record<string, string | null> = {};
         for (const [key, value] of Object.entries(updates.settings.secrets)) {
           if (typeof value === 'string') {

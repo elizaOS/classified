@@ -344,7 +344,7 @@ describe('Full Integration', () => {
 
       requests.forEach((request) => {
         request
-          .then((response) => {
+          .then(() => {
             successful++;
             completed++;
             if (completed === requests.length) {

@@ -248,7 +248,7 @@ describe('Backend API', () => {
         cy.sendMessage({
           text: `Pagination test message ${i}`,
           userId: 'pagination-user',
-          roomId: roomId,
+          roomId,
           messageId: `msg-${Date.now()}-${i}`,
         });
       }

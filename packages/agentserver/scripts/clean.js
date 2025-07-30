@@ -5,4 +5,4 @@
 import { cleanContainerCache } from './build-all.js';
 
 // Run the clean function
-await cleanContainerCache(); 
+await cleanContainerCache();

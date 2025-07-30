@@ -1059,12 +1059,14 @@ async function testStagehandConnection(runtime: IAgentRuntime): Promise<void> {
     let service: StagehandService | null = null;
     let retries = 0;
     const maxRetries = 5;
-    
+
     while (!service && retries < maxRetries) {
       service = runtime.getService<StagehandService>(StagehandService.serviceType);
       if (!service) {
         if (retries === maxRetries - 1) {
-          logger.warn('[Stagehand] Service not available after retries. The plugin may not be fully initialized.');
+          logger.warn(
+            '[Stagehand] Service not available after retries. The plugin may not be fully initialized.'
+          );
           return;
         }
         const waitTime = Math.pow(2, retries) * 1000; // Exponential backoff: 1s, 2s, 4s, 8s, 16s
@@ -1147,7 +1149,7 @@ export const stagehandPlugin: Plugin = {
       let testScheduled = false;
       const scheduleTest = async () => {
         if (testScheduled) return;
-        
+
         // Check if runtime has the service available
         const service = runtime.getService<StagehandService>(StagehandService.serviceType);
         if (service) {

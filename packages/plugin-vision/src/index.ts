@@ -21,6 +21,8 @@ export const visionPlugin: Plugin = {
   actions: [
     // Scene analysis enabled for informational purposes
     visionDescribeAction,
+    // Vision analysis for OCR and object detection
+    visionAnalyzeAction,
     // Image capture disabled by default (privacy-sensitive)
     captureImageAction,
     // Vision mode setting enabled for configuration

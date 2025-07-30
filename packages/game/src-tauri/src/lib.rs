@@ -435,24 +435,49 @@ async fn get_available_providers() -> Result<serde_json::Value, String> {
         "data": {
             "providers": [
                 {
+                    "name": "ollama",
+                    "display_name": "Ollama (Local)",
+                    "enabled": true,
+                    "requires_api_key": false,
+                    "status": "available",
+                    "message": "Run models locally on your machine"
+                },
+                {
                     "name": "openai",
                     "display_name": "OpenAI",
                     "enabled": true,
-                    "requires_api_key": true
+                    "requires_api_key": true,
+                    "status": "available",
+                    "message": "GPT-4, GPT-3.5 and other OpenAI models"
                 },
                 {
                     "name": "anthropic",
                     "display_name": "Anthropic",
                     "enabled": true,
-                    "requires_api_key": true
+                    "requires_api_key": true,
+                    "status": "available",
+                    "message": "Claude 3.5 Sonnet, Haiku and other models"
                 },
                 {
-                    "name": "ollama",
-                    "display_name": "Ollama (Local)",
+                    "name": "groq",
+                    "display_name": "Groq",
                     "enabled": true,
-                    "requires_api_key": false
+                    "requires_api_key": true,
+                    "status": "available",
+                    "message": "Ultra-fast inference with Groq Cloud"
+                },
+                {
+                    "name": "elizaos",
+                    "display_name": "ElizaOS Cloud",
+                    "enabled": true,
+                    "requires_api_key": true,
+                    "status": "available",
+                    "message": "Managed AI models by ElizaOS"
                 }
-            ]
+            ],
+            "active": "ollama",
+            "selected": null,
+            "preferences": ["ollama", "openai", "anthropic", "groq", "elizaos"]
         }
     }))
 }
@@ -825,6 +850,8 @@ pub fn run() {
             fetch_logs,
             // Health check
             health_check,
+            // Ollama model recommendations
+            get_ollama_recommendations,
             connect_native_websocket,
             disconnect_native_websocket,
             reconnect_native_websocket,

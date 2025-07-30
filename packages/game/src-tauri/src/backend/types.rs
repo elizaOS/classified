@@ -89,12 +89,17 @@ impl HealthCheckConfig {
             command: vec![
                 "sh".to_string(),
                 "-c".to_string(),
-                "curl -f -s http://localhost:11434/api/version || exit 1".to_string(),
+                // Use wget instead of curl as it's more likely to be available
+                // Also try multiple methods to check Ollama health
+                "wget -q -O - http://localhost:11434/api/version || \
+                 curl -f -s http://localhost:11434/api/version || \
+                 (echo 'GET /api/version HTTP/1.0\r\n\r\n' | nc localhost 11434 | grep -q 'HTTP/1.1 200') || \
+                 exit 1".to_string(),
             ],
-            interval_seconds: 15,  // Increased from 10
-            timeout_seconds: 10,   // Increased from 5
-            retries: 5,           // Increased from 3
-            start_period_seconds: 60,  // Increased from 30 to give Ollama more time to start
+            interval_seconds: 20,  // Increased to give more time between checks
+            timeout_seconds: 15,   // Increased timeout
+            retries: 10,          // More retries as Ollama can be slow to start
+            start_period_seconds: 90,  // Give Ollama plenty of time to initialize
         }
     }
 

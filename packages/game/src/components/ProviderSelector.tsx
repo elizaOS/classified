@@ -66,7 +66,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({ onProviderCh
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const response = await invoke<any>('set_selected_provider', {
-        provider: provider,
+        provider,
       });
       if (response.success) {
         await fetchProviders(); // Refresh status
@@ -76,23 +76,6 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({ onProviderCh
       }
     } catch (err) {
       console.error('Failed to set provider:', err);
-    }
-  };
-
-  // Update preferences
-  const handlePreferenceChange = async (preferences: string[]) => {
-    if (!isTauri) return;
-    
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const response = await invoke<any>('set_provider_preferences', {
-        preferences,
-      });
-      if (response.success) {
-        await fetchProviders(); // Refresh status
-      }
-    } catch (err) {
-      console.error('Failed to set preferences:', err);
     }
   };
 

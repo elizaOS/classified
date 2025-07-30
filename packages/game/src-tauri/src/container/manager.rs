@@ -314,6 +314,20 @@ impl ContainerManager {
         );
         self.memory_limits = Some(limits);
     }
+    
+    /// Get current port configuration
+    pub async fn get_port_config(&self) -> PortConfig {
+        self.port_config.read().await.clone()
+    }
+    
+    /// Update port configuration
+    pub async fn update_port_config(&self, config: PortConfig) {
+        info!(
+            "Updating port configuration - PostgreSQL: {}, Ollama: {}, Agent: {}",
+            config.postgres_port, config.ollama_port, config.agent_port
+        );
+        *self.port_config.write().await = config;
+    }
 
     /// Starts a `PostgreSQL` container with default configuration.
     ///
@@ -481,6 +495,36 @@ impl ContainerManager {
         }
 
         Ok(None)
+    }
+
+    /// Check Ollama health directly via API
+    pub async fn check_ollama_health_direct(&self) -> BackendResult<bool> {
+        let port_config = self.port_config.read().await;
+        let ollama_port = port_config.ollama_port;
+        
+        // Try to connect to Ollama API directly
+        let client = reqwest::Client::new();
+        let url = format!("http://localhost:{}/api/version", ollama_port);
+        
+        match client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => {
+                info!("✅ Direct Ollama health check passed on port {}", ollama_port);
+                Ok(true)
+            }
+            Ok(response) => {
+                warn!("❌ Ollama API returned status: {}", response.status());
+                Ok(false)
+            }
+            Err(e) => {
+                warn!("❌ Failed to connect to Ollama on port {}: {}", ollama_port, e);
+                Ok(false)
+            }
+        }
     }
 
     /// Check if an Ollama model is already downloaded
@@ -2689,11 +2733,6 @@ impl ContainerManager {
                 Ok(String::from_utf8_lossy(&output.stdout).to_string())
             }
         }
-    }
-
-    /// Get the current port configuration
-    pub async fn get_port_config(&self) -> PortConfig {
-        self.port_config.read().await.clone()
     }
 }
 

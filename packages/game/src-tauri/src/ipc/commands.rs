@@ -841,4 +841,117 @@ pub async fn shutdown_application(
     Ok(())
 }
 
+// System and Ollama model recommendations
+#[tauri::command]
+pub async fn get_ollama_recommendations() -> Result<serde_json::Value, String> {
+    use crate::startup::MemoryConfig;
+    
+    info!("Getting Ollama model recommendations based on system specs");
+    
+    // Get system memory info
+    let memory_config = MemoryConfig::calculate();
+    let total_memory_gb = memory_config.total_system_memory_mb as f64 / 1024.0;
+    
+    // Define model recommendations based on memory
+    let mut recommended_models = vec![];
+    let mut available_models = vec![];
+    
+    // Define model requirements (model_name, min_memory_gb, description)
+    let model_specs = vec![
+        ("llama3.2:1b", 2.0, "Smallest Llama 3.2 model, fast responses"),
+        ("llama3.2:3b", 4.0, "Default model, good balance of speed and quality"),
+        ("llama3.1:8b", 8.0, "Latest Llama 3.1 with improved performance"),
+        ("mixtral:8x7b", 32.0, "Mixture of experts model, very capable"),
+        ("llama3.1:70b", 40.0, "Large model for high-end systems"),
+    ];
+    
+    // Try to get actual Ollama models if available
+    let ollama_models = match get_ollama_models_list().await {
+        Ok(models) => models,
+        Err(e) => {
+            warn!("Failed to fetch Ollama models: {}, using defaults", e);
+            vec![]
+        }
+    };
+    
+    // Categorize models based on system memory
+    for (model, min_memory, description) in &model_specs {
+        let model_info = serde_json::json!({
+            "name": model,
+            "description": description,
+            "min_memory_gb": min_memory,
+            "recommended": total_memory_gb >= *min_memory,
+            "installed": ollama_models.contains(&model.to_string()),
+        });
+        
+        if total_memory_gb >= *min_memory {
+            recommended_models.push(model_info.clone());
+        }
+        available_models.push(model_info);
+    }
+    
+    // Sort recommended models by memory requirement (ascending)
+    recommended_models.sort_by(|a, b| {
+        let a_mem = a["min_memory_gb"].as_f64().unwrap_or(0.0);
+        let b_mem = b["min_memory_gb"].as_f64().unwrap_or(0.0);
+        a_mem.partial_cmp(&b_mem).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    
+    Ok(serde_json::json!({
+        "success": true,
+        "system_info": {
+            "total_memory_gb": total_memory_gb,
+            "total_memory_mb": memory_config.total_system_memory_mb,
+            "recommended_memory_mb": memory_config.podman_machine_memory_mb,
+            "has_sufficient_memory": memory_config.has_sufficient_memory,
+        },
+        "recommended_models": recommended_models,
+        "all_models": available_models,
+        "default_model": if total_memory_gb >= 4.0 { "llama3.2:3b" } else { "llama3.2:1b" },
+        "installed_models": ollama_models,
+    }))
+}
+
+// Helper function to get list of installed Ollama models
+async fn get_ollama_models_list() -> Result<Vec<String>, String> {
+    use tokio::process::Command;
+    
+    // Try to get models from containerized Ollama
+    let output = match Command::new("podman")
+        .args(["exec", "eliza-ollama", "ollama", "list"])
+        .output()
+        .await
+    {
+        Ok(output) => output,
+        Err(_) => {
+            // Fallback to docker if podman fails
+            Command::new("docker")
+                .args(["exec", "eliza-ollama", "ollama", "list"])
+                .output()
+                .await
+                .map_err(|e| format!("Failed to list Ollama models: {}", e))?
+        }
+    };
+    
+    if !output.status.success() {
+        return Err("Failed to execute ollama list command".to_string());
+    }
+    
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    let models: Vec<String> = output_str
+        .lines()
+        .skip(1) // Skip header line
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if !parts.is_empty() {
+                Some(parts[0].to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    Ok(models)
+}
+
 

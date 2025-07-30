@@ -281,22 +281,87 @@ impl StartupManager {
                             warn!("Failed to ensure network exists: {}", e);
                         }
                         
+                        // Check if we need to clean up existing Ollama container
+                        match manager.get_container_status(OLLAMA_CONTAINER).await {
+                            Ok(status) => {
+                                if !matches!(status.health, crate::backend::HealthStatus::Healthy) {
+                                    warn!("Found unhealthy Ollama container, attempting cleanup...");
+                                    if let Err(e) = manager.stop_container(OLLAMA_CONTAINER).await {
+                                        warn!("Failed to stop unhealthy Ollama: {}", e);
+                                    }
+                                    // Wait a bit for cleanup
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                                }
+                            }
+                            Err(_) => {
+                                // No container exists, which is fine
+                            }
+                        }
+                        
                         // Start our Ollama on eliza-network
                         match manager.start_ollama().await {
                             Ok(_) => {
                                 info!("✅ Containerized Ollama started successfully on eliza-network");
                                 
-                                // Wait for health check
-                                if let Err(e) = manager.wait_for_container_health(OLLAMA_CONTAINER, std::time::Duration::from_secs(60)).await {
-                                    error!("Ollama health check failed: {}", e);
-                                    self.update_status(
-                                        StartupStage::Error,
-                                        0,
-                                        "Ollama startup failed",
-                                        &format!("Failed to start AI model server: {}", e),
-                                    )
-                                    .await;
-                                    return Err(e);
+                                // Wait for health check with retries
+                                let mut health_check_attempts = 0;
+                                let max_attempts = 3;
+                                let mut ollama_healthy = false;
+                                
+                                while health_check_attempts < max_attempts && !ollama_healthy {
+                                    health_check_attempts += 1;
+                                    info!("Waiting for Ollama health check (attempt {}/{})", health_check_attempts, max_attempts);
+                                    
+                                    match manager.wait_for_container_health(OLLAMA_CONTAINER, std::time::Duration::from_secs(90)).await {
+                                        Ok(_) => {
+                                            ollama_healthy = true;
+                                        }
+                                        Err(e) => {
+                                            warn!("Ollama health check failed (attempt {}): {}", health_check_attempts, e);
+                                            
+                                            if health_check_attempts < max_attempts {
+                                                // Try to diagnose the issue
+                                                info!("Attempting to diagnose Ollama startup issue...");
+                                                
+                                                // Check if the container is actually running
+                                                if let Ok(status) = manager.get_container_status(OLLAMA_CONTAINER).await {
+                                                    info!("Ollama container state: {:?}, health: {:?}", status.state, status.health);
+                                                    
+                                                    // If container crashed, try to restart
+                                                    if matches!(status.state, crate::backend::ContainerState::Stopped | crate::backend::ContainerState::Error) {
+                                                        warn!("Ollama container crashed, attempting restart...");
+                                                        if let Err(e) = manager.restart_container(OLLAMA_CONTAINER).await {
+                                                            error!("Failed to restart Ollama: {}", e);
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                // Wait before retry
+                                                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                if !ollama_healthy {
+                                    // Try direct health check as a fallback
+                                    info!("Container health check failed, trying direct API check...");
+                                    match manager.check_ollama_health_direct().await {
+                                        Ok(true) => {
+                                            info!("✅ Direct Ollama health check passed, continuing despite container health check failure");
+                                        }
+                                        _ => {
+                                            error!("Ollama failed to become healthy after {} attempts", max_attempts);
+                                            self.update_status(
+                                                StartupStage::Error,
+                                                0,
+                                                "Ollama startup failed",
+                                                "Failed to start AI model server. Try restarting the application.",
+                                            )
+                                            .await;
+                                            return Err(BackendError::Container("Ollama health check failed after multiple attempts".to_string()));
+                                        }
+                                    }
                                 }
                                 
                                 // Pull models

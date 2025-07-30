@@ -2,7 +2,6 @@
 
 import { KnowledgeTestHelper } from './knowledge-helpers';
 import { DatabaseTestHelper } from './database-helpers';
-import { UUID } from '@elizaos/core';
 
 /**
  * Custom Cypress Commands
@@ -66,7 +65,7 @@ declare global {
        * @example cy.sendMessage('Hello, agent!')
        * @example cy.sendMessage({ text: 'Hello', userId: 'user123', roomId: 'room456' })
        */
-      sendMessage(content: string, roomId?: string, agentId?: string): Chainable<any>;
+      sendMessage(content: string, roomId?: string): Chainable<any>;
       sendMessage(message: { text: string; userId?: string; roomId?: string; messageId?: string }): Chainable<any>;
 
       /**
@@ -130,9 +129,8 @@ Cypress.Commands.add('waitForElizaClient', () => {
 // Custom command to send message via API
 Cypress.Commands.add(
   'sendMessage',
-  (contentOrMessage: string | { text: string; userId?: string; roomId?: string; messageId?: string }, roomId?: string, agentId?: string) => {
+  (contentOrMessage: string | { text: string; userId?: string; roomId?: string; messageId?: string }, roomId?: string) => {
     const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
-    const DEFAULT_AGENT_ID = '15aec527-fb92-0792-91b6-becd4fac5050';
     
     let message: { text: string; userId: string; roomId: string; messageId?: string };
     
@@ -140,14 +138,14 @@ Cypress.Commands.add(
     if (typeof contentOrMessage === 'string') {
       message = {
         text: contentOrMessage,
-        userId: 'test-user-' + Date.now(),
+        userId: `test-user-${  Date.now()}`,
         roomId: roomId || '00000000-0000-0000-0000-000000000001',
         messageId: Date.now().toString(),
       };
     } else {
       message = {
         text: contentOrMessage.text,
-        userId: contentOrMessage.userId || 'test-user-' + Date.now(),
+        userId: contentOrMessage.userId || `test-user-${  Date.now()}`,
         roomId: contentOrMessage.roomId || '00000000-0000-0000-0000-000000000001',
         messageId: contentOrMessage.messageId || Date.now().toString(),
       };

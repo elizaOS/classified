@@ -35,7 +35,7 @@ services:
     build:
       context: ../..
       dockerfile: packages/agentserver/Dockerfile
-    container_name: eliza-agentserver
+    container_name: eliza-agent
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,6 +61,7 @@ services:
     volumes:
       - ./knowledge:/app/knowledge
       - ./data:/app/data
+      - ./downloads:/app/downloads
     restart: unless-stopped
     healthcheck:
       test: ['CMD-SHELL', 'curl -f http://localhost:7777/health || exit 1']

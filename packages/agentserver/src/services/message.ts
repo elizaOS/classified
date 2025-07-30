@@ -539,8 +539,10 @@ export class MessageBusService extends Service {
 
       const callbackForCentralBus = async (responseContent: Content): Promise<Memory[]> => {
         // Check if this is just a processing notification, not an actual response
-        if (responseContent.metadata?.type === 'processing-notification' || 
-            responseContent.metadata?.isProcessing === true) {
+        if (
+          responseContent.metadata?.type === 'processing-notification' ||
+          responseContent.metadata?.isProcessing === true
+        ) {
           logger.debug(
             `[${this.runtime.character.name}] Skipping processing notification, not sending to bus`
           );

@@ -349,9 +349,7 @@ describe('Inference Plugin', () => {
       // Should have an active provider
       expect(status.active).toBeTruthy();
       // Default preferences are now without local_embedding
-      expect(['ollama', 'groq', 'elizaos', 'openai', 'anthropic']).toContain(
-        status.active
-      );
+      expect(['ollama', 'groq', 'elizaos', 'openai', 'anthropic']).toContain(status.active);
     });
 
     it('should respect custom preferences order', async () => {

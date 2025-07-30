@@ -9,6 +9,7 @@ import { InputValidator, SecurityLogger } from '../utils/SecurityUtils';
 import { ContainerLogs } from './ContainerLogs';
 import { AgentLogs } from './AgentLogs';
 import { ProviderSelector } from './ProviderSelector';
+import { OllamaModelSelector } from './OllamaModelSelector';
 import {
   checkScreenCaptureCapabilities,
   getScreenCaptureErrorMessage,
@@ -1709,9 +1710,11 @@ export const GameInterface: React.FC = () => {
                       }}
                       data-testid="model-provider-select"
                     >
+                      <option value="ollama">Ollama (Local)</option>
                       <option value="openai">OpenAI</option>
                       <option value="anthropic">Anthropic</option>
-                      <option value="ollama">Ollama</option>
+                      <option value="groq">Groq</option>
+                      <option value="elizaos">ElizaOS Cloud</option>
                     </select>
                   </div>
                 )}
@@ -1817,21 +1820,88 @@ export const GameInterface: React.FC = () => {
                         data-testid="ollama-server-url-input"
                       />
                     </div>
+                    <OllamaModelSelector
+                      value={configValues.environment?.LANGUAGE_MODEL || ''}
+                      onChange={(model) =>
+                        updatePluginConfig('environment', 'LANGUAGE_MODEL', model)
+                      }
+                    />
+                  </>
+                )}
+
+                {/* Groq Configuration */}
+                {configValues.environment?.MODEL_PROVIDER === 'groq' && (
+                  <>
+                    <div className="config-item">
+                      <label>Groq API Key</label>
+                      <input
+                        type="password"
+                        className="config-input"
+                        value={configValues.environment?.GROQ_API_KEY || ''}
+                        placeholder={
+                          pluginConfigs.environment?.GROQ_API_KEY === '***SET***'
+                            ? 'Currently Set'
+                            : 'Enter Groq API Key'
+                        }
+                        onChange={(e) =>
+                          updatePluginConfig('environment', 'GROQ_API_KEY', e.target.value)
+                        }
+                        data-testid="groq-api-key-input"
+                      />
+                    </div>
                     <div className="config-item">
                       <label>Model</label>
-                      <input
-                        type="text"
-                        className="config-input"
-                        value={configValues.environment?.LANGUAGE_MODEL || 'llama3.2:3b'}
-                        placeholder="llama3.2:3b"
+                      <select
+                        className="config-select"
+                        value={configValues.environment?.LANGUAGE_MODEL || 'llama-3.1-70b-versatile'}
                         onChange={(e) =>
                           updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
                         }
-                        data-testid="ollama-model-input"
+                        data-testid="groq-model-select"
+                      >
+                        <option value="llama-3.1-70b-versatile">Llama 3.1 70B</option>
+                        <option value="llama-3.1-8b-instant">Llama 3.1 8B (Fast)</option>
+                        <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+                        <option value="gemma2-9b-it">Gemma 2 9B</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {/* ElizaOS Configuration */}
+                {configValues.environment?.MODEL_PROVIDER === 'elizaos' && (
+                  <>
+                    <div className="config-item">
+                      <label>ElizaOS API Key</label>
+                      <input
+                        type="password"
+                        className="config-input"
+                        value={configValues.environment?.ELIZAOS_API_KEY || ''}
+                        placeholder={
+                          pluginConfigs.environment?.ELIZAOS_API_KEY === '***SET***'
+                            ? 'Currently Set'
+                            : 'Enter ElizaOS API Key'
+                        }
+                        onChange={(e) =>
+                          updatePluginConfig('environment', 'ELIZAOS_API_KEY', e.target.value)
+                        }
+                        data-testid="elizaos-api-key-input"
                       />
-                      <small style={{ color: '#888', fontSize: '10px', marginTop: '4px' }}>
-                        Enter the model name as it appears in your Ollama installation
-                      </small>
+                    </div>
+                    <div className="config-item">
+                      <label>Model</label>
+                      <select
+                        className="config-select"
+                        value={configValues.environment?.LANGUAGE_MODEL || 'gpt-4o-mini'}
+                        onChange={(e) =>
+                          updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
+                        }
+                        data-testid="elizaos-model-select"
+                      >
+                        <option value="gpt-4o-mini">GPT-4o Mini (ElizaOS)</option>
+                        <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (ElizaOS)</option>
+                        <option value="gpt-4o">GPT-4o (ElizaOS)</option>
+                      </select>
                     </div>
                   </>
                 )}
@@ -2139,7 +2209,7 @@ export const GameInterface: React.FC = () => {
           setTimeout(() => {
             mockSocket.emit('message', {
               id: Date.now().toString(),
-              content: 'Mock response to: ' + message.content,
+              content: `Mock response to: ${  message.content}`,
               author: 'ELIZA',
               timestamp: Date.now(),
             });

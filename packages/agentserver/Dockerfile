@@ -146,6 +146,16 @@ COPY --from=stagehand-builder --chown=eliza:eliza /stagehand/package*.json /app/
 # Copy node_modules for the stagehand server
 COPY --from=stagehand-builder --chown=eliza:eliza /stagehand/node_modules /app/stagehand-server/node_modules/
 
+# Create downloads directory for Stagehand with proper permissions
+RUN mkdir -p /app/stagehand-server/downloads && chown -R eliza:eliza /app/stagehand-server
+
+# Ensure node_modules has write permissions for Stagehand to create directories at runtime
+RUN chmod -R 755 /app/stagehand-server/node_modules
+
+# Create downloads directory where Stagehand expects it
+RUN mkdir -p /app/stagehand-server/node_modules/@browserbasehq/stagehand/downloads && \
+    chown -R eliza:eliza /app/stagehand-server/node_modules/@browserbasehq
+
 # Copy Playwright browsers from the correct location
 COPY --from=stagehand-builder --chown=eliza:eliza /root/.cache/ms-playwright /home/eliza/.cache/ms-playwright
 
@@ -186,6 +196,12 @@ exec "$@"' > /app/start-with-display.sh && \
     chmod +x /app/start-with-display.sh && \
     chown eliza:eliza /app/start-with-display.sh
 
+# Create necessary directories with proper ownership (as root)
+RUN mkdir -p /app/downloads && chown -R eliza:eliza /app/downloads
+
+# Switch to eliza user
+USER eliza
+
 # Set environment variables
 ENV NODE_ENV=production \
     PORT=7777 \
@@ -203,10 +219,8 @@ ENV NODE_ENV=production \
     BROWSER_HEADLESS=true \
     PLAYWRIGHT_BROWSERS_PATH=/home/eliza/.cache/ms-playwright \
     LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
-    NODE_PATH=/app/node_modules
-
-# Switch to non-root user
-USER eliza
+    NODE_PATH=/app/node_modules \
+    STAGEHAND_DOWNLOADS_PATH=/app/downloads
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
