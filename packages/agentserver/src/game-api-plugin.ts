@@ -2612,7 +2612,7 @@ const gameAPIRoutes: Route[] = [
           console.log('[API] Published message to internal message bus:', createdMessage.id);
         }
 
-        res.json({
+        res.status(201).json({
           success: true,
           data: { messageId: createdMessage.id },
         });
