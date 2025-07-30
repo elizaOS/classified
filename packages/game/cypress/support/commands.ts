@@ -35,10 +35,62 @@ declare global {
       toggleCapability(capability: string): Chainable<void>;
       getCapabilityStatus(capability: string): Chainable<boolean>;
 
+      // Message Helpers
+      sendMessage(message: {
+        text: string;
+        userId: string;
+        roomId: string;
+        messageId?: string;
+      }): Chainable<Cypress.Response<any>>;
+
       // Database Helpers
       authenticateDb(username?: string, password?: string): Chainable<string>;
       getDbTables(): Chainable<any[]>;
       cleanupDbTestRecords(tableName: string, searchPattern?: string): Chainable<void>;
+
+      /**
+       * Custom command to wait for backend to be ready
+       * @example cy.waitForBackend()
+       */
+      waitForBackend(): Chainable<void>;
+
+      /**
+       * Custom command to wait for elizaClient to be initialized
+       * @example cy.waitForElizaClient()
+       */
+      waitForElizaClient(): Chainable<void>;
+
+      /**
+       * Custom command to send a message via API
+       * @example cy.sendMessage('Hello, agent!')
+       * @example cy.sendMessage({ text: 'Hello', userId: 'user123', roomId: 'room456' })
+       */
+      sendMessage(content: string, roomId?: string): Chainable<any>;
+      sendMessage(message: { text: string; userId?: string; roomId?: string; messageId?: string }): Chainable<any>;
+
+      /**
+       * Custom command to search knowledge base
+       * @example cy.searchKnowledge('search query')
+       */
+      searchKnowledge(query: string, count?: number): Chainable<any[]>;
+
+      /**
+       * Custom command to delete a knowledge document
+       * @example cy.deleteKnowledgeDocument('doc-id')
+       */
+      deleteKnowledgeDocument(documentId: string): Chainable<void>;
+
+      /**
+       * Custom command to cleanup knowledge test data
+       * @example cy.cleanupKnowledgeTests()
+       */
+      cleanupKnowledgeTests(): Chainable<void>;
+
+      /**
+       * Custom command to wait for document processing
+       * @example cy.waitForDocumentProcessing('doc-id')
+       */
+      waitForDocumentProcessing(documentId: string, timeout?: number): Chainable<void>;
     }
   }
 }
@@ -53,64 +105,83 @@ Cypress.Commands.add('setupTestEnvironment', () => {
   cy.task('setupTestEnvironment');
 });
 
-Cypress.Commands.add('waitForBackend', (_timeout = 30000) => {
-  cy.log('Waiting for backend to be ready...');
-
-  const checkBackend = (retries = 6) => {
-    if (retries <= 0) {
-      throw new Error('Backend failed to respond after 30 seconds');
-    }
-
-    cy.request({
-      method: 'GET',
-      url: 'http://localhost:7777/api/server/health',
-      failOnStatusCode: false,
-      timeout: 5000,
-    }).then((response) => {
-      if (response.status === 200 && response.body.data?.status === 'healthy') {
-        cy.log('✅ Backend is ready!');
-      } else {
-        cy.log(`⏳ Backend not ready (status: ${response.status}), retrying...`);
-        cy.wait(5000);
-        checkBackend(retries - 1);
-      }
-    });
-  };
-
-  checkBackend();
-});
-
-Cypress.Commands.add('clearTestData', () => {
-  cy.log('Clearing test data');
-  cy.task('clearTestData');
-});
-
-Cypress.Commands.add('seedTestData', () => {
-  cy.log('Seeding test data');
-  cy.task('seedTestData');
-});
-
-Cypress.Commands.add('bypassBoot', () => {
-  cy.window().then((win) => {
-    win.localStorage.setItem('skipBoot', 'true');
-    win.localStorage.setItem('skipStartup', 'true');
+// Custom command to wait for backend to be ready
+Cypress.Commands.add('waitForBackend', () => {
+  cy.request({
+    method: 'GET',
+    url: `${Cypress.env('BACKEND_URL') || 'http://localhost:7777'}/api/server/health`,
+    retryOnStatusCodeFailure: true,
+    retryOnNetworkFailure: true,
+    timeout: 30000,
+  }).then(() => {
+    cy.log('✅ Backend is ready!');
   });
 });
 
-Cypress.Commands.add('setupApiKey', (provider: 'openai' | 'anthropic', key: string) => {
-  cy.visit('/');
-  cy.contains('ELIZA OS Configuration', { timeout: 40000 });
-
-  if (provider === 'anthropic') {
-    cy.get('select#modelProvider').select('anthropic');
-    cy.get('input#anthropicKey').type(key);
-  } else {
-    cy.get('input#openaiKey').type(key);
-  }
-
-  cy.get('button').contains('Continue').click();
-  cy.wait(3000);
+// Custom command to wait for elizaClient to be initialized
+Cypress.Commands.add('waitForElizaClient', () => {
+  cy.window().should((win: any) => {
+    expect(win.elizaClient).to.exist;
+    expect(win.elizaClient.socket).to.exist;
+  });
 });
+
+// Custom command to send message via API
+Cypress.Commands.add(
+  'sendMessage',
+  (contentOrMessage: string | { text: string; userId?: string; roomId?: string; messageId?: string }, roomId?: string) => {
+    const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
+    
+    let message: { text: string; userId: string; roomId: string; messageId?: string };
+    
+    // Handle both string and object formats
+    if (typeof contentOrMessage === 'string') {
+      message = {
+        text: contentOrMessage,
+        userId: `test-user-${  Date.now()}`,
+        roomId: roomId || '00000000-0000-0000-0000-000000000001',
+        messageId: Date.now().toString(),
+      };
+    } else {
+      message = {
+        text: contentOrMessage.text,
+        userId: contentOrMessage.userId || `test-user-${  Date.now()}`,
+        roomId: contentOrMessage.roomId || '00000000-0000-0000-0000-000000000001',
+        messageId: contentOrMessage.messageId || Date.now().toString(),
+      };
+    }
+
+    const headers: any = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add API key if configured
+    const apiKey = Cypress.env('ELIZA_SERVER_AUTH_TOKEN');
+    if (apiKey) {
+      headers['X-API-KEY'] = apiKey;
+    }
+
+    return cy.request({
+      method: 'POST',
+      url: `${BACKEND_URL}/api/messaging/ingest-external`,
+      body: {
+        channel_id: message.roomId,
+        server_id: '00000000-0000-0000-0000-000000000000',
+        author_id: message.userId,
+        author_display_name: message.userId,
+        content: message.text,
+        source_type: 'test',
+        raw_message: { text: message.text, messageId: message.messageId },
+        metadata: {
+          test: true,
+          originalMessageId: message.messageId,
+        },
+      },
+      headers,
+      failOnStatusCode: false,
+    });
+  }
+);
 
 // UI Helper Commands
 Cypress.Commands.add('elementExists', (selector: string) => {
@@ -132,19 +203,19 @@ Cypress.Commands.add(
 );
 
 Cypress.Commands.add('searchKnowledge', (query: string, count?: number) => {
-  return cy.wrap(knowledgeHelper.search(query, count));
+  return knowledgeHelper.search(query, count);
 });
 
 Cypress.Commands.add('deleteKnowledgeDocument', (documentId: string) => {
-  return cy.wrap(knowledgeHelper.deleteDocument(documentId));
+  return knowledgeHelper.deleteDocument(documentId);
 });
 
 Cypress.Commands.add('cleanupKnowledgeTests', () => {
-  return cy.wrap(knowledgeHelper.cleanupTestDocuments());
+  return knowledgeHelper.cleanupTestDocuments();
 });
 
 Cypress.Commands.add('waitForDocumentProcessing', (documentId: string, timeout?: number) => {
-  return cy.wrap(knowledgeHelper.waitForDocumentProcessing(documentId, timeout));
+  return knowledgeHelper.waitForDocumentProcessing(documentId, timeout);
 });
 
 // Capability Management Commands

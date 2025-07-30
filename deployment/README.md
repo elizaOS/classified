@@ -75,6 +75,7 @@ Configure these in your GitHub repository settings:
 - `MS_PUBLISHER`
 - `MS_PUBLISHER_DISPLAY`
 - `MS_TENANT_ID`
+- `MS_SELLER_ID`
 - `MS_CLIENT_ID`
 - `MS_CLIENT_SECRET`
 - `MS_PRODUCT_ID`

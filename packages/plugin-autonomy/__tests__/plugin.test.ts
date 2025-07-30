@@ -108,7 +108,7 @@ describe('Autonomy Plugin Tests', () => {
     });
 
     it('should have correct service metadata', () => {
-      expect(AutonomyService.serviceType).toBe('autonomy');
+      expect(AutonomyService.serviceType).toBe('AUTONOMOUS');
     });
   });
 
@@ -200,7 +200,7 @@ describe('Autonomy Plugin Tests', () => {
 
     it('should have consistent naming', () => {
       expect(autonomyPlugin.name).toBe('autonomy');
-      expect(AutonomyService.serviceType).toBe('autonomy');
+      expect(AutonomyService.serviceType).toBe('AUTONOMOUS');
       expect(adminChatProvider.name).toBe('ADMIN_CHAT_HISTORY');
       expect(autonomyStatusProvider.name).toBe('AUTONOMY_STATUS');
       expect(sendToAdminAction.name).toBe('SEND_TO_ADMIN');
@@ -247,14 +247,14 @@ describe('Autonomy Plugin Tests', () => {
       // Check initial status
       let status = service.getStatus();
       expect(status.enabled).toBe(false);
-      expect(status.interval).toBe(30000);
+      expect(status.interval).toBe(1000);
 
       // Enable and check status
       await service.enableAutonomy();
       status = service.getStatus();
       expect(status.enabled).toBe(true);
       expect(status.running).toBe(true);
-      expect(status.interval).toBe(30000);
+      expect(status.interval).toBe(1000);
 
       // Clean up
       await service.stop();

@@ -172,7 +172,7 @@ describe('SAM Service Integration', () => {
   });
 
   it('should have correct service type', () => {
-    expect(SamTTSService.serviceType).toBe('samTTS');
+    expect(SamTTSService.serviceType).toBe('SAM_TTS');
   });
 
   it('should stop service cleanly', async () => {

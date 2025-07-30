@@ -29,6 +29,9 @@ export class MessageHandler {
 
     try {
       switch (type) {
+        case 'health':
+          return this.handleHealth(requestId);
+          
         case 'createSession':
           return await this.handleCreateSession(requestId, clientId);
 
@@ -371,6 +374,18 @@ export class MessageHandler {
       requestId,
       success: false,
       error: 'Session not found',
+    };
+  }
+
+  private handleHealth(requestId: string): Response {
+    return {
+      type: 'health',
+      requestId,
+      success: true,
+      data: {
+        status: 'ok',
+        message: 'Stagehand server is running',
+      }
     };
   }
 }

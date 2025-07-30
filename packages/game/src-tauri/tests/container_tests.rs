@@ -4,4 +4,5 @@ mod container {
     mod ollama_test;
     mod postgres_test;
     mod concurrent_start_test;
+    mod runtime_compatibility_test;
 } 

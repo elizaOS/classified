@@ -1,12 +1,24 @@
 #!/bin/bash
 
-# Create a podman network if it doesn't exist
-podman network create eliza-network 2>/dev/null || true
+# Detect container runtime (Podman first, then Docker)
+if command -v podman &> /dev/null; then
+    RUNTIME="podman"
+elif command -v docker &> /dev/null && docker info &> /dev/null; then
+    RUNTIME="docker"
+else
+    echo "❌ Neither Podman nor Docker found. Please install Podman or Docker."
+    exit 1
+fi
+
+echo "🐳 Using container runtime: $RUNTIME"
+
+# Create a network if it doesn't exist
+$RUNTIME network create eliza-network 2>/dev/null || true
 
 # Run PostgreSQL container if not already running
-if ! podman ps | grep -q eliza-postgres; then
+if ! $RUNTIME ps | grep -q eliza-postgres; then
     echo "Starting PostgreSQL container..."
-    podman run -d \
+    $RUNTIME run -d \
         --name eliza-postgres \
         --network eliza-network \
         -e POSTGRES_USER=eliza \
@@ -23,7 +35,7 @@ fi
 
 # Run the ElizaOS agent container
 echo "Starting ElizaOS agent container..."
-podman run -it \
+$RUNTIME run -it \
     --rm \
     --name eliza-agent \
     --network eliza-network \

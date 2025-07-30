@@ -1,18 +1,22 @@
 // FIXME: @elizaos/core/test-utils not properly exported in build - commenting out imports until core issue is resolved
 import { describe, it, expect } from 'bun:test';
 import { todosProvider } from '../providers/todos';
-// import { createMockRuntime } from '@elizaos/core/test-utils';
+import { createMockRuntime } from './test-utils';
 import type { IAgentRuntime, Memory, State, UUID } from '@elizaos/core';
+import { ChannelType } from '@elizaos/core';
 
 describe('todosProvider', () => {
   let mockRuntime: IAgentRuntime;
   let mockState: State;
 
   const setupMocks = () => {
-    // @ts-expect-error - test mock
     mockRuntime = createMockRuntime({
-      worldId: 'world-1' as UUID,
-      getRoom: () => Promise.resolve({ worldId: 'world-1' }),
+      getRoom: (_roomId: UUID) => Promise.resolve({
+        id: 'room-1' as UUID,
+        source: 'TEST',
+        type: ChannelType.DM,
+        worldId: 'world-1' as UUID
+      }),
       db: null, // Will cause data service to handle gracefully
     });
 

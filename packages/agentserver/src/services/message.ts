@@ -538,6 +538,17 @@ export class MessageBusService extends Service {
       }
 
       const callbackForCentralBus = async (responseContent: Content): Promise<Memory[]> => {
+        // Check if this is just a processing notification, not an actual response
+        if (
+          responseContent.metadata?.type === 'processing-notification' ||
+          responseContent.metadata?.isProcessing === true
+        ) {
+          logger.debug(
+            `[${this.runtime.character.name}] Skipping processing notification, not sending to bus`
+          );
+          return [];
+        }
+
         logger.info(
           `[${this.runtime.character.name}] Agent generated response for message. Preparing to send back to bus.`
         );

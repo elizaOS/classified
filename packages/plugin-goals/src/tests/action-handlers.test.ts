@@ -55,9 +55,10 @@ describe('Goal Action Handlers', () => {
       expect(createGoalAction.examples).toHaveLength(5);
     });
 
-    it('should always validate successfully', async () => {
+    it('should validate based on service availability', async () => {
+      // Without service, validation should fail
       const result = await createGoalAction.validate(mockRuntime, mockMessage);
-      expect(result).toBe(true);
+      expect(result).toBe(false);
     });
 
     it('should handle missing database gracefully', async () => {
@@ -77,7 +78,7 @@ describe('Goal Action Handlers', () => {
 
       const actionResult = result as any;
       expect(actionResult.values.success).toBe(false);
-      expect(actionResult.values.error).toBe('Failed to understand goal');
+      expect(actionResult.values.error).toBe('Goal tracking is not available at the moment.');
     });
   });
 

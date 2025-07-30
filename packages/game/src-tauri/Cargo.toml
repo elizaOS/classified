@@ -62,8 +62,17 @@ tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 # File system utilities
 walkdir = "2"
 
+# Text processing
+regex = "1.10"
+
 # System information
 sysinfo = "0.31"
 
 # Directory utilities
 dirs = "5.0"
+
+# Backup and compression dependencies
+flate2 = "1.0"
+sha2 = "0.10"
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+async-trait = "0.1"

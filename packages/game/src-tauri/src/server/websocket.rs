@@ -321,14 +321,14 @@ impl WebSocketClient {
         *self.connection_state.write().await = ConnectionState::Connecting;
 
         // Parse WebSocket URL
-        let ws_url = if url.starts_with("http://localhost:7777") {
-            "ws://localhost:7777/ws".to_string()
+        let ws_url = if url.starts_with("ws://") || url.starts_with("wss://") {
+            url.to_string()
         } else if url.starts_with("http://") {
             url.replace("http://", "ws://")
         } else if url.starts_with("https://") {
             url.replace("https://", "wss://")
         } else {
-            url.to_string()
+            format!("ws://{}", url)
         };
 
         info!("📡 Attempting WebSocket connection to: {}", ws_url);

@@ -46,7 +46,7 @@
   },
   "peerDependencies": {},
   "devDependencies": {
-    "@elizaos/cli": "^1.2.12",
+    "@elizaos/cli": "workspace:*",
     "@types/bun": "^1.2.18",
     "@types/uuid": "^10.0.0",
     "dotenv": "^17.2.0",

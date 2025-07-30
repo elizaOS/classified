@@ -8,7 +8,7 @@ export class PostgresConnectionManager {
 
   constructor(connectionString: string) {
     this.pool = new Pool({ connectionString });
-    this.db = drizzle(this.pool as any);
+    this.db = drizzle(this.pool as any, { casing: 'snake_case' });
   }
 
   public getDatabase(): NodePgDatabase {

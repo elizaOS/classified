@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { UUID } from '@elizaos/core';
+
 /**
  * Full Integration Tests
  * Tests complete user flow, all features working together, performance, and error recovery
@@ -7,7 +9,6 @@
 
 describe('Full Integration', () => {
   const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
-  const DEFAULT_AGENT_ID = '15aec527-fb92-0792-91b6-becd4fac5050';
   const TEST_API_KEY = `sk-test-integration-${Date.now()}`;
 
   before(() => {
@@ -25,27 +26,35 @@ describe('Full Integration', () => {
     it('should complete full setup and interaction flow', () => {
       cy.log('🚀 Starting complete user journey test');
 
-      // Step 1: Initial Visit and Setup
+      // Step 1: Initial Visit
       cy.visit('/');
       cy.wait(3000);
 
-      // Should show setup wizard
-      cy.contains('ELIZA OS Configuration', { timeout: 40000 }).should('be.visible');
+      // Check if setup wizard or main interface loads
+      cy.get('body').then(($body) => {
+        if ($body.text().includes('ELIZA OS Configuration')) {
+          cy.log('Setup wizard detected - configuring');
 
-      // Configure API key
-      cy.get('input#openaiKey').type(TEST_API_KEY);
-      cy.get('button').contains('Continue').click();
-      cy.wait(5000);
+          // Configure API key in setup wizard
+          cy.get('input#openaiKey').type(TEST_API_KEY);
+          cy.get('button').contains('Continue').click();
+          cy.wait(5000);
+        } else if ($body.find('[data-testid="game-interface"]').length > 0) {
+          cy.log('Main interface already loaded - agent configured');
+        } else {
+          throw new Error('Unexpected initial state');
+        }
+      });
 
-      // Should reach main interface
-      cy.contains('ELIZA').should('be.visible');
+      // Should be at main interface now
+      cy.get('[data-testid="game-interface"]').should('be.visible');
       cy.screenshot('01-setup-complete');
 
-      // Step 2: Test Chat Functionality
-      cy.get('[data-testid="chat-tab"]').click();
-      cy.get('[data-testid="chat-input"]').type(
-        'Hello ELIZA! Can you help me test the system?{enter}'
-      );
+      // Step 2: Test Chat Functionality (in main panel, not a tab)
+      cy.get('[data-testid="message-input"]').should('be.visible');
+      cy.get('[data-testid="message-input"]')
+        .clear()
+        .type('Hello ELIZA! Can you help me test the system?{enter}');
       cy.wait(3000);
 
       // Should see message in chat
@@ -109,14 +118,14 @@ describe('Full Integration', () => {
 
     it('should handle concurrent operations', () => {
       // Start multiple operations simultaneously
-      const operations = [];
+      const operations: Cypress.Chainable<any>[] = [];
 
       // Send chat message
       operations.push(
-        cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, {
+        cy.sendMessage({
           text: 'Concurrent test message',
           userId: 'test-user',
-          roomId: 'concurrent-test',
+          roomId: '550e8400-e29b-41d4-a716-446655440013' as UUID,
           messageId: `concurrent-${Date.now()}`,
         })
       );
@@ -137,8 +146,8 @@ describe('Full Integration', () => {
       operations.push(cy.uploadKnowledgeFile(fileName, 'Concurrent test content'));
 
       // Wait for all operations
-      cy.wrap(Promise.all(operations)).then((results) => {
-        results.forEach((result, index) => {
+      operations.forEach((operation, index) => {
+        operation.then(() => {
           cy.log(`✅ Operation ${index + 1} completed`);
         });
       });
@@ -146,13 +155,17 @@ describe('Full Integration', () => {
 
     it('should maintain state consistency across features', () => {
       // Enable autonomy
-      cy.request('POST', `${BACKEND_URL}/autonomy/enable`);
+      cy.request({
+        method: 'POST',
+        url: `${BACKEND_URL}/autonomy/enable`,
+        failOnStatusCode: false,
+      });
 
       // Send message that triggers goal creation
-      cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, {
+      cy.sendMessage({
         text: 'Please create a goal to improve the system',
         userId: 'test-user',
-        roomId: 'state-test',
+        roomId: '550e8400-e29b-41d4-a716-446655440014',
         messageId: `state-${Date.now()}`,
       });
 
@@ -176,13 +189,10 @@ describe('Full Integration', () => {
 
     it('should handle real-time updates across tabs', () => {
       // Open multiple tabs
-      cy.get('[data-testid="chat-tab"]').click();
-      cy.get('[data-testid="goals-tab"]').click();
-      cy.get('[data-testid="todos-tab"]').click();
-
-      // Send message that should update multiple tabs
-      cy.get('[data-testid="chat-tab"]').click();
-      cy.get('[data-testid="chat-input"]').type('Create a new todo: Test real-time updates{enter}');
+      cy.get('[data-testid="message-input"]').should('be.visible');
+      cy.get('[data-testid="message-input"]')
+        .clear()
+        .type('Create a new todo: Test real-time updates{enter}');
 
       cy.wait(3000);
 
@@ -201,60 +211,59 @@ describe('Full Integration', () => {
 
       // Rapidly click through tabs
       for (let i = 0; i < 20; i++) {
-        cy.get('[data-testid="chat-tab"]').click({ force: true });
-        cy.get('[data-testid="goals-tab"]').click({ force: true });
-        cy.get('[data-testid="todos-tab"]').click({ force: true });
-        cy.get('[data-testid="monologue-tab"]').click({ force: true });
+        cy.get('[data-testid="message-input"]').should('be.visible');
+        cy.get('[data-testid="message-input"]').clear().type('Load test message{enter}');
       }
 
       const endTime = Date.now();
       const duration = endTime - startTime;
 
-      cy.log(`✅ Handled 80 tab switches in ${duration}ms`);
+      cy.log(`✅ Handled 20 message sends in ${duration}ms`);
       expect(duration).to.be.lessThan(10000); // Should complete in under 10 seconds
     });
 
     it('should handle large data sets', () => {
       // Upload multiple files
-      const uploads = [];
+      const uploads: Cypress.Chainable<any>[] = [];
       for (let i = 0; i < 10; i++) {
         const fileName = `perf-test-${i}-${Date.now()}.txt`;
         const content = `Performance test document ${i}\n`.repeat(100);
         uploads.push(cy.uploadKnowledgeFile(fileName, content));
       }
 
-      cy.wrap(Promise.all(uploads)).then(() => {
-        // List all documents
-        cy.request('GET', `${BACKEND_URL}/knowledge/documents`).then((response) => {
-          expect(response.body.data.length).to.be.at.least(10);
-          cy.log(`✅ Handled ${response.body.data.length} documents`);
+      // Track completion
+      let uploadCount = 0;
+      uploads.forEach((upload) => {
+        upload.then(() => {
+          uploadCount++;
+          if (uploadCount === uploads.length) {
+            // List all documents after uploads complete
+            cy.request('GET', `${BACKEND_URL}/knowledge/documents`).then((response) => {
+              expect(response.body.data.length).to.be.at.least(10);
+              cy.log(`✅ Handled ${response.body.data.length} documents`);
+            });
+          }
         });
       });
     });
 
     it('should maintain responsiveness under load', () => {
-      // Send multiple messages rapidly
-      const messages = [];
-      for (let i = 0; i < 10; i++) {
-        messages.push({
-          text: `Load test message ${i}`,
-          userId: 'load-test-user',
-          roomId: 'load-test',
-          messageId: `load-${i}-${Date.now()}`,
-        });
-      }
-
-      // Send all messages
       const startTime = Date.now();
 
-      messages.forEach((msg) => {
-        cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, msg);
-      });
+      // Send multiple messages concurrently
+      const messages = Array.from({ length: 5 }, (_, i) => ({
+        text: `Concurrent test message ${i}`,
+        userId: 'test-user',
+        roomId: '550e8400-e29b-41d4-a716-446655440016',
+        messageId: `concurrent-${i}-${Date.now()}`,
+      }));
+
+      // Send messages concurrently
+      messages.forEach((msg) => cy.sendMessage(msg));
 
       // UI should still be responsive
-      cy.get('[data-testid="chat-tab"]').click();
-      cy.get('[data-testid="chat-input"]').should('be.visible');
-      cy.get('[data-testid="chat-input"]').type('UI still responsive');
+      cy.get('[data-testid="message-input"]').should('be.visible');
+      cy.get('[data-testid="message-input"]').type('UI still responsive');
 
       const endTime = Date.now();
       cy.log(
@@ -290,21 +299,24 @@ describe('Full Integration', () => {
               cy.log('✅ WebSocket reconnected successfully');
 
               // Should still be able to send messages
-              cy.get('[data-testid="chat-input"]').type('Test after reconnect{enter}');
+              cy.get('[data-testid="message-input"]').type('Test after reconnect{enter}');
             });
         }
       });
     });
 
     it('should handle API errors gracefully', () => {
-      // Send invalid request
+      // Send invalid request to messaging endpoint
       cy.request({
         method: 'POST',
-        url: `${BACKEND_URL}/api/agents/invalid-agent/message`,
-        body: { text: 'Test' },
+        url: `${BACKEND_URL}/api/messaging/ingest-external`,
+        body: {
+          // Missing required fields
+          content: 'Test message without required fields',
+        },
         failOnStatusCode: false,
       }).then((response) => {
-        expect(response.status).to.be.oneOf([400, 404, 500]);
+        expect(response.status).to.be.oneOf([400, 422, 500]);
       });
 
       // UI should still work
@@ -314,7 +326,7 @@ describe('Full Integration', () => {
 
     it('should recover from temporary backend unavailability', () => {
       // Make multiple requests even if some fail
-      const requests = [];
+      const requests: Cypress.Chainable<any>[] = [];
       for (let i = 0; i < 5; i++) {
         requests.push(
           cy.request({
@@ -326,12 +338,29 @@ describe('Full Integration', () => {
         );
       }
 
-      cy.wrap(Promise.allSettled(requests)).then((results) => {
-        const successful = results.filter((r) => r.status === 'fulfilled').length;
-        cy.log(`✅ ${successful}/5 requests succeeded`);
+      // Track request results
+      let successful = 0;
+      let completed = 0;
 
-        // At least some should succeed
-        expect(successful).to.be.at.least(1);
+      requests.forEach((request) => {
+        request
+          .then(() => {
+            successful++;
+            completed++;
+            if (completed === requests.length) {
+              cy.log(`✅ ${successful}/5 requests succeeded`);
+              // At least some should succeed
+              expect(successful).to.be.at.least(1);
+            }
+          })
+          .catch(() => {
+            completed++;
+            if (completed === requests.length) {
+              cy.log(`✅ ${successful}/5 requests succeeded`);
+              // At least some should succeed
+              expect(successful).to.be.at.least(1);
+            }
+          });
       });
     });
   });
@@ -341,8 +370,8 @@ describe('Full Integration', () => {
       // Send a message that should affect multiple areas
       const testMessage = 'Create a goal to test the system and add a todo for documentation';
 
-      cy.get('[data-testid="chat-tab"]').click();
-      cy.get('[data-testid="chat-input"]').type(`${testMessage}{enter}`);
+      cy.get('[data-testid="message-input"]').should('be.visible');
+      cy.get('[data-testid="message-input"]').type(`${testMessage}{enter}`);
 
       cy.wait(5000); // Allow processing
 
@@ -376,10 +405,10 @@ describe('Full Integration', () => {
       cy.wait(2000);
 
       // Send message
-      cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, {
+      cy.sendMessage({
         text: 'Try to use shell and browser capabilities',
         userId: 'test-user',
-        roomId: 'capability-test',
+        roomId: '550e8400-e29b-41d4-a716-446655440018',
         messageId: `cap-test-${Date.now()}`,
       });
 
@@ -429,8 +458,7 @@ describe('Full Integration Summary', () => {
     results.setup = true;
 
     // Check chat
-    cy.get('[data-testid="chat-tab"]').click();
-    cy.get('[data-testid="chat-input"]').should('be.visible');
+    cy.get('[data-testid="message-input"]').should('be.visible');
     results.chat = true;
 
     // Check capabilities

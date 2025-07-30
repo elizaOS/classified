@@ -3,7 +3,7 @@ import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { createMockRuntime } from './test-utils';
 import { todosTable, todoTagsTable } from '../schema.ts';
-import { createTodoDataService, TodoDataService } from '../services/todoDataService.ts';
+import { createTodoDataService, TodoDataManager } from '../services/todoDataService.ts';
 
 // Mock type definitions
 interface MockThenable {
@@ -34,7 +34,7 @@ type RejectFn = (error: Error) => void;
 
 describe('TodoDataService', () => {
   let mockRuntime: IAgentRuntime;
-  let service: TodoDataService;
+  let service: TodoDataManager;
   let mockDb: MockDb;
   let mockThenable: MockThenable;
 
@@ -260,11 +260,12 @@ describe('TodoDataService', () => {
         reject(new Error('Update failed'))
       );
 
-      const success = await service.updateTodo('00000000-0000-0000-0000-000000000002' as UUID, {
-        name: 'Updated Name',
-      });
-
-      expect(success).toBe(false);
+      // Since we removed try-catch, errors now propagate
+      await expect(
+        service.updateTodo('00000000-0000-0000-0000-000000000002' as UUID, {
+          name: 'Updated Name',
+        })
+      ).rejects.toThrow('Update failed');
     });
   });
 
@@ -397,9 +398,8 @@ describe('TodoDataService', () => {
       mockThenable.then.mockImplementationOnce((resolve: ResolveFn, reject: RejectFn) =>
         reject(new Error('Database error'))
       );
-      // getTodos should return empty array on error
-      const todos = await service.getTodos();
-      expect(todos).toEqual([]);
+      // Since we removed try-catch, errors now propagate
+      await expect(service.getTodos()).rejects.toThrow('Database error');
     });
   });
 });

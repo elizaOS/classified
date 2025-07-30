@@ -1,8 +1,14 @@
 import type { IAgentRuntime, Plugin, Route } from '@elizaos/core';
 import { logger, ModelType, type UUID } from '@elizaos/core';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  getProviderStatus,
+  setProviderPreferences,
+  setSelectedProvider,
+} from '@elizaos/plugin-inference';
 import { exec } from 'child_process';
+import crypto from 'crypto';
 import { promisify } from 'util';
+import { v4 as uuidv4 } from 'uuid';
 
 const execAsync = promisify(exec);
 
@@ -137,7 +143,7 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
 // Stop capturing agent's virtual screen
 async function stopAgentScreenCapture(): Promise<void> {
   if (screenCaptureInterval) {
-    clearInterval(screenCaptureInterval);
+    clearInterval(screenCaptureInterval as any);
     screenCaptureInterval = null;
   }
   screenCaptureActive = false;
@@ -247,14 +253,13 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   const maxRetries = 10;
   const retryDelay = 3000; // 3 seconds between retries
 
-  // Wait for Goals service to be available - try both 'Goal' and 'goals' for compatibility
+  // Wait for Goals service to be available - use lowercase 'goals'
   let goalService: any = null;
   while (!goalService && retries < maxRetries) {
-    goalService = runtime.getService('Goals') || runtime.getService('goals');
+    goalService = runtime.getService('goals');
     if (!goalService) {
       console.log(`[GAME-API] Waiting for Goals service... attempt ${retries + 1}/${maxRetries}`);
       console.log('[GAME-API] Current services:', Array.from(services.keys()));
-      console.log('[GAME-API] Available service types:', runtime.getRegisteredServiceTypes());
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
       retries++;
     }
@@ -315,15 +320,14 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   // Create starter todos using the Todo plugin service
   console.log('[GAME-API] Creating todos using Todo plugin API...');
 
-  // Wait for Todo service to be available - try both 'Todo' and 'todo' for compatibility
+  // Wait for Todo service to be available - use uppercase 'TODO'
   let todoDataService: any = null;
   retries = 0;
   while (!todoDataService && retries < maxRetries) {
-    todoDataService = runtime.getService('Todo') || runtime.getService('todo');
+    todoDataService = runtime.getService('TODO');
     if (!todoDataService) {
       console.log(`[GAME-API] Waiting for Todo service... attempt ${retries + 1}/${maxRetries}`);
       console.log('[GAME-API] Current services:', Array.from(services.keys()));
-      console.log('[GAME-API] Available service types:', runtime.getRegisteredServiceTypes());
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
       retries++;
     }
@@ -405,31 +409,34 @@ const gameAPIRoutes: Route[] = [
       // Agent status is informational, not a requirement
       const agentStatus = runtime ? 'connected' : 'no_agent';
 
-      // Check if critical services are available - using lowercase service names
-      const goalService = runtime.getService('goals'); // Changed from 'GOALS'
-      const todoService = runtime.getService('todo'); // Changed from 'TODO'
-      const autonomyService = runtime.getService('AUTONOMY'); // Use uppercase AUTONOMY
-
-      // Debug: Log service lookup results
-      console.log('[HEALTH] Service lookup results:');
-      console.log('  - goals:', !!goalService);
-      console.log('  - todo:', !!todoService);
-      console.log('  - AUTONOMY:', !!autonomyService);
-
-      // Try alternative names
-      const goalAlt = runtime.getService('Goals');
-      const todoAlt = runtime.getService('Todo');
-      const autonomyAlt = runtime.getService('Autonomy');
-      console.log('[HEALTH] Alternative name lookup:');
-      console.log('  - Goal:', !!goalAlt);
-      console.log('  - Todo:', !!todoAlt);
-      console.log('  - Autonomy:', !!autonomyAlt);
-
-      const services = {
-        goals: !!goalService || !!goalAlt,
-        todos: !!todoService || !!todoAlt,
-        autonomy: !!autonomyService || !!autonomyAlt,
+      let services = {
+        goals: false,
+        todos: false,
+        autonomy: false,
       };
+
+      // Check if critical services are available - only if runtime exists
+      if (runtime) {
+        try {
+          const goalService = runtime.getService('goals'); // lowercase 'goals'
+          const todoService = runtime.getService('TODO'); // uppercase 'TODO'
+          const autonomyService = runtime.getService('AUTONOMY'); // uppercase 'AUTONOMY'
+
+          // Debug: Log service lookup results
+          console.log('[HEALTH] Service lookup results:');
+          console.log('  - goals:', !!goalService);
+          console.log('  - TODO:', !!todoService);
+          console.log('  - AUTONOMY:', !!autonomyService);
+
+          services = {
+            goals: !!goalService,
+            todos: !!todoService,
+            autonomy: !!autonomyService,
+          };
+        } catch (error) {
+          console.warn('[HEALTH] Error checking services:', error);
+        }
+      }
 
       res.json(
         successResponse({
@@ -529,7 +536,7 @@ const gameAPIRoutes: Route[] = [
       Object.keys(settings).forEach((key) => {
         const value = runtime.getSetting(key);
         if (value !== undefined) {
-          settings[key] = String(value);
+          (settings as any)[key] = String(value);
         }
       });
 
@@ -781,22 +788,23 @@ const gameAPIRoutes: Route[] = [
         autonomy: ['AUTONOMY_ENABLED', 'ENABLE_AUTONOMY'],
       };
 
-      if (!capabilityMappings[capability]) {
+      if (!capabilityMappings[capability as keyof typeof capabilityMappings]) {
         return res
           .status(400)
           .json(errorResponse('UNKNOWN_CAPABILITY', `Unknown capability: ${capability}`));
       }
 
       // Get current state
-      const settings = capabilityMappings[capability];
+      const settings = capabilityMappings[capability as keyof typeof capabilityMappings];
       const currentlyEnabled = settings.some(
-        (setting) => runtime.getSetting(setting) === 'true' || runtime.getSetting(setting) === true
+        (setting: string) =>
+          runtime.getSetting(setting) === 'true' || runtime.getSetting(setting) === true
       );
 
       const newState = !currentlyEnabled;
 
       // Update all related settings
-      settings.forEach((setting) => {
+      settings.forEach((setting: string) => {
         runtime.setSetting(setting, newState.toString());
       });
 
@@ -1330,11 +1338,11 @@ const gameAPIRoutes: Route[] = [
 
         // Memory stats (if available)
         memory: await (async () => {
-          const allMemories = await runtime.getAllMemories();
+          const allMemories = await runtime.getMemories({ tableName: 'memories', count: 1000 });
           return {
             totalCount: allMemories.length,
             recentCount: allMemories.filter(
-              (m) => m.createdAt && Date.now() - m.createdAt < 24 * 60 * 60 * 1000
+              (m: any) => m.createdAt && Date.now() - m.createdAt < 24 * 60 * 60 * 1000
             ).length,
           };
         })(),
@@ -1675,9 +1683,9 @@ const gameAPIRoutes: Route[] = [
       console.log('[GAME-API] Game startup initialization requested');
 
       try {
-        // Check if services are available
-        const goalService = runtime.getService('goals');
-        const todoService = runtime.getService('todo');
+        // Check if services are available - use correct service names
+        const goalService = runtime.getService('goals'); // lowercase
+        const todoService = runtime.getService('TODO'); // uppercase
 
         const servicesReady = !!goalService && !!todoService;
         let goalsCreated = false;
@@ -1742,14 +1750,14 @@ const gameAPIRoutes: Route[] = [
       console.log('[GAME-API] Manual initialization of goals and todos requested');
 
       try {
-        // Check if services are available first
-        const goalService = runtime.getService('goals');
-        const todoService = runtime.getService('todo');
+        // Check if services are available first - use correct service names
+        const goalService = runtime.getService('goals'); // lowercase
+        const todoService = runtime.getService('TODO'); // uppercase
 
         if (!goalService || !todoService) {
           const missing = [];
           if (!goalService) missing.push('goals');
-          if (!todoService) missing.push('todo');
+          if (!todoService) missing.push('TODO');
 
           return res
             .status(503)
@@ -1924,7 +1932,7 @@ const gameAPIRoutes: Route[] = [
         });
 
         if (testResponse.ok) {
-          const testData = await testResponse.json();
+          const testData = (await testResponse.json()) as any;
           logger.info(
             `[OLLAMA] ✅ Connectivity test successful: ${testData.response?.substring(0, 50) || 'Response received'}`
           );
@@ -1941,12 +1949,12 @@ const gameAPIRoutes: Route[] = [
         const versionResponse = await fetch(`${ollamaUrl}/api/version`);
 
         if (versionResponse.ok) {
-          const versionData = await versionResponse.json();
+          const versionData = (await versionResponse.json()) as any;
 
           // Check if model is available
           const modelsResponse = await fetch(`${ollamaUrl}/api/tags`);
           if (modelsResponse.ok) {
-            const modelsData = await modelsResponse.json();
+            const modelsData = (await modelsResponse.json()) as any;
             const hasModel = modelsData.models?.some(
               (m: any) => m.name === ollamaModel || m.name.startsWith(`${ollamaModel}:`)
             );
@@ -2173,6 +2181,106 @@ const gameAPIRoutes: Route[] = [
         success: false,
         error: 'Plugin configuration not implemented',
       });
+    },
+  },
+
+  // ===== Provider Management Endpoints =====
+
+  // Get available LLM providers and their status
+  {
+    type: 'GET',
+    path: '/api/providers',
+    name: 'Get LLM Provider Status',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const status = await getProviderStatus(runtime);
+        res.json(successResponse(status));
+      } catch (error) {
+        logger.error('[GAME-API] Error getting provider status:', error);
+        res.status(500).json(
+          errorResponse('PROVIDER_STATUS_ERROR', 'Failed to get provider status', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+        );
+      }
+    },
+  },
+
+  // Set selected provider
+  {
+    type: 'PUT',
+    path: '/api/providers/selected',
+    name: 'Set Selected Provider',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const { provider } = req.body;
+
+        if (provider !== null && typeof provider !== 'string') {
+          return res
+            .status(400)
+            .json(errorResponse('INVALID_PROVIDER', 'Provider must be a string or null'));
+        }
+
+        await setSelectedProvider(runtime, provider);
+        const status = await getProviderStatus(runtime);
+
+        res.json(
+          successResponse({
+            message: provider ? `Provider set to ${provider}` : 'Provider selection cleared',
+            status,
+          })
+        );
+      } catch (error) {
+        logger.error('[GAME-API] Error setting selected provider:', error);
+        res.status(500).json(
+          errorResponse('SET_PROVIDER_ERROR', 'Failed to set provider', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+        );
+      }
+    },
+  },
+
+  // Set provider preferences
+  {
+    type: 'PUT',
+    path: '/api/providers/preferences',
+    name: 'Set Provider Preferences',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const { preferences } = req.body;
+
+        if (!Array.isArray(preferences)) {
+          return res
+            .status(400)
+            .json(
+              errorResponse('INVALID_PREFERENCES', 'Preferences must be an array of provider names')
+            );
+        }
+
+        if (!preferences.every((p) => typeof p === 'string')) {
+          return res
+            .status(400)
+            .json(errorResponse('INVALID_PREFERENCES', 'All preferences must be strings'));
+        }
+
+        await setProviderPreferences(runtime, preferences);
+        const status = await getProviderStatus(runtime);
+
+        res.json(
+          successResponse({
+            message: 'Provider preferences updated',
+            status,
+          })
+        );
+      } catch (error) {
+        logger.error('[GAME-API] Error setting provider preferences:', error);
+        res.status(500).json(
+          errorResponse('SET_PREFERENCES_ERROR', 'Failed to set preferences', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+        );
+      }
     },
   },
 
@@ -2573,27 +2681,28 @@ const gameAPIRoutes: Route[] = [
     name: 'Query Memories',
     handler: async (req: any, res: any, runtime: IAgentRuntime) => {
       try {
-        const { roomId, limit = 10, offset = 0 } = req.query;
+        const { roomId, limit = 10, offset = 0, tableName = 'memories' } = req.query;
         
-        if (!runtime || !runtime.memoryManager) {
-          return res.status(500).json(errorResponse('NO_MEMORY_MANAGER', 'Memory manager not available'));
+        if (!runtime) {
+          return res.status(500).json(errorResponse('NO_RUNTIME', 'Runtime not available'));
         }
 
-        // Get messages from the room
-        const memories = await runtime.memoryManager.getMemories({
+        // Get memories using the runtime's getMemories method
+        const memories = await runtime.getMemories({
           roomId: roomId as UUID,
           count: parseInt(limit as string),
-          offset: parseInt(offset as string),
+          tableName: tableName as string,
+          start: offset ? Date.now() - (parseInt(offset as string) * 86400000) : undefined, // offset in days
         });
 
         res.json({
           success: true,
-          memories: memories.map(memory => ({
+          memories: memories.map((memory) => ({
             id: memory.id,
             content: memory.content,
             createdAt: memory.createdAt,
             roomId: memory.roomId,
-            userId: memory.userId,
+            entityId: memory.entityId,
             agentId: memory.agentId,
           })),
           total: memories.length,
@@ -2601,6 +2710,51 @@ const gameAPIRoutes: Route[] = [
       } catch (error) {
         console.error('[API] Error querying memories:', error);
         res.status(500).json(errorResponse('MEMORY_QUERY_ERROR', 'Failed to query memories'));
+      }
+    },
+  },
+
+  // Legacy message endpoint (redirect to new endpoint)
+  {
+    type: 'POST',
+    path: '/api/agents/:agentId/message',
+    name: 'Send Message (Legacy)',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const { text, userId, roomId, messageId } = req.body;
+
+        // Transform to new format
+        const newPayload = {
+          channel_id: roomId,
+          server_id: '00000000-0000-0000-0000-000000000000',
+          author_id: userId,
+          author_display_name: userId,
+          content: text,
+          source_type: 'legacy',
+          raw_message: { text, messageId },
+          metadata: {
+            legacy: true,
+            originalMessageId: messageId,
+            agentId: req.params.agentId,
+          },
+        };
+
+        // Forward to new endpoint
+        req.body = newPayload;
+        const ingestHandler = gameAPIRoutes.find(
+          (r) => r.path === '/api/messaging/ingest-external'
+        )?.handler;
+        if (ingestHandler) {
+          return ingestHandler(req, res, runtime);
+        } else {
+          return res
+            .status(500)
+            .json(errorResponse('FORWARD_ERROR', 'Failed to forward to new messaging endpoint'));
+        }
+      } catch (error) {
+        console.error('[API] Error in legacy message endpoint:', error);
+        return res.status(500).json(errorResponse('LEGACY_ERROR', 'Failed to process message'));
+
       }
     },
   },
@@ -2673,9 +2827,9 @@ export const gameAPIPlugin: Plugin = {
       console.log('[GAME-API] Checking if initial goals/todos need to be created...');
       try {
         // Check if agent exists and has no goals yet
-        const agent = await runtime.getAgent?.(runtime.agentId);
+        const agent = await runtime.db?.getAgent?.(runtime.agentId);
         if (agent) {
-          const goalService = runtime.getService('Goals') || runtime.getService('goals');
+          const goalService = runtime.getService('goals'); // lowercase
           if (goalService) {
             const existingGoals = await (goalService as any).getAllGoalsForOwner(
               'agent',
@@ -2684,7 +2838,11 @@ export const gameAPIPlugin: Plugin = {
             if (!existingGoals || existingGoals.length === 0) {
               console.log('[GAME-API] No existing goals found, creating initial set...');
               await createInitialTodosAndGoals(runtime);
+            } else {
+              console.log(`[GAME-API] Agent already has ${existingGoals.length} goals`);
             }
+          } else {
+            console.log('[GAME-API] Goals service not yet available, will retry later');
           }
         }
       } catch (error) {

@@ -4,6 +4,7 @@ import {
   type Memory,
   type State,
   ModelType,
+  MemoryType,
   logger,
   EvaluationExample,
 } from '@elizaos/core';
@@ -281,7 +282,8 @@ Return JSON analysis with specific, measurable reasoning for any suggested modif
             source: 'character_evolution',
           },
           metadata: {
-            type: 'custom' as const,
+            type: MemoryType.CUSTOM,
+            evaluatorName: 'character-evolution',
             timestamp: Date.now(),
             confidence: evolution.confidence,
             evolutionData: {

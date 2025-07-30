@@ -117,9 +117,6 @@ export const muteRoomAction: Action = {
               thought: 'I will now mute this room',
               actions: ['MUTE_ROOM_STARTED'],
             },
-            metadata: {
-              type: 'MUTE_ROOM',
-            },
           },
           'messages'
         );
@@ -143,9 +140,6 @@ export const muteRoomAction: Action = {
               source: message.content.source,
               thought: 'I decided to not mute this room',
               actions: ['MUTE_ROOM_FAILED'],
-            },
-            metadata: {
-              type: 'MUTE_ROOM',
             },
           },
           'messages'

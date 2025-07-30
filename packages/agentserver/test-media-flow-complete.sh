@@ -19,6 +19,17 @@ NC='\033[0m'
 AGENT_ID="2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f"
 BASE_URL="http://localhost:7777"
 
+# Detect container runtime
+if command -v podman &> /dev/null; then
+    RUNTIME="podman"
+elif command -v docker &> /dev/null && docker info &> /dev/null 2>&1; then
+    RUNTIME="docker"
+else
+    echo -e "${RED}❌ Neither Podman nor Docker found${NC}"
+    exit 1
+fi
+echo -e "${BLUE}Using container runtime: $RUNTIME${NC}"
+
 # Test results tracking
 TESTS_PASSED=0
 TESTS_FAILED=0
@@ -76,8 +87,7 @@ else
 fi
 
 # Test Xvfb running in container
-if docker exec eliza-agent pgrep Xvfb > /dev/null 2>&1 || \
-   podman exec eliza-agent pgrep Xvfb > /dev/null 2>&1; then
+if $RUNTIME exec eliza-agent pgrep Xvfb > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Xvfb display server running${NC}"
     ((TESTS_PASSED++))
 else
@@ -86,8 +96,7 @@ else
 fi
 
 # Test window manager
-if docker exec eliza-agent pgrep fluxbox > /dev/null 2>&1 || \
-   podman exec eliza-agent pgrep fluxbox > /dev/null 2>&1; then
+if $RUNTIME exec eliza-agent pgrep fluxbox > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Fluxbox window manager running${NC}"
     ((TESTS_PASSED++))
 else
@@ -96,8 +105,7 @@ else
 fi
 
 # Test VNC server
-if docker exec eliza-agent pgrep x11vnc > /dev/null 2>&1 || \
-   podman exec eliza-agent pgrep x11vnc > /dev/null 2>&1; then
+if $RUNTIME exec eliza-agent pgrep x11vnc > /dev/null 2>&1; then
     echo -e "${GREEN}✓ x11vnc server running${NC}"
     ((TESTS_PASSED++))
 else
@@ -198,8 +206,7 @@ fi
 echo -e "\n${BLUE}=== 6. Browser in VNC Test ===${NC}"
 
 # Check if Chromium is installed
-if docker exec eliza-agent which chromium > /dev/null 2>&1 || \
-   podman exec eliza-agent which chromium > /dev/null 2>&1; then
+if $RUNTIME exec eliza-agent which chromium > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Chromium browser installed${NC}"
     ((TESTS_PASSED++))
 else

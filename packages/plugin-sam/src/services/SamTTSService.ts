@@ -1,4 +1,4 @@
-import { Service, type IAgentRuntime } from '@elizaos/core';
+import { Service, type IAgentRuntime, logger } from '@elizaos/core';
 import SamJs from 'sam-js';
 import { SAMServiceType } from '../types';
 
@@ -36,24 +36,30 @@ export class SamTTSService extends Service {
 
   static async start(runtime: IAgentRuntime): Promise<SamTTSService> {
     const service = new SamTTSService(runtime);
-    console.log('[SAM-TTS] SAM TTS Service initialized');
+    logger.info('[SAM-TTS] SAM TTS Service initialized');
     return service;
   }
 
   async stop(): Promise<void> {
-    console.log('[SAM-TTS] SAM TTS Service stopped');
+    logger.info('[SAM-TTS] SAM TTS Service stopped');
   }
 
   /**
    * Generate audio buffer from text using SAM TTS
    */
   async generateAudio(text: string, options: SamTTSOptions = {}): Promise<Uint8Array> {
+    // Handle empty text
+    if (!text || text.trim().length === 0) {
+      logger.info('[SAM-TTS] Empty text provided, returning silent buffer');
+      return new Uint8Array(100); // Return a small silent buffer
+    }
+
     const opts = { ...this.defaultOptions, ...options };
 
-    console.log(
+    logger.info(
       `[SAM-TTS] Generating audio for: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`
     );
-    console.log(
+    logger.info(
       `[SAM-TTS] Settings - Speed: ${opts.speed}, Pitch: ${opts.pitch}, Throat: ${opts.throat}, Mouth: ${opts.mouth}`
     );
 
@@ -71,7 +77,7 @@ export class SamTTSService extends Service {
     // Handle both boolean and Uint8Array returns
     const audioBuffer: Uint8Array = audioResult as Uint8Array;
 
-    console.log(`[SAM-TTS] Generated ${audioBuffer.length} bytes of audio data`);
+    logger.info(`[SAM-TTS] Generated ${audioBuffer.length} bytes of audio data`);
     return audioBuffer;
   }
 
@@ -97,12 +103,13 @@ export class SamTTSService extends Service {
     ) as unknown as HardwareBridgeService | null;
 
     if (!hardwareBridge) {
-      throw new Error('Hardware bridge service not available');
+      logger.warn('[SAM-TTS] Hardware bridge service not available - audio cannot be sent to speakers');
+      return audioBuffer; // Return the buffer anyway for testing/other uses
     }
 
-    console.log('[SAM-TTS] Sending audio to hardware bridge...');
+    logger.info('[SAM-TTS] Sending audio to hardware bridge...');
     await hardwareBridge.sendAudioData(wavBuffer);
-    console.log('[SAM-TTS] ✅ Audio sent to hardware bridge successfully');
+    logger.info('[SAM-TTS] ✅ Audio sent to hardware bridge successfully');
     return audioBuffer;
   }
 

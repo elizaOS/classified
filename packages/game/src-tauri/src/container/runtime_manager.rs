@@ -60,10 +60,10 @@ impl RuntimeManager {
             warn!("⚠️  System Podman found but failed verification");
         }
 
-        // Try Docker as fallback
+        // Try Docker only if Podman is not available
         if let Some(docker_path) = self.find_system_executable("docker").await {
             if self.verify_runtime(&docker_path).await.is_ok() {
-                info!("✅ Using system Docker as fallback: {:?}", docker_path);
+                info!("✅ Using system Docker (Podman not available): {:?}", docker_path);
                 self.system_runtime_path = Some(docker_path.clone());
                 return Ok(RuntimeType::System(docker_path));
             }
@@ -72,7 +72,7 @@ impl RuntimeManager {
 
         info!("ℹ️  No system container runtime available");
 
-        // Step 3: Only download if no cached/bundled runtime exists
+        // Step 3: Auto-install Podman only if neither Docker nor Podman is available
         let bundled_executable =
             self.resource_dir
                 .join("bin")

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { createUniqueUuid } from '@elizaos/core';
 import { ShellService } from '../../service';
+import { createMockRuntime } from '../test-utils';
 import shellBasicE2ETests from './shell-basic';
 import shellStatefulE2ETests from './shell-stateful';
 import shellAdvancedE2ETests from './shell-advanced';
@@ -10,23 +10,15 @@ import shellSecurityE2ETests from './shell-security';
 async function runE2ETests() {
   console.log('🧪 Running Shell Plugin E2E Tests Locally...\n');
 
-  // Create a minimal runtime with shell service
-  const runtime = {
-    agentId: createUniqueUuid(null as any, 'test-agent'),
-    getSetting: (_key: string) => null,
-    getService: (name: string) => {
-      if (name === 'SHELL') {
-        return shellService;
-      }
-      return null;
-    },
-    createMemory: async () => {},
-    composeState: async () => ({ values: {}, data: {}, text: '' }),
-    useModel: async () => '<response><command>ls -la</command></response>',
-  } as any;
-
+  // Create runtime with shell service
+  const runtime = createMockRuntime();
   const shellService = await ShellService.start(runtime);
-  runtime.services = new Map([['SHELL', shellService]]);
+  runtime.getService = <T extends any>(name: string): T | null => {
+    if (name === 'SHELL') {
+      return shellService as T;
+    }
+    return null;
+  };
 
   const testSuites = [
     shellBasicE2ETests,

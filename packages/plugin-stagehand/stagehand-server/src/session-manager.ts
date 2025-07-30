@@ -1,5 +1,6 @@
 import { Stagehand } from '@browserbasehq/stagehand';
 import { Logger } from './logger.js';
+import { PlaywrightInstaller } from './playwright-installer.js';
 
 export interface BrowserSession {
   id: string;
@@ -12,9 +13,22 @@ export class SessionManager {
   private sessions: Map<string, BrowserSession> = new Map();
   private maxSessionsPerClient = 3;
 
-  constructor(private logger: Logger) {}
+  constructor(
+    private logger: Logger,
+    private playwrightInstaller: PlaywrightInstaller
+  ) {}
 
   async createSession(sessionId: string, clientId: string): Promise<BrowserSession> {
+    // Ensure Playwright is installed before creating session
+    if (!this.playwrightInstaller.isReady()) {
+      try {
+        await this.playwrightInstaller.ensurePlaywrightInstalled();
+      } catch (error) {
+        this.logger.error('Failed to install Playwright:', error);
+        throw new Error('Playwright is not installed and installation failed. Please install Playwright manually.');
+      }
+    }
+
     // Check session limit for client
     const clientSessions = this.getClientSessions(clientId);
     if (clientSessions.length >= this.maxSessionsPerClient) {

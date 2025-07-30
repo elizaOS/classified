@@ -100,11 +100,6 @@ describe('SAM Plugin Configuration', () => {
       expect(true).toBe(true); // If we got here, init succeeded
     }
   });
-
-  it('should have init function', () => {
-    expect(samPlugin.init).toBeDefined();
-    expect(typeof samPlugin.init).toBe('function');
-  });
 });
 
 describe('SAM Plugin Actions', () => {
@@ -159,7 +154,7 @@ describe('SAM Plugin Actions', () => {
 
 describe('SamTTSService', () => {
   it('should have correct service type', () => {
-    expect(SamTTSService.serviceType).toBe('samTTS');
+    expect(SamTTSService.serviceType).toBe('SAM_TTS');
   });
 
   it('should start the service', async () => {

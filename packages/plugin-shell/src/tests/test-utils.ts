@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { mock } from 'bun:test';
 import type { IAgentRuntime, Memory, State, UUID } from '@elizaos/core';
 
 export function createMockRuntime(
@@ -6,21 +6,21 @@ export function createMockRuntime(
 ): IAgentRuntime {
   return {
     agentId: '00000000-0000-0000-0000-000000000001' as UUID,
-    getConversationLength: vi.fn(() => 10),
-    getSetting: vi.fn(() => null),
-    getService: vi.fn(() => null),
-    hasService: vi.fn(() => false),
-    registerService: vi.fn(),
-    initialize: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(() => Promise.resolve()),
-    evaluate: vi.fn(() => Promise.resolve(null)),
-    processActions: vi.fn(() => Promise.resolve()),
-    useModel: vi.fn(() => Promise.resolve('test response')) as any,
-    ensureConnection: vi.fn(() => Promise.resolve()),
-    composeState: vi.fn(() =>
+    getConversationLength: mock(() => 10),
+    getSetting: mock(() => null),
+    getService: mock(() => null),
+    hasService: mock(() => false),
+    registerService: mock(),
+    initialize: mock(() => Promise.resolve()),
+    stop: mock(() => Promise.resolve()),
+    evaluate: mock(() => Promise.resolve(null)),
+    processActions: mock(() => Promise.resolve()),
+    useModel: mock(() => Promise.resolve('test response')) as any,
+    ensureConnection: mock(() => Promise.resolve()),
+    composeState: mock(() =>
       Promise.resolve({ data: {}, values: {}, text: '' } as State)
     ),
-    createMemory: vi.fn(() => Promise.resolve('test-memory-id' as UUID)),
+    createMemory: mock(() => Promise.resolve('test-memory-id' as UUID)),
     actions: [],
     providers: [],
     evaluators: [],

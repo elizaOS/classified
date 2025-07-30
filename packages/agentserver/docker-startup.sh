@@ -2,6 +2,10 @@
 
 echo "[STARTUP] ElizaOS Agent Server starting..."
 
+# Export DISPLAY environment variable
+export DISPLAY=:99
+echo "[STARTUP] Display set to $DISPLAY"
+
 # Verify display services are running
 echo "[STARTUP] Verifying display services..."
 sleep 2  # Give services time to start from entrypoint

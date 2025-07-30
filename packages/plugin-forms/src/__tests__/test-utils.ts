@@ -1,4 +1,4 @@
-import type { IAgentRuntime, Memory, State } from '@elizaos/core';
+import type { Memory, State } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 
 /**

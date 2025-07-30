@@ -271,7 +271,7 @@ const useCreateRoom = () => {
     },
     onError: (error) => {
       console.error('Error creating room:', error);
-      // eslint-disable-next-line no-alert
+
       window.alert(`Error creating room: ${error.message}`);
     },
   });
@@ -298,7 +298,6 @@ const AddTaskForm = ({ worlds }: { worlds: WorldWithRooms[] }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !selectedRoomId) {
-      // eslint-disable-next-line no-alert
       window.alert('Please enter a task name and select a world/room.');
       return;
     }
@@ -319,7 +318,6 @@ const AddTaskForm = ({ worlds }: { worlds: WorldWithRooms[] }) => {
         setIsUrgent(false);
       },
       onError: (error) => {
-        // eslint-disable-next-line no-alert
         window.alert(`Error adding task: ${error.message}`);
       },
     });
@@ -494,7 +492,6 @@ const TaskItem = ({ task }: { task: Task }) => {
   };
 
   const handleDelete = () => {
-    // eslint-disable-next-line no-alert
     if (window.confirm(`Are you sure you want to delete task "${task.name}"?`)) {
       deleteTaskMutation.mutate(task.id);
     }
@@ -661,12 +658,10 @@ function App() {
   }, [worlds, isSuccess, error]);
 
   const handleAddRoom = (worldId: string) => {
-    // eslint-disable-next-line no-alert
     const roomName = window.prompt('Enter the name for the new room:');
     if (roomName && roomName.trim()) {
       createRoomMutation.mutate({ worldId, name: roomName.trim() });
     } else if (roomName !== null) {
-      // eslint-disable-next-line no-alert
       window.alert('Room name cannot be empty.');
     }
   };

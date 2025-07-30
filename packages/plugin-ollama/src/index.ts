@@ -1,10 +1,57 @@
 import type { ObjectGenerationParams, Plugin, TextEmbeddingParams } from '@elizaos/core';
-import { type GenerateTextParams, ModelType, logger } from '@elizaos/core';
+import {
+  type GenerateTextParams,
+  ModelType,
+  logger,
+  Service,
+  type ServiceTypeName,
+} from '@elizaos/core';
 import { generateObject, generateText, embed } from 'ai';
 import { createOllama } from 'ollama-ai-provider';
 
 // Default Ollama API URL
 const OLLAMA_API_URL = 'http://localhost:11434/api';
+
+/**
+ * Validation service for Ollama plugin
+ * Provides runtime validation for API availability
+ */
+class OllamaValidationService extends Service {
+  static override serviceType: ServiceTypeName = 'ollama-validation' as ServiceTypeName;
+  static serviceName = 'ollama-validation';
+
+  override capabilityDescription = 'Validates Ollama plugin configuration and API availability';
+
+  constructor(runtime: any) {
+    super(runtime);
+  }
+
+  static async start(runtime: any): Promise<OllamaValidationService> {
+    return new OllamaValidationService(runtime);
+  }
+
+  async stop(): Promise<void> {
+    // No cleanup needed
+  }
+
+  /**
+   * Check if Ollama is properly configured and available
+   */
+  async isValid(): Promise<boolean> {
+    try {
+      const baseURL = getBaseURL(this.runtime);
+      // Remove /api suffix for direct API calls
+      const apiBase = baseURL.endsWith('/api') ? baseURL.slice(0, -4) : baseURL;
+      const response = await fetch(`${apiBase}/api/tags`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+}
 
 /**
  * Retrieves the Ollama API base URL from runtime settings.
@@ -177,6 +224,9 @@ export const ollamaPlugin: Plugin = {
     OLLAMA_EMBEDDING_MODEL: process.env.OLLAMA_EMBEDDING_MODEL,
   },
   async init(_config, runtime) {
+    // Register the validation service
+    await runtime.registerService(OllamaValidationService);
+
     const baseURL = getBaseURL(runtime);
 
     // Check if endpoint is configured
@@ -218,6 +268,7 @@ export const ollamaPlugin: Plugin = {
       );
     }
   },
+
   models: {
     [ModelType.TEXT_EMBEDDING]: async (
       runtime,

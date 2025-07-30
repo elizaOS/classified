@@ -107,44 +107,39 @@ export class FaceRecognition {
       return [];
     }
 
-    try {
-      // Create canvas from image data
-      const canvas = new Canvas(width, height);
-      const ctx = canvas.getContext('2d');
-      const imageDataObj = new ImageData(new Uint8ClampedArray(imageData), width, height);
-      ctx.putImageData(imageDataObj, 0, 0);
+    // Create canvas from image data
+    const canvas = new Canvas(width, height);
+    const ctx = canvas.getContext('2d');
+    const imageDataObj = new ImageData(new Uint8ClampedArray(imageData), width, height);
+    ctx.putImageData(imageDataObj, 0, 0);
 
-      // Detect faces with full analysis
-      const detections = await faceapi
-        .detectAllFaces(
-          canvas as any,
-          new faceapi.SsdMobilenetv1Options({
-            minConfidence: 0.5,
-            maxResults: 10,
-          })
-        )
-        .withFaceLandmarks()
-        .withFaceDescriptors()
-        .withFaceExpressions()
-        .withAgeAndGender();
+    // Detect faces with full analysis
+    const detections = await faceapi
+      .detectAllFaces(
+        canvas as any,
+        new faceapi.SsdMobilenetv1Options({
+          minConfidence: 0.5,
+          maxResults: 10,
+        })
+      )
+      .withFaceLandmarks()
+      .withFaceDescriptors()
+      .withFaceExpressions()
+      .withAgeAndGender();
 
-      return detections.filter(
-        (d: {
-          detection: {
-            box: {
-              width: number;
-              height: number;
-            };
+    return detections.filter(
+      (d: {
+        detection: {
+          box: {
+            width: number;
+            height: number;
           };
-        }) => {
-          const box = d.detection.box;
-          return box.width >= this.MIN_FACE_SIZE && box.height >= this.MIN_FACE_SIZE;
-        }
-      );
-    } catch (error) {
-      logger.error('[FaceRecognition] Face detection failed:', error);
-      return [];
-    }
+        };
+      }) => {
+        const box = d.detection.box;
+        return box.width >= this.MIN_FACE_SIZE && box.height >= this.MIN_FACE_SIZE;
+      }
+    );
   }
 
   async recognizeFace(
@@ -244,16 +239,12 @@ export class FaceRecognition {
   }
 
   async loadFaceLibrary(path: string): Promise<void> {
-    try {
-      const fs = await import('fs/promises');
-      const data = JSON.parse(await fs.readFile(path, 'utf-8'));
+    const fs = await import('fs/promises');
+    const data = JSON.parse(await fs.readFile(path, 'utf-8'));
 
-      this.faceLibrary.faces = new Map(data.faces);
-      this.faceLibrary.embeddings = new Map(data.embeddings);
+    this.faceLibrary.faces = new Map(data.faces);
+    this.faceLibrary.embeddings = new Map(data.embeddings);
 
-      logger.info(`[FaceRecognition] Loaded ${this.faceLibrary.faces.size} face profiles`);
-    } catch (error) {
-      logger.warn('[FaceRecognition] Could not load face library:', error);
-    }
+    logger.info(`[FaceRecognition] Loaded ${this.faceLibrary.faces.size} face profiles`);
   }
 }

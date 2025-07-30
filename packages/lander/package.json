@@ -12,7 +12,8 @@
     "lint": "prettier --write ./src && tsc --noEmit",
     "preview": "vite preview",
     "test:build": "npm run build",
-    "test:lint": "tsc --noEmit"
+    "test:lint": "tsc --noEmit",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "react": "^18.2.0",

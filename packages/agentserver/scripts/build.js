@@ -27,6 +27,9 @@ async function build() {
       format: 'esm',
       outfile: path.join(__dirname, '..', 'dist', 'server.js'),
       external: [
+        // File compression libraries - have native dependencies
+        'adm-zip',
+        'archiver',
         // Canvas has native dependencies that can't be bundled
         'canvas',
         'pino-pretty',
@@ -53,6 +56,12 @@ async function build() {
         // Vision plugin dependencies that should remain external
         'sharp',
         'jimp',
+        // Fastembed and ONNX Runtime dependencies - have native bindings
+        'fastembed',
+        'onnxruntime-node',
+        '@anush008/tokenizers',
+        '@anush008/tokenizers-darwin-universal',
+        'onnxruntime-extensions',
       ],
       // Add a plugin to resolve workspace dependencies
       plugins: [

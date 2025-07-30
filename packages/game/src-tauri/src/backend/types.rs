@@ -87,14 +87,19 @@ impl HealthCheckConfig {
     pub fn ollama_default() -> Self {
         Self {
             command: vec![
-                "curl".to_string(),
-                "-f".to_string(),
-                "http://localhost:11434/api/version".to_string(),
+                "sh".to_string(),
+                "-c".to_string(),
+                // Use wget instead of curl as it's more likely to be available
+                // Also try multiple methods to check Ollama health
+                "wget -q -O - http://localhost:11434/api/version || \
+                 curl -f -s http://localhost:11434/api/version || \
+                 (echo 'GET /api/version HTTP/1.0\r\n\r\n' | nc localhost 11434 | grep -q 'HTTP/1.1 200') || \
+                 exit 1".to_string(),
             ],
-            interval_seconds: 10,
-            timeout_seconds: 5,
-            retries: 3,
-            start_period_seconds: 30,
+            interval_seconds: 20,  // Increased to give more time between checks
+            timeout_seconds: 15,   // Increased timeout
+            retries: 10,          // More retries as Ollama can be slow to start
+            start_period_seconds: 90,  // Give Ollama plenty of time to initialize
         }
     }
 
@@ -132,6 +137,18 @@ pub enum ContainerState {
     Starting,
     Error,
     Unknown,
+}
+
+impl std::fmt::Display for ContainerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContainerState::Running => write!(f, "Running"),
+            ContainerState::Stopped => write!(f, "Stopped"),
+            ContainerState::Starting => write!(f, "Starting"),
+            ContainerState::Error => write!(f, "Error"),
+            ContainerState::Unknown => write!(f, "Unknown"),
+        }
+    }
 }
 
 impl From<&str> for ContainerState {

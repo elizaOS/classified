@@ -1,12 +1,20 @@
-import { type UUID, logger, Agent, Entity, Memory, Component } from '@elizaos/core';
+import {
+  type Agent,
+  type Component,
+  type Entity,
+  type Memory,
+  type UUID,
+  logger,
+} from '@elizaos/core';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { BaseDrizzleAdapter } from '../base';
+import * as schema from '../schema';
 import { DIMENSION_MAP, type EmbeddingDimensionColumn } from '../schema/embedding';
-import type { PostgresConnectionManager } from './manager';
+import { PostgresConnectionManager } from './manager';
 
 /**
- * Adapter class for interacting with a PostgreSQL database.
- * Extends BaseDrizzleAdapter.
+ * PostgreSQL adapter implementation for database operations.
+ * Extends the BaseDrizzleAdapter to provide PostgreSQL-specific functionality.
  */
 export class PgDatabaseAdapter extends BaseDrizzleAdapter {
   protected embeddingDimension: EmbeddingDimensionColumn = DIMENSION_MAP[768];
@@ -40,7 +48,7 @@ export class PgDatabaseAdapter extends BaseDrizzleAdapter {
       const client = await this.manager.getClient();
       try {
         // Cast to any to avoid type conflicts between different pg versions
-        const db = drizzle(client as any);
+        const db = drizzle(client as any, { schema });
         this.db = db;
 
         return await operation();

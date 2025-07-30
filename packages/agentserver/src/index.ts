@@ -13,16 +13,17 @@ import GoalsPlugin from '@elizaos/plugin-goals';
 import TodoPlugin from '@elizaos/plugin-todo';
 import shellPlugin from '@elizaos/plugin-shell';
 import { knowledgePlugin } from '@elizaos/plugin-knowledge';
-import { ollamaPlugin } from '@elizaos/plugin-ollama';
+import { inferencePlugin } from '@elizaos/plugin-inference';
 import PersonalityPlugin from '@elizaos/plugin-personality';
 import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
 import { experiencePlugin } from '@elizaos/plugin-experience';
+import { stagehandPlugin } from '@elizaos/plugin-stagehand';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { terminalCharacter } from './character';
-import { gameAPIPlugin } from './game-api-plugin.ts';
+import { gameAPIPlugin } from './game-api-plugin';
 import { AgentServer } from './server';
 
 /**
@@ -74,17 +75,17 @@ const modelProvider =
 // Create plugin list with conditional loading based on providers
 const plugins: Plugin[] = [
   sqlPlugin,
+  gameAPIPlugin,
+  inferencePlugin,
+  knowledgePlugin,
   bootstrapPlugin,
-  // Only load model provider plugins that are being used
-  ...(modelProvider === 'ollama' || modelProvider === 'all' ? [ollamaPlugin] : []),
   autonomyPlugin,
   GoalsPlugin,
   TodoPlugin,
   PersonalityPlugin,
   experiencePlugin,
-  knowledgePlugin,
   shellPlugin,
-  gameAPIPlugin,
+  stagehandPlugin,
 ].filter(Boolean);
 
 // Function to start an agent runtime - called by server.ts
@@ -100,10 +101,22 @@ export async function startAgent(character: any): Promise<IAgentRuntime> {
 
   console.log('[AGENT START] Loaded plugins:', plugins.map((p) => p.name || 'unnamed').join(', '));
 
+  // Ensure character has proper structure with UUID string
+  const cleanCharacter = {
+    ...character,
+    id: agentId, // Ensure ID is always a string UUID
+  };
+
+  // Remove any nested objects that might have been accidentally included
+  if (typeof cleanCharacter.id !== 'string') {
+    console.warn('[AGENT START] Character ID was not a string, fixing...');
+    cleanCharacter.id = agentId;
+  }
+
   // Create the runtime using ElizaAgentRuntime
   const runtime = new ElizaAgentRuntime({
     agentId,
-    character: { ...character, id: agentId },
+    character: cleanCharacter,
     plugins,
   });
 
@@ -170,7 +183,7 @@ export async function startServer() {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       } else {
         throw new Error(
-          `Failed to connect to PostgreSQL after ${maxRetries} attempts: ${error.message}`
+          `Failed to connect to PostgreSQL after ${maxRetries} attempts: ${(error as any).message}`
         );
       }
     }
@@ -196,6 +209,53 @@ export async function startServer() {
     '[BACKEND] ✅ Default agent started and registered successfully with secure configuration'
   );
 
+  // Test the shell service to ensure it's working properly
+  console.log('[BACKEND] Testing shell service...');
+  try {
+    const shellService = runtime.getService('SHELL');
+    if (!shellService) {
+      console.error('[BACKEND] ❌ Shell service not found! Shell commands will not work.');
+    } else {
+      console.log('[BACKEND] ✅ Shell service found, running test commands...');
+
+      // Test 1: Execute a simple command
+      const result1 = await (shellService as any).executeCommand('pwd');
+      console.log('[BACKEND] Test 1 - Current directory:', result1.output.trim());
+      console.log('[BACKEND]   Exit code:', result1.exitCode);
+      const originalDir = result1.output.trim();
+
+      // Test 2: Change directory to a cross-platform directory
+      // Use temp directory which exists on all platforms
+      const tempDir = process.platform === 'win32' ? process.env.TEMP || 'C:\\Temp' : '/tmp';
+      const result2 = await (shellService as any).executeCommand(`cd ${tempDir}`);
+      console.log('[BACKEND] Test 2 - Change directory result:', result2.output.trim());
+
+      // Test 3: Verify directory change persisted
+      const result3 = await (shellService as any).executeCommand('pwd');
+      console.log('[BACKEND] Test 3 - New working directory:', result3.output.trim());
+      console.log(
+        '[BACKEND]   Directory change persisted:',
+        result3.output.trim().includes(tempDir) ? '✅' : '❌'
+      );
+
+      // Test 4: Run a command in the new directory
+      const listCmd = process.platform === 'win32' ? 'dir' : 'ls -la';
+      const result4 = await (shellService as any).executeCommand(listCmd);
+      console.log(
+        '[BACKEND] Test 4 - Directory listing executed successfully:',
+        result4.exitCode === 0 ? '✅' : '❌'
+      );
+
+      // Test 5: Return to original directory
+      const result5 = await (shellService as any).executeCommand(`cd ${originalDir}`);
+      console.log('[BACKEND] Test 5 - Return to original directory:', result5.output.trim());
+
+      console.log('[BACKEND] ✅ Shell service tests completed successfully');
+    }
+  } catch (error) {
+    console.error('[BACKEND] ❌ Shell service test failed:', error);
+  }
+
   // Start the server on port 7777 AFTER the agent is ready
   const PORT = parseInt(process.env.PORT || '7777', 10);
 
@@ -213,7 +273,7 @@ export async function startServer() {
   // Knowledge Files endpoint (expected by frontend)
   server.app.get('/api/knowledge/files', async (req: any, res: any) => {
     try {
-      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as any;
       if (!targetRuntime) {
         return res.json({ success: true, data: { files: [], count: 0 } });
       }
@@ -241,7 +301,7 @@ export async function startServer() {
 
       res.json({ success: true, data: { files, count: files.length } });
     } catch (error) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
     }
   });
 
@@ -258,7 +318,7 @@ export async function startServer() {
       };
       res.json({ success: true, data: { configurations, availablePlugins: [] } });
     } catch (error) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
     }
   });
 
@@ -266,11 +326,11 @@ export async function startServer() {
   server.app.post('/api/agents/:agentId/capabilities/:capability', async (req: any, res: any) => {
     try {
       const capability = req.params.capability.toLowerCase();
-      let targetRuntime: IAgentRuntime | undefined;
+      let targetRuntime: any | undefined;
 
       // Handle "default" as a special case - get the first agent
       if (req.params.agentId === 'default') {
-        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+        targetRuntime = Array.from((server as any).agents?.values() || [])[0];
       } else {
         // Try to get the specific agent by ID
         targetRuntime = (server as any).agents?.get(req.params.agentId);
@@ -298,20 +358,20 @@ export async function startServer() {
         autonomy: ['AUTONOMY_ENABLED', 'ENABLE_AUTONOMY'],
       };
 
-      if (!capabilityMappings[capability]) {
+      if (!capabilityMappings[capability as keyof typeof capabilityMappings]) {
         return res
           .status(400)
           .json({ success: false, error: { message: `Unknown capability: ${capability}` } });
       }
 
-      const settings = capabilityMappings[capability];
+      const settings = capabilityMappings[capability as keyof typeof capabilityMappings];
       const currentlyEnabled = settings.some(
-        (setting) =>
+        (setting: string) =>
           targetRuntime.getSetting(setting) === 'true' || targetRuntime.getSetting(setting) === true
       );
 
       const newState = !currentlyEnabled;
-      settings.forEach((setting) => {
+      settings.forEach((setting: string) => {
         targetRuntime.setSetting(setting, newState.toString());
       });
 
@@ -325,7 +385,7 @@ export async function startServer() {
         },
       });
     } catch (error) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
     }
   });
 
@@ -334,10 +394,10 @@ export async function startServer() {
       console.log('[BACKEND] Direct delete endpoint called for document:', req.params.documentId);
 
       // Find the runtime with the knowledge service
-      let targetRuntime: IAgentRuntime | null = null;
+      let targetRuntime: any | null = null;
 
       // Get all agents from the server
-      const agents = Array.from((server as any).agents?.values() || []) as IAgentRuntime[];
+      const agents = Array.from((server as any).agents?.values() || []) as any[];
       for (const runtime of agents) {
         const knowledgeService = runtime.getService('knowledge');
         if (knowledgeService) {
@@ -371,7 +431,7 @@ export async function startServer() {
       console.error('[BACKEND] Error deleting knowledge document:', error);
       res.status(500).json({
         success: false,
-        error: { code: 'DELETE_FAILED', message: error.message },
+        error: { code: 'DELETE_FAILED', message: (error as any).message },
       });
     }
   });
@@ -379,9 +439,7 @@ export async function startServer() {
   // GET primary agent endpoint - returns the first available agent
   server.app.get('/api/agents/primary', async (req: any, res: any) => {
     try {
-      const primaryAgent = Array.from((server as any).agents?.values() || [])[0] as
-        | IAgentRuntime
-        | undefined;
+      const primaryAgent = Array.from((server as any).agents?.values() || [])[0] as any | undefined;
 
       if (!primaryAgent) {
         return res.status(200).json({
@@ -409,14 +467,17 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error getting primary agent:', error);
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
     }
   });
 
   // GET list of agents endpoint
   server.app.get('/api/agents', async (req: any, res: any) => {
     try {
-      const agents = Array.from((server as any).agents?.entries() || []).map(([id, runtime]) => ({
+      const agentEntries = Array.from((server as any).agents?.entries() || []) as Array<
+        [string, any]
+      >;
+      const agents = agentEntries.map(([id, runtime]) => ({
         id,
         name: runtime.character?.name || 'Unknown Agent',
         ready: true,
@@ -431,7 +492,7 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error listing agents:', error);
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
     }
   });
 
@@ -439,7 +500,7 @@ export async function startServer() {
   server.app.get('/api/agents/default/settings', async (req: any, res: any) => {
     try {
       // Get the first available agent
-      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as any;
 
       if (!targetRuntime) {
         // Return a minimal response indicating server is ready but no agent yet
@@ -488,18 +549,18 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error retrieving default agent settings:', error);
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
     }
   });
 
   // GET settings endpoint - supports both /api/agents/default/settings and /api/agents/:agentId/settings
   server.app.get('/api/agents/:agentId/settings', async (req: any, res: any) => {
     try {
-      let targetRuntime: IAgentRuntime | undefined;
+      let targetRuntime: any | undefined;
 
       // Handle "default" as a special case - get the first agent
       if (req.params.agentId === 'default') {
-        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as any;
       } else {
         // Try to get the specific agent by ID
         targetRuntime = (server as any).agents?.get(req.params.agentId);
@@ -556,7 +617,7 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error retrieving settings:', error);
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
     }
   });
 

@@ -213,28 +213,42 @@ export class KnowledgeTestHelper {
    * Clean up - delete all test documents
    */
   cleanupTestDocuments(testFileNames: string[] = []): Cypress.Chainable<void> {
-    return this.getDocuments()
-      .then((documents) => {
-        const testDocs = documents.filter(
-          (doc) =>
-            testFileNames.some((name) => doc.title?.includes(name)) ||
-            doc.title?.includes('test-') ||
-            doc.title?.includes('cypress-')
-        );
+    return cy.wrap(null).then(() => {
+      // Try to get documents, but continue if it fails
+      return this.getDocuments()
+        .then((documents) => {
+          const testDocs = documents.filter(
+            (doc) =>
+              testFileNames.some((name) => doc.title?.includes(name)) ||
+              doc.title?.includes('test-') ||
+              doc.title?.includes('cypress-')
+          );
 
-        const deletePromises = testDocs.map((doc) =>
-          this.deleteDocument(doc.id).catch(() => {
-            cy.log(`Failed to delete document ${doc.id}, continuing...`);
-          })
-        );
+          const deletePromises = testDocs.map(
+            (doc) =>
+              // Convert to promise for proper error handling
+              new Cypress.Promise((resolve) => {
+                this.deleteDocument(doc.id)
+                  .then(() => resolve())
+                  .catch(() => {
+                    cy.log(`Failed to delete document ${doc.id}, continuing...`);
+                    resolve();
+                  });
+              })
+          );
 
-        return cy.wrap(Promise.all(deletePromises)).then(() => {
-          cy.log(`Cleaned up ${testDocs.length} test documents`);
-        });
-      })
-      .catch(() => {
-        cy.log('Failed to retrieve documents for cleanup, continuing...');
-      });
+          return cy.wrap(Promise.all(deletePromises)).then(() => {
+            cy.log(`Cleaned up ${testDocs.length} test documents`);
+          });
+        })
+        .then(
+          () => {}, // Success handler
+          () => {
+            // Error handler for getDocuments
+            cy.log('Failed to retrieve documents for cleanup, continuing...');
+          }
+        );
+    });
   }
 
   /**

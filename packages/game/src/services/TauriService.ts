@@ -692,6 +692,73 @@ class TauriServiceClass {
     return await this.ensureInitializedAndInvoke('get_available_providers');
   }
 
+  // Backup and Restore Operations
+  public async createBackup(backupType: string, notes?: string): Promise<any> {
+    return await this.ensureInitializedAndInvoke('create_backup', { 
+      backup_type: backupType, 
+      notes 
+    });
+  }
+
+  public async restoreBackup(backupId: string, options: any): Promise<void> {
+    await this.ensureInitializedAndInvoke('restore_backup', { 
+      backup_id: backupId, 
+      options 
+    });
+  }
+
+  public async listBackups(): Promise<any[]> {
+    return await this.ensureInitializedAndInvoke('list_backups');
+  }
+
+  public async deleteBackup(backupId: string): Promise<void> {
+    await this.ensureInitializedAndInvoke('delete_backup', { backup_id: backupId });
+  }
+
+  public async getBackupConfig(): Promise<any> {
+    return await this.ensureInitializedAndInvoke('get_backup_config');
+  }
+
+  public async updateBackupConfig(config: any): Promise<void> {
+    await this.ensureInitializedAndInvoke('update_backup_config', { config });
+  }
+
+  public async exportBackup(backupId: string): Promise<string> {
+    const { dialog } = await import('@tauri-apps/plugin-dialog');
+    const exportPath = await dialog.save({
+      defaultPath: `eliza-backup-${new Date().toISOString().split('T')[0]}.zip`,
+      filters: [{ name: 'Backup Files', extensions: ['zip'] }],
+    });
+    
+    if (!exportPath) {
+      throw new Error('Export cancelled');
+    }
+    
+    return await this.ensureInitializedAndInvoke('export_backup', { 
+      backup_id: backupId, 
+      export_path: exportPath 
+    });
+  }
+
+  public async importBackup(importPath: string): Promise<any> {
+    return await this.ensureInitializedAndInvoke('import_backup', { import_path: importPath });
+  }
+
+  public async selectFile(options?: { filters?: Array<{ name: string; extensions: string[] }> }): Promise<string | null> {
+    const { dialog } = await import('@tauri-apps/plugin-dialog');
+    const selected = await dialog.open({
+      multiple: false,
+      filters: options?.filters || [],
+    });
+    
+    return selected as string | null;
+  }
+
+  public async restartApplication(): Promise<void> {
+    // For now, just reload the window
+    window.location.reload();
+  }
+
   // Autonomy management
   public async toggleAutonomy(enabled: boolean): Promise<void> {
     await this.ensureInitializedAndInvoke('toggle_autonomy', { enabled });
@@ -863,6 +930,23 @@ class TauriServiceClass {
     return await this.tauriListen('model-download-complete', (event: any) => {
       callback(event.payload);
     });
+  }
+
+  /**
+   * Gracefully shut down the application
+   */
+  async shutdownApplication(): Promise<void> {
+    if (!this.isTauri || !this.tauriInvoke) {
+      throw new Error('Not in Tauri environment');
+    }
+
+    try {
+      console.log('[TauriService] Initiating application shutdown...');
+      await this.tauriInvoke('shutdown_application');
+    } catch (error) {
+      console.error('[TauriService] Failed to shutdown application:', error);
+      throw error;
+    }
   }
 }
 

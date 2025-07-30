@@ -16,7 +16,7 @@ describe('TodoPlugin', () => {
     );
     expect(TodoPlugin.providers).toHaveLength(1);
     expect(TodoPlugin.actions).toHaveLength(5); // Now includes confirmTodoAction
-    expect(TodoPlugin.services).toHaveLength(2); // TodoDataServiceWrapper, TodoReminderService
+    expect(TodoPlugin.services).toHaveLength(2); // TodoDataService, TodoReminderService
     expect(TodoPlugin.routes).toBeDefined();
     expect(TodoPlugin.init).toBeInstanceOf(Function);
   });
@@ -32,7 +32,7 @@ describe('TodoPlugin', () => {
 
   it('should have all required services', () => {
     const services = TodoPlugin.services as ServiceClass[] | undefined;
-    expect(services?.some((s) => s.serviceType === 'todo')).toBe(true);
+    expect(services?.some((s) => s.serviceType === 'TODO')).toBe(true);
     expect(services?.some((s) => s.serviceType === 'TODO_REMINDER')).toBe(true);
 
     // Other functionality is provided as internal managers within these services:

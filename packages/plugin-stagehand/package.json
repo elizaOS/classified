@@ -37,7 +37,13 @@
     "README.md",
     ".npmignore",
     "package.json",
-    "tsup.config.ts"
+    "tsup.config.ts",
+    "stagehand-server/binaries",
+    "stagehand-server/dist",
+    "stagehand-server/src",
+    "stagehand-server/scripts",
+    "stagehand-server/package.json",
+    "stagehand-server/tsconfig.json"
   ],
   "dependencies": {
     "@elizaos/core": "workspace:*",
@@ -47,7 +53,7 @@
   },
   "peerDependencies": {},
   "devDependencies": {
-    "@elizaos/cli": "^1.2.12",
+    "@elizaos/cli": "workspace:*",
     "@types/ws": "^8.5.10",
     "dotenv": "16.4.5",
     "prettier": "3.5.3",
@@ -57,14 +63,18 @@
     "playwright": "^1.48.0"
   },
   "scripts": {
-    "build": "tsup && cd stagehand-server && npm run build",
+    "postinstall": "cd stagehand-server && npm install || echo 'Stagehand server dependency installation failed, will retry on build'",
+    "build": "tsup && cd stagehand-server && npm install && npm run build && npm run build:binary || echo 'Binary build failed, will use JS fallback'",
     "build:plugin": "tsup",
-    "build:server": "cd stagehand-server && npm run build",
+    "build:server": "cd stagehand-server && npm install && npm run build",
+    "build:binary": "cd stagehand-server && npm install && npm run build:binary",
     "dev": "tsup --watch",
     "start": "echo 'Plugin package, use with ElizaOS'",
-    "test": "bun test",
+    "test": "bun test --bail=false src/__tests__/simple.test.ts src/__tests__/provider.test.ts src/__tests__/actions.test.ts src/__tests__/security.test.ts src/__tests__/capsolver.test.ts",
+    "test:e2e": "bun test --bail=false src/__tests__/e2e-browser.test.ts",
+    "test:all": "bun test --bail=false",
     "lint": "eslint src --fix && prettier --write ./src",
-    "clean": "rm -rf dist && rm -rf .turbo && rm -rf stagehand-server/dist",
+    "clean": "rm -rf dist && rm -rf .turbo && rm -rf stagehand-server/dist && rm -rf stagehand-server/binaries",
     "typecheck": "tsc --noEmit"
   },
   "publishConfig": {

@@ -134,10 +134,10 @@ describe('UI Navigation', () => {
 
     it('should display chat input and messages area', () => {
       // Chat input should be visible
-      cy.get('[data-testid="chat-input"]').should('be.visible');
+      cy.get('[data-testid="message-input"]').should('be.visible');
 
       // Send button should be visible
-      cy.get('[data-testid="chat-send-button"]').should('be.visible');
+      cy.get('[data-testid="send-button"]').should('be.visible');
 
       // Messages area should exist
       cy.get('[data-testid="chat-messages"]').should('exist');
@@ -148,7 +148,7 @@ describe('UI Navigation', () => {
     it('should allow typing in chat input', () => {
       const testMessage = 'Test message from Cypress';
 
-      cy.get('[data-testid="chat-input"]')
+      cy.get('[data-testid="message-input"]')
         .clear()
         .type(testMessage)
         .should('have.value', testMessage);
@@ -158,13 +158,13 @@ describe('UI Navigation', () => {
       const testMessage = `UI test message ${Date.now()}`;
 
       // Type message
-      cy.get('[data-testid="chat-input"]').clear().type(testMessage);
+      cy.get('[data-testid="message-input"]').clear().type(testMessage);
 
       // Click send
-      cy.get('[data-testid="chat-send-button"]').click();
+      cy.get('[data-testid="send-button"]').click();
 
       // Input should be cleared
-      cy.get('[data-testid="chat-input"]').should('have.value', '');
+      cy.get('[data-testid="message-input"]').should('have.value', '');
 
       // Message should appear
       cy.get('[data-testid="chat-messages"]').should('contain', testMessage);
@@ -173,7 +173,7 @@ describe('UI Navigation', () => {
     it('should send message on Enter key', () => {
       const testMessage = `Enter key test ${Date.now()}`;
 
-      cy.get('[data-testid="chat-input"]').clear().type(`${testMessage}{enter}`);
+      cy.get('[data-testid="message-input"]').clear().type(`${testMessage}{enter}`);
 
       // Message should appear
       cy.get('[data-testid="chat-messages"]').should('contain', testMessage);
@@ -181,7 +181,7 @@ describe('UI Navigation', () => {
 
     it('should display user and agent messages differently', () => {
       // Send a message
-      cy.get('[data-testid="chat-input"]').type('Test message{enter}');
+      cy.get('[data-testid="message-input"]').type('Test message{enter}');
       cy.wait(2000);
 
       // Check for different message styles
@@ -205,7 +205,6 @@ describe('UI Navigation', () => {
       { name: 'CAM', testId: 'camera-toggle', setting: 'camera' },
       { name: 'SCR', testId: 'screen-toggle', setting: 'screen' },
       { name: 'MIC', testId: 'microphone-toggle', setting: 'microphone' },
-      { name: 'SPK', testId: 'speakers-toggle', setting: 'speaker' },
       { name: 'SH', testId: 'shell-toggle', setting: 'shell' },
       { name: 'WWW', testId: 'browser-toggle', setting: 'browser' },
     ];
@@ -387,7 +386,7 @@ describe('UI Navigation', () => {
 
       // Send multiple messages to create scrollable content
       for (let i = 0; i < 20; i++) {
-        cy.get('[data-testid="chat-input"]').type(`Test message ${i}{enter}`);
+        cy.get('[data-testid="message-input"]').type(`Test message ${i}{enter}`);
         cy.wait(100);
       }
 
@@ -437,87 +436,36 @@ describe('UI Navigation', () => {
 // UI Summary Test
 describe('UI Navigation Summary', () => {
   it('should verify complete UI functionality', () => {
-    const features = [];
-
-    cy.log('🎯 UI NAVIGATION VERIFICATION:');
-
-    // Test main interface
-    cy.get('body').should('be.visible');
-    features.push({
-      feature: 'Main Interface',
-      status: 'working',
-      details: 'Interface loaded',
-    });
-
-    // Test tab navigation
-    const tabs = ['chat', 'goals', 'todos', 'monologue', 'files', 'config'];
-    let tabsWorking = 0;
-
+    // Verify tabs navigation
+    const tabs = ['goals', 'todos', 'monologue', 'files', 'config', 'logs', 'agent-screen'];
     tabs.forEach((tab) => {
-      cy.get(`[data-testid="${tab}-tab"]`).then(($tab) => {
-        if ($tab.length > 0) {
-          tabsWorking++;
-        }
-      });
+      cy.get(`[data-testid="${tab}-tab"]`).should('be.visible');
     });
 
-    cy.then(() => {
-      features.push({
-        feature: 'Tab Navigation',
-        status: tabsWorking === tabs.length ? 'working' : 'partial',
-        details: `${tabsWorking}/${tabs.length} tabs`,
-      });
+    // Navigate through tabs
+    tabs.forEach((tab) => {
+      cy.get(`[data-testid="${tab}-tab"]`).click();
+      cy.wait(300);
+      cy.get(`[data-testid="${tab}-content"]`).should('be.visible');
     });
 
-    // Test chat interface
-    cy.get('[data-testid="chat-tab"]').click();
-    cy.get('[data-testid="chat-input"]').should('exist');
-    cy.get('[data-testid="chat-send-button"]').should('exist');
+    // Verify chat interface (part of main interface, not a tab)
+    cy.get('[data-testid="message-input"]').should('be.visible');
+    cy.get('[data-testid="send-button"]').should('be.visible');
+    cy.get('[data-testid="output-container"]').should('be.visible');
 
-    features.push({
-      feature: 'Chat Interface',
-      status: 'working',
-      details: 'Input and send button present',
-    });
+    // Verify capability buttons
+    cy.get('[data-testid="autonomy-toggle"]').should('be.visible');
+    cy.get('[data-testid="camera-toggle"]').should('be.visible');
+    cy.get('[data-testid="screen-toggle"]').should('be.visible');
+    cy.get('[data-testid="microphone-toggle"]').should('be.visible');
+    cy.get('[data-testid="shell-toggle"]').should('be.visible');
+    cy.get('[data-testid="browser-toggle"]').should('be.visible');
 
-    // Test capability buttons
-    const capabilities = [
-      'autonomy',
-      'camera',
-      'screen',
-      'microphone',
-      'speakers',
-      'shell',
-      'browser',
-    ];
-    let capsWorking = 0;
+    // Verify overall layout
+    cy.get('[data-testid="game-interface"]').should('be.visible');
+    cy.get('[data-testid="connection-status"]').should('be.visible');
 
-    capabilities.forEach((cap) => {
-      cy.get(`[data-testid="${cap}-toggle"]`).then(($cap) => {
-        if ($cap.length > 0) {
-          capsWorking++;
-        }
-      });
-    });
-
-    cy.then(() => {
-      features.push({
-        feature: 'Capability Buttons',
-        status: capsWorking === capabilities.length ? 'working' : 'partial',
-        details: `${capsWorking}/${capabilities.length} buttons`,
-      });
-
-      // Display summary
-      cy.log('\n📊 UI FEATURES:');
-      features.forEach((f) => {
-        const icon = f.status === 'working' ? '✅' : f.status === 'partial' ? '⚠️' : '❌';
-        cy.log(`${icon} ${f.feature}: ${f.details}`);
-      });
-
-      const workingCount = features.filter((f) => f.status === 'working').length;
-      cy.log(`\n✅ ${workingCount}/${features.length} UI features fully functional`);
-
-      cy.screenshot('ui-navigation-summary');
-    });
+    cy.log('✅ UI navigation verification complete');
   });
 });

@@ -4,17 +4,33 @@ use tracing::warn;
 
 #[derive(Clone)]
 pub struct DockerClient {
-    // For now, this is a placeholder - in full implementation would use bollard crate
+    docker_path: String,
+}
+
+impl Default for DockerClient {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DockerClient {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            docker_path: "docker".to_string(),
+        }
+    }
+    
+    pub fn with_path(path: String) -> Self {
+        Self { docker_path: path }
+    }
+    
+    pub fn get_path(&self) -> &str {
+        &self.docker_path
     }
 
     pub async fn create_network(&self, network_name: &str) -> BackendResult<()> {
         // Check if network already exists
-        let check_output = std::process::Command::new("docker")
+        let check_output = std::process::Command::new(&self.docker_path)
             .args(["network", "ls", "--format", "{{.Name}}"])
             .output()
             .map_err(|e| BackendError::Container(format!("Failed to list networks: {e}")))?;
@@ -25,7 +41,7 @@ impl DockerClient {
         }
 
         // Create the network
-        let output = std::process::Command::new("docker")
+        let output = std::process::Command::new(&self.docker_path)
             .args(["network", "create", network_name])
             .output()
             .map_err(|e| BackendError::Container(format!("Failed to create network: {e}")))?;
@@ -42,7 +58,7 @@ impl DockerClient {
 
     pub async fn is_available(&self) -> BackendResult<bool> {
         // Check if Docker is available by running 'docker version'
-        match std::process::Command::new("docker").arg("version").output() {
+        match std::process::Command::new(&self.docker_path).arg("version").output() {
             Ok(output) => {
                 if output.status.success() {
                     Ok(true)
@@ -64,7 +80,7 @@ impl DockerClient {
     pub async fn start_container(&self, config: &ContainerConfig) -> BackendResult<String> {
         warn!("Docker implementation is basic - using simple docker run command");
 
-        let mut cmd = std::process::Command::new("docker");
+        let mut cmd = std::process::Command::new(&self.docker_path);
         cmd.args(["run", "-d", "--name", &config.name]);
 
         // Add port mappings
@@ -116,7 +132,7 @@ impl DockerClient {
     }
 
     pub async fn stop_container(&self, name: &str) -> BackendResult<()> {
-        match std::process::Command::new("docker")
+        match std::process::Command::new(&self.docker_path)
             .args(["stop", name])
             .output()
         {
@@ -137,7 +153,7 @@ impl DockerClient {
     }
 
     pub async fn remove_container(&self, name: &str) -> BackendResult<()> {
-        match std::process::Command::new("docker")
+        match std::process::Command::new(&self.docker_path)
             .args(["rm", "-f", name])
             .output()
         {
@@ -157,14 +173,24 @@ impl DockerClient {
         }
     }
 
-    pub async fn load_image(&self, _image_path: &Path) -> BackendResult<()> {
-        Err(BackendError::Container(
-            "Docker client not implemented yet".to_string(),
-        ))
+    pub async fn load_image(&self, image_path: &Path) -> BackendResult<()> {
+        let output = std::process::Command::new(&self.docker_path)
+            .args(["load", "-i", &image_path.to_string_lossy()])
+            .output()
+            .map_err(|e| BackendError::Container(format!("Failed to load Docker image: {e}")))?;
+
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(BackendError::Container(format!(
+                "Failed to load Docker image: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )))
+        }
     }
 
     pub async fn image_exists(&self, image_name: &str) -> BackendResult<bool> {
-        match std::process::Command::new("docker")
+        match std::process::Command::new(&self.docker_path)
             .args(["images", "-q", image_name])
             .output()
         {
@@ -184,7 +210,7 @@ impl DockerClient {
         &self,
         container_name: &str,
     ) -> BackendResult<crate::backend::ContainerStatus> {
-        let output = std::process::Command::new("docker")
+        let output = std::process::Command::new(&self.docker_path)
             .args([
                 "ps",
                 "-a",
@@ -250,7 +276,7 @@ impl DockerClient {
     }
 
     pub async fn list_containers_by_pattern(&self, pattern: &str) -> BackendResult<Vec<String>> {
-        let output = std::process::Command::new("docker")
+        let output = std::process::Command::new(&self.docker_path)
             .args([
                 "ps",
                 "-a",
@@ -280,7 +306,7 @@ impl DockerClient {
     }
 
     pub async fn container_exists(&self, container_name: &str) -> BackendResult<bool> {
-        match std::process::Command::new("docker")
+        match std::process::Command::new(&self.docker_path)
             .args(["container", "inspect", container_name])
             .output()
         {
@@ -293,7 +319,7 @@ impl DockerClient {
     }
     
     pub async fn is_container_running(&self, container_name: &str) -> BackendResult<bool> {
-        match std::process::Command::new("docker")
+        match std::process::Command::new(&self.docker_path)
             .args(["ps", "-q", "-f", &format!("name={}", container_name)])
             .output()
         {
@@ -313,18 +339,15 @@ impl DockerClient {
     }
 
     /// Execute a command inside a running container
-    #[allow(dead_code)]
     pub async fn exec(
         &self,
         container_name: &str,
         command: &[&str],
     ) -> BackendResult<std::process::Output> {
-        warn!("Docker exec implementation is basic - using simple docker exec command");
-
         let mut args = vec!["exec", container_name];
         args.extend(command);
 
-        let output = tokio::process::Command::new("docker")
+        let output = tokio::process::Command::new(&self.docker_path)
             .args(&args)
             .output()
             .await
@@ -336,5 +359,35 @@ impl DockerClient {
             })?;
 
         Ok(output)
+    }
+    
+    pub async fn start_existing_container(&self, container_name: &str) -> BackendResult<()> {
+        match std::process::Command::new(&self.docker_path)
+            .args(["start", container_name])
+            .output()
+        {
+            Ok(output) => {
+                if output.status.success() {
+                    Ok(())
+                } else {
+                    // Check if container doesn't exist
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    if stderr.contains("No such container") {
+                        Err(BackendError::Container(format!(
+                            "Container {} not found",
+                            container_name
+                        )))
+                    } else {
+                        Err(BackendError::Container(format!(
+                            "Failed to start container {}: {}",
+                            container_name, stderr
+                        )))
+                    }
+                }
+            }
+            Err(e) => Err(BackendError::Container(format!(
+                "Docker command failed: {e}"
+            ))),
+        }
     }
 }

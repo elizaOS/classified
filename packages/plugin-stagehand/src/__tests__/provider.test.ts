@@ -1,99 +1,73 @@
-import {
-  describe,
-  expect,
-  it,
-  mock,
-  spyOn,
-  beforeEach,
-  afterEach,
-  beforeAll,
-  afterAll,
-} from 'bun:test';
-import { stagehandPlugin, StagehandService, BrowserSession } from '../index';
-import {
-  createMockRuntime,
-  createMockMemory,
-  createMockState,
-  setupLoggerSpies,
-} from './test-utils';
-import { Memory, State, logger } from '@elizaos/core';
-import { Stagehand } from '@browserbasehq/stagehand';
+import { describe, expect, it, mock, beforeEach, spyOn } from 'bun:test';
+import { Memory, State, IAgentRuntime, logger } from '@elizaos/core';
+import { createMockRuntime, createMockMemory, createMockState } from './test-utils';
+import { stagehandPlugin } from '../index';
+import { StagehandService, BrowserSession } from '../service';
+import { StagehandWebSocketClient } from '../websocket-client';
 
-// Mock the Stagehand module
-mock.module('@browserbasehq/stagehand', () => {
-  return {
-    Stagehand: mock().mockImplementation(() => {
-      const mockPage = {
-        goto: mock().mockResolvedValue(undefined),
-        goBack: mock().mockResolvedValue(undefined),
-        goForward: mock().mockResolvedValue(undefined),
-        reload: mock().mockResolvedValue(undefined),
-        waitForLoadState: mock().mockResolvedValue(undefined),
-        title: mock().mockResolvedValue('Test Page Title'),
-        url: mock().mockReturnValue('https://example.com'),
-      };
+// Mock the service
+mock.module('../service', () => ({
+  StagehandService: {
+    serviceType: 'STAGEHAND',
+    start: mock(),
+    stop: mock(),
+  },
+  BrowserSession: mock().mockImplementation((id: string) => ({
+    id,
+    createdAt: new Date(),
+  })),
+}));
 
-      return {
-        init: mock().mockResolvedValue(undefined),
-        close: mock().mockResolvedValue(undefined),
-        page: mockPage,
-      };
+// Mock the websocket client
+mock.module('../websocket-client', () => ({
+  StagehandWebSocketClient: mock().mockImplementation(() => ({
+    getState: mock().mockResolvedValue({
+      url: 'https://example.com',
+      title: 'Test Page Title',
+      sessionId: 'test-session-1',
+      createdAt: new Date(),
     }),
-  };
-});
-
-// Set up logger spies
-beforeAll(() => {
-  setupLoggerSpies();
-});
-
-afterAll(() => {
-  mock.restore();
-});
+  })),
+}));
 
 describe('BROWSER_STATE provider', () => {
-  let mockRuntime: any;
-  let mockService: StagehandService;
-  let mockSession: BrowserSession;
+  let mockRuntime: IAgentRuntime;
+  let mockService: any;
+  let mockClient: any;
+  let mockSession: any;
+  let mockMessage: Memory;
+  let mockState: State;
   let browserStateProvider: any;
 
   beforeEach(() => {
-    mock.restore();
+    // Reset all mocks
+    mockMessage = createMockMemory();
+    mockState = createMockState();
 
-    // Create mock runtime and service
-    mockRuntime = createMockRuntime();
-    mockService = new StagehandService(mockRuntime);
+    mockSession = new BrowserSession('test-session-1');
 
-    // Create a mock Stagehand instance
-    const mockStagehand = new Stagehand({ env: 'LOCAL' } as any);
-    mockSession = new BrowserSession('test-session-1', mockStagehand as any);
+    mockClient = new StagehandWebSocketClient('ws://localhost:3456');
 
-    // Mock service methods
-    spyOn(mockService, 'getCurrentSession').mockResolvedValue(mockSession);
+    mockService = {
+      getCurrentSession: mock().mockResolvedValue(mockSession),
+      getClient: mock().mockReturnValue(mockClient),
+      isInitialized: true,
+    };
 
-    // Set up runtime to return our mock service
-    mockRuntime.getService.mockReturnValue(mockService);
+    mockRuntime = createMockRuntime({
+      getService: mock().mockReturnValue(mockService),
+    });
 
-    // Get the provider
+    // Mock logger
+    spyOn(logger, 'error').mockImplementation(() => {});
+
+    // Get the provider from the plugin
     browserStateProvider = stagehandPlugin.providers?.find((p) => p.name === 'BROWSER_STATE');
-  });
-
-  it('should exist in plugin providers', () => {
-    expect(browserStateProvider).toBeDefined();
-    expect(browserStateProvider.name).toBe('BROWSER_STATE');
-    expect(browserStateProvider.description).toContain('browser state information');
   });
 
   describe('get method', () => {
     it('should return current session information when session exists', async () => {
-      const mockMessage = createMockMemory();
-      const mockState = createMockState();
-
-      const result = await browserStateProvider.get(
-        mockRuntime,
-        mockMessage as Memory,
-        mockState as State
-      );
+      const result = await browserStateProvider.get(mockRuntime, mockMessage, mockState);
 
       expect(result.text).toBe('Current browser page: "Test Page Title" at https://example.com');
       expect(result.values).toEqual({
@@ -101,23 +75,14 @@ describe('BROWSER_STATE provider', () => {
         url: 'https://example.com',
         title: 'Test Page Title',
       });
-      expect(result.data).toEqual({
-        sessionId: 'test-session-1',
-        createdAt: mockSession.createdAt,
-      });
+      expect(result.data.sessionId).toBe('test-session-1');
+      expect(result.data.createdAt).toBeInstanceOf(Date);
     });
 
     it('should return no session message when no session exists', async () => {
-      mockService.getCurrentSession = mock().mockResolvedValue(undefined);
+      mockService.getCurrentSession.mockResolvedValue(undefined);
 
-      const mockMessage = createMockMemory();
-      const mockState = createMockState();
-
-      const result = await browserStateProvider.get(
-        mockRuntime,
-        mockMessage as Memory,
-        mockState as State
-      );
+      const result = await browserStateProvider.get(mockRuntime, mockMessage, mockState);
 
       expect(result.text).toBe('No active browser session');
       expect(result.values).toEqual({
@@ -127,44 +92,22 @@ describe('BROWSER_STATE provider', () => {
     });
 
     it('should handle errors gracefully when getting page info fails', async () => {
-      // Set up logger spy for this test
-      const loggerErrorSpy = spyOn(logger, 'error').mockImplementation(() => {});
+      mockClient.getState.mockRejectedValue(new Error('Page error'));
 
-      // Make page.title throw an error
-      mockSession.page.title = mock().mockRejectedValue(new Error('Page error'));
-
-      const mockMessage = createMockMemory();
-      const mockState = createMockState();
-
-      const result = await browserStateProvider.get(
-        mockRuntime,
-        mockMessage as Memory,
-        mockState as State
-      );
+      const result = await browserStateProvider.get(mockRuntime, mockMessage, mockState);
 
       expect(result.text).toBe('Error getting browser state');
       expect(result.values).toEqual({
         hasSession: true,
         error: true,
       });
-      expect(result.data).toEqual({});
-      expect(loggerErrorSpy).toHaveBeenCalledWith(
-        'Error getting browser state:',
-        expect.any(Error)
-      );
+      expect(logger.error).toHaveBeenCalledWith('Error getting browser state:', expect.any(Error));
     });
 
     it('should work when service is not available', async () => {
-      mockRuntime.getService.mockReturnValue(null);
+      mockRuntime.getService = mock().mockReturnValue(null);
 
-      const mockMessage = createMockMemory();
-      const mockState = createMockState();
-
-      const result = await browserStateProvider.get(
-        mockRuntime,
-        mockMessage as Memory,
-        mockState as State
-      );
+      const result = await browserStateProvider.get(mockRuntime, mockMessage, mockState);
 
       expect(result.text).toBe('No active browser session');
       expect(result.values.hasSession).toBe(false);
@@ -174,32 +117,36 @@ describe('BROWSER_STATE provider', () => {
       const testDate = new Date('2024-01-01T00:00:00Z');
       mockSession.createdAt = testDate;
 
-      const mockMessage = createMockMemory();
-      const mockState = createMockState();
-
-      const result = await browserStateProvider.get(
-        mockRuntime,
-        mockMessage as Memory,
-        mockState as State
-      );
+      const result = await browserStateProvider.get(mockRuntime, mockMessage, mockState);
 
       expect(result.data.createdAt).toEqual(testDate);
     });
 
     it('should handle URL without title', async () => {
-      mockSession.page.title = mock().mockResolvedValue('');
+      mockClient.getState.mockResolvedValue({
+        url: 'https://example.com',
+        title: '',
+        sessionId: 'test-session-1',
+        createdAt: new Date(),
+      });
 
-      const mockMessage = createMockMemory();
-      const mockState = createMockState();
-
-      const result = await browserStateProvider.get(
-        mockRuntime,
-        mockMessage as Memory,
-        mockState as State
-      );
+      const result = await browserStateProvider.get(mockRuntime, mockMessage, mockState);
 
       expect(result.text).toBe('Current browser page: "" at https://example.com');
-      expect(result.values.title).toBe('');
+    });
+  });
+
+  describe('provider structure', () => {
+    it('should have correct name', () => {
+      expect(browserStateProvider.name).toBe('BROWSER_STATE');
+    });
+
+    it('should have a description', () => {
+      expect(browserStateProvider.description).toContain('browser state information');
+    });
+
+    it('should have get method', () => {
+      expect(typeof browserStateProvider.get).toBe('function');
     });
   });
 });

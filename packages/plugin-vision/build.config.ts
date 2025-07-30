@@ -45,7 +45,6 @@ export const buildConfig: BuildConfig = {
     'axios',
     // Native modules - DO NOT BUNDLE
     'sharp',
-    'canvas',
     '@napi-rs/canvas',
     'face-api.js',
   ],
@@ -70,7 +69,6 @@ export const workersConfig: BuildConfig = {
   external: [
     // All native modules must be external
     'sharp',
-    'canvas',
     '@napi-rs/canvas',
     'face-api.js',
     '@tensorflow/tfjs-node',

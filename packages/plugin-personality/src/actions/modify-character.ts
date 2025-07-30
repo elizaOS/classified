@@ -7,6 +7,7 @@ import {
   type State,
   type HandlerCallback,
   ModelType,
+  MemoryType,
   logger,
 } from '@elizaos/core';
 import { CharacterFileManager } from '../services/character-file-manager';
@@ -303,7 +304,7 @@ Return JSON: {"isModificationRequest": boolean, "requestType": "explicit"|"sugge
               source: 'character_modification_success',
             },
             metadata: {
-              type: 'custom' as const,
+              type: MemoryType.CUSTOM,
               isUserRequested,
               timestamp: Date.now(),
               requesterId: message.entityId,

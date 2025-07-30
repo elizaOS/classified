@@ -13,7 +13,7 @@ import { sql } from 'drizzle-orm';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { TodoDataServiceWrapper } from './services/todoDataService';
+import type { TodoDataService } from './services/todoDataService';
 import type { TodoData } from './services/todoDataService';
 import type { TodoMetadata } from './types';
 
@@ -102,7 +102,7 @@ export const routes: Route[] = [
     path: '/api/todos',
     handler: async (_req: unknown, res: TodoApiResponse, runtime: IAgentRuntime) => {
       try {
-        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        const dataService = runtime.getService('todo') as TodoDataService;
         if (!dataService) {
           logger.error('[API /api/todos] Todo service not available');
           return res.status(503).json({ error: 'Todo service not available' });
@@ -295,7 +295,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing required fields: name, type, roomId');
         }
 
-        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        const dataService = runtime.getService('todo') as TodoDataService;
         if (!dataService) {
           logger.error('[API /api/todos] Todo service not available');
           return res.status(503).json({ error: 'Todo service not available' });
@@ -389,7 +389,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing taskId');
         }
 
-        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        const dataService = runtime.getService('todo') as TodoDataService;
         if (!dataService) {
           logger.error('[API /api/todos/:id/complete] Todo service not available');
           return res.status(503).send('Todo service not available');
@@ -451,7 +451,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing taskId');
         }
 
-        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        const dataService = runtime.getService('todo') as TodoDataService;
         if (!dataService) {
           logger.error('[API /api/todos/:id/uncomplete] Todo service not available');
           return res.status(503).send('Todo service not available');
@@ -529,7 +529,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing update data');
         }
 
-        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        const dataService = runtime.getService('todo') as TodoDataService;
         if (!dataService) {
           logger.error('[API /api/todos] Todo service not available');
           return res.status(503).send('Todo service not available');
@@ -641,7 +641,7 @@ export const routes: Route[] = [
           return res.status(400).send('Missing todo ID');
         }
 
-        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        const dataService = runtime.getService('todo') as TodoDataService;
         if (!dataService) {
           logger.error('[API /api/todos/:id] Todo service not available');
           return res.status(503).send('Todo service not available');
@@ -670,7 +670,7 @@ export const routes: Route[] = [
     path: '/api/todos/overdue',
     handler: async (_req: unknown, res: TodoApiResponse, runtime: IAgentRuntime) => {
       try {
-        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        const dataService = runtime.getService('todo') as TodoDataService;
         if (!dataService) {
           logger.error('[API /api/todos/overdue] Todo service not available');
           return res.status(503).json({ error: 'Todo service not available' });
@@ -689,7 +689,7 @@ export const routes: Route[] = [
     path: '/api/todos/reset-daily',
     handler: async (_req: unknown, res: TodoApiResponse, runtime: IAgentRuntime) => {
       try {
-        const dataService = runtime.getService('todo') as TodoDataServiceWrapper;
+        const dataService = runtime.getService('todo') as TodoDataService;
         if (!dataService) {
           logger.error('[API /api/todos/reset-daily] Todo service not available');
           return res.status(503).json({ error: 'Todo service not available' });

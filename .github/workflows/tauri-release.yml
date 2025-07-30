@@ -59,263 +59,90 @@ jobs:
               throw error;
             }
 
-  build-and-upload:
+  publish-tauri:
     needs: create-release
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-22.04, windows-latest]
         include:
-          - platform: macos-latest
-            rust_target: universal-apple-darwin
-            bundle_path: universal-apple-darwin
-          - platform: ubuntu-22.04
-            rust_target: x86_64-unknown-linux-gnu
-            bundle_path: x86_64-unknown-linux-gnu
-          - platform: windows-latest
-            rust_target: x86_64-pc-windows-msvc
-            bundle_path: x86_64-pc-windows-msvc
+          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest' # for Intel based macs.
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
 
     runs-on: ${{ matrix.platform }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - name: Setup Rust
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 'latest'
+
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_target }}
+          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      - name: Setup Code Signing (macOS)
-        if: matrix.platform == 'macos-latest' && github.event_name != 'pull_request'
-        run: |
-          # Create keychain and import certificates
-          security create-keychain -p "${{ secrets.MACOS_KEYCHAIN_PASSWORD }}" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "${{ secrets.MACOS_KEYCHAIN_PASSWORD }}" build.keychain
-
-          # Import certificates
-          echo "${{ secrets.MACOS_CERTIFICATE }}" | base64 -d > certificate.p12
-          security import certificate.p12 -k build.keychain -P "${{ secrets.MACOS_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.MACOS_KEYCHAIN_PASSWORD }}" build.keychain
-
-          # Set signing identity
-          echo "APPLE_SIGNING_IDENTITY=${{ secrets.APPLE_SIGNING_IDENTITY }}" >> $GITHUB_ENV
-          echo "APPLE_PROVIDER_SHORT_NAME=${{ secrets.APPLE_PROVIDER_SHORT_NAME }}" >> $GITHUB_ENV
-        env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-
-      - name: Setup Code Signing (Windows)
-        if: matrix.platform == 'windows-latest' && github.event_name != 'pull_request'
-        run: |
-          # Decode and save certificate
-          echo "${{ secrets.WINDOWS_CERTIFICATE }}" | base64 -d > certificate.pfx
-          echo "WINDOWS_CERTIFICATE_PATH=${{ github.workspace }}\certificate.pfx" >> $env:GITHUB_ENV
-          echo "WINDOWS_CERTIFICATE_PASSWORD=${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" >> $env:GITHUB_ENV
-        env:
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-
-      - name: Install Linux dependencies
+      - name: Install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.0-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libxdo-dev
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Install dependencies (root)
-        run: npm ci --ignore-scripts || echo "Root install failed, trying game package directly"
-
-      - name: Install dependencies (game package)
+      - name: Install frontend dependencies
         run: |
+          # Install root dependencies first
+          bun install --frozen-lockfile || bun install
+          # Then install game package dependencies
           cd packages/game
-          npm ci --ignore-scripts || echo "Some workspace dependencies may be missing but continuing with available ones"
+          bun install --frozen-lockfile || bun install
 
       - name: Build frontend
         run: |
           cd packages/game
-          npm run build || echo "Frontend build completed"
+          bun run build:frontend || bun run build
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Code signing environment variables are set in previous steps
-        with:
-          projectPath: packages/game
-          releaseId: ${{ needs.create-release.outputs.release_id }}
-
-      - name: Notarize macOS App
-        if: matrix.platform == 'macos-latest' && github.event_name != 'pull_request'
-        run: |
-          # Find the built app
-          APP_PATH=$(find packages/game/src-tauri/target/${{ matrix.bundle_path }}/release/bundle/macos -name "*.app" | head -1)
-
-          if [ -n "$APP_PATH" ]; then
-            echo "Notarizing $APP_PATH"
-            
-            # Create ZIP for notarization
-            ditto -c -k --keepParent "$APP_PATH" "app.zip"
-            
-            # Submit for notarization
-            xcrun notarytool submit "app.zip" \
-              --apple-id "${{ secrets.APPLE_ID }}" \
-              --password "${{ secrets.APPLE_APP_PASSWORD }}" \
-              --team-id "${{ secrets.APPLE_TEAM_ID }}" \
-              --wait
-            
-            # Staple the notarization
-            xcrun stapler staple "$APP_PATH"
-            
-            echo "✅ Notarization complete"
-          else
-            echo "❌ Could not find built app for notarization"
-          fi
-        env:
+          # Code signing for macOS
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-      - name: Upload Release Assets (macOS)
-        if: matrix.platform == 'macos-latest'
-        uses: actions/github-script@v7
+          # Code signing for Windows
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          script: |
-            const fs = require('fs').promises;
-            const path = require('path');
-
-            const releaseId = ${{ needs.create-release.outputs.release_id }};
-            const buildPath = 'packages/game/src-tauri/target/${{ matrix.bundle_path }}/release/bundle';
-
-            // Upload DMG
-            const dmgPath = path.join(buildPath, 'dmg');
-            const dmgFiles = await fs.readdir(dmgPath);
-            const dmgFile = dmgFiles.find(file => file.endsWith('.dmg'));
-
-            if (dmgFile) {
-              const dmgData = await fs.readFile(path.join(dmgPath, dmgFile));
-              await github.rest.repos.uploadReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: releaseId,
-                name: dmgFile,
-                data: dmgData,
-              });
-            }
-
-      - name: Upload Release Assets (Windows)
-        if: matrix.platform == 'windows-latest'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs').promises;
-            const path = require('path');
-
-            const releaseId = ${{ needs.create-release.outputs.release_id }};
-            const buildPath = 'packages/game/src-tauri/target/${{ matrix.bundle_path }}/release/bundle';
-
-            // Upload MSI
-            const msiPath = path.join(buildPath, 'msi');
-            const msiFiles = await fs.readdir(msiPath);
-            const msiFile = msiFiles.find(file => file.endsWith('.msi'));
-
-            if (msiFile) {
-              const msiData = await fs.readFile(path.join(msiPath, msiFile));
-              await github.rest.repos.uploadReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: releaseId,
-                name: msiFile,
-                data: msiData,
-              });
-            }
-
-            // Upload EXE
-            const nsis = path.join(buildPath, 'nsis');
-            try {
-              const nsisFiles = await fs.readdir(nsis);
-              const exeFile = nsisFiles.find(file => file.endsWith('.exe'));
-              
-              if (exeFile) {
-                const exeData = await fs.readFile(path.join(nsis, exeFile));
-                await github.rest.repos.uploadReleaseAsset({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  release_id: releaseId,
-                  name: exeFile,
-                  data: exeData,
-                });
-              }
-            } catch (e) {
-              console.log('NSIS bundle not found, skipping EXE upload');
-            }
-
-      - name: Upload Release Assets (Linux)
-        if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs').promises;
-            const path = require('path');
-
-            const releaseId = ${{ needs.create-release.outputs.release_id }};
-            const buildPath = 'packages/game/src-tauri/target/${{ matrix.bundle_path }}/release/bundle';
-
-            // Upload AppImage
-            const appimgPath = path.join(buildPath, 'appimage');
-            const appimgFiles = await fs.readdir(appimgPath);
-            const appimgFile = appimgFiles.find(file => file.endsWith('.AppImage'));
-
-            if (appimgFile) {
-              const appimgData = await fs.readFile(path.join(appimgPath, appimgFile));
-              await github.rest.repos.uploadReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: releaseId,
-                name: appimgFile,
-                data: appimgData,
-              });
-            }
-
-            // Upload DEB
-            const debPath = path.join(buildPath, 'deb');
-            try {
-              const debFiles = await fs.readdir(debPath);
-              const debFile = debFiles.find(file => file.endsWith('.deb'));
-              
-              if (debFile) {
-                const debData = await fs.readFile(path.join(debPath, debFile));
-                await github.rest.repos.uploadReleaseAsset({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  release_id: releaseId,
-                  name: debFile,
-                  data: debData,
-                });
-              }
-            } catch (e) {
-              console.log('DEB bundle not found, skipping DEB upload');
-            }
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: 'ELIZA ${{ github.event.inputs.tag || github.ref_name }}'
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: false
+          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+          projectPath: packages/game
+          tauriScript: bunx tauri
+          includeDebug: false
+          includeRelease: true
 
   trigger-lander-update:
-    needs: [create-release, build-and-upload]
+    needs: [create-release, publish-tauri]
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Lander Rebuild
@@ -329,3 +156,516 @@ jobs:
               workflow_id: 'deploy-lander.yml',
               ref: 'main'
             });
+
+  deploy-to-steam:
+    needs: [create-release, publish-tauri]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get release tag
+        id: get-tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Deploying tag: $TAG"
+
+      - name: Download release artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Create directories for Steam depots
+            const depotDirs = {
+              windows: 'steam-depots/windows',
+              linux: 'steam-depots/linux',
+              macos: 'steam-depots/macos'
+            };
+
+            for (const dir of Object.values(depotDirs)) {
+              fs.mkdirSync(dir, { recursive: true });
+            }
+
+            // Get the release
+            const tag = '${{ steps.get-tag.outputs.tag }}';
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: tag
+            });
+
+            console.log(`Found ${release.data.assets.length} assets in release ${tag}`);
+
+            // Download each asset
+            for (const asset of release.data.assets) {
+              console.log(`Downloading ${asset.name}...`);
+              
+              const download = await github.rest.repos.getReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: asset.id,
+                headers: {
+                  Accept: 'application/octet-stream'
+                }
+              });
+              
+              // Determine target directory based on file extension
+              let targetDir;
+              if (asset.name.endsWith('.exe') || asset.name.endsWith('.msi')) {
+                targetDir = depotDirs.windows;
+              } else if (asset.name.endsWith('.AppImage') || asset.name.endsWith('.deb')) {
+                targetDir = depotDirs.linux;
+              } else if (asset.name.endsWith('.dmg') || asset.name.endsWith('.app.tar.gz')) {
+                targetDir = depotDirs.macos;
+              } else {
+                console.log(`Skipping unknown asset type: ${asset.name}`);
+                continue;
+              }
+              
+              const filePath = path.join(targetDir, asset.name);
+              fs.writeFileSync(filePath, Buffer.from(download.data));
+              console.log(`Saved to ${filePath}`);
+            }
+
+      - name: Prepare Steam build
+        run: |
+          # Extract macOS app bundles if present
+          if ls steam-depots/macos/*.app.tar.gz 1> /dev/null 2>&1; then
+            echo "Extracting macOS app bundles..."
+            cd steam-depots/macos
+            for archive in *.app.tar.gz; do
+              tar -xzf "$archive"
+              rm "$archive"
+            done
+            cd ../..
+          fi
+
+          # Copy install scripts if they exist
+          if [ -f "packages/game/steam/install_script_windows.vdf" ]; then
+            echo "Copying Windows install script..."
+            cp packages/game/steam/install_script_windows.vdf steam-depots/windows/install_script.vdf
+          fi
+
+          # List all files for verification
+          echo "Steam depot contents:"
+          find steam-depots -type f -ls
+
+      - name: Generate TOTP (if using TOTP auth)
+        uses: CyberAndrii/steam-totp@v1
+        id: steam-totp
+        with:
+          shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
+        continue-on-error: true
+
+      - name: Deploy to Steam
+        uses: game-ci/steam-deploy@v3
+        with:
+          username: ${{ secrets.STEAM_USERNAME }}
+          # Use either TOTP or config.vdf authentication
+          totp: ${{ steps.steam-totp.outputs.code || '' }}
+          configVdf: ${{ secrets.STEAM_CONFIG_VDF || '' }}
+          appId: ${{ secrets.STEAM_APP_ID }}
+          buildDescription: 'ELIZA ${{ steps.get-tag.outputs.tag }}'
+          rootPath: steam-depots
+          depot1Path: windows
+          depot1InstallScriptPath: windows/install_script.vdf
+          depot2Path: linux
+          depot3Path: macos
+          releaseBranch: ${{ contains(steps.get-tag.outputs.tag, '-') && 'beta' || 'release' }}
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf steam-depots/
+
+  deploy-to-mac-app-store:
+    needs: [create-release, publish-tauri]
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 'latest'
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install Certificates
+        run: |
+          MAC_APP_CERT_PATH=$RUNNER_TEMP/mac_app.p12
+          MAC_INSTALLER_CERT_PATH=$RUNNER_TEMP/mac_installer.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          echo -n "$MAC_APP_CERT" | base64 --decode -o $MAC_APP_CERT_PATH
+          echo -n "$MAC_INSTALLER_CERT" | base64 --decode -o $MAC_INSTALLER_CERT_PATH
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          security import $MAC_APP_CERT_PATH -P "$MAC_APP_CERT_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security import $MAC_INSTALLER_CERT_PATH -P "$MAC_INSTALLER_CERT_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Install provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo -n "$MAC_PROVISIONING_PROFILE" | \
+            base64 --decode -o ~/Library/MobileDevice/Provisioning\ Profiles/eliza.provisionprofile
+        env:
+          MAC_APP_CERT: ${{ secrets.MAC_APP_CERT }}
+          MAC_APP_CERT_PASSWORD: ${{ secrets.MAC_APP_CERT_PASSWORD }}
+          MAC_INSTALLER_CERT: ${{ secrets.MAC_INSTALLER_CERT }}
+          MAC_INSTALLER_CERT_PASSWORD: ${{ secrets.MAC_INSTALLER_CERT_PASSWORD }}
+          MAC_PROVISIONING_PROFILE: ${{ secrets.MAC_PROVISIONING_PROFILE }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+      - name: Install dependencies
+        run: |
+          bun install --frozen-lockfile || bun install
+          cd packages/game
+          bun install --frozen-lockfile || bun install
+
+      - name: Build frontend
+        run: |
+          cd packages/game
+          bun run build:frontend || bun run build
+
+      - name: Verify Tauri Configuration
+        run: |
+          cd packages/game
+
+          # Check if bundle identifier is set correctly
+          BUNDLE_ID=$(cat src-tauri/tauri.conf.json | jq -r '.identifier')
+          if [ "$BUNDLE_ID" != "io.elizaos.terminal" ]; then
+            echo "Warning: Bundle identifier is '$BUNDLE_ID', expected 'io.elizaos.terminal'"
+            echo "Current identifier will be used: $BUNDLE_ID"
+          fi
+
+          # Check if macOS configuration exists
+          if ! cat src-tauri/tauri.conf.json | jq -e '.bundle.macOS' > /dev/null; then
+            echo "Note: macOS configuration already exists in tauri.conf.json"
+          fi
+
+      - name: Build for Mac App Store
+        run: |
+          cd packages/game
+
+          # Create export options for Mac App Store
+          cat > MASExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+          # Build universal binary for Mac App Store
+          bunx tauri build --target universal-apple-darwin
+
+          # Find the generated Xcode project
+          XCODE_PROJECT=$(find src-tauri/gen/apple -name "*.xcodeproj" | head -1)
+          if [ -z "$XCODE_PROJECT" ]; then
+            echo "Error: No Xcode project found"
+            exit 1
+          fi
+
+          # Get the scheme name from the project
+          SCHEME_NAME=$(xcodebuild -project "$XCODE_PROJECT" -list | grep -A 1 "Schemes:" | tail -1 | xargs)
+          echo "Found Xcode project: $XCODE_PROJECT"
+          echo "Using scheme: $SCHEME_NAME"
+
+          # Create archive
+          xcodebuild -project "$XCODE_PROJECT" \
+            -scheme "$SCHEME_NAME" \
+            -configuration Release \
+            -derivedDataPath build \
+            -destination 'platform=macOS' \
+            archive -archivePath ElizaOS.xcarchive
+
+          # Export for Mac App Store
+          xcodebuild -exportArchive \
+            -archivePath ElizaOS.xcarchive \
+            -exportOptionsPlist MASExportOptions.plist \
+            -exportPath export
+
+      - name: Upload to App Store Connect
+        run: |
+          cd packages/game
+
+          # Note: altool is being deprecated. Consider migrating to:
+          # xcrun notarytool submit export/*.pkg --apple-id ... --team-id ...
+          # For now, altool still works for App Store uploads
+
+          xcrun altool \
+            --upload-package export/*.pkg \
+            --type macos \
+            --asc-public-id '${{ secrets.APPLE_ASC_PUBLIC_ID }}' \
+            --apple-id '${{ secrets.APPLE_APP_ID }}' \
+            --bundle-id 'io.elizaos.terminal' \
+            --bundle-short-version-string "${{ github.ref_name }}" \
+            --bundle-version "$(date +%Y%m%d%H%M%S)" \
+            --username '${{ secrets.APPLE_ID }}' \
+            --password '${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}'
+
+  deploy-to-windows-store:
+    needs: [create-release, publish-tauri]
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 'latest'
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          bun install --frozen-lockfile || bun install
+          cd packages/game
+          bun install --frozen-lockfile || bun install
+
+      - name: Build frontend
+        run: |
+          cd packages/game
+          bun run build:frontend || bun run build
+
+      - name: Build MSIX for Windows Store
+        run: |
+          cd packages/game
+
+          # Configure for Windows Store
+          $tauriConf = Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json
+          $tauriConf.tauri.bundle.windows.certificateThumbprint = "${{ secrets.WINDOWS_CERT_THUMBPRINT }}"
+          $tauriConf.tauri.bundle.windows.digestAlgorithm = "sha256"
+          $tauriConf.tauri.bundle.windows.timestampUrl = "http://timestamp.digicert.com"
+          $tauriConf | ConvertTo-Json -Depth 100 | Set-Content src-tauri/tauri.conf.json
+
+          # Build MSIX
+          bunx tauri build --target x86_64-pc-windows-msvc
+
+          # Copy MSIX to upload directory
+          New-Item -ItemType Directory -Force -Path "../../store-upload"
+
+          # Find and copy MSIX files (they can be in different locations)
+          $msixFiles = Get-ChildItem -Path "src-tauri/target/release/bundle" -Recurse -Filter "*.msix"
+          if ($msixFiles.Count -eq 0) {
+            Write-Error "No MSIX files found"
+            exit 1
+          }
+
+          foreach ($file in $msixFiles) {
+            Write-Host "Found MSIX: $($file.FullName)"
+            Copy-Item -Path $file.FullName -Destination "../../store-upload/"
+          }
+
+      - name: Publish to Microsoft Store
+        shell: pwsh
+        run: |
+          # Install StoreBroker module
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name StoreBroker -Force -Scope CurrentUser -SkipPublisherCheck
+          Import-Module StoreBroker
+
+          # Configure StoreBroker
+          $configPath = New-TemporaryFile
+          @{
+            tenantId = "${{ secrets.AZURE_AD_TENANT_ID }}"
+            clientId = "${{ secrets.AZURE_AD_CLIENT_ID }}"
+            clientSecret = "${{ secrets.AZURE_AD_CLIENT_SECRET }}"
+            appId = "${{ secrets.WINDOWS_STORE_APP_ID }}"
+          } | ConvertTo-Json | Out-File -FilePath $configPath
+
+          # Authenticate with Partner Center
+          $authContext = Get-StoreBrokerAuthentication -TenantId "${{ secrets.AZURE_AD_TENANT_ID }}" `
+            -ClientId "${{ secrets.AZURE_AD_CLIENT_ID }}" `
+            -ClientSecret "${{ secrets.AZURE_AD_CLIENT_SECRET }}"
+
+          # Find MSIX package
+          $packagePath = Get-ChildItem -Path "store-upload" -Filter "*.msix" | Select-Object -First 1
+
+          if ($packagePath) {
+            Write-Host "Found MSIX package: $($packagePath.FullName)"
+            
+            try {
+              # Get app info
+              $appId = "${{ secrets.WINDOWS_STORE_APP_ID }}"
+              
+              # Create a new submission
+              Write-Host "Creating new submission for app $appId..."
+              $submission = New-ApplicationSubmission -AppId $appId
+              
+              # Upload the package
+              Write-Host "Uploading package..."
+              $submissionPackage = @{
+                PackagePath = $packagePath.FullName
+                PackageFileName = $packagePath.Name
+              }
+              
+              Update-ApplicationSubmissionPackage -AppId $appId `
+                -SubmissionId $submission.id `
+                -PackagePath $packagePath.FullName
+              
+              # Commit the submission
+              Write-Host "Committing submission..."
+              Complete-ApplicationSubmission -AppId $appId -SubmissionId $submission.id
+              
+              Write-Host "Successfully submitted to Windows Store"
+              Write-Host "Submission ID: $($submission.id)"
+            }
+            catch {
+              Write-Error "Failed to submit to Windows Store: $_"
+              exit 1
+            }
+          } else {
+            Write-Error "No MSIX package found to upload"
+            exit 1
+          }
+
+  deploy-to-snap-store:
+    needs: [create-release, publish-tauri]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update snapcraft.yaml version
+        run: |
+          # Copy snapcraft.yaml if it exists
+          if [ -f "packages/game/snap/snapcraft.yaml" ]; then
+            mkdir -p snap
+            cp packages/game/snap/snapcraft.yaml snap/snapcraft.yaml
+          else
+            echo "Error: snapcraft.yaml not found in packages/game/snap/"
+            exit 1
+          fi
+
+          # Set grade based on tag type
+          if [[ "${{ github.ref_name }}" == *"-"* ]]; then
+            sed -i 's/grade: stable/grade: devel/' snap/snapcraft.yaml
+          fi
+
+          # Update the download URL to use the current release
+          sed -i "s|https://github.com/elizaos/eliza/releases/latest/download/|https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/|g" snap/snapcraft.yaml
+
+      - name: Download AppImage from release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Get the release
+            const tag = '${{ github.ref_name }}';
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: tag
+            });
+
+            console.log(`Found ${release.data.assets.length} assets in release ${tag}`);
+
+            // Log all assets for debugging
+            release.data.assets.forEach(asset => {
+              console.log(`- ${asset.name} (${asset.size} bytes)`);
+            });
+
+            // Find AppImage assets for both architectures
+            const amd64Asset = release.data.assets.find(asset => 
+              asset.name.includes('.AppImage') && 
+              (asset.name.includes('amd64') || asset.name.includes('x86_64'))
+            );
+
+            const arm64Asset = release.data.assets.find(asset => 
+              asset.name.includes('.AppImage') && 
+              (asset.name.includes('arm64') || asset.name.includes('aarch64'))
+            );
+
+            if (amd64Asset) {
+              console.log(`Found amd64 AppImage: ${amd64Asset.name}`);
+              fs.writeFileSync('.appimage-amd64-name', amd64Asset.name);
+            }
+
+            if (arm64Asset) {
+              console.log(`Found arm64 AppImage: ${arm64Asset.name}`);
+              fs.writeFileSync('.appimage-arm64-name', arm64Asset.name);
+            }
+
+            if (!amd64Asset && !arm64Asset) {
+              throw new Error('No AppImage assets found in release');
+            }
+
+      - name: Update snapcraft.yaml with asset names
+        run: |
+          # Read asset names if they exist
+          AMD64_NAME=""
+          ARM64_NAME=""
+
+          if [ -f ".appimage-amd64-name" ]; then
+            AMD64_NAME=$(cat .appimage-amd64-name)
+            echo "AMD64 AppImage: $AMD64_NAME"
+          fi
+
+          if [ -f ".appimage-arm64-name" ]; then
+            ARM64_NAME=$(cat .appimage-arm64-name)
+            echo "ARM64 AppImage: $ARM64_NAME"
+          fi
+
+          # Update snapcraft.yaml with actual asset names
+          if [ -n "$AMD64_NAME" ]; then
+            sed -i "s|ElizaOS-Terminal_\${ARCH_SUFFIX}.AppImage|$AMD64_NAME|g" snap/snapcraft.yaml
+            sed -i "s|elizaos-terminal_\${SNAPCRAFT_TARGET_ARCH}.AppImage|$AMD64_NAME|g" snap/snapcraft.yaml
+          fi
+
+      - name: Build snap
+        uses: snapcore/action-build@v1
+        id: build-snap
+
+      - name: Test snap
+        run: |
+          sudo snap install --dangerous ${{ steps.build-snap.outputs.snap }}
+          # Basic smoke test
+          snap run elizaos-terminal --version || echo "Version check not implemented"
+
+      - name: Publish to Snap Store
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.build-snap.outputs.snap }}
+          release: ${{ contains(github.ref, '-') && 'edge' || 'stable' }}

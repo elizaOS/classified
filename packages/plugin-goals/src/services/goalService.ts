@@ -1,7 +1,7 @@
-import { type IAgentRuntime, type UUID, logger, Service, asUUID } from '@elizaos/core';
-import { and, eq, asc, inArray, type SQL } from 'drizzle-orm';
-import { goalsTable, goalTagsTable } from '../schema';
+import { asUUID, logger, Service, type IAgentRuntime, type UUID } from '@elizaos/core';
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import { goalsTable, goalTagsTable } from '../schema';
 import { GoalServiceType, type GoalData } from '../types';
 
 /**
@@ -26,50 +26,45 @@ export class GoalDataManager {
     metadata?: Record<string, any>;
     tags?: string[];
   }): Promise<UUID | null> {
-    try {
-      const db = this.runtime.db;
-      if (!db) {
-        throw new Error('Database not available');
-      }
-
-      // Create the goal
-      const goalId = asUUID(uuidv4());
-      const values: any = {
-        id: goalId,
-        agentId: params.agentId,
-        ownerType: params.ownerType,
-        ownerId: params.ownerId,
-        name: params.name,
-        metadata: params.metadata || {},
-      };
-
-      // Only include description if it's provided
-      if (params.description !== undefined) {
-        values.description = params.description;
-      }
-
-      const [goal] = await db.insert(goalsTable).values(values).returning();
-
-      if (!goal) {
-        return null;
-      }
-
-      // Add tags if provided
-      if (params.tags && params.tags.length > 0) {
-        const tagInserts = params.tags.map((tag) => ({
-          id: asUUID(uuidv4()),
-          goalId: goal.id,
-          tag,
-        }));
-
-        await db.insert(goalTagsTable).values(tagInserts);
-      }
-
-      return goal.id;
-    } catch (error) {
-      logger.error('Error creating goal:', error);
-      throw error;
+    const db = this.runtime.db;
+    if (!db) {
+      throw new Error('Database not available');
     }
+
+    // Create the goal
+    const goalId = asUUID(uuidv4());
+    const values: any = {
+      id: goalId,
+      agentId: params.agentId,
+      ownerType: params.ownerType,
+      ownerId: params.ownerId,
+      name: params.name,
+      metadata: params.metadata || {},
+    };
+
+    // Only include description if it's provided
+    if (params.description !== undefined) {
+      values.description = params.description;
+    }
+
+    const [goal] = await db.insert(goalsTable).values(values).returning();
+
+    if (!goal) {
+      return null;
+    }
+
+    // Add tags if provided
+    if (params.tags && params.tags.length > 0) {
+      const tagInserts = params.tags.map((tag) => ({
+        id: asUUID(uuidv4()),
+        goalId: goal.id,
+        tag,
+      }));
+
+      await db.insert(goalTagsTable).values(tagInserts);
+    }
+
+    return goal.id;
   }
 
   /**
@@ -81,7 +76,6 @@ export class GoalDataManager {
     isCompleted?: boolean;
     tags?: string[];
   }): Promise<GoalData[]> {
-    try {
       const db = this.runtime.db;
       if (!db) {
         throw new Error('Database not available');
@@ -147,17 +141,12 @@ export class GoalDataManager {
         updatedAt: new Date(goal.updatedAt),
         completedAt: goal.completedAt ? new Date(goal.completedAt) : null,
       }));
-    } catch (error) {
-      logger.error('Error getting goals:', error);
-      throw error;
-    }
   }
 
   /**
    * Get a single goal by ID
    */
   async getGoal(goalId: UUID): Promise<GoalData | null> {
-    try {
       const db = this.runtime.db;
       if (!db) {
         throw new Error('Database not available');
@@ -179,10 +168,6 @@ export class GoalDataManager {
         updatedAt: new Date(goal.updatedAt),
         completedAt: goal.completedAt ? new Date(goal.completedAt) : null,
       };
-    } catch (error) {
-      logger.error('Error getting goal:', error);
-      throw error;
-    }
   }
 
   /**
@@ -199,7 +184,6 @@ export class GoalDataManager {
       tags?: string[];
     }
   ): Promise<boolean> {
-    try {
       const db = this.runtime.db;
       if (!db) {
         throw new Error('Database not available');
@@ -246,17 +230,12 @@ export class GoalDataManager {
       }
 
       return true;
-    } catch (error) {
-      logger.error('Error updating goal:', error);
-      throw error;
-    }
   }
 
   /**
    * Delete a goal
    */
   async deleteGoal(goalId: UUID): Promise<boolean> {
-    try {
       const db = this.runtime.db;
       if (!db) {
         throw new Error('Database not available');
@@ -264,17 +243,13 @@ export class GoalDataManager {
 
       await db.delete(goalsTable).where(eq(goalsTable.id, goalId));
       return true;
-    } catch (error) {
-      logger.error('Error deleting goal:', error);
-      throw error;
-    }
   }
 
   /**
    * Get uncompleted goals
    */
   async getUncompletedGoals(ownerType?: 'agent' | 'entity', ownerId?: UUID): Promise<GoalData[]> {
-    try {
+
       const conditions = [eq(goalsTable.isCompleted, false)];
 
       if (ownerType) {
@@ -289,26 +264,17 @@ export class GoalDataManager {
         ownerType,
         ownerId,
       });
-    } catch (error) {
-      logger.error('Error getting uncompleted goals:', error);
-      throw error;
-    }
   }
 
   /**
    * Get completed goals
    */
   async getCompletedGoals(ownerType?: 'agent' | 'entity', ownerId?: UUID): Promise<GoalData[]> {
-    try {
       return this.getGoals({
         isCompleted: true,
         ownerType,
         ownerId,
       });
-    } catch (error) {
-      logger.error('Error getting completed goals:', error);
-      throw error;
-    }
   }
 
   /**
@@ -319,17 +285,12 @@ export class GoalDataManager {
     ownerId: UUID,
     isCompleted?: boolean
   ): Promise<number> {
-    try {
       const goals = await this.getGoals({
         ownerType,
         ownerId,
         isCompleted,
       });
       return goals.length;
-    } catch (error) {
-      logger.error('Error counting goals:', error);
-      throw error;
-    }
   }
 
   /**
@@ -388,12 +349,6 @@ export class GoalService extends Service {
     logger.info('[GoalService] Services before registration:', Array.from(services.keys()));
 
     logger.info('[GoalService] Service started successfully');
-
-    // Wait a bit for database migrations to complete, then create initial goals
-    // Use multiple retry attempts to handle migration timing
-    setTimeout(() => {
-      service.createInitialGoalsWithRetry(runtime, 0);
-    }, 7777); // Wait 3 seconds for migrations to complete
 
     return service;
   }
@@ -545,7 +500,6 @@ export class GoalService extends Service {
       // First, check if the goals table exists by trying a simple query
       try {
         // Import the goals table from schema
-        const { goalsTable } = await import('../schema.js');
         await runtime.db.select().from(goalsTable).limit(1);
       } catch (error) {
         throw new Error(`Goals table not ready: ${(error as Error).message}`);

@@ -66,7 +66,7 @@ describe('Integration: SAY_ALOUD Action with SamTTSService', () => {
 
     // Create a mock runtime with service lookup
     const getServiceImpl = (serviceType: string) => {
-      if (serviceType === 'samTTS') {
+      if (serviceType === 'SAM_TTS') {
         return mockSamService;
       }
       if (serviceType === 'hardwareBridge') {
@@ -254,7 +254,7 @@ describe('Integration: SAY_ALOUD Action with SamTTSService', () => {
     // Create runtime without SAM service
     const runtimeWithoutSam = createMockRuntime({
       getService: (serviceType: string) => {
-        if (serviceType === 'samTTS') {
+        if (serviceType === 'SAM_TTS') {
           return null; // Service not available
         }
         return null;

@@ -15,7 +15,7 @@ export class ExperiencePluginTestSuite implements TestSuite {
         }
 
         // Verify service has required methods
-        if (!experienceService.recordExperience || !experienceService.getExperiences) {
+        if (!experienceService.recordExperience || !experienceService.queryExperiences) {
           throw new Error('Experience service missing required methods');
         }
 
@@ -31,19 +31,23 @@ export class ExperiencePluginTestSuite implements TestSuite {
         }
 
         // Record a test experience
-        const testExperience = 'I learned that tests should use unique ports to avoid conflicts';
-        const roomId = 'test-room' as any;
+        const testExperience = {
+          learning: 'I learned that tests should use unique ports to avoid conflicts',
+          context: 'During test development',
+          action: 'running tests',
+          result: 'discovered port conflicts',
+        };
 
-        await experienceService.recordExperience(testExperience, roomId);
+        await experienceService.recordExperience(testExperience);
         console.log('[TEST] Experience recorded successfully');
 
         // Verify the experience was recorded
-        const experiences = await experienceService.getExperiences({
-          count: 10,
+        const experiences = await experienceService.queryExperiences({
+          limit: 10,
         });
 
         const recordedExperience = experiences.find((exp) =>
-          exp.content.text?.includes('tests should use unique ports')
+          exp.learning?.includes('tests should use unique ports')
         );
 
         if (!recordedExperience) {

@@ -10,12 +10,12 @@ pub struct TestContext {
 #[allow(dead_code)]
 impl TestContext {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        // Try to create a container manager
-        let container_manager = match ContainerManager::new(ContainerRuntimeType::Podman) {
+        // Try to create a container manager - prefer Podman
+        let container_manager = match ContainerManager::new_with_runtime_type(ContainerRuntimeType::Podman) {
             Ok(mgr) => Arc::new(mgr),
             Err(_) => {
-                println!("⚠️ Podman not available, trying Docker...");
-                match ContainerManager::new(ContainerRuntimeType::Docker) {
+                println!("⚠️ Podman not available, trying Docker as fallback...");
+                match ContainerManager::new_with_runtime_type(ContainerRuntimeType::Docker) {
                     Ok(mgr) => Arc::new(mgr),
                     Err(e) => {
                         println!("❌ No container runtime available: {}", e);

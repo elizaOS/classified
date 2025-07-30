@@ -1,4 +1,5 @@
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
+import { logger } from '@elizaos/core';
 import { SamTTSService, type SamTTSOptions } from '../services/SamTTSService';
 
 /**
@@ -101,12 +102,22 @@ export const sayAloudAction: Action = {
     _options?: Record<string, unknown>,
     callback?: HandlerCallback
   ): Promise<void> => {
-    console.log('[SAY_ALOUD] Processing speech request...');
+    logger.info('[SAY_ALOUD] Processing speech request...');
 
     // Get SAM TTS service
     const samService = (runtime as { getService: (serviceType: string) => unknown }).getService(
-      'samTTS'
-    ) as SamTTSService;
+      'SAM_TTS'
+    ) as SamTTSService | null;
+
+    if (!samService) {
+      logger.warn('[SAY_ALOUD] SAM TTS service not available');
+      callback({
+        text: 'Sorry, I cannot speak aloud right now. The text-to-speech service is not available.',
+        action: 'SAY_ALOUD',
+        error: 'SAM TTS service not available',
+      });
+      return;
+    }
 
     // Extract text to speak from the message
     const textToSpeak = extractTextToSpeak(message.content.text);
@@ -114,13 +125,13 @@ export const sayAloudAction: Action = {
     // Extract voice options from the message
     const voiceOptions = extractVoiceOptions(message.content.text);
 
-    console.log(`[SAY_ALOUD] Speaking: "${textToSpeak}"`);
-    console.log('[SAY_ALOUD] Voice options:', voiceOptions);
+    logger.info(`[SAY_ALOUD] Speaking: "${textToSpeak}"`);
+    logger.info('[SAY_ALOUD] Voice options:', voiceOptions);
 
     // Synthesize and play the speech
     const audioBuffer = await samService.speakText(textToSpeak, voiceOptions);
 
-    console.log('[SAY_ALOUD] ✅ Speech synthesis completed successfully');
+    logger.info('[SAY_ALOUD] ✅ Speech synthesis completed successfully');
 
     callback({
       text: `I spoke aloud using my SAM voice: "${textToSpeak}"`,

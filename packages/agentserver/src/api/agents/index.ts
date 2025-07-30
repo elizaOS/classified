@@ -14,6 +14,7 @@ import { createAgentKnowledgeRouter } from './knowledge';
 import { createAgentPluginsRouter } from './plugins';
 import { createAgentMemoryRouter } from '../memory/agents';
 import { createRoomManagementRouter } from '../memory/rooms';
+import { createAgentPortabilityRouter } from './portability';
 
 /**
  * Creates the agents router for agent lifecycle and management operations
@@ -61,6 +62,9 @@ export function agentsRouter(
   router.use('/', createAgentMemoryRouter(agents));
   // Mount room management (list rooms and room details) under agents
   router.use('/', createRoomManagementRouter(agents));
+
+  // Mount portability operations (export/import)
+  router.use('/', createAgentPortabilityRouter(agents, serverInstance));
 
   return router;
 }

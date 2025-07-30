@@ -48,27 +48,16 @@ export class ExperienceService extends Service {
   }
 
   private async loadExperiences(): Promise<void> {
-    try {
-      // TODO: Load from knowledge service if available
-      logger.info('[ExperienceService] Initialized');
-    } catch (error) {
-      logger.error('[ExperienceService] Error loading experiences:', error);
-    }
+    // TODO: Load from knowledge service if available
+    logger.info('[ExperienceService] Initialized');
   }
 
   async recordExperience(experienceData: Partial<Experience>): Promise<Experience> {
-    try {
-      // Generate embedding for the experience
-      let embedding: number[] | undefined;
-      try {
-        const embeddingText = `${experienceData.context} ${experienceData.action} ${experienceData.result} ${experienceData.learning}`;
-        embedding = await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
-          prompt: embeddingText,
-        });
-      } catch (error) {
-        logger.error('[ExperienceService] Error generating embedding:', error);
-        // Leave embedding undefined on error
-      }
+    // Generate embedding for the experience
+    const embeddingText = `${experienceData.context} ${experienceData.action} ${experienceData.result} ${experienceData.learning}`;
+    const embedding = await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
+      prompt: embeddingText,
+    });
 
       const experience: Experience = {
         id: uuidv4() as UUID,
@@ -130,23 +119,15 @@ export class ExperienceService extends Service {
       }
 
       // Emit event
-      try {
-        await this.runtime.emitEvent('EXPERIENCE_RECORDED', {
-          experienceId: experience.id,
-          eventType: 'created',
-          timestamp: experience.createdAt,
-        });
-      } catch (error) {
-        logger.warn('[ExperienceService] Failed to emit experience event:', error);
-      }
+      await this.runtime.emitEvent('EXPERIENCE_RECORDED', {
+        experienceId: experience.id,
+        eventType: 'created',
+        timestamp: experience.createdAt,
+      });
 
       logger.info(`[ExperienceService] Recorded experience: ${experience.id} (${experience.type})`);
 
       return experience;
-    } catch (error) {
-      logger.error('[ExperienceService] Error recording experience:', error);
-      throw error;
-    }
   }
 
   async queryExperiences(query: ExperienceQuery): Promise<Experience[]> {
@@ -290,40 +271,35 @@ export class ExperienceService extends Service {
       return [];
     }
 
-    try {
-      // Generate embedding for the query text
-      const queryEmbedding = (await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
-        prompt: text,
-      })) as number[];
+    // Generate embedding for the query text
+    const queryEmbedding = (await this.runtime.useModel(ModelType.TEXT_EMBEDDING, {
+      prompt: text,
+    })) as number[];
 
-      // Calculate similarities
-      const similarities: Array<{
-        experience: Experience;
-        similarity: number;
-      }> = [];
+    // Calculate similarities
+    const similarities: Array<{
+      experience: Experience;
+      similarity: number;
+    }> = [];
 
-      for (const experience of this.experiences.values()) {
-        if (experience.embedding) {
-          const similarity = this.cosineSimilarity(queryEmbedding, experience.embedding);
-          similarities.push({ experience, similarity });
-        }
+    for (const experience of this.experiences.values()) {
+      if (experience.embedding) {
+        const similarity = this.cosineSimilarity(queryEmbedding, experience.embedding);
+        similarities.push({ experience, similarity });
       }
-
-      // Sort by similarity and return top results
-      similarities.sort((a, b) => b.similarity - a.similarity);
-      const results = similarities.slice(0, limit).map((item) => item.experience);
-
-      // Update access counts
-      for (const exp of results) {
-        exp.accessCount++;
-        exp.lastAccessedAt = Date.now();
-      }
-
-      return results;
-    } catch (error) {
-      logger.error('[ExperienceService] Error finding similar experiences:', error);
-      return [];
     }
+
+    // Sort by similarity and return top results
+    similarities.sort((a, b) => b.similarity - a.similarity);
+    const results = similarities.slice(0, limit).map((item) => item.experience);
+
+    // Update access counts
+    for (const exp of results) {
+      exp.accessCount++;
+      exp.lastAccessedAt = Date.now();
+    }
+
+    return results;
   }
 
   async analyzeExperiences(domain?: string, type?: ExperienceType): Promise<ExperienceAnalysis> {

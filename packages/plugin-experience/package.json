@@ -7,22 +7,6 @@
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
-  "packageType": "plugin",
-  "platform": "node",
-  "license": "UNLICENSED",
-  "author": "ElizaOS",
-  "keywords": [
-    "plugin",
-    "elizaos"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/elizaos-plugins/plugin-auto"
-  },
-  "homepage": "https://elizaos.ai",
-  "bugs": {
-    "url": "https://github.com/elizaos-plugins/plugin-auto/issues"
-  },
   "exports": {
     "./package.json": "./package.json",
     ".": {
@@ -35,49 +19,24 @@
   "files": [
     "dist",
     "README.md",
-    ".npmignore",
-    "package.json",
-    "tsup.config.ts"
+    "package.json"
   ],
   "dependencies": {
     "@elizaos/core": "workspace:*",
-    "zod": "3.24.2"
+    "@elizaos/plugin-telegram": "1.0.9"
   },
-  "peerDependencies": {},
   "devDependencies": {
-    "@elizaos/cli": "^1.2.12",
-    "dotenv": "16.4.5",
-    "prettier": "3.5.3",
+    "@types/node": "^20.16.11",
     "tsup": "8.4.0",
-    "typescript": "5.8.2",
-    "vitest": "3.1.4"
+    "typescript": "5.8.2"
   },
   "scripts": {
-    "start": "elizaos start",
-    "dev": "elizaos dev",
     "build": "tsup",
-    "lint": "prettier --write ./src",
-    "test:component": "vitest run",
-    "test:e2e": "elizaos test",
-    "test": "npm run test:component && npm run test:e2e",
-    "publish": "elizaos publish",
-    "format": "prettier --write ./src",
-    "format:check": "prettier --check ./src"
+    "dev": "tsup --watch",
+    "test": "elizaos test",
+    "clean": "rm -rf dist"
   },
   "publishConfig": {
     "access": "public"
-  },
-  "resolutions": {
-    "zod": "3.24.2"
-  },
-  "agentConfig": {
-    "pluginType": "elizaos:plugin:1.0.0",
-    "pluginParameters": {
-      "API_KEY": {
-        "type": "string",
-        "description": "API key for the service"
-      }
-    }
-  },
-  "gitHead": "d5bd5c43bfebeb7ac02f9e029f924cb6cd5c2ec7"
+  }
 }

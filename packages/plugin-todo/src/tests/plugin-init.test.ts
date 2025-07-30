@@ -25,9 +25,9 @@ describe('TodoPlugin Initialization', () => {
   });
 
   it('should have the correct number of services', () => {
-    expect(TodoPlugin.services).toHaveLength(3);
+    expect(TodoPlugin.services).toHaveLength(2);
     const services = TodoPlugin.services as Array<{ serviceType: string }>;
-    expect(services[0].serviceType).toBe('todo');
+    expect(services[0].serviceType).toBe('TODO');
     expect(services[1].serviceType).toBe('TODO_REMINDER');
   });
 

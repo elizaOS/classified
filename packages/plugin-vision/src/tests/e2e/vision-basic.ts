@@ -1,4 +1,4 @@
-import type { TestSuite, IAgentRuntime, Memory, State } from '@elizaos/core';
+import type { TestSuite, IAgentRuntime, Memory, State, Content } from '@elizaos/core';
 import { createUniqueUuid } from '@elizaos/core';
 import { VisionService } from '../../service';
 import { describeSceneAction, captureImageAction } from '../../action';
@@ -71,11 +71,17 @@ export class VisionBasicE2ETestSuite implements TestSuite {
           console.log('  Action validation correctly returned false (vision not active)');
 
           // But handler should still work and provide appropriate message
-          await describeSceneAction.handler(runtime, message, state, {}, async (response) => {
-            callbackCalled = true;
-            callbackResponse = response;
-            return [];
-          });
+          await describeSceneAction.handler(
+            runtime,
+            message,
+            state,
+            {},
+            async (response: Content) => {
+              callbackCalled = true;
+              callbackResponse = response;
+              return [];
+            }
+          );
 
           if (!callbackCalled) {
             throw new Error('Callback was not called - action handler failed');
@@ -102,11 +108,17 @@ export class VisionBasicE2ETestSuite implements TestSuite {
           }
           console.log('  Action validation: passed');
 
-          await describeSceneAction.handler(runtime, message, state, {}, async (response) => {
-            callbackCalled = true;
-            callbackResponse = response;
-            return [];
-          });
+          await describeSceneAction.handler(
+            runtime,
+            message,
+            state,
+            {},
+            async (response: Content) => {
+              callbackCalled = true;
+              callbackResponse = response;
+              return [];
+            }
+          );
 
           if (!callbackCalled) {
             throw new Error('Callback was not called - action handler failed');

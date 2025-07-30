@@ -575,7 +575,7 @@ dist/
             },
             "dependencies": {
                 "@elizaos/core": "workspace:*",
-                "@elizaos/cli": "^1.3.0"
+                "@elizaos/cli": "workspace:*"
             },
             "devDependencies": {
                 "@types/bun": "latest",

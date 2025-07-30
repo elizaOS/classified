@@ -71,11 +71,7 @@ export class OCRService {
 
   private async preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
     // Basic preprocessing to improve OCR accuracy
-    const processed = await sharp(imageBuffer)
-      .grayscale()
-      .normalize()
-      .sharpen()
-      .toBuffer();
+    const processed = await sharp(imageBuffer).grayscale().normalize().sharpen().toBuffer();
 
     return processed;
   }
@@ -84,28 +80,36 @@ export class OCRService {
     const blocks: OCRResult['blocks'] = [];
 
     // Convert Tesseract blocks to our format
-    for (const block of result.data.blocks) {
-      if (block.text.trim()) {
-        blocks.push({
-          text: block.text.trim(),
-          bbox: {
-            x: block.bbox.x0,
-            y: block.bbox.y0,
-            width: block.bbox.x1 - block.bbox.x0,
-            height: block.bbox.y1 - block.bbox.y0,
-          },
-          confidence: block.confidence,
-          words: block.words?.map((word) => ({
-            text: word.text,
+    if (result.data.blocks) {
+      for (const block of result.data.blocks) {
+        if (block.text.trim()) {
+          const blockResult: OCRResult['blocks'][0] = {
+            text: block.text.trim(),
             bbox: {
-              x: word.bbox.x0,
-              y: word.bbox.y0,
-              width: word.bbox.x1 - word.bbox.x0,
-              height: word.bbox.y1 - word.bbox.y0,
+              x: block.bbox.x0,
+              y: block.bbox.y0,
+              width: block.bbox.x1 - block.bbox.x0,
+              height: block.bbox.y1 - block.bbox.y0,
             },
-            confidence: word.confidence,
-          })),
-        });
+            confidence: block.confidence,
+          };
+
+          // Add words if available
+          if ('words' in block && Array.isArray(block.words)) {
+            blockResult.words = block.words.map((word: any) => ({
+              text: word.text,
+              bbox: {
+                x: word.bbox.x0,
+                y: word.bbox.y0,
+                width: word.bbox.x1 - word.bbox.x0,
+                height: word.bbox.y1 - word.bbox.y0,
+              },
+              confidence: word.confidence,
+            }));
+          }
+
+          blocks.push(blockResult);
+        }
       }
     }
 

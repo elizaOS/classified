@@ -1,7 +1,6 @@
 import {
   type Action,
   type ActionExample,
-  type ActionResult,
   composePrompt,
   type HandlerCallback,
   type IAgentRuntime,
@@ -138,7 +137,7 @@ export const cancelGoalAction: Action = {
     state: State | undefined,
     options: any,
     callback?: HandlerCallback
-  ): Promise<ActionResult> => {
+  ) => {
     try {
       if (!state) {
         if (callback) {

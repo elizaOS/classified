@@ -6,6 +6,7 @@ import {
   logger,
   type HandlerCallback,
   type ProviderResult,
+  ModelType,
 } from '@elizaos/core';
 import { ExperienceService } from '../service';
 import { ExperienceType, OutcomeType } from '../types';
@@ -97,26 +98,25 @@ export const experienceEvaluator: Evaluator = {
       return;
     }
 
-    try {
-      // Get last 10 messages as context for analysis
-      const recentMessages = state?.recentMessagesData?.slice(-10) || [];
-      if (recentMessages.length < 3) {
-        logger.debug('[experienceEvaluator] Not enough messages for experience extraction');
-        return;
-      }
+    // Get last 10 messages as context for analysis
+    const recentMessages = state?.recentMessagesData?.slice(-10) || [];
+    if (recentMessages.length < 3) {
+      logger.debug('[experienceEvaluator] Not enough messages for experience extraction');
+      return;
+    }
 
-      // Combine recent messages into analysis context
-      const conversationContext = recentMessages
-        .map((m) => m.content.text)
-        .filter(Boolean)
-        .join(' ');
+    // Combine recent messages into analysis context
+    const conversationContext = recentMessages
+      .map((m) => m.content.text)
+      .filter(Boolean)
+      .join(' ');
 
-      // Query existing experiences for similarity check
-      const existingExperiences = await experienceService.queryExperiences({
-        query: conversationContext,
-        limit: 10,
-        minConfidence: 0.7,
-      });
+    // Query existing experiences for similarity check
+    const existingExperiences = await experienceService.queryExperiences({
+      query: conversationContext,
+      limit: 10,
+      minConfidence: 0.7,
+    });
 
       // Use LLM to extract novel experiences from the conversation
       const extractionPrompt = `Analyze this conversation for novel learning experiences that would be surprising or valuable to remember.
@@ -153,14 +153,9 @@ Return empty array [] if no novel experiences found.`;
       });
 
       let experiences: any[] = [];
-      try {
-        const jsonMatch = response.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          experiences = JSON.parse(jsonMatch[0]);
-        }
-      } catch (parseError) {
-        logger.warn('[experienceEvaluator] Failed to parse LLM response', parseError);
-        return;
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        experiences = JSON.parse(jsonMatch[0]);
       }
 
       // Record each novel experience
@@ -206,9 +201,6 @@ Return empty array [] if no novel experiences found.`;
       } else {
         logger.debug(`[experienceEvaluator] No novel experiences found in recent conversation`);
       }
-    } catch (error) {
-      logger.error('[experienceEvaluator] Error extracting experiences:', error);
-    }
   },
 };
 

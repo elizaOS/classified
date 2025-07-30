@@ -1,5 +1,12 @@
 import React from 'react';
-import type { UUID, Memory } from '@elizaos/core';
+import { isDocumentMemory, isFragmentMemory } from '@elizaos/core';
+import type {
+  UUID,
+  Memory,
+  MemoryMetadata,
+  DocumentMetadata,
+  FragmentMetadata,
+} from '@elizaos/core';
 import {
   Book,
   File,
@@ -15,9 +22,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ExtendedMemoryMetadata } from '../../types';
-
-type MemoryMetadata = ExtendedMemoryMetadata;
 
 // Use local UI components instead of importing from client
 import { Badge } from './badge';
@@ -114,6 +118,15 @@ const DialogFooter = ({
 }) => <div className={cn('flex justify-end gap-2 mt-4', className)}>{children}</div>;
 
 const ITEMS_PER_PAGE = 10;
+
+interface KnowledgeDocumentMetadata extends DocumentMetadata {
+  title?: string;
+  filename?: string;
+  originalFilename?: string;
+  path?: string;
+  fileExt?: string;
+  contentType?: string;
+}
 
 interface UploadResultItem {
   status: string;
@@ -400,7 +413,7 @@ const useKnowledgeChunks = (agentId: UUID, enabled: boolean = true, selectedDocu
     error,
     documents: selectedDocumentId ? documents : allMemories,
     fragments: selectedDocumentId
-      ? documentWithFragments.filter((m: Memory) => (m.metadata as any)?.type === 'fragment')
+      ? documentWithFragments.filter((m: Memory) => isFragmentMemory(m))
       : [],
     mode: selectedDocumentId ? 'document-fragments' : 'documents-only',
   };
@@ -486,9 +499,12 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     }
 
     return memories.filter((memory) => {
-      const metadata = (memory.metadata as MemoryMetadata) || {};
-      const filename = metadata.filename || metadata.originalFilename || metadata.path || '';
-      return filename.toLowerCase().includes(filenameFilter.toLowerCase());
+      if (isDocumentMemory(memory)) {
+        const metadata = memory.metadata as KnowledgeDocumentMetadata;
+        const filename = metadata.filename || metadata.originalFilename || metadata.path || '';
+        return filename.toLowerCase().includes(filenameFilter.toLowerCase());
+      }
+      return false;
     });
   }, [memories, filenameFilter, viewMode]);
 
@@ -955,7 +971,10 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
   };
 
   const KnowledgeCard = ({ memory, index }: { memory: Memory; index: number }) => {
-    const metadata = (memory.metadata as MemoryMetadata) || {};
+    if (!isDocumentMemory(memory)) {
+      return null;
+    }
+    const metadata = memory.metadata as KnowledgeDocumentMetadata;
 
     // Try to get a meaningful name from various metadata fields
     const getDocumentName = () => {
@@ -1043,7 +1062,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
   // Component to display the details of a fragment or document
   const MemoryDetails = ({ memory }: { memory: Memory }) => {
     const metadata = memory.metadata as MemoryMetadata;
-    const isFragment = metadata?.type === 'fragment';
+    const isFragment = isFragmentMemory(memory);
 
     return (
       <div className="border-t border-border bg-card text-card-foreground h-full flex flex-col">
@@ -1062,7 +1081,10 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
                 </span>
               )}
               <span className="text-muted-foreground ml-2">
-                {metadata?.title || memory.id?.substring(0, 8)}
+                {isDocumentMemory(memory)
+                  ? (memory.metadata as KnowledgeDocumentMetadata)?.title ||
+                    memory.id?.substring(0, 8)
+                  : memory.id?.substring(0, 8)}
               </span>
             </h3>
 
@@ -1071,15 +1093,17 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
                 ID: <span className="font-mono">{memory.id}</span>
               </div>
 
-              {isFragment && metadata.documentId && (
+              {isFragment && (memory.metadata as FragmentMetadata).documentId && (
                 <div className="col-span-2">
                   Parent Document:{' '}
-                  <span className="font-mono text-primary/80">{metadata.documentId}</span>
+                  <span className="font-mono text-primary/80">
+                    {(memory.metadata as FragmentMetadata).documentId}
+                  </span>
                 </div>
               )}
 
-              {isFragment && metadata.position !== undefined && (
-                <div>Position: {metadata.position}</div>
+              {isFragment && (memory.metadata as FragmentMetadata).position !== undefined && (
+                <div>Position: {(memory.metadata as FragmentMetadata).position}</div>
               )}
 
               {metadata.source && <div>Source: {metadata.source}</div>}
@@ -1471,14 +1495,16 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
               <div className="flex items-center justify-between">
                 <div>
                   <DialogTitle className="text-xl">
-                    {(viewingContent.metadata as MemoryMetadata)?.title || 'Document Content'}
+                    {(viewingContent.metadata as KnowledgeDocumentMetadata)?.title ||
+                      'Document Content'}
                   </DialogTitle>
                   <DialogDescription>
-                    {(viewingContent.metadata as MemoryMetadata)?.filename || 'Knowledge document'}
+                    {(viewingContent.metadata as KnowledgeDocumentMetadata)?.filename ||
+                      'Knowledge document'}
                   </DialogDescription>
                 </div>
                 {(() => {
-                  const metadata = viewingContent.metadata as MemoryMetadata;
+                  const metadata = viewingContent.metadata as KnowledgeDocumentMetadata;
                   const contentType = metadata?.contentType || '';
                   const fileExt = metadata?.fileExt?.toLowerCase() || '';
                   const isPdf = contentType === 'application/pdf' || fileExt === 'pdf';
@@ -1517,18 +1543,75 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
             </DialogHeader>
             <div className="flex-1 overflow-auto px-6 pb-2">
               {(() => {
-                const metadata = viewingContent.metadata as MemoryMetadata;
-                const contentType = metadata?.contentType || '';
-                const fileExt = metadata?.fileExt?.toLowerCase() || '';
-                const isPdf = contentType === 'application/pdf' || fileExt === 'pdf';
+                if (isDocumentMemory(viewingContent)) {
+                  const metadata = viewingContent.metadata as KnowledgeDocumentMetadata;
+                  const contentType = metadata?.contentType || '';
+                  const fileExt = metadata?.fileExt?.toLowerCase() || '';
+                  const isPdf = contentType === 'application/pdf' || fileExt === 'pdf';
 
-                if (isPdf && viewingContent.content?.text) {
-                  // For PDFs, the content.text contains base64 data
-                  // Validate base64 content before creating data URL
-                  const base64Content = viewingContent.content.text.trim();
+                  if (isPdf && viewingContent.content?.text) {
+                    // For PDFs, the content.text contains base64 data
+                    // Validate base64 content before creating data URL
+                    const base64Content = viewingContent.content.text.trim();
 
-                  if (!base64Content) {
-                    // Show error message if no content available
+                    if (!base64Content) {
+                      // Show error message if no content available
+                      return (
+                        <div className="h-full w-full bg-background rounded-lg border border-border p-6 flex items-center justify-center">
+                          <div className="text-center text-muted-foreground">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-12 w-12 mx-auto mb-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 18.5c-.77.833.192 2.5 1.732 2.5z"
+                              />
+                            </svg>
+                            <p className="text-lg font-medium">PDF Content Unavailable</p>
+                            <p className="text-sm">The PDF content could not be loaded.</p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Create a data URL for the PDF
+                    const pdfDataUrl = `data:application/pdf;base64,${base64Content}`;
+
+                    return (
+                      <div className="w-full h-full rounded-lg overflow-auto bg-card border border-border">
+                        <div
+                          className="min-w-full flex items-center justify-center p-4"
+                          style={{
+                            minHeight: '100%',
+                            transform: `scale(${pdfZoom})`,
+                            transformOrigin: 'top center',
+                            width: pdfZoom > 1 ? `${100 / pdfZoom}%` : '100%',
+                          }}
+                        >
+                          <iframe
+                            src={pdfDataUrl}
+                            className="w-full border-0 shadow-md"
+                            style={{
+                              height: '90vh',
+                              maxWidth: '1200px',
+                              backgroundColor: 'var(--background)',
+                            }}
+                            title="PDF Document"
+                            onError={() => {
+                              console.error('Failed to load PDF in iframe');
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  } else if (isPdf && !viewingContent.content?.text) {
+                    // Show error message for PDFs without content
                     return (
                       <div className="h-full w-full bg-background rounded-lg border border-border p-6 flex items-center justify-center">
                         <div className="text-center text-muted-foreground">
@@ -1543,80 +1626,26 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               strokeWidth={2}
-                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 18.5c-.77.833.192 2.5 1.732 2.5z"
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                             />
                           </svg>
-                          <p className="text-lg font-medium">PDF Content Unavailable</p>
-                          <p className="text-sm">The PDF content could not be loaded.</p>
+                          <p className="text-lg font-medium">PDF Not Available</p>
+                          <p className="text-sm">This PDF document has no content to display.</p>
                         </div>
                       </div>
                     );
+                  } else {
+                    // For all other documents, display as plain text
+                    return (
+                      <div className="h-full w-full bg-background rounded-lg border border-border p-6">
+                        <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-foreground">
+                          {viewingContent.content?.text || 'No content available'}
+                        </pre>
+                      </div>
+                    );
                   }
-
-                  // Create a data URL for the PDF
-                  const pdfDataUrl = `data:application/pdf;base64,${base64Content}`;
-
-                  return (
-                    <div className="w-full h-full rounded-lg overflow-auto bg-card border border-border">
-                      <div
-                        className="min-w-full flex items-center justify-center p-4"
-                        style={{
-                          minHeight: '100%',
-                          transform: `scale(${pdfZoom})`,
-                          transformOrigin: 'top center',
-                          width: pdfZoom > 1 ? `${100 / pdfZoom}%` : '100%',
-                        }}
-                      >
-                        <iframe
-                          src={pdfDataUrl}
-                          className="w-full border-0 shadow-md"
-                          style={{
-                            height: '90vh',
-                            maxWidth: '1200px',
-                            backgroundColor: 'var(--background)',
-                          }}
-                          title="PDF Document"
-                          onError={() => {
-                            console.error('Failed to load PDF in iframe');
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                } else if (isPdf && !viewingContent.content?.text) {
-                  // Show error message for PDFs without content
-                  return (
-                    <div className="h-full w-full bg-background rounded-lg border border-border p-6 flex items-center justify-center">
-                      <div className="text-center text-muted-foreground">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-12 w-12 mx-auto mb-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                          />
-                        </svg>
-                        <p className="text-lg font-medium">PDF Not Available</p>
-                        <p className="text-sm">This PDF document has no content to display.</p>
-                      </div>
-                    </div>
-                  );
-                } else {
-                  // For all other documents, display as plain text
-                  return (
-                    <div className="h-full w-full bg-background rounded-lg border border-border p-6">
-                      <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-foreground">
-                        {viewingContent.content?.text || 'No content available'}
-                      </pre>
-                    </div>
-                  );
                 }
+                return null;
               })()}
             </div>
             <DialogFooter className="flex-shrink-0 p-6 pt-4 border-t border-border">

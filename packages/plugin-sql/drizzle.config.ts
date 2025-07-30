@@ -10,5 +10,6 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.POSTGRES_URL || 'file:../../.eliza/.elizadb',
   },
+  casing: 'snake_case',
   breakpoints: true,
 });

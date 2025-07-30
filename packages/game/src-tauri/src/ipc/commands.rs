@@ -4,7 +4,7 @@ use crate::container::*;
 use crate::SetupProgress;
 use serde_json;
 use std::sync::Arc;
-use tauri::{Manager, State};
+use tauri::{Manager, State, Emitter};
 use tracing::{error, info, warn};
 
 // Container management commands
@@ -34,7 +34,16 @@ pub async fn get_container_status_new(
 #[tauri::command]
 pub async fn start_postgres_container(
     state: State<'_, Arc<ContainerManager>>,
+    op_lock: State<'_, Arc<OperationLock>>,
 ) -> Result<ContainerStatus, String> {
+    // Acquire operation lock
+    let _guard = op_lock
+        .try_lock("start_postgres", "Starting PostgreSQL container")
+        .map_err(|e| {
+            warn!("Operation already in progress: {}", e.message);
+            e.message.clone()
+        })?;
+    
     match state.start_postgres().await {
         Ok(status) => {
             info!("PostgreSQL container started successfully");
@@ -50,7 +59,16 @@ pub async fn start_postgres_container(
 #[tauri::command]
 pub async fn start_ollama_container(
     state: State<'_, Arc<ContainerManager>>,
+    op_lock: State<'_, Arc<OperationLock>>,
 ) -> Result<ContainerStatus, String> {
+    // Acquire operation lock
+    let _guard = op_lock
+        .try_lock("start_ollama", "Starting Ollama AI service")
+        .map_err(|e| {
+            warn!("Operation already in progress: {}", e.message);
+            e.message.clone()
+        })?;
+    
     match state.start_ollama().await {
         Ok(status) => {
             info!("Ollama container started successfully");
@@ -66,7 +84,16 @@ pub async fn start_ollama_container(
 #[tauri::command]
 pub async fn start_agent_container(
     state: State<'_, Arc<ContainerManager>>,
+    op_lock: State<'_, Arc<OperationLock>>,
 ) -> Result<ContainerStatus, String> {
+    // Acquire operation lock
+    let _guard = op_lock
+        .try_lock("start_agent", "Starting ElizaOS Agent")
+        .map_err(|e| {
+            warn!("Operation already in progress: {}", e.message);
+            e.message.clone()
+        })?;
+    
     match state.start_agent().await {
         Ok(status) => {
             info!("ElizaOS Agent container started successfully");
@@ -763,6 +790,185 @@ pub async fn recover_agent_container(
             }
         }
     }
+}
+
+
+/// Gracefully shuts down the application by stopping all containers first
+#[tauri::command]
+pub async fn shutdown_application(
+    app: tauri::AppHandle,
+    container_manager: State<'_, Arc<ContainerManager>>,
+    crash_file: State<'_, crate::CrashFile>,
+    global_state: State<'_, crate::backend::state::GlobalAppState>,
+) -> Result<(), String> {
+    info!("🔄 Starting application shutdown sequence...");
+    
+    // Hide the main window during shutdown
+    if let Some(main_window) = app.get_webview_window("main") {
+        let _ = main_window.hide();
+    }
+    
+    // Create shutdown backup
+    app.emit("shutdown-progress", "Creating shutdown backup...").unwrap();
+    info!("💾 Creating shutdown backup...");
+    
+    let backup_manager = global_state.backup_manager.read().await;
+    match backup_manager.create_shutdown_backup().await {
+        Ok(()) => {
+            info!("✅ Shutdown backup created successfully");
+            app.emit("shutdown-progress", "Backup created successfully").unwrap();
+        }
+        Err(e) => {
+            error!("❌ Failed to create shutdown backup: {}", e);
+            // Continue with shutdown even if backup fails
+        }
+    }
+    
+    // Emit shutdown progress event
+    app.emit("shutdown-progress", "Stopping containers...").unwrap();
+    
+    // Stop all containers
+    info!("📦 Stopping all containers...");
+    match container_manager.stop_containers().await {
+        Ok(()) => {
+            info!("✅ All containers stopped successfully");
+            app.emit("shutdown-progress", "Containers stopped successfully").unwrap();
+        }
+        Err(e) => {
+            error!("❌ Failed to stop containers: {}", e);
+            app.emit("shutdown-progress", &format!("Error stopping containers: {}", e)).unwrap();
+            // Continue with shutdown even if container stop fails
+        }
+    }
+    
+    // Remove crash recovery file on clean shutdown
+    if let Err(e) = std::fs::remove_file(&crash_file.0) {
+        warn!("Failed to remove crash recovery file: {}", e);
+    } else {
+        info!("✅ Removed crash recovery file");
+    }
+    
+    // Give a moment for the UI to update
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    
+    // Exit the application
+    info!("👋 Exiting application...");
+    app.exit(0);
+    
+    Ok(())
+}
+
+// System and Ollama model recommendations
+#[tauri::command]
+pub async fn get_ollama_recommendations() -> Result<serde_json::Value, String> {
+    use crate::startup::MemoryConfig;
+    
+    info!("Getting Ollama model recommendations based on system specs");
+    
+    // Get system memory info
+    let memory_config = MemoryConfig::calculate();
+    let total_memory_gb = memory_config.total_system_memory_mb as f64 / 1024.0;
+    
+    // Define model recommendations based on memory
+    let mut recommended_models = vec![];
+    let mut available_models = vec![];
+    
+    // Define model requirements (model_name, min_memory_gb, description)
+    let model_specs = vec![
+        ("llama3.2:1b", 2.0, "Smallest Llama 3.2 model, fast responses"),
+        ("llama3.2:3b", 4.0, "Default model, good balance of speed and quality"),
+        ("llama3.1:8b", 8.0, "Latest Llama 3.1 with improved performance"),
+        ("mixtral:8x7b", 32.0, "Mixture of experts model, very capable"),
+        ("llama3.1:70b", 40.0, "Large model for high-end systems"),
+    ];
+    
+    // Try to get actual Ollama models if available
+    let ollama_models = match get_ollama_models_list().await {
+        Ok(models) => models,
+        Err(e) => {
+            warn!("Failed to fetch Ollama models: {}, using defaults", e);
+            vec![]
+        }
+    };
+    
+    // Categorize models based on system memory
+    for (model, min_memory, description) in &model_specs {
+        let model_info = serde_json::json!({
+            "name": model,
+            "description": description,
+            "min_memory_gb": min_memory,
+            "recommended": total_memory_gb >= *min_memory,
+            "installed": ollama_models.contains(&model.to_string()),
+        });
+        
+        if total_memory_gb >= *min_memory {
+            recommended_models.push(model_info.clone());
+        }
+        available_models.push(model_info);
+    }
+    
+    // Sort recommended models by memory requirement (ascending)
+    recommended_models.sort_by(|a, b| {
+        let a_mem = a["min_memory_gb"].as_f64().unwrap_or(0.0);
+        let b_mem = b["min_memory_gb"].as_f64().unwrap_or(0.0);
+        a_mem.partial_cmp(&b_mem).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    
+    Ok(serde_json::json!({
+        "success": true,
+        "system_info": {
+            "total_memory_gb": total_memory_gb,
+            "total_memory_mb": memory_config.total_system_memory_mb,
+            "recommended_memory_mb": memory_config.podman_machine_memory_mb,
+            "has_sufficient_memory": memory_config.has_sufficient_memory,
+        },
+        "recommended_models": recommended_models,
+        "all_models": available_models,
+        "default_model": if total_memory_gb >= 4.0 { "llama3.2:3b" } else { "llama3.2:1b" },
+        "installed_models": ollama_models,
+    }))
+}
+
+// Helper function to get list of installed Ollama models
+async fn get_ollama_models_list() -> Result<Vec<String>, String> {
+    use tokio::process::Command;
+    
+    // Try to get models from containerized Ollama
+    let output = match Command::new("podman")
+        .args(["exec", "eliza-ollama", "ollama", "list"])
+        .output()
+        .await
+    {
+        Ok(output) => output,
+        Err(_) => {
+            // Fallback to docker if podman fails
+            Command::new("docker")
+                .args(["exec", "eliza-ollama", "ollama", "list"])
+                .output()
+                .await
+                .map_err(|e| format!("Failed to list Ollama models: {}", e))?
+        }
+    };
+    
+    if !output.status.success() {
+        return Err("Failed to execute ollama list command".to_string());
+    }
+    
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    let models: Vec<String> = output_str
+        .lines()
+        .skip(1) // Skip header line
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if !parts.is_empty() {
+                Some(parts[0].to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    Ok(models)
 }
 
 

@@ -29,7 +29,7 @@
     "@electric-sql/pglite": "^0.3.3",
     "@elizaos/core": "workspace:*",
     "drizzle-kit": "^0.31.1",
-    "drizzle-orm": "^0.44.2",
+    "drizzle-orm": "0.44.4",
     "pg": "^8.13.3"
   },
   "devDependencies": {

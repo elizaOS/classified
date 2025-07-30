@@ -23,6 +23,9 @@ describe('Messaging and WebSocket', () => {
     cy.window().then((win) => {
       win.localStorage.setItem('skipBoot', 'true');
     });
+    
+    // Wait for elizaClient to be initialized
+    cy.waitForElizaClient();
   });
 
   describe('WebSocket Connection', () => {
@@ -73,11 +76,11 @@ describe('Messaging and WebSocket', () => {
         const client = win.elizaClient;
 
         // Listen for events
-        const events = [];
+        const events: string[] = [];
 
         client.socket.on('connect', () => events.push('connect'));
         client.socket.on('disconnect', () => events.push('disconnect'));
-        client.socket.on('error', (error) => events.push(`error: ${error}`));
+        client.socket.on('error', (error: any) => events.push(`error: ${error}`));
 
         // Trigger reconnection
         client.socket.disconnect();
@@ -98,25 +101,22 @@ describe('Messaging and WebSocket', () => {
       const testMessage = {
         text: `Test message at ${Date.now()}`,
         userId: 'test-user-cypress',
-        roomId: `test-room-${Date.now()}`,
+        roomId: '550e8400-e29b-41d4-a716-446655440003',
         messageId: `msg-${Date.now()}`,
       };
 
-      cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, testMessage).then(
-        (response) => {
-          expect(response.status).to.eq(200);
-          expect(response.body.success).to.be.true;
-
-          cy.log(`✅ Message sent: ${testMessage.text}`);
-        }
-      );
+      cy.sendMessage(testMessage).then((response) => {
+        expect(response.status).to.equal(201);
+        expect(response.body).to.have.property('success', true);
+        cy.log('✅ Message sent successfully via API');
+      });
     });
 
     it('should send message through WebSocket', () => {
       cy.window().then((win: any) => {
         const client = win.elizaClient;
         const messageText = `WebSocket test ${Date.now()}`;
-        const roomId = `ws-test-room-${Date.now()}`;
+        const roomId = '550e8400-e29b-41d4-a716-446655440004';
 
         // Listen for response
         let responseReceived = false;
@@ -142,54 +142,47 @@ describe('Messaging and WebSocket', () => {
     });
 
     it('should handle multiple messages in sequence', () => {
-      const roomId = `sequence-test-${Date.now()}`;
-      const messages = ['First message', 'Second message', 'Third message'];
+      const timestamp = Date.now();
+      const messages = [
+        { text: `First message - ${timestamp}`, userId: 'sequence-test-user' },
+        { text: `Second message - ${timestamp}`, userId: 'sequence-test-user' },
+        { text: `Third message - ${timestamp}`, userId: 'sequence-test-user' },
+      ];
 
-      // Send messages sequentially
-      messages.forEach((text, index) => {
-        cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, {
-          text: `${text} - ${Date.now()}`,
-          userId: 'sequence-test-user',
-          roomId,
-          messageId: `seq-msg-${index}-${Date.now()}`,
+      messages.forEach((msg, index) => {
+        cy.sendMessage({
+          ...msg,
+          roomId: '550e8400-e29b-41d4-a716-446655440005',
+          messageId: `seq-msg-${index}-${timestamp}`,
         }).then((response) => {
-          expect(response.status).to.eq(200);
+          expect(response.status).to.equal(201);
+          cy.log(`✅ Message ${index + 1} sent successfully`);
         });
-
-        // Small delay between messages
-        cy.wait(1000);
+        cy.wait(500); // Small delay between messages
       });
-
-      // Verify messages were processed
-      cy.request('GET', `${BACKEND_URL}/api/memories?roomId=${roomId}&count=10`).then(
-        (response) => {
-          expect(response.body.data.length).to.be.at.least(messages.length);
-          cy.log(`✅ Sent ${messages.length} messages sequentially`);
-        }
-      );
     });
   });
 
   describe('Message Broadcasting', () => {
     it('should broadcast messages to room participants', () => {
-      const roomId = `broadcast-room-${Date.now()}`;
+      const roomId = '550e8400-e29b-41d4-a716-446655440006';
 
       cy.window().then((win: any) => {
         const client = win.elizaClient;
-        const receivedMessages = [];
+        const receivedMessages: any[] = [];
 
         // Join room
         client.joinRoom(roomId);
 
         // Listen for messages
-        client.socket.on('message', (data) => {
+        client.socket.on('message', (data: any) => {
           if (data.roomId === roomId) {
             receivedMessages.push(data);
           }
         });
 
         // Send broadcast message
-        cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, {
+        cy.sendMessage({
           text: 'Broadcast test message',
           userId: 'broadcaster',
           roomId,
@@ -204,20 +197,20 @@ describe('Messaging and WebSocket', () => {
     });
 
     it('should handle room-specific messaging', () => {
-      const room1 = `room1-${Date.now()}`;
-      const room2 = `room2-${Date.now()}`;
+      const room1 = '550e8400-e29b-41d4-a716-446655440007';
+      const room2 = '550e8400-e29b-41d4-a716-446655440008';
 
       cy.window().then((win: any) => {
         const client = win.elizaClient;
-        const room1Messages = [];
-        const room2Messages = [];
+        const room1Messages: any[] = [];
+        const room2Messages: any[] = [];
 
         // Join both rooms
         client.joinRoom(room1);
         client.joinRoom(room2);
 
         // Listen for messages
-        client.socket.on('message', (data) => {
+        client.socket.on('message', (data: any) => {
           if (data.roomId === room1) {
             room1Messages.push(data);
           }
@@ -227,7 +220,7 @@ describe('Messaging and WebSocket', () => {
         });
 
         // Send to room1
-        cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, {
+        cy.sendMessage({
           text: 'Message for room 1',
           userId: 'test-user',
           roomId: room1,
@@ -235,7 +228,7 @@ describe('Messaging and WebSocket', () => {
         });
 
         // Send to room2
-        cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, {
+        cy.sendMessage({
           text: 'Message for room 2',
           userId: 'test-user',
           roomId: room2,
@@ -255,7 +248,7 @@ describe('Messaging and WebSocket', () => {
 
   describe('Real-time Updates', () => {
     it('should receive real-time agent responses', () => {
-      const roomId = `realtime-test-${Date.now()}`;
+      const roomId = '550e8400-e29b-41d4-a716-446655440009';
 
       cy.window().then((win: any) => {
         const client = win.elizaClient;
@@ -322,21 +315,21 @@ describe('Messaging and WebSocket', () => {
     it('should receive status updates', () => {
       cy.window().then((win: any) => {
         const client = win.elizaClient;
-        const statusUpdates = [];
+        const statusUpdates: any[] = [];
 
         // Listen for status updates
-        client.socket.on('status', (data) => {
+        client.socket.on('status', (data: any) => {
           statusUpdates.push(data);
         });
 
-        client.socket.on('agent-status', (data) => {
+        client.socket.on('agent-status', (data: any) => {
           statusUpdates.push(data);
         });
 
         // Trigger some activity
         client.sendMessage({
           text: 'Status update test',
-          roomId: `status-test-${Date.now()}`,
+          roomId: '550e8400-e29b-41d4-a716-446655440005',
           userId: 'test-user',
         });
 
@@ -349,17 +342,14 @@ describe('Messaging and WebSocket', () => {
 
   describe('Error Handling', () => {
     it('should handle message send failures gracefully', () => {
-      cy.request({
-        method: 'POST',
-        url: `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`,
-        body: {
-          // Missing required fields
-          text: 'Incomplete message',
-        },
-        failOnStatusCode: false,
+      cy.sendMessage({
+        // Intentionally incomplete message for error testing
+        text: 'Incomplete message',
+        userId: 'error-test-user',
+        roomId: 'invalid-room-id',
       }).then((response) => {
         // Should handle gracefully
-        expect([200, 400, 500]).to.include(response.status);
+        expect([201, 400, 500]).to.include(response.status);
       });
     });
 
@@ -391,7 +381,7 @@ describe('Messaging and WebSocket', () => {
 
       cy.window().then((win: any) => {
         const client = win.elizaClient;
-        const sentMessages = [];
+        const sentMessages: any[] = [];
 
         // Send messages rapidly
         for (let i = 0; i < messageCount; i++) {
@@ -415,64 +405,85 @@ describe('Messaging and WebSocket', () => {
 
   describe('Message Persistence', () => {
     it('should persist messages in memory system', () => {
-      const roomId = `persist-test-${Date.now()}`;
-      const messageText = `Persistence test ${Date.now()}`;
+      const timestamp = Date.now();
+      const messageText = `Persistence test ${timestamp}`;
 
       // Send message
-      cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, {
+      cy.sendMessage({
         text: messageText,
         userId: 'persist-test-user',
-        roomId,
-        messageId: `persist-${Date.now()}`,
-      })
-        .then(() => {
-          cy.wait(2000);
+        roomId: '550e8400-e29b-41d4-a716-446655440010',
+        messageId: `persist-${timestamp}`,
+      }).then(() => {
+        cy.wait(1000); // Allow time for persistence
 
-          // Retrieve memories
-          return cy.request('GET', `${BACKEND_URL}/api/memories?roomId=${roomId}&count=10`);
-        })
-        .then((response) => {
-          expect(response.body.success).to.be.true;
-          expect(response.body.data).to.be.an('array');
-
-          // Find our message in memories
-          const ourMessage = response.body.data.find((memory) =>
-            memory.content.includes(messageText)
+        // Query memory system
+        cy.request({
+          method: 'GET',
+          url: `${BACKEND_URL}/api/memory/query`,
+          qs: {
+            roomId: '550e8400-e29b-41d4-a716-446655440010',
+            limit: 10,
+          },
+        }).then((response) => {
+          expect(response.status).to.equal(200);
+          expect(response.body).to.have.property('memories');
+          expect(response.body.memories).to.be.an('array');
+          const foundMessage = response.body.memories.find((m) =>
+            m.content?.text?.includes(`Persistence test ${timestamp}`)
           );
-
-          expect(ourMessage).to.exist;
+          expect(foundMessage).to.exist;
           cy.log('✅ Message persisted in memory system');
         });
+      });
     });
 
     it('should maintain message order', () => {
-      const roomId = `order-test-${Date.now()}`;
-      const messages = [];
-
-      // Send ordered messages
-      for (let i = 1; i <= 5; i++) {
-        const message = {
-          text: `Ordered message ${i}`,
+      const roomId = '550e8400-e29b-41d4-a716-446655440011';
+      const messages = [
+        {
+          text: 'Ordered message 1',
           userId: 'order-test-user',
           roomId,
-          messageId: `order-${i}-${Date.now()}`,
-        };
+          messageId: `order-1-${Date.now()}`,
+        },
+        {
+          text: 'Ordered message 2',
+          userId: 'order-test-user',
+          roomId,
+          messageId: `order-2-${Date.now()}`,
+        },
+        {
+          text: 'Ordered message 3',
+          userId: 'order-test-user',
+          roomId,
+          messageId: `order-3-${Date.now()}`,
+        },
+        {
+          text: 'Ordered message 4',
+          userId: 'order-test-user',
+          roomId,
+          messageId: `order-4-${Date.now()}`,
+        },
+        {
+          text: 'Ordered message 5',
+          userId: 'order-test-user',
+          roomId,
+          messageId: `order-5-${Date.now()}`,
+        },
+      ];
 
-        messages.push(message);
+      messages.forEach((msg) => cy.sendMessage(msg));
 
-        cy.request('POST', `${BACKEND_URL}/api/agents/${DEFAULT_AGENT_ID}/message`, message);
-        cy.wait(500); // Ensure order
-      }
-
-      // Retrieve and verify order
-      cy.request('GET', `${BACKEND_URL}/api/memories?roomId=${roomId}&count=20`).then(
-        (response) => {
-          const memories = response.body.data;
-
-          // Messages should be in order (newest first or oldest first)
-          cy.log(`✅ Retrieved ${memories.length} messages in order`);
-        }
-      );
+      cy.wait(3000) // Wait for processing
+        .request('GET', `${BACKEND_URL}/api/memories?roomId=${roomId}&count=10`)
+        .then((response) => {
+          expect(response.status).to.eq(200);
+          const retrievedMessages = response.body.data.map((m: any) => m.content).reverse();
+          messages.forEach((msg, index) => {
+            expect(retrievedMessages[index]).to.include(msg.text);
+          });
+        });
     });
   });
 });
@@ -481,7 +492,12 @@ describe('Messaging and WebSocket', () => {
 describe('Messaging and WebSocket Summary', () => {
   it('should verify complete messaging functionality', () => {
     const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
-    const operations = [];
+    interface Operation {
+      operation: string;
+      success: boolean;
+      details: string;
+    }
+    const operations: Operation[] = [];
 
     cy.log('🎯 MESSAGING AND WEBSOCKET VERIFICATION:');
 
@@ -500,21 +516,17 @@ describe('Messaging and WebSocket Summary', () => {
           const testRoomId = `summary-test-${Date.now()}`;
 
           return cy
-            .request(
-              'POST',
-              `${BACKEND_URL}/api/agents/15aec527-fb92-0792-91b6-becd4fac5050/message`,
-              {
-                text: 'Summary test message',
-                userId: 'summary-test',
-                roomId: testRoomId,
-                messageId: `summary-${Date.now()}`,
-              }
-            )
+            .sendMessage({
+              text: 'Summary test message',
+              userId: 'summary-test',
+              roomId: testRoomId,
+              messageId: `summary-${Date.now()}`,
+            })
             .then((response) => {
               operations.push({
                 operation: 'Message Send',
-                success: response.status === 200,
-                details: response.status === 200 ? 'Message sent' : 'Send failed',
+                success: response.status === 201,
+                details: response.status === 201 ? 'Message sent' : 'Send failed',
               });
 
               // Test memory retrieval

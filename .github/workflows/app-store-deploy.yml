@@ -96,14 +96,39 @@ jobs:
             -appxpackagepath ".\deployment\microsoft-store\output\*.msix" `
             -reportoutputpath ".\cert_report.xml"
 
+      - name: Setup MSStore CLI
+        uses: microsoft/setup-msstore-cli@v1
+
+      - name: Configure MSStore CLI
+        run: |
+          msstore reconfigure \
+            --tenantId ${{ secrets.MS_TENANT_ID }} \
+            --sellerId ${{ secrets.MS_SELLER_ID }} \
+            --clientId ${{ secrets.MS_CLIENT_ID }} \
+            --clientSecret ${{ secrets.MS_CLIENT_SECRET }}
+
       - name: Upload to Partner Center
-        uses: microsoft/store-submission@v1
-        with:
-          tenant-id: ${{ secrets.MS_TENANT_ID }}
-          client-id: ${{ secrets.MS_CLIENT_ID }}
-          client-secret: ${{ secrets.MS_CLIENT_SECRET }}
-          product-id: ${{ secrets.MS_PRODUCT_ID }}
-          package-file: ./deployment/microsoft-store/output/ElizaOS_*.msix
+        run: |
+          # Find the MSIX file
+          $msixFile = Get-ChildItem -Path ".\deployment\microsoft-store\output" -Filter "*.msix" | Select-Object -First 1
+          
+          if ($msixFile) {
+            Write-Host "Uploading $($msixFile.FullName) to Partner Center..."
+            
+            # Create a new submission
+            msstore submission create --productId ${{ secrets.MS_PRODUCT_ID }}
+            
+            # Upload the package
+            msstore submission package upload --productId ${{ secrets.MS_PRODUCT_ID }} --package $msixFile.FullName
+            
+            # Commit the submission
+            msstore submission commit --productId ${{ secrets.MS_PRODUCT_ID }}
+            
+            Write-Host "Successfully submitted to Microsoft Store"
+          } else {
+            Write-Error "No MSIX file found in deployment/microsoft-store/output"
+            exit 1
+          }
 
   # Mac App Store Deployment
   deploy-mac-store:

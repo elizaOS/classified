@@ -42,7 +42,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'tauri-release.yml',
-              ref: 'main',
+              ref: ${{ github.event.inputs.version }},
               inputs: {
                 tag: '${{ github.event.inputs.version }}'
               }

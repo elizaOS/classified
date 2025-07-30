@@ -12,9 +12,9 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "outDir": "./dist",
-    "rootDir": "./src-backend",
+    "rootDir": "./src",
     "types": ["node"]
   },
-  "include": ["src-backend/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "dist"]
 }

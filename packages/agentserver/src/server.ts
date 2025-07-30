@@ -1,4 +1,4 @@
-import { type Character, type IAgentRuntime, logger, type UUID } from '@elizaos/core';
+import { type Character, type IAgentRuntime, logger, stringToUuid, type UUID } from '@elizaos/core';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import helmet from 'helmet';
@@ -95,7 +95,7 @@ import type {
   MessageServiceStructure,
 } from './types';
 import { TodoPlugin } from '@elizaos/plugin-todo';
-import { GoalsPlugin } from '@elizaos/plugin-goals';
+// import { GoalsPlugin } from '@elizaos/plugin-goals';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -265,7 +265,7 @@ export class AgentServer {
       await migrationService.initializeWithDatabase(this.db);
 
       // Register all plugin schemas: SQL (core tables), Todo, and Goals
-      const pluginsToMigrate = [sqlPlugin, TodoPlugin, GoalsPlugin];
+      const pluginsToMigrate = [sqlPlugin, TodoPlugin/*, GoalsPlugin*/];
       logger.info(`[INIT] Registering schemas for ${pluginsToMigrate.length} plugins...`);
       migrationService.discoverAndRegisterPluginSchemas(pluginsToMigrate);
 
@@ -456,9 +456,9 @@ export class AgentServer {
     ); // Enable CORS
     this.app.use(
       express.json({
-        limit: process.env.EXPRESS_MAX_PAYLOAD || '2mb',
+        limit: process.env.EXPRESS_MAX_PAYLOAD || '100mb',
       })
-    ); // Parse JSON bodies with 2MB limit to support large character files
+    ); // Parse JSON bodies with increased limit to support large imports
 
     // File uploads are now handled by individual routes using multer
     // No global file upload middleware needed
@@ -1021,6 +1021,9 @@ export class AgentServer {
         throw new Error('Missing required fields: channelId, content, author');
       }
 
+      // Convert channelId string to UUID
+      const channelUuid = stringToUuid(channelId);
+
       // Find the agent runtime
       const runtime = this.agents.get(agentId as UUID) || Array.from(this.agents.values())[0];
       if (!runtime) {
@@ -1028,7 +1031,7 @@ export class AgentServer {
       }
 
       // Check if channel exists, if not create it
-      let channel = await this.getChannelDetails(channelId as UUID);
+      let channel = await this.getChannelDetails(channelUuid);
       if (!channel) {
         logger.info(`[WebSocket] Channel ${channelId} does not exist, creating it...`);
 
@@ -1053,7 +1056,7 @@ export class AgentServer {
 
         // Create the channel
         channel = await this.createChannel({
-          id: channelId as UUID,
+          id: channelUuid,
           serverId,
           name: metadata?.channel_name || `Game Channel ${channelId.substring(0, 8)}`,
           type: ChannelType.GROUP,
@@ -1071,7 +1074,7 @@ export class AgentServer {
 
       // Create message for internal processing
       const internalMessage = {
-        channelId: channelId as UUID,
+        channelId: channelUuid,
         authorId: author as UUID,
         content,
         rawMessage: {

@@ -82,7 +82,7 @@ For Windows, this means you will need WSL. https://podman.io/docs/installation
 ### Prerequisites
 
 - Bun 1.0+
-- Rust and Cargo (for Tauri)
+- Rust and Cargo (for Tauri) - automatically checked during installation
 - Podman (preferred) or Docker
 - 8GB+ RAM (16GB recommended for local AI models)
 - (Optional) CUDA-capable GPU for local AI acceleration
@@ -101,6 +101,11 @@ cd eliza
 ```bash
 # Install root dependencies
 bun install
+
+# This will automatically:
+# - Check for Rust installation (required for Tauri)
+# - Install Tauri CLI globally if not present
+# - Display installation instructions for any missing prerequisites
 
 # Install game-specific dependencies
 cd packages/game

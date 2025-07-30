@@ -1,6 +1,5 @@
 import {
   type Action,
-  type ActionResult,
   type HandlerCallback,
   type IAgentRuntime,
   type Memory,
@@ -52,7 +51,7 @@ export const completeGoalAction: Action = {
     _state?: State,
     _options?: { [key: string]: unknown },
     callback?: HandlerCallback
-  ): Promise<ActionResult> => {
+  ) => {
     try {
       const dataService = runtime.getService('goals') as GoalService;
       if (!dataService) {

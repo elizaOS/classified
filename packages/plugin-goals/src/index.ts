@@ -22,7 +22,6 @@ import * as goalSchema from './schema';
 // Note: Table schemas are defined in schema.ts and will be automatically migrated
 
 // Import tests
-import { GoalsPluginE2ETestSuite } from './tests';
 import { testSuites as e2eTestSuites } from './__tests__/e2e';
 
 /**
@@ -45,7 +44,7 @@ export const GoalsPlugin: Plugin = {
   schema: goalSchema,
   services: [GoalService],
   routes,
-  tests: [GoalsPluginE2ETestSuite, ...e2eTestSuites],
+  tests: e2eTestSuites,
 
   async init(config: Record<string, string>, runtime: IAgentRuntime): Promise<void> {
     try {

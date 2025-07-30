@@ -28,7 +28,7 @@
     "dist"
   ],
   "dependencies": {
-    "@elizaos/cli": "^1.2.12",
+    "@elizaos/cli": "workspace:*",
     "@elizaos/core": "workspace:*",
     "@elizaos/plugin-bootstrap": "workspace:*",
     "@elizaos/plugin-sql": "workspace:*",

@@ -1,5 +1,5 @@
-import type { Plugin, IAgentRuntime } from '@elizaos/core';
-import { logger } from '@elizaos/core';
+import type { Plugin, IAgentRuntime, Memory, CustomMetadata } from '@elizaos/core';
+import { logger, MemoryType } from '@elizaos/core';
 
 import { characterEvolutionEvaluator } from './evaluators/character-evolution';
 import { modifyCharacterAction } from './actions/modify-character';
@@ -51,35 +51,72 @@ export const selfModificationPlugin: Plugin = {
   async init(config: Record<string, string>, runtime: IAgentRuntime): Promise<void> {
     logger.info('Self-Modification Plugin initializing...');
 
-    // Validate environment
-    const characterFileManager = runtime.getService<CharacterFileManager>('character-file-manager');
-    if (!characterFileManager) {
-      logger.warn('CharacterFileManager service not available - file modifications will be memory-only');
+    try {
+      // Validate environment
+      const characterFileManager =
+        runtime.getService<CharacterFileManager>('character-file-manager');
+      if (!characterFileManager) {
+        logger.warn(
+          'CharacterFileManager service not available - file modifications will be memory-only'
+        );
+      }
+
+      // Log current character state
+      const character = runtime.character;
+      const characterStats = {
+        name: character.name,
+        bioElements: Array.isArray(character.bio) ? character.bio.length : 1,
+        topics: character.topics?.length || 0,
+        messageExamples: character.messageExamples?.length || 0,
+        hasStyleConfig: !!(character.style?.all || character.style?.chat || character.style?.post),
+        hasSystemPrompt: !!character.system,
+      };
+
+      logger.info('Current character state', characterStats);
+
+      // Initialize evolution tracking using proper cache methods
+      try {
+        await runtime.setCache('self-modification:initialized', Date.now().toString());
+        await runtime.setCache('self-modification:modification-count', '0');
+        logger.info('Evolution tracking initialized');
+      } catch (cacheError) {
+        logger.warn('Cache initialization failed, continuing without cache', cacheError);
+      }
+
+      // Create proper initialization memory with correct structure
+      try {
+        // Store initialization state
+        const initMemory: Memory = {
+          entityId: runtime.agentId,
+          roomId: runtime.agentId, // Using agentId as roomId for plugin initialization
+          content: {
+            text: `Self-modification plugin initialized. Character: ${characterStats.name}, Bio: ${characterStats.bioElements} elements, Topics: ${characterStats.topics}, System: ${characterStats.hasSystemPrompt ? 'present' : 'none'}`,
+            source: 'plugin_initialization',
+          },
+          metadata: {
+            type: MemoryType.CUSTOM,
+            plugin: '@elizaos/plugin-personality',
+            timestamp: Date.now(),
+            characterBaseline: characterStats,
+          } as CustomMetadata,
+        };
+
+        await runtime.createMemory(initMemory, 'plugin_events');
+        logger.info('Plugin initialization memory created');
+      } catch (memoryError) {
+        logger.warn('Failed to create initialization memory, continuing', memoryError);
+      }
+
+      logger.info('Self-Modification Plugin initialized successfully', {
+        evolutionEnabled: config.ENABLE_AUTO_EVOLUTION !== 'false',
+        fileManagerAvailable: !!characterFileManager,
+        confidenceThreshold: config.MODIFICATION_CONFIDENCE_THRESHOLD || '0.7',
+        characterHasSystem: characterStats.hasSystemPrompt,
+      });
+    } catch (error) {
+      logger.error('Critical error during plugin initialization', error);
+      throw error;
     }
-
-    // Log current character state
-    const character = runtime.character;
-    const characterStats = {
-      name: character.name,
-      bioElements: Array.isArray(character.bio) ? character.bio.length : 1,
-      topics: character.topics?.length || 0,
-      messageExamples: character.messageExamples?.length || 0,
-      hasStyleConfig: !!(character.style?.all || character.style?.chat || character.style?.post),
-      hasSystemPrompt: !!character.system,
-    };
-
-    logger.info('Current character state', characterStats);
-
-    // Initialize evolution tracking
-    await runtime.setCache('self-modification:initialized', Date.now().toString());
-    await runtime.setCache('self-modification:modification-count', '0');
-
-    logger.info('Self-Modification Plugin initialized successfully', {
-      evolutionEnabled: config.ENABLE_AUTO_EVOLUTION !== 'false',
-      fileManagerAvailable: !!characterFileManager,
-      confidenceThreshold: config.MODIFICATION_CONFIDENCE_THRESHOLD || '0.7',
-      characterHasSystem: characterStats.hasSystemPrompt,
-    });
   },
 };
 

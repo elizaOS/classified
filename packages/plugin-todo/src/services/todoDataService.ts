@@ -30,7 +30,7 @@ export interface TodoData {
 /**
  * Manages todo data and database operations
  */
-export class TodoDataService {
+export class TodoDataManager {
   protected runtime: IAgentRuntime;
 
   constructor(runtime: IAgentRuntime) {
@@ -147,62 +147,60 @@ export class TodoDataService {
 
     let query = db.select().from(todosTable);
 
-      // Apply filters
-      const conditions: Array<ReturnType<typeof eq>> = [];
-      if (filters?.agentId) {
-        conditions.push(eq(todosTable.agentId, filters.agentId));
-      }
-      if (filters?.worldId) {
-        conditions.push(eq(todosTable.worldId, filters.worldId));
-      }
-      if (filters?.roomId) {
-        conditions.push(eq(todosTable.roomId, filters.roomId));
-      }
-      if (filters?.entityId) {
-        conditions.push(eq(todosTable.entityId, filters.entityId));
-      }
-      if (filters?.type) {
-        conditions.push(eq(todosTable.type, filters.type));
-      }
-      if (filters?.isCompleted !== undefined) {
-        conditions.push(eq(todosTable.isCompleted, filters.isCompleted));
-      }
+    // Apply filters
+    const conditions: Array<ReturnType<typeof eq>> = [];
+    if (filters?.agentId) {
+      conditions.push(eq(todosTable.agentId, filters.agentId));
+    }
+    if (filters?.worldId) {
+      conditions.push(eq(todosTable.worldId, filters.worldId));
+    }
+    if (filters?.roomId) {
+      conditions.push(eq(todosTable.roomId, filters.roomId));
+    }
+    if (filters?.entityId) {
+      conditions.push(eq(todosTable.entityId, filters.entityId));
+    }
+    if (filters?.type) {
+      conditions.push(eq(todosTable.type, filters.type));
+    }
+    if (filters?.isCompleted !== undefined) {
+      conditions.push(eq(todosTable.isCompleted, filters.isCompleted));
+    }
 
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
 
-      // Order by created date
-      query = query.orderBy(desc(todosTable.createdAt));
+    // Order by created date
+    query = query.orderBy(desc(todosTable.createdAt));
 
-      // Apply limit
-      if (filters?.limit) {
-        query = query.limit(filters.limit);
-      }
+    // Apply limit
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
 
-      const todos = await query;
+    const todos = await query;
 
-      // Fetch tags for each todo
-      const todosWithTags = await Promise.all(
-        todos.map(async (todo: (typeof todos)[0]) => {
-          const tags = await db
-            .select({ tag: todoTagsTable.tag })
-            .from(todoTagsTable)
-            .where(eq(todoTagsTable.todoId, todo.id));
+    // Fetch tags for each todo
+    const todosWithTags = await Promise.all(
+      todos.map(async (todo: (typeof todos)[0]) => {
+        const tags = await db
+          .select({ tag: todoTagsTable.tag })
+          .from(todoTagsTable)
+          .where(eq(todoTagsTable.todoId, todo.id));
 
-          return {
-            ...todo,
-            tags: tags.map((t: { tag: string }) => t.tag),
-          } as TodoData;
-        })
-      );
+        return {
+          ...todo,
+          tags: tags.map((t: { tag: string }) => t.tag),
+        } as TodoData;
+      })
+    );
 
-      // Filter by tags if specified
-      if (filters?.tags && filters.tags.length > 0) {
-        return todosWithTags.filter((todo) =>
-          filters.tags!.some((tag) => todo.tags?.includes(tag))
-        );
-      }
+    // Filter by tags if specified
+    if (filters?.tags && filters.tags.length > 0) {
+      return todosWithTags.filter((todo) => filters.tags!.some((tag) => todo.tags?.includes(tag)));
+    }
 
     return todosWithTags;
   }
@@ -223,141 +221,114 @@ export class TodoDataService {
       metadata?: TodoMetadata;
     }
   ): Promise<boolean> {
-    try {
-      // Check if database is available
-      if (!this.runtime.db) {
-        logger.warn('Database not available in runtime, cannot update todo');
-        return false;
-      }
-
-      const { db } = this.runtime;
-
-      const updateData: Record<string, unknown> = {
-        updatedAt: new Date(),
-      };
-
-      if (updates.name !== undefined) {
-        updateData.name = updates.name;
-      }
-      if (updates.description !== undefined) {
-        updateData.description = updates.description;
-      }
-      if (updates.priority !== undefined) {
-        updateData.priority = updates.priority;
-      }
-      if (updates.isUrgent !== undefined) {
-        updateData.isUrgent = updates.isUrgent;
-      }
-      if (updates.isCompleted !== undefined) {
-        updateData.isCompleted = updates.isCompleted;
-      }
-      if (updates.dueDate !== undefined) {
-        updateData.dueDate = updates.dueDate;
-      }
-      if (updates.completedAt !== undefined) {
-        updateData.completedAt = updates.completedAt;
-      }
-      if (updates.metadata !== undefined) {
-        updateData.metadata = updates.metadata;
-      }
-
-      await db.update(todosTable).set(updateData).where(eq(todosTable.id, todoId));
-
-      return true;
-    } catch (error) {
-      logger.error('Error updating todo:', error);
+    if (!this.runtime.db) {
+      logger.warn('Database not available in runtime, cannot update todo');
       return false;
     }
+
+    const { db } = this.runtime;
+
+    const updateData: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (updates.name !== undefined) {
+      updateData.name = updates.name;
+    }
+    if (updates.description !== undefined) {
+      updateData.description = updates.description;
+    }
+    if (updates.priority !== undefined) {
+      updateData.priority = updates.priority;
+    }
+    if (updates.isUrgent !== undefined) {
+      updateData.isUrgent = updates.isUrgent;
+    }
+    if (updates.isCompleted !== undefined) {
+      updateData.isCompleted = updates.isCompleted;
+    }
+    if (updates.dueDate !== undefined) {
+      updateData.dueDate = updates.dueDate;
+    }
+    if (updates.completedAt !== undefined) {
+      updateData.completedAt = updates.completedAt;
+    }
+    if (updates.metadata !== undefined) {
+      updateData.metadata = updates.metadata;
+    }
+
+    await db.update(todosTable).set(updateData).where(eq(todosTable.id, todoId));
+
+    return true;
   }
 
   /**
    * Delete a todo
    */
   async deleteTodo(todoId: UUID): Promise<boolean> {
-    try {
-      // Check if database is available
-      if (!this.runtime.db) {
-        logger.warn('Database not available in runtime, cannot delete todo');
-        return false;
-      }
-
-      const { db } = this.runtime;
-
-      await db.delete(todosTable).where(eq(todosTable.id, todoId));
-
-      logger.info(`Deleted todo: ${todoId}`);
-      return true;
-    } catch (error) {
-      logger.error('Error deleting todo:', error);
+    if (!this.runtime.db) {
+      logger.warn('Database not available in runtime, cannot delete todo');
       return false;
     }
+
+    const { db } = this.runtime;
+
+    await db.delete(todosTable).where(eq(todosTable.id, todoId));
+
+    logger.info(`Deleted todo: ${todoId}`);
+    return true;
   }
 
   /**
    * Add tags to a todo
    */
   async addTags(todoId: UUID, tags: string[]): Promise<boolean> {
-    try {
-      // Check if database is available
-      if (!this.runtime.db) {
-        logger.warn('Database not available in runtime, cannot add tags');
-        return false;
-      }
-
-      const { db } = this.runtime;
-
-      // Filter out existing tags
-      const existingTags = await db
-        .select({ tag: todoTagsTable.tag })
-        .from(todoTagsTable)
-        .where(eq(todoTagsTable.todoId, todoId));
-
-      const existingTagSet = new Set(existingTags.map((t: { tag: string }) => t.tag));
-      const newTags = tags.filter((tag) => !existingTagSet.has(tag));
-
-      if (newTags.length > 0) {
-        await db.insert(todoTagsTable).values(
-          newTags.map((tag) => ({
-            todoId,
-            tag,
-          }))
-        );
-      }
-
-      return true;
-    } catch (error) {
-      logger.error('Error adding tags:', error);
+    if (!this.runtime.db) {
+      logger.warn('Database not available in runtime, cannot add tags');
       return false;
     }
+
+    const { db } = this.runtime;
+
+    // Filter out existing tags
+    const existingTags = await db
+      .select({ tag: todoTagsTable.tag })
+      .from(todoTagsTable)
+      .where(eq(todoTagsTable.todoId, todoId));
+
+    const existingTagSet = new Set(existingTags.map((t: { tag: string }) => t.tag));
+    const newTags = tags.filter((tag) => !existingTagSet.has(tag));
+
+    if (newTags.length > 0) {
+      await db.insert(todoTagsTable).values(
+        newTags.map((tag) => ({
+          todoId,
+          tag,
+        }))
+      );
+    }
+
+    return true;
   }
 
   /**
    * Remove tags from a todo
    */
   async removeTags(todoId: UUID, tags: string[]): Promise<boolean> {
-    try {
-      // Check if database is available
-      if (!this.runtime.db) {
-        logger.warn('Database not available in runtime, cannot remove tags');
-        return false;
-      }
-
-      const { db } = this.runtime;
-
-      await db
-        .delete(todoTagsTable)
-        .where(
-          and(
-            eq(todoTagsTable.todoId, todoId),
-            or(...tags.map((tag) => eq(todoTagsTable.tag, tag)))
-          )
-        );
-
-      return true;
-    } catch (error) {
-      logger.error('Error removing tags:', error);
+    if (!this.runtime.db) {
+      logger.warn('Database not available in runtime, cannot remove tags');
       return false;
     }
+
+    const { db } = this.runtime;
+
+    await db
+      .delete(todoTagsTable)
+      .where(
+        and(eq(todoTagsTable.todoId, todoId), or(...tags.map((tag) => eq(todoTagsTable.tag, tag))))
+      );
+
+    return true;
   }
 
   /**
@@ -369,65 +340,59 @@ export class TodoDataService {
     roomId?: UUID;
     entityId?: UUID;
   }): Promise<TodoData[]> {
-    try {
-      // Check if database is available
-      if (!this.runtime.db) {
-        logger.warn('Database not available in runtime, returning empty array');
-        return [];
-      }
-
-      const { db } = this.runtime;
-
-      const conditions: Array<ReturnType<typeof eq>> = [
-        eq(todosTable.isCompleted, false),
-        isNull(todosTable.completedAt),
-      ];
-
-      if (filters?.agentId) {
-        conditions.push(eq(todosTable.agentId, filters.agentId));
-      }
-      if (filters?.worldId) {
-        conditions.push(eq(todosTable.worldId, filters.worldId));
-      }
-      if (filters?.roomId) {
-        conditions.push(eq(todosTable.roomId, filters.roomId));
-      }
-      if (filters?.entityId) {
-        conditions.push(eq(todosTable.entityId, filters.entityId));
-      }
-
-      const todos = await db
-        .select()
-        .from(todosTable)
-        .where(and(...conditions))
-        .orderBy(todosTable.dueDate);
-
-      // Filter overdue tasks in memory since SQL date comparison is complex
-      const now = new Date();
-      const overdueTodos = todos.filter(
-        (todo: (typeof todos)[0]) => todo.dueDate && todo.dueDate < now
-      );
-
-      // Fetch tags
-      const todosWithTags = await Promise.all(
-        overdueTodos.map(async (todo: (typeof todos)[0]) => {
-          const tags = await db
-            .select({ tag: todoTagsTable.tag })
-            .from(todoTagsTable)
-            .where(eq(todoTagsTable.todoId, todo.id));
-
-          return {
-            ...todo,
-            tags: tags.map((t: { tag: string }) => t.tag),
-          } as TodoData;
-        })
-      );
-
-      return todosWithTags;
-    } catch (error) {
-      logger.error('Error getting overdue todos:', error);
+    if (!this.runtime.db) {
+      logger.warn('Database not available in runtime, returning empty array');
       return [];
     }
+
+    const { db } = this.runtime;
+
+    const conditions: Array<ReturnType<typeof eq>> = [
+      eq(todosTable.isCompleted, false),
+      isNull(todosTable.completedAt),
+    ];
+
+    if (filters?.agentId) {
+      conditions.push(eq(todosTable.agentId, filters.agentId));
+    }
+    if (filters?.worldId) {
+      conditions.push(eq(todosTable.worldId, filters.worldId));
+    }
+    if (filters?.roomId) {
+      conditions.push(eq(todosTable.roomId, filters.roomId));
+    }
+    if (filters?.entityId) {
+      conditions.push(eq(todosTable.entityId, filters.entityId));
+    }
+
+    const todos = await db
+      .select()
+      .from(todosTable)
+      .where(and(...conditions))
+      .orderBy(todosTable.dueDate);
+
+    // Filter overdue tasks in memory since SQL date comparison is complex
+    const now = new Date();
+    const overdueTodos = todos.filter(
+      (todo: (typeof todos)[0]) => todo.dueDate && todo.dueDate < now
+    );
+
+    // Fetch tags
+    const todosWithTags = await Promise.all(
+      overdueTodos.map(async (todo: (typeof todos)[0]) => {
+        const tags = await db
+          .select({ tag: todoTagsTable.tag })
+          .from(todoTagsTable)
+          .where(eq(todoTagsTable.todoId, todo.id));
+
+        return {
+          ...todo,
+          tags: tags.map((t: { tag: string }) => t.tag),
+        } as TodoData;
+      })
+    );
+
+    return todosWithTags;
   }
 
   /**
@@ -439,86 +404,80 @@ export class TodoDataService {
     roomId?: UUID;
     entityId?: UUID;
   }): Promise<number> {
-    try {
-      // Check if database is available
-      if (!this.runtime.db) {
-        logger.warn('Database not available in runtime, cannot reset daily todos');
-        return 0;
-      }
-
-      const { db } = this.runtime;
-
-      const conditions: Array<ReturnType<typeof eq>> = [
-        eq(todosTable.type, 'daily'),
-        eq(todosTable.isCompleted, true),
-      ];
-
-      if (filters?.agentId) {
-        conditions.push(eq(todosTable.agentId, filters.agentId));
-      }
-      if (filters?.worldId) {
-        conditions.push(eq(todosTable.worldId, filters.worldId));
-      }
-      if (filters?.roomId) {
-        conditions.push(eq(todosTable.roomId, filters.roomId));
-      }
-      if (filters?.entityId) {
-        conditions.push(eq(todosTable.entityId, filters.entityId));
-      }
-
-      // Reset daily todos
-      const result = await db
-        .update(todosTable)
-        .set({
-          isCompleted: false,
-          completedAt: null,
-          metadata: {
-            completedToday: false,
-          },
-          updatedAt: new Date(),
-        })
-        .where(and(...conditions));
-
-      // Return the actual count of reset todos
-      const resetCount = result?.rowCount || result?.changes || 0;
-      logger.info(`Reset ${resetCount} daily todos`);
-      return resetCount;
-    } catch (error) {
-      logger.error('Error resetting daily todos:', error);
+    if (!this.runtime.db) {
+      logger.warn('Database not available in runtime, cannot reset daily todos');
       return 0;
     }
+
+    const { db } = this.runtime;
+
+    const conditions: Array<ReturnType<typeof eq>> = [
+      eq(todosTable.type, 'daily'),
+      eq(todosTable.isCompleted, true),
+    ];
+
+    if (filters?.agentId) {
+      conditions.push(eq(todosTable.agentId, filters.agentId));
+    }
+    if (filters?.worldId) {
+      conditions.push(eq(todosTable.worldId, filters.worldId));
+    }
+    if (filters?.roomId) {
+      conditions.push(eq(todosTable.roomId, filters.roomId));
+    }
+    if (filters?.entityId) {
+      conditions.push(eq(todosTable.entityId, filters.entityId));
+    }
+
+    // Reset daily todos
+    const result = await db
+      .update(todosTable)
+      .set({
+        isCompleted: false,
+        completedAt: null,
+        metadata: {
+          completedToday: false,
+        },
+        updatedAt: new Date(),
+      })
+      .where(and(...conditions));
+
+    // Return the actual count of reset todos
+    const resetCount = result?.rowCount || result?.changes || 0;
+    logger.info(`Reset ${resetCount} daily todos`);
+    return resetCount;
   }
 }
 
 /**
  * Create a new TodoDataService instance
  */
-export function createTodoDataService(runtime: IAgentRuntime): TodoDataService {
-  return new TodoDataService(runtime);
+export function createTodoDataService(runtime: IAgentRuntime): TodoDataManager {
+  return new TodoDataManager(runtime);
 }
 
 /**
  * Service wrapper for database operations
  */
-export class TodoDataServiceWrapper extends Service {
+export class TodoDataService extends Service {
   static readonly serviceType: ServiceTypeName = 'TODO' as ServiceTypeName;
-  static readonly serviceName = 'Todo'; // Explicit name since class name is too long
+  static readonly serviceName = 'Todo';
 
-  private todoDataService: TodoDataService | null = null;
+  private dataManager: TodoDataManager | null = null;
 
   capabilityDescription = 'Manages todo data storage and retrieval';
 
   async stop(): Promise<void> {
-    this.todoDataService = null;
+    this.dataManager = null;
   }
 
-  static async start(runtime: IAgentRuntime): Promise<TodoDataServiceWrapper> {
-    const service = new TodoDataServiceWrapper();
+  static async start(runtime: IAgentRuntime): Promise<TodoDataService> {
+    const service = new TodoDataService();
 
     if (!runtime.db) {
       logger.warn('Database not available, TodoDataService will be limited');
     } else {
-      service.todoDataService = new TodoDataService(runtime);
+      service.dataManager = new TodoDataManager(runtime);
     }
 
     return service;
@@ -527,8 +486,8 @@ export class TodoDataServiceWrapper extends Service {
   /**
    * Get the underlying TodoDataService instance
    */
-  getDataService(): TodoDataService | null {
-    return this.todoDataService;
+  getDataService(): TodoDataManager | null {
+    return this.dataManager;
   }
 
   /**
@@ -548,10 +507,10 @@ export class TodoDataServiceWrapper extends Service {
     metadata?: TodoMetadata;
     tags?: string[];
   }): Promise<UUID | null> {
-    if (!this.todoDataService) {
+    if (!this.dataManager) {
       throw new Error('TodoDataService not available');
     }
-    return this.todoDataService.createTodo(params);
+    return this.dataManager.createTodo(params);
   }
 
   /**
@@ -568,10 +527,10 @@ export class TodoDataServiceWrapper extends Service {
     tags?: string[];
     limit?: number;
   }): Promise<TodoData[]> {
-    if (!this.todoDataService) {
+    if (!this.dataManager) {
       return [];
     }
-    return this.todoDataService.getTodos(filters);
+    return this.dataManager.getTodos(filters);
   }
 
   /**
@@ -592,50 +551,50 @@ export class TodoDataServiceWrapper extends Service {
       tags?: string[];
     }
   ): Promise<boolean> {
-    if (!this.todoDataService) {
+    if (!this.dataManager) {
       throw new Error('TodoDataService not available');
     }
-    return this.todoDataService.updateTodo(todoId, updates);
+    return this.dataManager.updateTodo(todoId, updates);
   }
 
   /**
    * Delete a todo (delegated to service)
    */
   async deleteTodo(todoId: UUID): Promise<boolean> {
-    if (!this.todoDataService) {
+    if (!this.dataManager) {
       throw new Error('TodoDataService not available');
     }
-    return this.todoDataService.deleteTodo(todoId);
+    return this.dataManager.deleteTodo(todoId);
   }
 
   /**
    * Get a single todo by ID (delegated to service)
    */
   async getTodo(todoId: UUID): Promise<TodoData | null> {
-    if (!this.todoDataService) {
+    if (!this.dataManager) {
       return null;
     }
-    return this.todoDataService.getTodo(todoId);
+    return this.dataManager.getTodo(todoId);
   }
 
   /**
    * Add tags to a todo (delegated to service)
    */
   async addTags(todoId: UUID, tags: string[]): Promise<boolean> {
-    if (!this.todoDataService) {
+    if (!this.dataManager) {
       throw new Error('TodoDataService not available');
     }
-    return this.todoDataService.addTags(todoId, tags);
+    return this.dataManager.addTags(todoId, tags);
   }
 
   /**
    * Remove tags from a todo (delegated to service)
    */
   async removeTags(todoId: UUID, tags: string[]): Promise<boolean> {
-    if (!this.todoDataService) {
+    if (!this.dataManager) {
       throw new Error('TodoDataService not available');
     }
-    return this.todoDataService.removeTags(todoId, tags);
+    return this.dataManager.removeTags(todoId, tags);
   }
 
   /**
@@ -647,10 +606,10 @@ export class TodoDataServiceWrapper extends Service {
     roomId?: UUID;
     entityId?: UUID;
   }): Promise<TodoData[]> {
-    if (!this.todoDataService) {
+    if (!this.dataManager) {
       return [];
     }
-    return this.todoDataService.getOverdueTodos(filters);
+    return this.dataManager.getOverdueTodos(filters);
   }
 
   /**
@@ -662,9 +621,9 @@ export class TodoDataServiceWrapper extends Service {
     roomId?: UUID;
     entityId?: UUID;
   }): Promise<number> {
-    if (!this.todoDataService) {
+    if (!this.dataManager) {
       return 0;
     }
-    return this.todoDataService.resetDailyTodos(filters);
+    return this.dataManager.resetDailyTodos(filters);
   }
 }

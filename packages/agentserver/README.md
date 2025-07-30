@@ -1,6 +1,16 @@
 # ElizaOS Agent Server
 
-The agent server provides a complete runtime environment for ElizaOS agents with PostgreSQL database support.
+The agent server provides a complete runtime environment for ElizaOS agents with PostgreSQL database support and browser automation capabilities via Stagehand.
+
+## Quick Start with Docker
+
+For the fastest setup, use Docker Compose:
+
+```bash
+docker-compose up --build
+```
+
+This starts PostgreSQL, Ollama, and AgentServer with Stagehand support. See [DOCKER_QUICK_START.md](./DOCKER_QUICK_START.md) for detailed instructions.
 
 ## Development Commands
 

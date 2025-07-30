@@ -33,9 +33,23 @@ That's it! No installation, no configuration files, no additional downloads.
 git clone https://github.com/ai16z/eliza.git
 cd eliza && npm install
 
+# Note: During installation, the system will automatically:
+# - Check for Rust installation (required for Tauri)
+# - Install Tauri CLI globally if not present
+
 # Start development server
 cd packages/game && npm run dev
 ```
+
+### Container Runtime Support
+
+ELIZA supports both **Podman** and **Docker** as container runtimes:
+
+- **Podman** is used if available (preferred for security and simplicity)
+- **Docker** is used only if Podman is not available
+- **Auto-installation** of Podman if neither is found
+
+All scripts automatically detect and use the available runtime. See [CONTAINER_RUNTIME_SUPPORT.md](./CONTAINER_RUNTIME_SUPPORT.md) for detailed information.
 
 ## 🔑 API Key Configuration
 
@@ -382,6 +396,7 @@ fnm install 20
 fnm use 20
 
 # Install Rust (for Tauri builds)
+# Note: This will be checked automatically during npm/bun install
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 

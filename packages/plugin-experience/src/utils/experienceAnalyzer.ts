@@ -201,7 +201,7 @@ export async function detectPatterns(experiences: Experience[]): Promise<
 
   if (learningExperiences.length >= 3) {
     const recentLearning = learningExperiences.slice(0, 10);
-    const timeDiffs = [];
+    const timeDiffs: number[] = [];
     for (let i = 1; i < recentLearning.length; i++) {
       timeDiffs.push(recentLearning[i - 1].createdAt - recentLearning[i].createdAt);
     }

@@ -1,11 +1,6 @@
 import type { Content, UUID } from './primitives';
 
 /**
- * Memory type enumeration for built-in memory types
- */
-export type MemoryTypeAlias = string;
-
-/**
  * Enumerates the built-in types of memories that can be stored and retrieved.
  * - `DOCUMENT`: Represents a whole document or a large piece of text.
  * - `FRAGMENT`: A chunk or segment of a `DOCUMENT`, often created for embedding and search.
@@ -20,6 +15,11 @@ export enum MemoryType {
   MESSAGE = 'message',
   DESCRIPTION = 'description',
   CUSTOM = 'custom',
+  ACTION = 'action',
+  ACTION_RESULT = 'action_result',
+  KNOWLEDGE = 'knowledge',
+  EXPERIENCE = 'experience',
+  REFLECTION = 'reflection',
 }
 /**
  * Defines the scope of a memory, indicating its visibility and accessibility.
@@ -42,7 +42,7 @@ export type MemoryScope = 'shared' | 'private' | 'room';
  * Specific metadata types like `DocumentMetadata` or `MessageMetadata` extend this base.
  */
 export interface BaseMetadata {
-  type: MemoryTypeAlias;
+  type: MemoryType;
   source?: string;
   sourceId?: UUID;
   scope?: MemoryScope;
@@ -69,7 +69,37 @@ export interface DescriptionMetadata extends BaseMetadata {
 }
 
 export interface CustomMetadata extends BaseMetadata {
+  type: MemoryType.CUSTOM;
   [key: string]: unknown;
+}
+
+export interface ActionMetadata extends BaseMetadata {
+  type: MemoryType.ACTION;
+  actionName: string;
+  actionId: UUID;
+  runId: UUID;
+}
+
+export interface ActionResultMetadata extends BaseMetadata {
+  type: MemoryType.ACTION_RESULT;
+  actionName: string;
+  actionId: UUID;
+  runId: UUID;
+  error?: boolean;
+  totalSteps?: number;
+  currentStep?: number;
+}
+
+export interface KnowledgeMetadata extends BaseMetadata {
+  type: MemoryType.KNOWLEDGE;
+}
+
+export interface ExperienceMetadata extends BaseMetadata {
+  type: MemoryType.EXPERIENCE;
+}
+
+export interface ReflectionMetadata extends BaseMetadata {
+  type: MemoryType.REFLECTION;
 }
 
 export type MemoryMetadata =
@@ -77,7 +107,12 @@ export type MemoryMetadata =
   | FragmentMetadata
   | MessageMetadata
   | DescriptionMetadata
-  | CustomMetadata;
+  | CustomMetadata
+  | ActionMetadata
+  | ActionResultMetadata
+  | KnowledgeMetadata
+  | ExperienceMetadata
+  | ReflectionMetadata;
 
 /**
  * Represents a stored memory/message
@@ -191,12 +226,52 @@ export function isDescriptionMetadata(metadata: MemoryMetadata): metadata is Des
  * @returns True if the metadata is a CustomMetadata
  */
 export function isCustomMetadata(metadata: MemoryMetadata): metadata is CustomMetadata {
-  return (
-    metadata.type !== MemoryType.DOCUMENT &&
-    metadata.type !== MemoryType.FRAGMENT &&
-    metadata.type !== MemoryType.MESSAGE &&
-    metadata.type !== MemoryType.DESCRIPTION
-  );
+  return metadata.type === MemoryType.CUSTOM;
+}
+
+/**
+ * Type guard to check if a memory metadata is an ActionMetadata
+ * @param metadata The metadata to check
+ * @returns True if the metadata is an ActionMetadata
+ */
+export function isActionMetadata(metadata: MemoryMetadata): metadata is ActionMetadata {
+  return metadata.type === MemoryType.ACTION;
+}
+
+/**
+ * Type guard to check if a memory metadata is an ActionResultMetadata
+ * @param metadata The metadata to check
+ * @returns True if the metadata is an ActionResultMetadata
+ */
+export function isActionResultMetadata(metadata: MemoryMetadata): metadata is ActionResultMetadata {
+  return metadata.type === MemoryType.ACTION_RESULT;
+}
+
+/**
+ * Type guard to check if a memory metadata is a KnowledgeMetadata
+ * @param metadata The metadata to check
+ * @returns True if the metadata is a KnowledgeMetadata
+ */
+export function isKnowledgeMetadata(metadata: MemoryMetadata): metadata is KnowledgeMetadata {
+  return metadata.type === MemoryType.KNOWLEDGE;
+}
+
+/**
+ * Type guard to check if a memory metadata is an ExperienceMetadata
+ * @param metadata The metadata to check
+ * @returns True if the metadata is an ExperienceMetadata
+ */
+export function isExperienceMetadata(metadata: MemoryMetadata): metadata is ExperienceMetadata {
+  return metadata.type === MemoryType.EXPERIENCE;
+}
+
+/**
+ * Type guard to check if a memory metadata is a ReflectionMetadata
+ * @param metadata The metadata to check
+ * @returns True if the metadata is a ReflectionMetadata
+ */
+export function isReflectionMetadata(metadata: MemoryMetadata): metadata is ReflectionMetadata {
+  return metadata.type === MemoryType.REFLECTION;
 }
 
 /**
@@ -215,6 +290,49 @@ export function isFragmentMemory(
   memory: Memory
 ): memory is Memory & { metadata: FragmentMetadata } {
   return memory.metadata?.type === MemoryType.FRAGMENT;
+}
+
+/**
+ * Memory type guard for action memories
+ */
+export function isActionMemory(memory: Memory): memory is Memory & { metadata: ActionMetadata } {
+  return memory.metadata?.type === MemoryType.ACTION;
+}
+
+/**
+ * Memory type guard for action result memories
+ */
+export function isActionResultMemory(
+  memory: Memory
+): memory is Memory & { metadata: ActionResultMetadata } {
+  return memory.metadata?.type === MemoryType.ACTION_RESULT;
+}
+
+/**
+ * Memory type guard for knowledge memories
+ */
+export function isKnowledgeMemory(
+  memory: Memory
+): memory is Memory & { metadata: KnowledgeMetadata } {
+  return memory.metadata?.type === MemoryType.KNOWLEDGE;
+}
+
+/**
+ * Memory type guard for experience memories
+ */
+export function isExperienceMemory(
+  memory: Memory
+): memory is Memory & { metadata: ExperienceMetadata } {
+  return memory.metadata?.type === MemoryType.EXPERIENCE;
+}
+
+/**
+ * Memory type guard for reflection memories
+ */
+export function isReflectionMemory(
+  memory: Memory
+): memory is Memory & { metadata: ReflectionMetadata } {
+  return memory.metadata?.type === MemoryType.REFLECTION;
 }
 
 /**

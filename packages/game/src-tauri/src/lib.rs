@@ -2,12 +2,14 @@
 // This replaces the Node.js backend with a high-performance Rust backend
 
 use std::sync::Arc;
-use tauri::{Manager, State};
+use std::path::PathBuf;
+use tauri::{Manager, State, Emitter};
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
 // New Rust backend modules
 mod backend;
+mod backup;
 mod common;
 mod container;
 mod ipc;
@@ -15,17 +17,20 @@ mod server;
 mod startup;
 mod tests;
 
-// Re-export common constants for tests
-pub use common::{AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER};
+// Re-export common constants and utilities for tests
+pub use common::{AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER, is_port_available};
 // Export types for external use (tests, etc.)
 pub use backend::{
     AgentConfig, BackendConfig, BackendError, BackendResult, ContainerConfig, ContainerRuntimeType,
     ContainerState, ContainerStatus, HealthStatus, PortMapping, SetupProgress, VolumeMount,
 };
-pub use container::{ContainerManager, HealthMonitor, RuntimeDetectionStatus};
+pub use container::{ContainerManager, HealthMonitor, RuntimeDetectionStatus, PortConfig};
 pub use ipc::commands::*;
 pub use server::{HttpServer, WebSocketHub};
 pub use startup::{AiProvider, StartupManager, StartupStage, StartupStatus, UserConfig};
+
+// Store crash recovery file path
+pub struct CrashFile(PathBuf);
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -96,6 +101,14 @@ async fn route_message_to_agent(
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let client = reqwest::Client::new();
 
+    // Get the dynamic agent port
+    let agent_port = if let Some(manager) = &container_manager {
+        let port_config = manager.get_port_config().await;
+        port_config.agent_port
+    } else {
+        7777 // Default fallback
+    };
+
     // Use the autonomous thoughts room which exists in the agent
     let room_id = "ce5f41b4-fe24-4c01-9971-aecfed20a6bd"; // Autonomous thoughts room
     let _agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f"; // Agent ID
@@ -104,16 +117,16 @@ async fn route_message_to_agent(
     let attempt_request = || async {
         // First, ensure the room/channel exists in the messaging system
         // Create a proper channel entry if needed
-        let channel_url = format!("http://localhost:7777/api/messaging/central-channels/{}", room_id);
+        let channel_url = format!("http://localhost:{}/api/messaging/central-channels/{}", agent_port, room_id);
         let channel_check = client.get(&channel_url).send().await;
         
         if channel_check.is_err() || !channel_check.unwrap().status().is_success() {
             info!("Channel doesn't exist in messaging system, creating it...");
             
             // Try to create the channel
-            let create_channel_url = "http://localhost:7777/api/messaging/central-channels";
+            let create_channel_url = format!("http://localhost:{}/api/messaging/central-channels", agent_port);
             let _ = client
-                .post(create_channel_url)
+                .post(&create_channel_url)
                 .json(&serde_json::json!({
                     "id": room_id,
                     "server_id": "00000000-0000-0000-0000-000000000000",
@@ -128,10 +141,10 @@ async fn route_message_to_agent(
         }
         
         // Use the ingest-external endpoint which works properly
-        let message_url = "http://localhost:7777/api/messaging/ingest-external";
+        let message_url = format!("http://localhost:{}/api/messaging/ingest-external", agent_port);
         
         let response = client
-            .post(message_url)
+            .post(&message_url)
             .json(&serde_json::json!({
                 "channel_id": room_id,
                 "server_id": "00000000-0000-0000-0000-000000000000",
@@ -366,14 +379,20 @@ async fn wait_for_server(
 }
 
 #[tauri::command]
-async fn get_agent_configuration() -> Result<serde_json::Value, String> {
+async fn get_agent_configuration(
+    container_manager: State<'_, Arc<ContainerManager>>,
+) -> Result<serde_json::Value, String> {
     info!("📊 Getting agent configuration from ElizaOS server");
 
+    // Get the dynamic agent port
+    let port_config = container_manager.get_port_config().await;
+    let agent_port = port_config.agent_port;
+
     let client = reqwest::Client::new();
-    let url = "http://localhost:7777/api/agents";
+    let url = format!("http://localhost:{}/api/agents", agent_port);
 
     let response = client
-        .get(url)
+        .get(&url)
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
@@ -417,24 +436,49 @@ async fn get_available_providers() -> Result<serde_json::Value, String> {
         "data": {
             "providers": [
                 {
+                    "name": "ollama",
+                    "display_name": "Ollama (Local)",
+                    "enabled": true,
+                    "requires_api_key": false,
+                    "status": "available",
+                    "message": "Run models locally on your machine"
+                },
+                {
                     "name": "openai",
                     "display_name": "OpenAI",
                     "enabled": true,
-                    "requires_api_key": true
+                    "requires_api_key": true,
+                    "status": "available",
+                    "message": "GPT-4, GPT-3.5 and other OpenAI models"
                 },
                 {
                     "name": "anthropic",
                     "display_name": "Anthropic",
                     "enabled": true,
-                    "requires_api_key": true
+                    "requires_api_key": true,
+                    "status": "available",
+                    "message": "Claude 3.5 Sonnet, Haiku and other models"
                 },
                 {
-                    "name": "ollama",
-                    "display_name": "Ollama (Local)",
+                    "name": "groq",
+                    "display_name": "Groq",
                     "enabled": true,
-                    "requires_api_key": false
+                    "requires_api_key": true,
+                    "status": "available",
+                    "message": "Ultra-fast inference with Groq Cloud"
+                },
+                {
+                    "name": "elizaos",
+                    "display_name": "ElizaOS Cloud",
+                    "enabled": true,
+                    "requires_api_key": true,
+                    "status": "available",
+                    "message": "Managed AI models by ElizaOS"
                 }
-            ]
+            ],
+            "active": "ollama",
+            "selected": null,
+            "preferences": ["ollama", "openai", "anthropic", "groq", "elizaos"]
         }
     }))
 }
@@ -530,6 +574,7 @@ async fn test_native_websocket(
 async fn run_startup_hello_world_test(
     startup_manager: State<'_, Arc<Mutex<StartupManager>>>,
     native_ws_client: State<'_, Arc<server::websocket::WebSocketClient>>,
+    container_manager: State<'_, Arc<ContainerManager>>,
 ) -> Result<String, String> {
     info!("🧪 Running comprehensive startup hello world test");
 
@@ -548,10 +593,19 @@ async fn run_startup_hello_world_test(
         test_results.push("✅ Startup manager is ready".to_string());
     }
 
+    // Get dynamic port configuration
+    let port_config = container_manager.get_port_config().await;
+    let agent_port = port_config.agent_port;
+    
+    if agent_port != 7777 {
+        test_results.push(format!("ℹ️ Using alternative agent port: {}", agent_port));
+    }
+
     // Step 2: Test HTTP API connectivity to agent server
     let client = reqwest::Client::new();
+    let api_url = format!("http://localhost:{}/api/agents", agent_port);
     match client
-        .get("http://localhost:7777/api/agents")
+        .get(&api_url)
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
@@ -577,7 +631,8 @@ async fn run_startup_hello_world_test(
         test_results.push("✅ WebSocket already connected".to_string());
     } else {
         info!("WebSocket not connected, attempting to connect...");
-        match native_ws_client.connect("ws://localhost:7777/ws").await {
+        let ws_url = format!("ws://localhost:{}/ws", agent_port);
+        match native_ws_client.connect(&ws_url).await {
             Ok(_) => {
                 test_results.push("✅ WebSocket connection established".to_string());
                 // Wait a moment for connection to stabilize
@@ -602,12 +657,12 @@ async fn run_startup_hello_world_test(
     }
 
     // Step 5: Test HTTP message ingestion (fallback method)
-    let message_url = "http://localhost:7777/api/messaging/ingest-external";
+    let message_url = format!("http://localhost:{}/api/messaging/ingest-external", agent_port);
     let channel_id = "e292bdf2-0baa-4677-a3a6-9426672ce6d8";
     let author_id = "00000000-0000-0000-0000-000000000001";
 
     match client
-        .post(message_url)
+        .post(&message_url)
         .json(&serde_json::json!({
             "channel_id": channel_id,
             "server_id": "00000000-0000-0000-0000-000000000000",
@@ -672,14 +727,14 @@ async fn run_startup_hello_world_test(
     Ok(test_results.join("\n"))
 }
 
-async fn wait_for_agent_server_ready() -> bool {
+async fn wait_for_agent_server_ready(agent_port: u16) -> bool {
     let client = reqwest::Client::new();
-    let url = "http://localhost:7777/api/server/health"; // Health check endpoint
+    let url = format!("http://localhost:{}/api/server/health", agent_port); // Health check endpoint
 
     for attempt in 0..20 { // Retry up to 20 times
         info!("⏳ Waiting for agent server health check (attempt {}/20)...", attempt + 1);
         let response = client
-            .get(url)
+            .get(&url)
             .timeout(std::time::Duration::from_secs(5))
             .send()
             .await;
@@ -691,7 +746,7 @@ async fn wait_for_agent_server_ready() -> bool {
                 // Now check if the game API plugin routes are ready
                 info!("🔍 Checking if game API plugin routes are ready...");
                 let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
-                let settings_url = format!("http://localhost:7777/api/agents/{}/settings", agent_id);
+                let settings_url = format!("http://localhost:{}/api/agents/{}/settings", agent_port, agent_id);
                 let settings_response = client
                     .get(&settings_url)
                     .timeout(std::time::Duration::from_secs(5))
@@ -796,6 +851,8 @@ pub fn run() {
             fetch_logs,
             // Health check
             health_check,
+            // Ollama model recommendations
+            get_ollama_recommendations,
             connect_native_websocket,
             disconnect_native_websocket,
             reconnect_native_websocket,
@@ -816,10 +873,72 @@ pub fn run() {
             stream_media_audio,
             start_agent_screen_capture,
             stop_agent_screen_capture,
+            // Application lifecycle
+            shutdown_application,
+            // Backup management commands
+            ipc::backup::create_backup,
+            ipc::backup::restore_backup,
+            ipc::backup::list_backups,
+            ipc::backup::delete_backup,
+            ipc::backup::get_backup_config,
+            ipc::backup::update_backup_config,
+            ipc::backup::export_backup,
+            ipc::backup::import_backup,
 
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");
+
+            // Set up crash recovery file
+            let crash_file = match app.path().app_data_dir() {
+                Ok(dir) => {
+                    // Ensure directory exists
+                    let _ = std::fs::create_dir_all(&dir);
+                    dir.join(".crash_recovery")
+                }
+                Err(e) => {
+                    warn!("Failed to get app data dir for crash recovery: {}", e);
+                    std::env::temp_dir().join("eliza_crash_recovery")
+                }
+            };
+
+            // If crash file exists, we crashed last time
+            if crash_file.exists() {
+                warn!("🚨 Detected previous crash, running recovery...");
+                
+                // Store container manager reference for recovery
+                let recovery_container_manager = match ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Podman) {
+                    Ok(manager) => Some(Arc::new(manager)),
+                    Err(e) => {
+                        warn!("Failed to create container manager for recovery: {}", e);
+                        None
+                    }
+                };
+
+                // Run recovery in blocking context
+                if let Some(manager) = recovery_container_manager {
+                    tauri::async_runtime::block_on(async {
+                        // Stop all containers
+                        let _ = manager.stop_containers().await;
+                        
+                        // Clean up orphaned containers
+                        let _ = manager.cleanup_containers_by_pattern("eliza-").await;
+                        
+                        info!("✅ Crash recovery completed");
+                    });
+                }
+                
+                // Remove crash file
+                let _ = std::fs::remove_file(&crash_file);
+            }
+
+            // Create crash file (removed on clean shutdown)
+            if let Err(e) = std::fs::write(&crash_file, "crashed") {
+                warn!("Failed to create crash recovery file: {}", e);
+            }
+            
+            // Store crash file path for cleanup on shutdown
+            app.manage(CrashFile(crash_file));
 
             // Get resource directory for runtime detection
             let resource_dir = match app.path().resource_dir() {
@@ -849,13 +968,13 @@ pub fn run() {
             // Initialize container manager for Tauri commands
             // Note: This will be replaced by startup manager's instance once initialized
             let initial_container_manager =
-                match ContainerManager::new(crate::backend::ContainerRuntimeType::Podman) {
+                match ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Podman) {
                     Ok(manager) => Arc::new(manager),
                     Err(e) => {
                         error!("Failed to create initial container manager: {}", e);
                         // Create a dummy manager to prevent panics
                         Arc::new(
-                            ContainerManager::new(crate::backend::ContainerRuntimeType::Docker)
+                            ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Docker)
                                 .unwrap_or_else(|_| {
                                     panic!("Failed to create any container manager")
                                 }),
@@ -864,12 +983,39 @@ pub fn run() {
                 };
             app.manage(initial_container_manager.clone());
 
+            // Initialize operation lock manager
+            let operation_lock = Arc::new(crate::container::OperationLock::new());
+            app.manage(operation_lock.clone());
+
             // Initialize Native WebSocket client (App Store friendly)
             let native_ws_client = Arc::new(server::websocket::WebSocketClient::new(
                 app.handle().clone(),
                 "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f".to_string(), // Default agent ID
             ));
             app.manage(native_ws_client.clone());
+
+            // Initialize backup system
+            let backup_manager = Arc::new(tokio::sync::RwLock::new(
+                backup::manager::BackupManager::new(initial_container_manager.clone(), app.handle().clone())
+            ));
+            let backup_scheduler = Arc::new(tokio::sync::RwLock::new(
+                backup::scheduler::BackupScheduler::new(backup_manager.clone())
+            ));
+            
+            // Create global app state
+            let global_state = backend::state::GlobalAppState::new(
+                initial_container_manager.clone(),
+                startup_manager_arc.clone(),
+                backup_manager.clone(),
+                backup_scheduler.clone(),
+            );
+            app.manage(global_state);
+            
+            // Start the backup scheduler
+            let scheduler_clone = backup_scheduler.clone();
+            tauri::async_runtime::spawn(async move {
+                scheduler_clone.read().await.start().await;
+            });
 
             // Start the callback server for receiving real-time updates on available port
             tauri::async_runtime::spawn(async move {
@@ -926,7 +1072,13 @@ pub fn run() {
                     
                     // Wait for agent server to be fully ready before running tests
                     info!("⏳ Waiting for agent server to be fully ready...");
-                    let agent_ready = wait_for_agent_server_ready().await;
+                    
+                    // Get the dynamic agent port from container manager
+                    let container_manager: Arc<ContainerManager> = app_handle_clone.state::<Arc<ContainerManager>>().inner().clone();
+                    let port_config = container_manager.get_port_config().await;
+                    let agent_port = port_config.agent_port;
+                    
+                    let agent_ready = wait_for_agent_server_ready(agent_port).await;
                     
                     if !agent_ready {
                         error!("❌ Agent server failed to become ready after waiting");
@@ -935,15 +1087,21 @@ pub fn run() {
                     
                     info!("✅ Agent server is ready, running tests...");
                     
-                    // Run comprehensive runtime tests
+                    // Run comprehensive runtime tests only if explicitly requested
                     drop(manager); // Release the lock before running tests
                     
-                    // NOTE: run_all_tests will call std::process::exit(1) on test failure
-                    // This ensures the app doesn't start with failing tests
-                    if let Err(e) = crate::tests::run_all_tests(app_handle_clone.clone()).await {
-                        // This code is unreachable if tests fail (app exits), but handles other errors
-                        error!("❌ Runtime tests error: {}", e);
-                        std::process::exit(1);
+                    if std::env::var("RUN_TAURI_TESTS").unwrap_or_default() == "true" {
+                        info!("🧪 RUN_TAURI_TESTS=true detected, running runtime tests...");
+                        
+                        // NOTE: run_all_tests will call std::process::exit(1) on test failure
+                        // This ensures the app doesn't start with failing tests
+                        if let Err(e) = crate::tests::run_all_tests(app_handle_clone.clone()).await {
+                            // This code is unreachable if tests fail (app exits), but handles other errors
+                            error!("❌ Runtime tests error: {}", e);
+                            std::process::exit(1);
+                        }
+                    } else {
+                        info!("🚀 Skipping runtime tests (set RUN_TAURI_TESTS=true to run them)");
                     }
                 }
 
@@ -991,7 +1149,15 @@ pub fn run() {
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
                 // Try to connect with retries
-                if let Err(e) = connect_with_retry(native_ws_clone, "ws://localhost:7777/ws", 5).await {
+                let container_manager: Arc<ContainerManager> = app_handle_clone.state::<Arc<ContainerManager>>().inner().clone();
+                let port_config = container_manager.get_port_config().await;
+                let ws_url = format!("ws://localhost:{}/ws", port_config.agent_port);
+                
+                if port_config.agent_port != 7777 {
+                    info!("🔌 Using alternative agent port {} for WebSocket connection", port_config.agent_port);
+                }
+                
+                if let Err(e) = connect_with_retry(native_ws_clone, &ws_url, 5).await {
                     error!("Failed to connect WebSocket after retries: {}", e);
                     info!("💡 Agent server may not be running - messages will fallback to HTTP");
                 } else {
@@ -1003,11 +1169,16 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 if let Some(main_window) = app.get_webview_window("main") {
+                    let app_handle = app.handle().clone();
                     main_window.on_window_event(move |event| {
-                        if let tauri::WindowEvent::CloseRequested { .. } = event {
-                            info!("App closing - containers will continue running for development");
-                            // Note: We intentionally do not stop containers here to avoid tokio runtime panic
-                            // Containers can be stopped manually if needed, or will be cleaned up by podman
+                        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                            info!("Close requested - initiating graceful shutdown");
+                            
+                            // Prevent the default close behavior
+                            api.prevent_close();
+                            
+                            // Emit an event to trigger the shutdown process
+                            let _ = app_handle.emit("request-shutdown", ());
                         }
                     });
                 }

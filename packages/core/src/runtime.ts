@@ -47,6 +47,7 @@ import {
   IAgentRuntime,
   type ActionResult,
   type ActionContext,
+  MemoryType,
 } from './types';
 
 import { BM25 } from './search';
@@ -128,7 +129,6 @@ export class AgentRuntime implements IAgentRuntime {
     }>;
   };
   private maxWorkingMemoryEntries: number = 50; // Default value, can be overridden
-  private _pluginsInitialized = false;
   private agentEntityId?: UUID;
 
   constructor(opts: {
@@ -918,7 +918,7 @@ export class AgentRuntime implements IAgentRuntime {
               }),
             },
             metadata: {
-              type: 'action_result',
+              type: MemoryType.ACTION_RESULT,
               actionName: action.name,
               runId,
               actionId,
@@ -1009,8 +1009,9 @@ export class AgentRuntime implements IAgentRuntime {
             roomId: message.roomId,
             worldId: message.worldId,
             metadata: {
-              type: 'action_result',
+              type: MemoryType.ACTION_RESULT,
               actionName: action.name,
+              actionId: this.currentActionContext.actionId,
               runId,
               error: true,
               ...(actionPlan && {
@@ -1228,7 +1229,7 @@ export class AgentRuntime implements IAgentRuntime {
     metadata?: Record<string, any>;
   }) {
     if (!worldId && serverId) {
-      worldId = createUniqueUuid(this.agentId + serverId, serverId);
+      worldId = createUniqueUuid(this, serverId);
     }
     const names = [name, userName].filter(Boolean);
     const entityMetadata = {

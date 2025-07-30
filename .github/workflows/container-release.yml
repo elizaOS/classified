@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/agentserver
+  IMAGE_NAME: ${{ github.repository }}/eliza-agent
 
 jobs:
   build-and-push:
@@ -123,7 +123,7 @@ jobs:
                 retries: 3
               restart: unless-stopped
 
-            agentserver:
+            eliza-agent:
               image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
               ports:
                 - "7777:7777"
@@ -140,7 +140,7 @@ jobs:
                 redis:
                   condition: service_healthy
               volumes:
-                - agentserver_data:/app/data
+                - eliza_data:/app/data
                 - knowledge_data:/app/knowledge
               restart: unless-stopped
               healthcheck:
@@ -152,7 +152,7 @@ jobs:
           volumes:
             postgres_data:
             redis_data:
-            agentserver_data:
+            eliza_data:
             knowledge_data:
 
           networks:
@@ -206,7 +206,7 @@ jobs:
 
           - `postgres_data`: Database storage
           - `redis_data`: Redis cache storage  
-          - `agentserver_data`: Application data
+          - `eliza_data`: Application data
           - `knowledge_data`: Knowledge base storage
           EOF
 
@@ -257,11 +257,23 @@ jobs:
             - \`${registry}/${imageName}:${tag}\` (linux/amd64, linux/arm64)
             - \`${registry}/${imageName}:latest\` (if this is the latest release)
 
-            **Quick Start:**
+            **Note:** These images are OCI-compliant and work with both Docker and Podman [[memory:4430015]].
+
+            **Quick Start with Docker:**
             \`\`\`bash
             # Pull and run the latest version
             docker run -d \\
-              --name agentserver \\
+              --name eliza-agent \\
+              -p 5173:5173 -p 7777:7777 \\
+              -e OPENAI_API_KEY=your_key_here \\
+              ${registry}/${imageName}:${tag}
+            \`\`\`
+
+            **Quick Start with Podman:**
+            \`\`\`bash
+            # Pull and run the latest version
+            podman run -d \\
+              --name eliza-agent \\
               -p 5173:5173 -p 7777:7777 \\
               -e OPENAI_API_KEY=your_key_here \\
               ${registry}/${imageName}:${tag}

@@ -1,7 +1,6 @@
 import {
   type Action,
   type ActionExample,
-  type ActionResult,
   formatMessages,
   type HandlerCallback,
   type IAgentRuntime,
@@ -215,7 +214,7 @@ export const createGoalAction: Action = {
     options?: { [key: string]: unknown },
     callback?: HandlerCallback,
     _responses?: Memory[]
-  ): Promise<ActionResult> => {
+  ) => {
     logger.debug('[CREATE_GOAL] Handler started', {
       entityId: message.entityId,
       agentId: message.agentId,
