@@ -58,28 +58,63 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/github-script@v7
         with:
-          tag_name: v${{ env.PACKAGE_VERSION }}-universal
-          release_name: ElizaOS Game v${{ env.PACKAGE_VERSION }} Universal
-          body: |
-            Universal macOS build for both Intel and Apple Silicon Macs.
-
-            This build contains both x86_64 and aarch64 architectures in a single binary.
-          draft: false
-          prerelease: false
+          script: |
+            const tag = 'v${{ env.PACKAGE_VERSION }}-universal';
+            
+            try {
+              const release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: 'ElizaOS Game v${{ env.PACKAGE_VERSION }} Universal',
+                body: 'Universal macOS build for both Intel and Apple Silicon Macs.\n\nThis build contains both x86_64 and aarch64 architectures in a single binary.',
+                draft: false,
+                prerelease: false
+              });
+              
+              // Set outputs for later steps
+              core.setOutput('upload_url', release.data.upload_url);
+              core.setOutput('release_id', release.data.id);
+            } catch (error) {
+              if (error.status === 422) {
+                // Release already exists, get it
+                const releases = await github.rest.repos.listReleases({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                });
+                const existingRelease = releases.data.find(r => r.tag_name === tag);
+                if (existingRelease) {
+                  core.setOutput('upload_url', existingRelease.upload_url);
+                  core.setOutput('release_id', existingRelease.id);
+                  console.log(`Using existing release: ${existingRelease.name}`);
+                } else {
+                  throw error;
+                }
+              } else {
+                throw error;
+              }
+            }
 
       - name: Upload DMG
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/github-script@v7
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: packages/game/src-tauri/target/universal-apple-darwin/release/bundle/dmg/ElizaOS Terminal_${{ env.PACKAGE_VERSION }}_universal.dmg
-          asset_name: ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.dmg
-          asset_content_type: application/octet-stream
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const dmgPath = path.join('packages/game/src-tauri/target/universal-apple-darwin/release/bundle/dmg', 
+              `ElizaOS Terminal_${{ env.PACKAGE_VERSION }}_universal.dmg`);
+            const dmgData = fs.readFileSync(dmgPath);
+            
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ steps.create_release.outputs.release_id }},
+              name: 'ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.dmg',
+              data: dmgData,
+            });
 
       - name: Upload App Bundle
         run: |
@@ -87,11 +122,20 @@ jobs:
           tar -czf "ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.app.tar.gz" "ElizaOS Terminal.app"
 
       - name: Upload App Bundle Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/github-script@v7
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: packages/game/src-tauri/target/universal-apple-darwin/release/bundle/macos/ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.app.tar.gz
-          asset_name: ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.app.tar.gz
-          asset_content_type: application/gzip
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const tarPath = path.join('packages/game/src-tauri/target/universal-apple-darwin/release/bundle/macos',
+              `ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.app.tar.gz`);
+            const tarData = fs.readFileSync(tarPath);
+            
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ steps.create_release.outputs.release_id }},
+              name: 'ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.app.tar.gz',
+              data: tarData,
+            });

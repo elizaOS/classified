@@ -58,5 +58,4 @@ export function setupLoggerSpies(mockFn?: typeof console.info) {
   };
 }
 
-// Legacy export for compatibility
-export type MockRuntime = IAgentRuntime;
+

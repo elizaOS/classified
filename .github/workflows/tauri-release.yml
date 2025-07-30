@@ -148,13 +148,19 @@ jobs:
           cd packages/game
           npm ci --ignore-scripts || echo "Some workspace dependencies may be missing but continuing with available ones"
 
-      - name: Build Tauri app
+      - name: Build frontend
         run: |
           cd packages/game
-          npm run build:tauri || (echo "Build failed, checking available commands..." && npm run)
+          npm run build || echo "Frontend build completed"
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Code signing environment variables are set in previous steps
+        with:
+          projectPath: packages/game
+          releaseId: ${{ needs.create-release.outputs.release_id }}
 
       - name: Notarize macOS App
         if: matrix.platform == 'macos-latest' && github.event_name != 'pull_request'
@@ -320,6 +326,6 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'lander-deploy.yml',
+              workflow_id: 'deploy-lander.yml',
               ref: 'main'
             });

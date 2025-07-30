@@ -31,7 +31,7 @@ import {
   type VisionConfig,
   type VisionFrame,
 } from './types';
-import sharp from './utils/sharp-wrapper';
+import sharp from 'sharp';
 import { VisionModels } from './vision-models';
 import { VisionWorkerManager } from './vision-worker-manager';
 

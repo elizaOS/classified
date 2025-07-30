@@ -53,7 +53,6 @@
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",
     "axios": "^1.7.2",
-    "canvas": "^3.1.2",
     "face-api.js": "^0.22.2",
     "sharp": "^0.34.3",
     "tesseract.js": "^6.0.1",
@@ -71,9 +70,7 @@
     "eslint": "^9.0.0",
     "prettier": "3.5.3",
     "tsx": "^4.7.0",
-    "typescript": "5.8.3",
-    "patch-package": "^8.0.0",
-    "jimp": "^1.6.0"
+    "typescript": "5.8.3"
   },
   "optionalDependencies": {
     "sharp": "^0.34.3",
@@ -82,15 +79,10 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "start": "echo 'Plugin package, use with ElizaOS'",
     "test": "bun test",
     "lint": "eslint src --fix && prettier --write ./src",
-    "clean": "rm -rf dist && rm -rf .turbo && rm -rf compile",
-    "typecheck": "tsc --noEmit",
-    "build:compile": "./scripts/build-compile.sh",
-    "embed:sharp": "bun ./scripts/embed-sharp.ts",
-    "compile:cross": "./scripts/cross-platform-compile.sh",
-    "postinstall": "patch-package || true"
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
   },
   "publishConfig": {
     "access": "public"

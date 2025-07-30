@@ -17,11 +17,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/elizaos-plugins/plugin-autonomy"
+    "url": "https://github.com/elizaos/eliza"
   },
   "homepage": "https://elizaos.ai",
   "bugs": {
-    "url": "https://github.com/elizaos-plugins/plugin-autonomy/issues"
+    "url": "https://github.com/elizaos/eliza/issues"
   },
   "exports": {
     "./package.json": "./package.json",
@@ -69,12 +69,10 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "start": "echo 'Plugin package, use with ElizaOS'",
-    "test": "NODE_ENV=test bun test",
+    "test": "NODE_ENV=test elizaos test",
     "lint": "eslint . --fix && prettier --write .",
-    "clean": "rm -rf dist && rm -rf .turbo",
-    "typecheck": "tsc --noEmit",
-    "test:e2e": "NODE_ENV=test elizaos test"
+    "clean": "rm -rf dist .turbo",
+    "typecheck": "tsc --noEmit"
   },
   "publishConfig": {
     "access": "public"

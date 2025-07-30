@@ -38,75 +38,63 @@ export const createFormAction: Action = {
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ) => {
-    try {
-      const formsService = runtime.getService<FormsService>('forms');
-      if (!formsService) {
-        throw new Error('Forms service not available');
-      }
-
-      // Extract form type from message or options
-      const text = message.content.text?.toLowerCase() || '';
-      const templateName = (options?.template as string) || extractFormType(text) || 'contact'; // Default to contact form
-
-      logger.debug(`Creating form with template: ${templateName}`);
-
-      // Create the form
-      const form = await formsService.createForm(templateName, {
-        source: 'user_request',
-        requestedAt: Date.now(),
-      });
-
-      // Get first step information
-      const firstStep = form.steps[0];
-      const requiredFields = firstStep?.fields.filter((f) => !f.optional) || [];
-
-      let responseText = `I've created a new ${form.name} form for you.`;
-
-      if (form.description) {
-        responseText += ` ${form.description}`;
-      }
-
-      if (firstStep) {
-        responseText += `\n\nLet's start with ${firstStep.name}.`;
-
-        if (requiredFields.length > 0) {
-          responseText += '\n\nPlease provide the following information:';
-          requiredFields.forEach((field) => {
-            responseText += `\n- ${field.label}${field.description ? `: ${field.description}` : ''}`;
-          });
-        }
-      }
-
-      await callback?.({
-        text: responseText,
-        actions: ['CREATE_FORM'],
-        data: {
-          formId: form.id,
-          formName: form.name,
-          totalSteps: form.steps.length,
-          currentStep: 0,
-        },
-      });
-
-      return {
-        success: true,
-        data: {
-          formId: form.id,
-          formName: form.name,
-          templateUsed: templateName,
-        },
-      };
-    } catch (error) {
-      logger.error('Error in CREATE_FORM action:', error);
-      await callback?.({
-        text: 'I encountered an error while creating the form. Please try again.',
-        actions: [],
-      });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+    const formsService = runtime.getService<FormsService>('forms');
+    if (!formsService) {
+      throw new Error('Forms service not available');
     }
+
+    // Extract form type from message or options
+    const text = message.content.text?.toLowerCase() || '';
+    const templateName = (options?.template as string) || extractFormType(text) || 'contact';
+
+    logger.debug(`Creating form with template: ${templateName}`);
+
+    // Create the form
+    const form = await formsService.createForm(templateName, {
+      source: 'user_request',
+      requestedAt: Date.now(),
+    });
+
+    // Get first step information
+    const firstStep = form.steps[0];
+    const requiredFields = firstStep?.fields.filter((f) => !f.optional) || [];
+
+    let responseText = `I've created a new ${form.name} form for you.`;
+
+    if (form.description) {
+      responseText += ` ${form.description}`;
+    }
+
+    if (firstStep) {
+      responseText += `\n\nLet's start with ${firstStep.name}.`;
+
+      if (requiredFields.length > 0) {
+        responseText += '\n\nPlease provide the following information:';
+        requiredFields.forEach((field) => {
+          responseText += `\n- ${field.label}${field.description ? `: ${field.description}` : ''}`;
+        });
+      }
+    }
+
+    await callback?.({
+      text: responseText,
+      actions: ['CREATE_FORM'],
+      data: {
+        formId: form.id,
+        formName: form.name,
+        totalSteps: form.steps.length,
+        currentStep: 0,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        formId: form.id,
+        formName: form.name,
+        templateUsed: templateName,
+      },
+    };
   },
 
   examples: [

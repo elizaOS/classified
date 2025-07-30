@@ -25,6 +25,7 @@ interface PluginToggleState {
   camera: boolean;
   screen: boolean;
   microphone: boolean;
+  speakers: boolean;
   shell: boolean;
   browser: boolean;
 }
@@ -39,12 +40,14 @@ interface MediaStreams {
   camera?: MediaStream;
   screen?: MediaStream;
   microphone?: MediaStream;
+  speakers?: MediaStream;
 }
 
 interface StreamingState {
   camera: boolean;
   screen: boolean;
   microphone: boolean;
+  speakers: boolean;
 }
 
 // Ultra simple buttons - each button triggers API calls and updates backend state
@@ -57,6 +60,7 @@ const UltraSimpleButtons: React.FC<{
     camera: false,
     screen: false,
     microphone: false,
+    speakers: false,
     shell: false,
     browser: false,
   });
@@ -157,6 +161,20 @@ const UltraSimpleButtons: React.FC<{
       </div>
 
       <div
+        style={buttonStyle(states.speakers, isTogglingState.speakers)}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('CLICKED: speakers');
+          handleClick('speakers');
+        }}
+        data-testid="speakers-toggle"
+      >
+        <span data-testid="speakers-toggle-status">{states.speakers ? '●' : '○'}</span>
+        <span>{isTogglingState.speakers ? '...' : 'SPK'}</span>
+      </div>
+
+      <div
         style={buttonStyle(states.shell, isTogglingState.shell)}
         onClick={(e) => {
           e.preventDefault();
@@ -226,6 +244,7 @@ export const GameInterface: React.FC = () => {
     camera: false,
     screen: false,
     microphone: false,
+    speakers: false,
     shell: false,
     browser: false,
   });
@@ -240,7 +259,7 @@ export const GameInterface: React.FC = () => {
 
   // UI state
   const [currentTab, setCurrentTab] = useState<
-    'goals' | 'todos' | 'monologue' | 'files' | 'config' | 'logs' | 'agent-screen'
+    'chat' | 'goals' | 'todos' | 'monologue' | 'files' | 'config' | 'logs' | 'agent-screen'
   >('goals');
   const [logsSubTab, setLogsSubTab] = useState<'agent' | 'container'>('agent');
   // Config dialog removed - not currently used
@@ -275,6 +294,7 @@ export const GameInterface: React.FC = () => {
     camera: false,
     screen: false,
     microphone: false,
+    speakers: false,
   });
   const [agentScreenActive, setAgentScreenActive] = useState(false);
   const mediaCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -666,6 +686,7 @@ export const GameInterface: React.FC = () => {
           case 'camera':
           case 'screen':
           case 'microphone':
+          case 'speakers':
           case 'shell':
           case 'browser':
             newState = !plugins[capability as keyof PluginToggleState];
@@ -737,14 +758,15 @@ export const GameInterface: React.FC = () => {
         setKnowledgeFiles([]);
 
         // Reset plugins to default state
-        setPlugins({
-          autonomy: false,
-          screen: false,
-          camera: false,
-          microphone: false,
-          shell: false,
-          browser: false,
-        });
+              setPlugins({
+        autonomy: false,
+        screen: false,
+        camera: false,
+        microphone: false,
+        speakers: false,
+        shell: false,
+        browser: false,
+      });
 
         setShowResetDialog(false);
 
@@ -1526,6 +1548,27 @@ export const GameInterface: React.FC = () => {
       todos.length
     );
     switch (currentTab) {
+      case 'chat':
+        return (
+          <div className="status-content" data-testid="chat-content">
+            <div className="status-header">
+              <span>◎ CHAT</span>
+            </div>
+            <div className="scrollable-content">
+              <div className="chat-messages">
+                {output.filter(msg => msg.type === 'user' || msg.type === 'agent').map((msg, index) => (
+                  <div key={index} className={`message ${msg.type === 'agent' ? 'agent' : 'user'}`}>
+                    <span className="message-sender">{msg.type === 'agent' ? '🤖' : '👤'}</span>
+                    <span className="message-text">{msg.content}</span>
+                  </div>
+                ))}
+                {output.filter(msg => msg.type === 'user' || msg.type === 'agent').length === 0 && (
+                  <div className="empty-state">No messages yet. Start a conversation!</div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
       case 'goals':
         return (
           <div className="status-content" data-testid="goals-content">
@@ -2236,14 +2279,14 @@ export const GameInterface: React.FC = () => {
                     : ''
                 }
                 disabled={!effectiveIsConnected}
-                data-testid="message-input"
+                data-testid="chat-input"
                 aria-label="Enter command or message"
               />
               <button
                 type="submit"
                 className="send-btn"
                 disabled={!input.trim() || !effectiveIsConnected}
-                data-testid="send-button"
+                data-testid="chat-send-button"
               >
                 SEND
               </button>
@@ -2262,7 +2305,7 @@ export const GameInterface: React.FC = () => {
           {/* Status Tabs */}
           <div className="status-tabs">
             {(
-              ['goals', 'todos', 'monologue', 'files', 'config', 'logs', 'agent-screen'] as const
+              ['chat', 'goals', 'todos', 'monologue', 'files', 'config', 'logs', 'agent-screen'] as const
             ).map((tab) => (
               <button
                 key={tab}

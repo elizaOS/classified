@@ -53,127 +53,118 @@ export const updateFormAction: Action = {
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ) => {
-    try {
-      const formsService = runtime.getService<FormsService>('forms');
-      if (!formsService) {
-        throw new Error('Forms service not available');
-      }
+    const formsService = runtime.getService<FormsService>('forms');
+    if (!formsService) {
+      throw new Error('Forms service not available');
+    }
 
-      // Get active forms
-      const activeForms = await formsService.listForms('active');
-      if (activeForms.length === 0) {
-        await callback?.({
-          text: 'No active forms to update.',
-          actions: [],
-        });
-        return;
-      }
-
-      // Check if a specific form ID was provided
-      let targetForm;
-      const specifiedFormId =
-        options?.formId || state?.data?.activeFormId || state?.values?.activeFormId;
-
-      if (specifiedFormId) {
-        // Find the specific form
-        targetForm = activeForms.find((f) => f.id === specifiedFormId);
-        if (!targetForm) {
-          await callback?.({
-            text: 'The specified form is no longer active.',
-            actions: [],
-          });
-          return;
-        }
-      } else {
-        // For now, update the first active form
-        // In the future, we could use context to determine which form to update
-        targetForm = activeForms[0];
-      }
-
-      const formId = targetForm.id as UUID;
-
-      logger.debug(`Updating form ${formId} with user message`);
-
-      // Update the form with the message
-      const result = await formsService.updateForm(formId, message);
-
-      if (!result.success) {
-        await callback?.({
-          text: result.message || 'Failed to update form.',
-          actions: [],
-        });
-        return {
-          success: false,
-          error: result.message || 'Failed to update form.',
-        };
-      }
-
-      // Prepare response based on update result
-      let responseText = '';
-
-      if (result.updatedFields && result.updatedFields.length > 0) {
-        responseText += `Updated ${result.updatedFields.length} field(s). `;
-      }
-
-      if (result.formCompleted) {
-        responseText += 'Form completed successfully! ';
-      } else if (result.stepCompleted) {
-        responseText += result.message || '';
-      } else {
-        responseText += result.message || '';
-      }
-
-      // Add form state to response
-      const form = result.form;
-      if (form && form.status === 'active') {
-        const currentStep = form.steps[form.currentStepIndex];
-        if (currentStep) {
-          const remainingRequired = currentStep.fields.filter(
-            (f) => !f.optional && (!f.value || f.value === '')
-          );
-
-          if (remainingRequired.length > 0) {
-            responseText += '\n\nRemaining required fields in current step:';
-            remainingRequired.forEach((field) => {
-              responseText += `\n- ${field.label}${field.description ? `: ${field.description}` : ''}`;
-            });
-          }
-        }
-      }
-
+    // Get active forms
+    const activeForms = await formsService.listForms('active');
+    if (activeForms.length === 0) {
       await callback?.({
-        text: responseText.trim(),
-        actions: ['UPDATE_FORM'],
-        data: {
-          formId: form?.id,
-          formName: form?.name,
-          currentStep: form?.currentStepIndex,
-          totalSteps: form?.steps.length,
-          status: form?.status,
-          updatedFields: result.updatedFields,
-        },
-      });
-
-      return {
-        success: true,
-        data: {
-          formId: form?.id,
-          updatedFields: result.updatedFields,
-          formCompleted: result.formCompleted,
-          stepCompleted: result.stepCompleted,
-        },
-      };
-    } catch (error) {
-      logger.error('Error in UPDATE_FORM action:', error);
-      await callback?.({
-        text: 'An error occurred while updating the form. Please try again.',
+        text: 'No active forms to update.',
         actions: [],
       });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'No active forms',
       };
     }
+
+    // Check if a specific form ID was provided
+    let targetForm;
+    const specifiedFormId =
+      options?.formId || state?.data?.activeFormId || state?.values?.activeFormId;
+
+    if (specifiedFormId) {
+      targetForm = activeForms.find((f) => f.id === specifiedFormId);
+      if (!targetForm) {
+        await callback?.({
+          text: 'The specified form is no longer active.',
+          actions: [],
+        });
+        return {
+          success: false,
+          message: 'Form not found',
+        };
+      }
+    } else {
+      targetForm = activeForms[0];
+    }
+
+    const formId = targetForm.id as UUID;
+
+    logger.debug(`Updating form ${formId} with user message`);
+
+    // Update the form with the message
+    const result = await formsService.updateForm(formId, message);
+
+    if (!result.success) {
+      await callback?.({
+        text: result.message || 'Failed to update form.',
+        actions: [],
+      });
+      return {
+        success: false,
+        error: result.message || 'Failed to update form.',
+      };
+    }
+
+    // Prepare response based on update result
+    let responseText = '';
+
+    if (result.updatedFields && result.updatedFields.length > 0) {
+      responseText += `Updated ${result.updatedFields.length} field(s). `;
+    }
+
+    if (result.formCompleted) {
+      responseText += 'Form completed successfully! ';
+    } else if (result.stepCompleted) {
+      responseText += result.message || '';
+    } else {
+      responseText += result.message || '';
+    }
+
+    // Add form state to response
+    const form = result.form;
+    if (form && form.status === 'active') {
+      const currentStep = form.steps[form.currentStepIndex];
+      if (currentStep) {
+        const remainingRequired = currentStep.fields.filter(
+          (f) => !f.optional && (!f.value || f.value === '')
+        );
+
+        if (remainingRequired.length > 0) {
+          responseText += '\n\nRemaining required fields in current step:';
+          remainingRequired.forEach((field) => {
+            responseText += `\n- ${field.label}${field.description ? `: ${field.description}` : ''}`;
+          });
+        }
+      }
+    }
+
+    await callback?.({
+      text: responseText.trim(),
+      actions: ['UPDATE_FORM'],
+      data: {
+        formId: form?.id,
+        formName: form?.name,
+        currentStep: form?.currentStepIndex,
+        totalSteps: form?.steps.length,
+        status: form?.status,
+        updatedFields: result.updatedFields,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        formId: form?.id,
+        updatedFields: result.updatedFields,
+        formCompleted: result.formCompleted,
+        stepCompleted: result.stepCompleted,
+      },
+    };
   },
 
   examples: [

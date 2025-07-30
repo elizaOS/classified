@@ -12,16 +12,11 @@
     }
   },
   "scripts": {
-    "build": "tsc && tsc --noEmit",
+    "build": "tsc",
     "dev": "tsc --watch",
-    "start": "echo 'Plugin package, use with ElizaOS'",
-    "test": "elizaos test",
-    "lint": "eslint .",
-    "test:watch": "bun test --watch",
-    "lint:fix": "eslint . --fix",
+    "test": "bun test",
+    "lint": "eslint . --fix && prettier --write ./src",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write ./src",
-    "format:check": "prettier --check ./src",
     "clean": "rm -rf dist"
   },
   "keywords": [

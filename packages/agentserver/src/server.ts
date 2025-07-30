@@ -668,6 +668,9 @@ export class AgentServer {
 
     // Store server instance for plugins to access
     this.app.locals.agentServer = this;
+    
+    // Also store as global for plugins that need WebSocket broadcasting
+    (global as any).elizaAgentServer = this;
 
     // Serve the simple messaging UI
     this.app.get('/messaging', (req, res) => {

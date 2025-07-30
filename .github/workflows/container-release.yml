@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/eliza-game
+  IMAGE_NAME: ${{ github.repository }}/agentserver
 
 jobs:
   build-and-push:
@@ -57,7 +57,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: packages/game/src-backend/Dockerfile
+          file: packages/agentserver/Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -123,7 +123,7 @@ jobs:
                 retries: 3
               restart: unless-stopped
 
-            eliza-game:
+            agentserver:
               image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
               ports:
                 - "7777:7777"
@@ -140,7 +140,8 @@ jobs:
                 redis:
                   condition: service_healthy
               volumes:
-                - eliza_data:/app/data
+                - agentserver_data:/app/data
+                - knowledge_data:/app/knowledge
               restart: unless-stopped
               healthcheck:
                 test: ["CMD", "curl", "-f", "http://localhost:7777/health"]
@@ -151,7 +152,8 @@ jobs:
           volumes:
             postgres_data:
             redis_data:
-            eliza_data:
+            agentserver_data:
+            knowledge_data:
 
           networks:
             default:
@@ -204,7 +206,8 @@ jobs:
 
           - `postgres_data`: Database storage
           - `redis_data`: Redis cache storage  
-          - `eliza_data`: Application data
+          - `agentserver_data`: Application data
+          - `knowledge_data`: Knowledge base storage
           EOF
 
           docker build -f Dockerfile.compose -t ${{ env.REGISTRY }}/${{ github.repository }}/compose:latest .
@@ -220,14 +223,14 @@ jobs:
 
     steps:
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           format: 'sarif'
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
 
@@ -258,7 +261,7 @@ jobs:
             \`\`\`bash
             # Pull and run the latest version
             docker run -d \\
-              --name eliza-game \\
+              --name agentserver \\
               -p 5173:5173 -p 7777:7777 \\
               -e OPENAI_API_KEY=your_key_here \\
               ${registry}/${imageName}:${tag}

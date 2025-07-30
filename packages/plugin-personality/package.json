@@ -8,9 +8,8 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun run build.ts --watch",
-    "start": "echo 'Plugin package, use with ElizaOS'",
     "test": "bun test",
-    "lint": "echo 'Linting disabled for plugin-personality due to ESLint config conflicts with ES modules' && prettier --write ./src",
+    "lint": "prettier --write ./src",
     "clean": "rm -rf dist && rm -rf .turbo",
     "typecheck": "tsc --noEmit"
   },

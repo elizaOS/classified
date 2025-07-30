@@ -10,7 +10,7 @@ import {
   identifyPersonAction,
   trackEntityAction,
 } from './action';
-import { testSuites } from './tests/e2e/index';
+import { testSuites } from './tests/e2e';
 
 export const visionPlugin: Plugin = {
   name: 'vision',

@@ -197,7 +197,7 @@ export async function startServer() {
   );
 
   // Start the server on port 7777 AFTER the agent is ready
-  const PORT = 7777;
+  const PORT = parseInt(process.env.PORT || '7777', 10);
 
   await server.start(PORT);
   console.log(`[BACKEND] ✅ Server started on port ${PORT}`);

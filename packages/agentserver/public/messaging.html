@@ -318,7 +318,14 @@
         addMessage('Connecting to WebSocket...', 'status');
 
         try {
-          ws = new WebSocket('ws://localhost:7777/ws');
+          // Use the current host instead of hardcoded localhost
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const host = window.location.hostname;
+          const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '7777');
+          const wsUrl = `${protocol}//${host}:${port}/ws`;
+          
+          addMessage(`Connecting to ${wsUrl}...`, 'status');
+          ws = new WebSocket(wsUrl);
 
           ws.onopen = () => {
             updateConnectionStatus(true);
@@ -366,12 +373,58 @@
           };
 
           ws.onerror = (error) => {
-            addMessage(`Error: ${error}`, 'error');
+            console.error('WebSocket error:', error);
+            addMessage('WebSocket error occurred - check console for details', 'error');
+            addMessage('Common issues: CORS, SSL/TLS mismatch, or firewall blocking WebSocket', 'error');
             updateConnectionStatus(false);
           };
 
-          ws.onclose = () => {
-            addMessage('Disconnected', 'status');
+          ws.onclose = (event) => {
+            let closeReason = 'Unknown reason';
+            
+            // Provide more detailed close reasons
+            switch(event.code) {
+              case 1000:
+                closeReason = 'Normal closure';
+                break;
+              case 1001:
+                closeReason = 'Endpoint going away';
+                break;
+              case 1002:
+                closeReason = 'Protocol error';
+                break;
+              case 1003:
+                closeReason = 'Unsupported data';
+                break;
+              case 1006:
+                closeReason = 'Abnormal closure - no close frame received';
+                break;
+              case 1007:
+                closeReason = 'Invalid frame payload data';
+                break;
+              case 1008:
+                closeReason = 'Policy violation';
+                break;
+              case 1009:
+                closeReason = 'Message too big';
+                break;
+              case 1010:
+                closeReason = 'Mandatory extension';
+                break;
+              case 1011:
+                closeReason = 'Internal server error';
+                break;
+              case 1015:
+                closeReason = 'TLS handshake failure';
+                break;
+              default:
+                closeReason = `Code ${event.code}`;
+            }
+            
+            addMessage(`Disconnected: ${closeReason}`, 'status');
+            if (event.reason) {
+              addMessage(`Reason: ${event.reason}`, 'status');
+            }
             updateConnectionStatus(false);
             ws = null;
           };
@@ -655,8 +708,14 @@
         }
 
         try {
+          // Use relative URL or construct from current host
+          const protocol = window.location.protocol;
+          const host = window.location.hostname;
+          const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '7777');
+          const apiUrl = `${protocol}//${host}:${port}/api/agents/${agentId}/screen/start`;
+          
           // Send request to start agent screen capture
-          const response = await fetch(`http://localhost:7777/api/agents/${agentId}/screen/start`, {
+          const response = await fetch(apiUrl, {
             method: 'POST',
           });
 
@@ -676,7 +735,13 @@
 
       async function stopAgentScreen() {
         try {
-          const response = await fetch(`http://localhost:7777/api/agents/${agentId}/screen/stop`, {
+          // Use relative URL or construct from current host
+          const protocol = window.location.protocol;
+          const host = window.location.hostname;
+          const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '7777');
+          const apiUrl = `${protocol}//${host}:${port}/api/agents/${agentId}/screen/stop`;
+          
+          const response = await fetch(apiUrl, {
             method: 'POST',
           });
 

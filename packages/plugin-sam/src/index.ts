@@ -11,18 +11,8 @@ import { SamTTSService } from './services/SamTTSService';
 export const samPlugin: Plugin = {
   name: '@elizaos/plugin-sam',
   description: 'Retro text-to-speech using SAM Speech Synthesizer with hardware bridge integration',
-
   actions: [sayAloudAction],
-
   services: [SamTTSService],
-
-  // Initialize the plugin
-  init: async (_config, _runtime) => {
-    console.log('[SAM-PLUGIN] Initializing SAM TTS plugin...');
-
-    // The service will be automatically started by the runtime
-    console.log('[SAM-PLUGIN] SAM TTS plugin initialized successfully');
-  },
 };
 
 export default samPlugin;

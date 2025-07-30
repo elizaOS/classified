@@ -54,87 +54,75 @@ export class TodoDataService {
     metadata?: TodoMetadata;
     tags?: string[];
   }): Promise<UUID> {
-    try {
-      // Check if database is available
-      if (!this.runtime.db) {
-        throw new Error('Database not available in runtime');
-      }
-
-      const { db } = this.runtime;
-
-      // Create the todo
-      const [todo] = await db
-        .insert(todosTable)
-        .values({
-          agentId: data.agentId,
-          worldId: data.worldId,
-          roomId: data.roomId,
-          entityId: data.entityId,
-          name: data.name,
-          description: data.description,
-          type: data.type,
-          priority: data.priority,
-          isUrgent: data.isUrgent,
-          dueDate: data.dueDate,
-          metadata: data.metadata || {},
-        })
-        .returning();
-
-      if (!todo) {
-        throw new Error('Failed to create todo');
-      }
-
-      // Add tags if provided
-      if (data.tags && data.tags.length > 0) {
-        await db.insert(todoTagsTable).values(
-          data.tags.map((tag) => ({
-            todoId: todo.id,
-            tag,
-          }))
-        );
-      }
-
-      logger.info(`Created todo: ${todo.id} - ${todo.name}`);
-      return todo.id;
-    } catch (error) {
-      logger.error('Error creating todo:', error);
-      throw error;
+    if (!this.runtime.db) {
+      throw new Error('Database not available in runtime');
     }
+
+    const { db } = this.runtime;
+
+    // Create the todo
+    const [todo] = await db
+      .insert(todosTable)
+      .values({
+        agentId: data.agentId,
+        worldId: data.worldId,
+        roomId: data.roomId,
+        entityId: data.entityId,
+        name: data.name,
+        description: data.description,
+        type: data.type,
+        priority: data.priority,
+        isUrgent: data.isUrgent,
+        dueDate: data.dueDate,
+        metadata: data.metadata || {},
+      })
+      .returning();
+
+    if (!todo) {
+      throw new Error('Failed to create todo');
+    }
+
+    // Add tags if provided
+    if (data.tags && data.tags.length > 0) {
+      await db.insert(todoTagsTable).values(
+        data.tags.map((tag) => ({
+          todoId: todo.id,
+          tag,
+        }))
+      );
+    }
+
+    logger.info(`Created todo: ${todo.id} - ${todo.name}`);
+    return todo.id;
   }
 
   /**
    * Get a single todo by ID
    */
   async getTodo(todoId: UUID): Promise<TodoData | null> {
-    try {
-      // Check if database is available
-      if (!this.runtime.db) {
-        logger.warn('Database not available in runtime, returning null');
-        return null;
-      }
-
-      const { db } = this.runtime;
-
-      const [todo] = await db.select().from(todosTable).where(eq(todosTable.id, todoId)).limit(1);
-
-      if (!todo) {
-        return null;
-      }
-
-      // Fetch tags
-      const tags = await db
-        .select({ tag: todoTagsTable.tag })
-        .from(todoTagsTable)
-        .where(eq(todoTagsTable.todoId, todoId));
-
-      return {
-        ...todo,
-        tags: tags.map((t: { tag: string }) => t.tag),
-      } as TodoData;
-    } catch (error) {
-      logger.error('Error getting todo:', error);
+    if (!this.runtime.db) {
+      logger.warn('Database not available in runtime, returning null');
       return null;
     }
+
+    const { db } = this.runtime;
+
+    const [todo] = await db.select().from(todosTable).where(eq(todosTable.id, todoId)).limit(1);
+
+    if (!todo) {
+      return null;
+    }
+
+    // Fetch tags
+    const tags = await db
+      .select({ tag: todoTagsTable.tag })
+      .from(todoTagsTable)
+      .where(eq(todoTagsTable.todoId, todoId));
+
+    return {
+      ...todo,
+      tags: tags.map((t: { tag: string }) => t.tag),
+    } as TodoData;
   }
 
   /**
@@ -150,16 +138,14 @@ export class TodoDataService {
     tags?: string[];
     limit?: number;
   }): Promise<TodoData[]> {
-    try {
-      // Check if database is available
-      if (!this.runtime.db) {
-        logger.warn('Database not available in runtime, returning empty array');
-        return [];
-      }
+    if (!this.runtime.db) {
+      logger.warn('Database not available in runtime, returning empty array');
+      return [];
+    }
 
-      const { db } = this.runtime;
+    const { db } = this.runtime;
 
-      let query = db.select().from(todosTable);
+    let query = db.select().from(todosTable);
 
       // Apply filters
       const conditions: Array<ReturnType<typeof eq>> = [];
@@ -218,11 +204,7 @@ export class TodoDataService {
         );
       }
 
-      return todosWithTags;
-    } catch (error) {
-      logger.error('Error getting todos:', error);
-      return [];
-    }
+    return todosWithTags;
   }
 
   /**

@@ -36,17 +36,50 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
   const display = process.env.DISPLAY || ':99';
   logger.info(`[VirtualScreen] Starting screen capture on display ${display}`);
 
+  // Test ffmpeg availability first
+  try {
+    await execAsync('which ffmpeg');
+  } catch (error) {
+    logger.error('[VirtualScreen] ffmpeg not found. Installing would be required for screen capture.');
+    throw new Error('ffmpeg not available for screen capture');
+  }
+
+  // Test X11 display availability
+  try {
+    await execAsync(`xdpyinfo -display ${display}`);
+  } catch (error) {
+    logger.warn('[VirtualScreen] X11 display not ready, waiting...');
+    // Wait a bit for display to be ready
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+
   screenCaptureActive = true;
 
   // Capture screen at 10 FPS
   screenCaptureInterval = setInterval(async () => {
     try {
       // Use ffmpeg to capture a single frame from the virtual display
-      const { stdout } = await execAsync(
-        `ffmpeg -f x11grab -video_size 1280x720 -i ${display} -vframes 1 -f mjpeg -`
+      // Add error handling and timeout
+      const { stdout, stderr } = await execAsync(
+        `timeout 5 ffmpeg -f x11grab -video_size 1280x720 -i ${display} -vframes 1 -f mjpeg -q:v 2 -loglevel error -`
       );
 
+      if (stderr) {
+        logger.debug('[VirtualScreen] ffmpeg stderr:', stderr);
+      }
+
+      if (!stdout || stdout.length === 0) {
+        logger.debug('[VirtualScreen] Empty frame captured, skipping');
+        return;
+      }
+
       const frameData = Buffer.from(stdout, 'binary');
+
+      // Validate frame data
+      if (frameData.length < 1000) { // JPEG should be at least 1KB
+        logger.debug('[VirtualScreen] Frame too small, likely invalid');
+        return;
+      }
 
       // Store in media buffer
       const agentId = runtime.agentId;
@@ -74,13 +107,31 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
           height: 720,
           timestamp: Date.now(),
         });
+        logger.debug('[VirtualScreen] Broadcasted frame to WebSocket clients');
+      } else {
+        logger.debug('[VirtualScreen] No server instance for broadcasting');
       }
-    } catch (error) {
-      logger.error('[VirtualScreen] Failed to capture screen:', error);
+
+      // Also notify vision service if available
+      const visionService = runtime.getService('vision') || runtime.getService('VISION');
+      if (visionService && typeof (visionService as any).processMediaStream === 'function') {
+        await (visionService as any).processMediaStream({
+          type: 'video',
+          streamType: 'agent_screen',
+          data: new Uint8Array(frameData),
+          encoding: 'jpeg',
+          timestamp: Date.now(),
+        });
+      }
+    } catch (error: any) {
+      // Only log actual errors, not expected issues
+      if (!error.message?.includes('timeout')) {
+        logger.error('[VirtualScreen] Failed to capture screen:', error.message);
+      }
     }
   }, 100); // 10 FPS
 
-  logger.info('[VirtualScreen] Screen capture started');
+  logger.info('[VirtualScreen] Screen capture started successfully');
 }
 
 // Stop capturing agent's virtual screen
@@ -2313,6 +2364,246 @@ const gameAPIRoutes: Route[] = [
       );
     },
   },
+
+  // Runtime State API (for tests)
+  {
+    type: 'GET',
+    path: '/api/server/runtime',
+    name: 'Get Server Runtime State',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const hasConnection = !!runtime;
+        const isConnected = hasConnection && runtime.agentId !== undefined;
+
+        const response: any = {
+          hasConnection,
+          isConnected,
+        };
+
+        if (isConnected) {
+          response.agentId = runtime.agentId;
+          response.agentName = runtime.character?.name || 'Unknown';
+          response.isReady = true;
+
+          // Get list of loaded agents
+          const agents = [];
+          if (runtime) {
+            agents.push({
+              id: runtime.agentId,
+              name: runtime.character?.name || 'Unknown',
+              status: 'active',
+              model: runtime.getSetting('modelProvider') || 'unknown',
+            });
+          }
+          response.agents = agents;
+        }
+
+        return res.json(successResponse(response));
+      } catch (error) {
+        console.error('[API] Error getting runtime state:', error);
+        return res.status(500).json(errorResponse('RUNTIME_ERROR', 'Failed to get runtime state'));
+      }
+    },
+  },
+
+  // Monologue API (for tests)
+  {
+    type: 'GET',
+    path: '/api/monologue',
+    name: 'Get Agent Monologue',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        if (!runtime) {
+          return res.status(404).json(errorResponse('NOT_FOUND', 'No agent runtime available'));
+        }
+
+        // Get recent memories that represent the agent's monologue/thoughts
+        const memories = await runtime.getMemories({
+          roomId: req.query.roomId as UUID,
+          count: parseInt(req.query.count as string, 10) || 10,
+          tableName: 'memories',
+        });
+
+        const monologue = memories
+          .filter((m) => m.content?.type === 'monologue' || m.content?.type === 'thought')
+          .map((m) => ({
+            id: m.id,
+            content: m.content?.text || m.content?.content || '',
+            timestamp: m.createdAt,
+            type: m.content?.type || 'thought',
+          }));
+
+        return res.json(
+          successResponse({
+            monologue,
+            count: monologue.length,
+          })
+        );
+      } catch (error) {
+        console.error('[API] Error getting monologue:', error);
+        return res.status(500).json(errorResponse('MONOLOGUE_ERROR', 'Failed to get monologue'));
+      }
+    },
+  },
+
+  // Message Ingestion API (for tests)
+  {
+    type: 'POST',
+    path: '/api/messaging/ingest-external',
+    name: 'Ingest External Message',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const {
+          channel_id,
+          server_id,
+          author_id,
+          author_display_name,
+          content,
+          source_type,
+          raw_message,
+          metadata,
+        } = req.body;
+
+        // Validate required fields
+        if (!channel_id || !content || !author_id) {
+          return res
+            .status(400)
+            .json(
+              errorResponse(
+                'MISSING_FIELDS',
+                'Missing required fields: channel_id, content, author_id'
+              )
+            );
+        }
+
+        // Check if we have a runtime
+        if (!runtime) {
+          return res.status(500).json(errorResponse('NO_RUNTIME', 'No agent runtime available'));
+        }
+
+        // Get the server instance from the global variable
+        const serverInstance = (global as any).elizaAgentServer;
+        if (!serverInstance) {
+          console.error('[API] Server instance not available globally');
+          return res.status(500).json(errorResponse('SERVER_ERROR', 'Failed to ingest message'));
+        }
+
+        // Check if channel exists, create if not
+        let channel = await serverInstance.getChannelDetails(channel_id as UUID);
+        if (!channel) {
+          console.log(`[API] Channel ${channel_id} does not exist, creating it...`);
+
+          // Use the provided server_id or default
+          const serverId = (server_id || '00000000-0000-0000-0000-000000000000') as UUID;
+
+          // Create the channel
+          channel = await serverInstance.createChannel({
+            id: channel_id as UUID,
+            serverId,
+            name: metadata?.channel_name || `Test Channel ${channel_id.substring(0, 8)}`,
+            type: 'GROUP' as any,
+            sourceType: source_type || 'test',
+            metadata: {
+              created_by: 'ingest_external_api',
+              created_for: author_id,
+              created_at: new Date().toISOString(),
+              ...metadata,
+            },
+          });
+
+          console.log(`[API] Created channel ${channel_id} successfully`);
+        }
+
+        // Create message in the database
+        const messageId = uuidv4() as UUID;
+        const messageToCreate = {
+          id: messageId,
+          channelId: channel_id as UUID,
+          authorId: author_id as UUID,
+          content,
+          rawMessage: raw_message || { text: content },
+          sourceId: source_type || 'external',
+          source_type: source_type || 'external',
+          metadata: {
+            ...metadata,
+            author_display_name,
+            server_id,
+            ingested_at: Date.now(),
+          },
+        };
+
+        const createdMessage = await serverInstance.createMessage(messageToCreate);
+
+        // Emit to the internal message bus for agent processing
+        const messageForBus = {
+          id: createdMessage.id!,
+          channel_id: createdMessage.channelId,
+          server_id: server_id || '00000000-0000-0000-0000-000000000000',
+          author_id: createdMessage.authorId,
+          author_display_name: author_display_name || 'User',
+          content: createdMessage.content,
+          raw_message: createdMessage.rawMessage,
+          source_id: createdMessage.sourceId,
+          source_type: createdMessage.source_type,
+          created_at: new Date(createdMessage.createdAt).getTime(),
+          metadata: createdMessage.metadata,
+        };
+
+        const bus = (global as any).elizaInternalMessageBus;
+        if (bus) {
+          bus.emit('new_message', messageForBus);
+          console.log('[API] Published message to internal message bus:', createdMessage.id);
+        }
+
+        res.status(201).json({
+          success: true,
+          data: { messageId: createdMessage.id },
+        });
+      } catch (error) {
+        console.error('[API] Error ingesting message:', error);
+        res.status(500).json(errorResponse('INGEST_ERROR', 'Failed to ingest message'));
+      }
+    },
+  },
+
+  // Memory Query API
+  {
+    type: 'GET',
+    path: '/api/memory/query',
+    name: 'Query Memories',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const { roomId, limit = 10, offset = 0 } = req.query;
+        
+        if (!runtime || !runtime.memoryManager) {
+          return res.status(500).json(errorResponse('NO_MEMORY_MANAGER', 'Memory manager not available'));
+        }
+
+        // Get messages from the room
+        const memories = await runtime.memoryManager.getMemories({
+          roomId: roomId as UUID,
+          count: parseInt(limit as string),
+          offset: parseInt(offset as string),
+        });
+
+        res.json({
+          success: true,
+          memories: memories.map(memory => ({
+            id: memory.id,
+            content: memory.content,
+            createdAt: memory.createdAt,
+            roomId: memory.roomId,
+            userId: memory.userId,
+            agentId: memory.agentId,
+          })),
+          total: memories.length,
+        });
+      } catch (error) {
+        console.error('[API] Error querying memories:', error);
+        res.status(500).json(errorResponse('MEMORY_QUERY_ERROR', 'Failed to query memories'));
+      }
+    },
+  },
 ];
 
 // Export functions for vision plugin to access media buffers
@@ -2344,6 +2635,12 @@ export const gameAPIPlugin: Plugin = {
         `[GAME-API] Route ${index + 1}: ${route.type} ${route.path} (public: ${route.public || false})`
       );
     });
+
+    // Store reference to global ElizaOS server if available
+    if ((global as any).elizaAgentServer) {
+      agentServerInstance = (global as any).elizaAgentServer;
+      logger.info('[GAME-API] Server instance stored from global for WebSocket broadcasting');
+    }
 
     // Debug: List all registered services
     const services = (runtime as any).services || new Map();
@@ -2394,6 +2691,18 @@ export const gameAPIPlugin: Plugin = {
         console.error('[GAME-API] Error during deferred initialization check:', error);
       }
     }, 10000); // Wait 10 seconds after plugin init
+
+    // Auto-start screen capture for VNC streaming after a delay
+    setTimeout(async () => {
+      try {
+        console.log('[GAME-API] Auto-starting agent screen capture for VNC streaming...');
+        await startAgentScreenCapture(runtime, agentServerInstance);
+        console.log('[GAME-API] Agent screen capture started automatically');
+      } catch (error) {
+        console.error('[GAME-API] Failed to auto-start screen capture:', error);
+        // Not fatal - can be started manually later
+      }
+    }, 15000); // Wait 15 seconds to ensure display is ready
 
     return Promise.resolve();
   },

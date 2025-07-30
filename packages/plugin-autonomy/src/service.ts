@@ -56,49 +56,43 @@ export class AutonomyService extends Service {
     const autoStart = this.runtime.getSetting('AUTONOMY_AUTO_START');
 
     // Ensure the autonomous room exists with proper world context
-    try {
-      // Always ensure world exists first
-      const worldId = asUUID('00000000-0000-0000-0000-000000000001'); // Use a fixed world ID for autonomy
-      await this.runtime.ensureWorldExists({
-        id: worldId,
-        name: 'Autonomy World',
-        agentId: this.runtime.agentId,
-        serverId: asUUID('00000000-0000-0000-0000-000000000000'), // Default server ID
-        metadata: {
-          type: 'autonomy',
-          description: 'World for autonomous agent thinking',
-        },
-      });
+    const worldId = asUUID('00000000-0000-0000-0000-000000000001'); // Use a fixed world ID for autonomy
+    await this.runtime.ensureWorldExists({
+      id: worldId,
+      name: 'Autonomy World',
+      agentId: this.runtime.agentId,
+      serverId: asUUID('00000000-0000-0000-0000-000000000000'), // Default server ID
+      metadata: {
+        type: 'autonomy',
+        description: 'World for autonomous agent thinking',
+      },
+    });
 
-      // Store the world ID for later use
-      this.autonomousWorldId = worldId;
+    // Store the world ID for later use
+    this.autonomousWorldId = worldId;
 
-      // Always ensure room exists with correct world ID
-      await this.runtime.ensureRoomExists({
-        id: this.autonomousRoomId,
-        name: 'Autonomous Thoughts',
-        worldId,
-        agentId: this.runtime.agentId,
+    // Always ensure room exists with correct world ID
+    await this.runtime.ensureRoomExists({
+      id: this.autonomousRoomId,
+      name: 'Autonomous Thoughts',
+      worldId,
+      agentId: this.runtime.agentId,
+      source: 'autonomy-plugin',
+      type: 'AUTONOMOUS' as any,
+      metadata: {
         source: 'autonomy-plugin',
-        type: 'AUTONOMOUS' as any,
-        metadata: {
-          source: 'autonomy-plugin',
-          description: 'Room for autonomous agent thinking',
-        },
-      });
+        description: 'Room for autonomous agent thinking',
+      },
+    });
 
-      // Add agent as participant
-      await this.runtime.addParticipant(this.runtime.agentId, this.autonomousRoomId);
-      await this.runtime.ensureParticipantInRoom(this.runtime.agentId, this.autonomousRoomId);
+    // Add agent as participant
+    await this.runtime.addParticipant(this.runtime.agentId, this.autonomousRoomId);
+    await this.runtime.ensureParticipantInRoom(this.runtime.agentId, this.autonomousRoomId);
 
-      console.log(
-        '[Autonomy] Ensured autonomous room exists with world ID:',
-        this.autonomousWorldId
-      );
-    } catch (error) {
-      console.warn('[Autonomy] Failed to ensure autonomous room exists:', error);
-      // Continue anyway - the room might be created later
-    }
+    console.log(
+      '[Autonomy] Ensured autonomous room exists with world ID:',
+      this.autonomousWorldId
+    );
 
     console.log(
       `[Autonomy] Settings check - AUTONOMY_ENABLED: ${autonomyEnabled}, AUTONOMY_AUTO_START: ${autoStart}`
@@ -121,19 +115,15 @@ export class AutonomyService extends Service {
    */
   private setupSettingsMonitoring(): void {
     setInterval(async () => {
-      try {
-        const autonomyEnabled = this.runtime.getSetting('AUTONOMY_ENABLED');
-        const shouldBeRunning = autonomyEnabled === true || autonomyEnabled === 'true';
+      const autonomyEnabled = this.runtime.getSetting('AUTONOMY_ENABLED');
+      const shouldBeRunning = autonomyEnabled === true || autonomyEnabled === 'true';
 
-        if (shouldBeRunning && !this.isRunning) {
-          console.log('[Autonomy] Settings indicate autonomy should be enabled, starting...');
-          await this.startLoop();
-        } else if (!shouldBeRunning && this.isRunning) {
-          console.log('[Autonomy] Settings indicate autonomy should be disabled, stopping...');
-          await this.stopLoop();
-        }
-      } catch (error) {
-        console.error('[Autonomy] Error in settings monitoring:', error);
+      if (shouldBeRunning && !this.isRunning) {
+        console.log('[Autonomy] Settings indicate autonomy should be enabled, starting...');
+        await this.startLoop();
+      } else if (!shouldBeRunning && this.isRunning) {
+        console.log('[Autonomy] Settings indicate autonomy should be disabled, stopping...');
+        await this.stopLoop();
       }
     }, 10000); // Check every 10 seconds
   }
@@ -190,14 +180,9 @@ export class AutonomyService extends Service {
     }
 
     this.loopInterval = setTimeout(async () => {
-      try {
-        await this.performAutonomousThink();
-      } catch (error) {
-        console.error('[Autonomy] Error during autonomous think:', error);
-      } finally {
-        // Schedule next iteration if still running
-        this.scheduleNextThink();
-      }
+      await this.performAutonomousThink();
+      // Schedule next iteration if still running
+      this.scheduleNextThink();
     }, this.intervalMs);
   }
 
@@ -209,52 +194,44 @@ export class AutonomyService extends Service {
       `[Autonomy] Performing autonomous monologue... (${new Date().toLocaleTimeString()})`
     );
 
-    try {
-      // Get the agent's entity first - we'll need it throughout this function
-      const agentEntity = await this.runtime.getEntityById(this.runtime.agentId);
-      if (!agentEntity) {
-        console.error('[Autonomy] Failed to get agent entity, skipping autonomous thought');
-        return;
-      }
+    // Get the agent's entity first - we'll need it throughout this function
+    const agentEntity = await this.runtime.getEntityById(this.runtime.agentId);
+    if (!agentEntity) {
+      console.error('[Autonomy] Failed to get agent entity, skipping autonomous thought');
+      return;
+    }
 
-      // Get the last autonomous thought to continue the internal monologue
-      let lastThought: string | undefined;
-      let isFirstThought = false;
-      try {
-        // Get recent autonomous memories from this room
-        const recentMemories = await this.runtime.getMemories({
-          roomId: this.autonomousRoomId,
-          count: 3,
-          tableName: 'memories',
-        });
+    // Get the last autonomous thought to continue the internal monologue
+    let lastThought: string | undefined;
+    let isFirstThought = false;
+    
+    // Get recent autonomous memories from this room
+    const recentMemories = await this.runtime.getMemories({
+      roomId: this.autonomousRoomId,
+      count: 3,
+      tableName: 'memories',
+    });
 
-        // Find the most recent agent-generated autonomous thought
-        const lastAgentThought = recentMemories
-          .filter(
-            (m) =>
-              m.entityId === agentEntity.id &&
-              m.content?.text &&
-              m.content?.metadata &&
-              (m.content.metadata as any)?.isAutonomous === true
-          )
-          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+    // Find the most recent agent-generated autonomous thought
+    const lastAgentThought = recentMemories
+      .filter(
+        (m) =>
+          m.entityId === agentEntity.id &&
+          m.content?.text &&
+          m.content?.metadata &&
+          (m.content.metadata as any)?.isAutonomous === true
+      )
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
 
-        if (lastAgentThought?.content?.text) {
-          lastThought = lastAgentThought.content.text;
-          console.log(
-            `[Autonomy] Continuing from last thought: "${lastThought.substring(0, 50)}..."`
-          );
-        } else {
-          isFirstThought = true;
-          console.log('[Autonomy] No previous autonomous thoughts found, starting fresh monologue');
-        }
-      } catch (error) {
-        console.warn(
-          '[Autonomy] Failed to get recent autonomous memories, starting fresh:',
-          (error as Error).message || error
-        );
-        isFirstThought = true;
-      }
+    if (lastAgentThought?.content?.text) {
+      lastThought = lastAgentThought.content.text;
+      console.log(
+        `[Autonomy] Continuing from last thought: "${lastThought.substring(0, 50)}..."`
+      );
+    } else {
+      isFirstThought = true;
+      console.log('[Autonomy] No previous autonomous thoughts found, starting fresh monologue');
+    }
 
       // Create introspective monologue prompt (not conversational)
       const monologuePrompt = this.createMonologuePrompt(lastThought, isFirstThought);
@@ -335,9 +312,6 @@ export class AutonomyService extends Service {
       });
 
       console.log('[Autonomy] ✅ Autonomous message event emitted to agent pipeline');
-    } catch (error) {
-      console.error('[Autonomy] Failed to perform autonomous monologue:', error);
-    }
   }
   /**
    * Create an introspective monologue prompt suited for internal thoughts
@@ -360,57 +334,52 @@ Generate your next thought (1-2 sentences):`;
    * Broadcast autonomous thought to WebSocket clients for real-time monologue display
    */
   private async broadcastThoughtToMonologue(thoughtText: string, messageId: string): Promise<void> {
-    try {
-      // Use the correct messaging API endpoint that exists in server.ts
-      const apiUrl = 'http://localhost:7777/api/messaging/submit';
+    // Use the correct messaging API endpoint that exists in server.ts
+    const apiUrl = 'http://localhost:7777/api/messaging/submit';
 
-      const broadcastData = {
-        channel_id: this.autonomousRoomId, // Use autonomous room ID as channel
-        server_id: '00000000-0000-0000-0000-000000000000',
-        author_id: this.runtime.agentId,
-        content: thoughtText,
-        source_type: 'autonomous_thought', // Add missing source_type field
-        raw_message: {
-          thought: thoughtText,
-          actions: [],
-        },
-        metadata: {
-          agentName: this.runtime.character?.name || 'ELIZA',
-          channelId: 'autonomous', // Ensure this matches frontend filter
-          isAutonomous: true,
-          isInternalThought: true,
-          messageId,
-          timestamp: Date.now(),
-        },
-      };
+    const broadcastData = {
+      channel_id: this.autonomousRoomId, // Use autonomous room ID as channel
+      server_id: '00000000-0000-0000-0000-000000000000',
+      author_id: this.runtime.agentId,
+      content: thoughtText,
+      source_type: 'autonomous_thought', // Add missing source_type field
+      raw_message: {
+        thought: thoughtText,
+        actions: [],
+      },
+      metadata: {
+        agentName: this.runtime.character?.name || 'ELIZA',
+        channelId: 'autonomous', // Ensure this matches frontend filter
+        isAutonomous: true,
+        isInternalThought: true,
+        messageId,
+        timestamp: Date.now(),
+      },
+    };
 
-      console.log('[Autonomy] Broadcasting thought to WebSocket via:', apiUrl);
-      console.log('[Autonomy] Broadcast data:', JSON.stringify(broadcastData, null, 2));
+    console.log('[Autonomy] Broadcasting thought to WebSocket via:', apiUrl);
+    console.log('[Autonomy] Broadcast data:', JSON.stringify(broadcastData, null, 2));
 
-      // Make HTTP request to broadcast endpoint
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(broadcastData),
-      });
+    // Make HTTP request to broadcast endpoint
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(broadcastData),
+    });
 
-      if (response.ok) {
-        const responseData = await response.json();
-        console.log('[Autonomy] Successfully broadcasted thought to monologue chat:', responseData);
-      } else {
-        const errorText = await response.text();
-        console.warn(
-          '[Autonomy] Failed to broadcast thought:',
-          response.status,
-          response.statusText,
-          errorText
-        );
-      }
-    } catch (error) {
-      console.warn('[Autonomy] Error broadcasting thought to monologue:', (error as Error).message);
-      // Don't throw - broadcasting failure shouldn't stop autonomy loop
+    if (response.ok) {
+      const responseData = await response.json();
+      console.log('[Autonomy] Successfully broadcasted thought to monologue chat:', responseData);
+    } else {
+      const errorText = await response.text();
+      console.warn(
+        '[Autonomy] Failed to broadcast thought:',
+        response.status,
+        response.statusText,
+        errorText
+      );
     }
   }
 

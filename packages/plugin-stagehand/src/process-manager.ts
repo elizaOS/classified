@@ -73,6 +73,8 @@ export class StagehandProcessManager {
         CAPSOLVER_API_KEY: process.env.CAPSOLVER_API_KEY,
         OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
         OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.2-vision',
+        // Pass through display for headful mode in container
+        DISPLAY: process.env.DISPLAY || ':99',
       };
 
       // Determine if we're running a binary or a JS file

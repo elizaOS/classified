@@ -95,133 +95,115 @@ export const sendToAdminAction: Action = {
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<ActionResult> => {
-    try {
-      // Double-check we're in autonomous context
-      const autonomyService = runtime.getService('autonomy');
-      if (!autonomyService) {
-        return {
-          success: false,
-          text: 'Autonomy service not available',
-          data: { error: 'Service unavailable' },
-        };
-      }
-
-      const autonomousRoomId = (autonomyService as any).getAutonomousRoomId?.();
-      if (!autonomousRoomId || message.roomId !== autonomousRoomId) {
-        return {
-          success: false,
-          text: 'Send to admin only available in autonomous context',
-          data: { error: 'Invalid context' },
-        };
-      }
-
-      // Get admin user ID and find their room
-      const adminUserId = runtime.getSetting('ADMIN_USER_ID') as string;
-      if (!adminUserId) {
-        return {
-          success: false,
-          text: 'No admin user configured. Set ADMIN_USER_ID in settings.',
-          data: { error: 'No admin configured' },
-        };
-      }
-
-      const _adminUUID = asUUID(adminUserId);
-
-      // Find the most recent room where admin and agent have communicated
-      // Note: Since we can't directly query by entityId, use a fallback approach
-      const adminMessages = await runtime.getMemories({
-        roomId: runtime.agentId, // Use agent's default room as fallback
-        count: 10,
-        tableName: 'memories',
-      });
-
-      let targetRoomId: UUID;
-      if (adminMessages && adminMessages.length > 0) {
-        // Use the room from the most recent admin message
-        targetRoomId = adminMessages[adminMessages.length - 1].roomId!;
-      } else {
-        // No existing conversation, use agent's primary room
-        targetRoomId = runtime.agentId; // Fallback to agent's default room
-      }
-
-      // Extract message content - determine what to send based on the autonomous thought
-      const autonomousThought = message.content.text || '';
-
-      // Generate appropriate message to admin
-      let messageToAdmin: string;
-      if (autonomousThought.includes('completed') || autonomousThought.includes('finished')) {
-        messageToAdmin = `I've completed a task and wanted to update you. My thoughts: ${autonomousThought}`;
-      } else if (
-        autonomousThought.includes('problem') ||
-        autonomousThought.includes('issue') ||
-        autonomousThought.includes('error')
-      ) {
-        messageToAdmin = `I encountered something that might need your attention: ${autonomousThought}`;
-      } else if (autonomousThought.includes('question') || autonomousThought.includes('unsure')) {
-        messageToAdmin = `I have a question and would appreciate your guidance: ${autonomousThought}`;
-      } else {
-        messageToAdmin = `Autonomous update: ${autonomousThought}`;
-      }
-
-      // Create and store message to admin
-      const adminMessage: Memory = {
-        id: asUUID(uuidv4()),
-        entityId: runtime.agentId, // Agent is sending to admin
-        roomId: targetRoomId,
-        content: {
-          text: messageToAdmin,
-          source: 'autonomy-to-admin',
-          metadata: {
-            type: 'autonomous-to-admin-message',
-            originalThought: autonomousThought,
-            timestamp: Date.now(),
-          },
-        },
-        createdAt: Date.now(),
-      };
-
-      // Store the message in memory
-      await runtime.createMemory(adminMessage, 'memories');
-
-      const successMessage = `Message sent to admin in room ${targetRoomId.slice(0, 8)}...`;
-
-      if (callback) {
-        await callback({
-          text: successMessage,
-          data: {
-            adminUserId,
-            targetRoomId,
-            messageContent: messageToAdmin,
-          },
-        });
-      }
-
+    // Double-check we're in autonomous context
+    const autonomyService = runtime.getService('autonomy');
+    if (!autonomyService) {
       return {
-        success: true,
+        success: false,
+        text: 'Autonomy service not available',
+        data: { error: 'Service unavailable' },
+      };
+    }
+
+    const autonomousRoomId = (autonomyService as any).getAutonomousRoomId?.();
+    if (!autonomousRoomId || message.roomId !== autonomousRoomId) {
+      return {
+        success: false,
+        text: 'Send to admin only available in autonomous context',
+        data: { error: 'Invalid context' },
+      };
+    }
+
+    // Get admin user ID and find their room
+    const adminUserId = runtime.getSetting('ADMIN_USER_ID') as string;
+    if (!adminUserId) {
+      return {
+        success: false,
+        text: 'No admin user configured. Set ADMIN_USER_ID in settings.',
+        data: { error: 'No admin configured' },
+      };
+    }
+
+    const _adminUUID = asUUID(adminUserId);
+
+    // Find the most recent room where admin and agent have communicated
+    // Note: Since we can't directly query by entityId, use a fallback approach
+    const adminMessages = await runtime.getMemories({
+      roomId: runtime.agentId, // Use agent's default room as fallback
+      count: 10,
+      tableName: 'memories',
+    });
+
+    let targetRoomId: UUID;
+    if (adminMessages && adminMessages.length > 0) {
+      // Use the room from the most recent admin message
+      targetRoomId = adminMessages[adminMessages.length - 1].roomId!;
+    } else {
+      // No existing conversation, use agent's primary room
+      targetRoomId = runtime.agentId; // Fallback to agent's default room
+    }
+
+    // Extract message content - determine what to send based on the autonomous thought
+    const autonomousThought = message.content.text || '';
+
+    // Generate appropriate message to admin
+    let messageToAdmin: string;
+    if (autonomousThought.includes('completed') || autonomousThought.includes('finished')) {
+      messageToAdmin = `I've completed a task and wanted to update you. My thoughts: ${autonomousThought}`;
+    } else if (
+      autonomousThought.includes('problem') ||
+      autonomousThought.includes('issue') ||
+      autonomousThought.includes('error')
+    ) {
+      messageToAdmin = `I encountered something that might need your attention: ${autonomousThought}`;
+    } else if (autonomousThought.includes('question') || autonomousThought.includes('unsure')) {
+      messageToAdmin = `I have a question and would appreciate your guidance: ${autonomousThought}`;
+    } else {
+      messageToAdmin = `Autonomous update: ${autonomousThought}`;
+    }
+
+    // Create and store message to admin
+    const adminMessage: Memory = {
+      id: asUUID(uuidv4()),
+      entityId: runtime.agentId, // Agent is sending to admin
+      roomId: targetRoomId,
+      content: {
+        text: messageToAdmin,
+        source: 'autonomy-to-admin',
+        metadata: {
+          type: 'autonomous-to-admin-message',
+          originalThought: autonomousThought,
+          timestamp: Date.now(),
+        },
+      },
+      createdAt: Date.now(),
+    };
+
+    // Store the message in memory
+    await runtime.createMemory(adminMessage, 'memories');
+
+    const successMessage = `Message sent to admin in room ${targetRoomId.slice(0, 8)}...`;
+
+    if (callback) {
+      await callback({
         text: successMessage,
         data: {
           adminUserId,
           targetRoomId,
           messageContent: messageToAdmin,
-          sent: true,
         },
-      };
-    } catch (error) {
-      console.error('[SendToAdmin] Error:', error);
-
-      const errorMessage = `Failed to send message to admin: ${error instanceof Error ? error.message : 'Unknown error'}`;
-
-      if (callback) {
-        await callback({
-          text: errorMessage,
-        });
-      }
-
-      return {
-        success: false,
-        text: errorMessage,
-        data: { error: error instanceof Error ? error.message : 'Unknown error' },
-      };
+      });
     }
+
+    return {
+      success: true,
+      text: successMessage,
+      data: {
+        adminUserId,
+        targetRoomId,
+        messageContent: messageToAdmin,
+        sent: true,
+      },
+    };
   },
 };

@@ -16,6 +16,25 @@ RUN apt-get update && apt-get install -y \
     tmux \
     htop \
     x11-utils \
+    x11-xserver-utils \
+    net-tools \
+    chromium \
+    chromium-driver \
+    fonts-liberation \
+    libappindicator3-1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libgdk-pixbuf2.0-0 \
+    libnspr4 \
+    libnss3 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    xdg-utils \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1001 eliza \
     && useradd -u 1001 -g eliza -m eliza
@@ -34,8 +53,9 @@ COPY dist-binaries/server-linux-${TARGETARCH} ./server
 # Copy scripts and configuration
 COPY scripts/health-check.sh ./health-check.sh
 COPY vnc-autostart.sh ./vnc-autostart.sh
-RUN chmod +x ./server ./health-check.sh ./vnc-autostart.sh && \
-    chown eliza:eliza ./server ./health-check.sh ./vnc-autostart.sh
+COPY verify-display.sh ./verify-display.sh
+RUN chmod +x ./server ./health-check.sh ./vnc-autostart.sh ./verify-display.sh && \
+    chown eliza:eliza ./server ./health-check.sh ./vnc-autostart.sh ./verify-display.sh
 
 # Create directories with correct permissions
 RUN mkdir -p /app/data /app/logs /app/knowledge /home/eliza/.vnc && \
@@ -50,17 +70,21 @@ COPY --chown=eliza:eliza public ./public
 
 # Create the virtual display startup script
 RUN echo '#!/bin/bash\n\
+echo "[DISPLAY] Starting X virtual framebuffer..."\n\
 Xvfb :99 -screen 0 1280x720x24 -nolisten tcp &\n\
 export DISPLAY=:99\n\
+echo "[DISPLAY] Waiting for Xvfb to start..."\n\
+sleep 3\n\
+\n\
+echo "[DISPLAY] Starting window manager..."\n\
+fluxbox &\n\
 sleep 2\n\
 \n\
-# Start window manager\n\
-fluxbox &\n\
-sleep 1\n\
+echo "[DISPLAY] Starting VNC server on port 5900..."\n\
+x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -ncache 10 -forever -shared &\n\
+echo "[DISPLAY] VNC server started, accessible on port 5900"\n\
 \n\
-# Start VNC server\n\
-x11vnc -display :99 -nopw -listen localhost -xkb -ncache 10 -forever &\n\
-\n\
+echo "[DISPLAY] Display services ready, starting main process..."\n\
 exec "$@"' > /app/start-with-display.sh && \
     chmod +x /app/start-with-display.sh && \
     chown eliza:eliza /app/start-with-display.sh

@@ -45,84 +45,76 @@ export const cancelFormAction: Action = {
     options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ) => {
-    try {
-      const formsService = runtime.getService<FormsService>('forms');
-      if (!formsService) {
-        throw new Error('Forms service not available');
-      }
+    const formsService = runtime.getService<FormsService>('forms');
+    if (!formsService) {
+      throw new Error('Forms service not available');
+    }
 
-      // Get active forms
-      const activeForms = await formsService.listForms('active');
-      if (activeForms.length === 0) {
-        await callback?.({
-          text: 'No active forms to cancel.',
-          actions: [],
-        });
-        return;
-      }
-
-      // Check if a specific form ID was provided
-      let targetForm;
-      const specifiedFormId =
-        options?.formId || state?.data?.activeFormId || state?.values?.activeFormId;
-
-      if (specifiedFormId) {
-        // Find the specific form
-        targetForm = activeForms.find((f) => f.id === specifiedFormId);
-        if (!targetForm) {
-          await callback?.({
-            text: 'The specified form is no longer active.',
-            actions: [],
-          });
-          return;
-        }
-      } else {
-        // For now, cancel the first active form
-        targetForm = activeForms[0];
-      }
-
-      const formId = targetForm.id;
-
-      logger.debug(`Cancelling form ${formId}`);
-
-      // Cancel the form
-      const success = await formsService.cancelForm(formId);
-
-      if (success) {
-        await callback?.({
-          text: "I've cancelled the form. Is there anything else I can help you with?",
-          actions: ['CANCEL_FORM'],
-          data: {
-            formId,
-          },
-        });
-
-        return {
-          success: true,
-          data: {
-            formId,
-          },
-        };
-      } else {
-        await callback?.({
-          text: 'I was unable to cancel the form. It may have already been completed or cancelled.',
-          actions: [],
-        });
-
-        return {
-          success: false,
-          message: 'Failed to cancel form',
-        };
-      }
-    } catch (error) {
-      logger.error('Error in CANCEL_FORM action:', error);
+    // Get active forms
+    const activeForms = await formsService.listForms('active');
+    if (activeForms.length === 0) {
       await callback?.({
-        text: 'An error occurred while cancelling the form.',
+        text: 'No active forms to cancel.',
         actions: [],
       });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'No active forms',
+      };
+    }
+
+    // Check if a specific form ID was provided
+    let targetForm;
+    const specifiedFormId =
+      options?.formId || state?.data?.activeFormId || state?.values?.activeFormId;
+
+    if (specifiedFormId) {
+      targetForm = activeForms.find((f) => f.id === specifiedFormId);
+      if (!targetForm) {
+        await callback?.({
+          text: 'The specified form is no longer active.',
+          actions: [],
+        });
+        return {
+          success: false,
+          message: 'Form not found',
+        };
+      }
+    } else {
+      targetForm = activeForms[0];
+    }
+
+    const formId = targetForm.id;
+
+    logger.debug(`Cancelling form ${formId}`);
+
+    // Cancel the form
+    const success = await formsService.cancelForm(formId);
+
+    if (success) {
+      await callback?.({
+        text: "I've cancelled the form. Is there anything else I can help you with?",
+        actions: ['CANCEL_FORM'],
+        data: {
+          formId,
+        },
+      });
+
+      return {
+        success: true,
+        data: {
+          formId,
+        },
+      };
+    } else {
+      await callback?.({
+        text: 'I was unable to cancel the form. It may have already been completed or cancelled.',
+        actions: [],
+      });
+
+      return {
+        success: false,
+        message: 'Failed to cancel form',
       };
     }
   },

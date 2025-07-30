@@ -67,31 +67,99 @@ unbind %
 EOF
 fi
 
-# Create a test pattern window to verify display is working
-echo "[VNC] Creating test pattern window..."
-xterm -hold -geometry 80x10+10+10 \
-    -bg '#00ff00' -fg black \
-    -title "VNC TEST - Display Working" \
-    -e "bash -c 'echo \"===== VNC DISPLAY TEST =====\"; echo \"If you can see this, VNC is working!\"; echo \"Time: \$(date)\"; echo \"Display: $DISPLAY\"; echo \"============================\"; sleep 5 && exit'" &
+# Create persistent demo content window that stays visible
+echo "[VNC] Creating persistent demo window..."
+cat > /tmp/vnc_demo.sh << 'EOF'
+#!/bin/bash
+# Persistent VNC demo content
+while true; do
+    clear
+    echo "================================="
+    echo "   ElizaOS Agent VNC Display"
+    echo "================================="
+    echo ""
+    echo "Time: $(date)"
+    echo "Display: $DISPLAY"
+    echo "Agent Status: Active"
+    echo ""
+    echo "This is the agent's virtual desktop."
+    echo "Any GUI applications will appear here."
+    echo ""
+    echo "Available capabilities:"
+    echo "- Browser automation (Stagehand)"
+    echo "- Desktop applications"
+    echo "- Screen capture for vision"
+    echo ""
+    echo "Waiting for GUI applications..."
+    echo ""
+    echo "================================="
+    sleep 1
+done
+EOF
+chmod +x /tmp/vnc_demo.sh
 
-# Start xterm with tmux session
-echo "[VNC] Starting main terminal..."
+# Start persistent demo window
 xterm -hold -geometry 140x40+100+100 \
     -fa 'Monospace' -fs 12 \
     -bg black -fg white \
-    -title "ElizaOS Agent Terminal" \
-    -e "bash -c 'tmux new-session -s eliza -d \"echo Welcome to ElizaOS Agent Terminal!; echo; echo Container: eliza-agent; echo Process: \$(ps aux | grep server | grep -v grep | head -1); echo; htop || top\" && tmux attach -t eliza'" &
+    -title "ElizaOS Agent Desktop" \
+    -e "/tmp/vnc_demo.sh" &
+
+# Create a visual indicator panel
+echo "[VNC] Creating status panel..."
+cat > /tmp/status_panel.sh << 'EOF'
+#!/bin/bash
+while true; do
+    clear
+    echo "=== Agent Status ==="
+    echo "CPU: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)%"
+    echo "Memory: $(free -h | awk '/^Mem:/ {print $3 "/" $2}')"
+    echo "Processes: $(ps aux | wc -l)"
+    echo ""
+    echo "=== Media Streams ==="
+    echo "VNC: Active on :5900"
+    echo "Display: $DISPLAY"
+    echo "Resolution: 1280x720"
+    echo ""
+    echo "=== Recent Activity ==="
+    tail -n 5 /app/logs/*.log 2>/dev/null | head -5 || echo "No activity yet"
+    sleep 2
+done
+EOF
+chmod +x /tmp/status_panel.sh
+
+# Start status panel
+xterm -hold -geometry 80x20+10+10 \
+    -fa 'Monospace' -fs 10 \
+    -bg '#1a1a1a' -fg '#00ff00' \
+    -title "System Status" \
+    -e "/tmp/status_panel.sh" &
 
 # Give xterm time to start
 sleep 2
 
-# Start a second terminal for logs
-echo "[VNC] Starting log viewer terminal..."
-xterm -hold -geometry 140x20+100+600 \
-    -fa 'Monospace' -fs 10 \
-    -bg '#1a1a1a' -fg '#00ff00' \
-    -title "ElizaOS Agent Logs" \
-    -e "bash -c 'echo Monitoring ElizaOS Agent Logs...; echo; tail -f /app/logs/*.log 2>/dev/null || (echo No logs available yet.; sleep infinity)'" &
+# Create a browser launch script for headful Stagehand
+echo "[VNC] Creating browser launcher..."
+cat > /tmp/launch_browser.sh << 'EOF'
+#!/bin/bash
+# Check if Chrome/Chromium is installed
+if command -v google-chrome &> /dev/null; then
+    BROWSER="google-chrome"
+elif command -v chromium &> /dev/null; then
+    BROWSER="chromium"
+elif command -v chromium-browser &> /dev/null; then
+    BROWSER="chromium-browser"
+else
+    echo "No Chrome/Chromium found. Installing..."
+    apt-get update && apt-get install -y chromium
+    BROWSER="chromium"
+fi
+
+# Launch browser in the virtual display
+echo "Launching browser on display $DISPLAY..."
+$BROWSER --no-sandbox --disable-gpu --display=$DISPLAY --start-maximized "https://www.example.com" &
+EOF
+chmod +x /tmp/launch_browser.sh
 
 # List created windows
 echo "[VNC] Terminal windows created:"

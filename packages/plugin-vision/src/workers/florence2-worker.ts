@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'worker_threads';
 import { logger } from './worker-logger';
 import { Florence2Model } from '../florence2-model';
 import type { Florence2Result, ScreenTile } from '../types';
-import sharp from '../utils/sharp-wrapper';
+import sharp from 'sharp';
 
 interface WorkerConfig {
   tileSize: number;
