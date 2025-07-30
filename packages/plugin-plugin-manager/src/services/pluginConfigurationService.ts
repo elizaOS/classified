@@ -1,20 +1,14 @@
-import { Service, type IAgentRuntime, type ServiceTypeName, logger } from '@elizaos/core';
-import {
-  PluginManagerServiceType,
-  type PluginEnvironmentVariable,
-  type PluginConfigurationRequest,
-  type PluginState,
-} from '../types';
-import * as crypto from 'crypto';
-import path from 'path';
-import fs from 'fs-extra';
+import { Service, elizaLogger, type IAgentRuntime } from '@elizaos/core';
+import { PluginManagerServiceType, type PluginEnvironmentVariable } from '../types';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
+/**
+ * Simplified plugin configuration service for basic environment variable checking
+ */
 export class PluginConfigurationService extends Service {
-  static override serviceType: ServiceTypeName = PluginManagerServiceType.PLUGIN_CONFIGURATION;
-  override capabilityDescription = 'Manages secure plugin configurations and environment variables';
-
-  private encryptionKey: Buffer | null = null;
-  private configStore: Map<string, Record<string, any>> = new Map();
+  static override serviceType = PluginManagerServiceType.PLUGIN_CONFIGURATION;
+  override capabilityDescription = 'Provides basic plugin configuration status checking';
 
   constructor(runtime: IAgentRuntime) {
     super(runtime);
@@ -27,274 +21,192 @@ export class PluginConfigurationService extends Service {
   }
 
   async initialize(): Promise<void> {
-    logger.info('[PluginConfigurationService] Initializing...');
-
-    // Initialize encryption key
-    this.encryptionKey = await this.getOrCreateEncryptionKey();
-
-    // Load existing configurations
-    await this.loadConfigurations();
-
-    logger.success('[PluginConfigurationService] Initialized successfully');
+    elizaLogger.info('[PluginConfigurationService] Initialized simple configuration checker');
   }
 
+  /**
+   * Parse plugin requirements from package.json or plugin file
+   */
   async parsePluginRequirements(pluginPath: string): Promise<{
     requiredVars: PluginEnvironmentVariable[];
     optionalVars: PluginEnvironmentVariable[];
-  }> {
-    const packageJsonPath = path.join(pluginPath, 'package.json');
+  } | null> {
+    try {
+      // Try to read package.json first
+      const packageJsonPath = path.join(pluginPath, 'package.json');
 
-    if (!(await fs.pathExists(packageJsonPath))) {
-      logger.warn(`[PluginConfigurationService] No package.json found at ${packageJsonPath}`);
-      return { requiredVars: [], optionalVars: [] };
-    }
+      try {
+        const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
 
-    const packageJson = await fs.readJson(packageJsonPath);
-    const elizaosConfig = packageJson.elizaos || {};
+        // Look for elizaConfig section with environment variables
+        if (packageJson.elizaConfig?.environmentVariables) {
+          const envVars = packageJson.elizaConfig.environmentVariables;
 
-    const allVars: PluginEnvironmentVariable[] = elizaosConfig.environmentVariables || [];
-
-    // Separate required and optional
-    const requiredVars = allVars.filter((v) => v.required !== false);
-    const optionalVars = allVars.filter((v) => v.required === false);
-
-    return { requiredVars, optionalVars };
-  }
-
-  async getPluginConfiguration(pluginName: string): Promise<Record<string, string>> {
-    const encrypted = this.configStore.get(pluginName);
-    if (!encrypted) return {};
-
-    const decrypted: Record<string, string> = {};
-
-    for (const [key, value] of Object.entries(encrypted)) {
-      if (value.encrypted) {
-        decrypted[key] = await this.decrypt(value.data);
-      } else {
-        decrypted[key] = value.data;
-      }
-    }
-
-    return decrypted;
-  }
-
-  async setPluginConfiguration(
-    pluginName: string,
-    config: Record<string, string>,
-    metadata?: Record<string, PluginEnvironmentVariable>
-  ): Promise<void> {
-    const encrypted: Record<string, any> = {};
-
-    for (const [key, value] of Object.entries(config)) {
-      const varMetadata = metadata?.[key];
-      const isSensitive = varMetadata?.sensitive ?? this.isSensitiveKey(key);
-
-      if (isSensitive) {
-        encrypted[key] = {
-          encrypted: true,
-          data: await this.encrypt(value),
-        };
-      } else {
-        encrypted[key] = {
-          encrypted: false,
-          data: value,
-        };
-      }
-    }
-
-    this.configStore.set(pluginName, encrypted);
-    await this.saveConfigurations();
-
-    logger.info(`[PluginConfigurationService] Configuration saved for plugin: ${pluginName}`);
-  }
-
-  async validateConfiguration(
-    pluginName: string,
-    config: Record<string, string>,
-    requirements: PluginEnvironmentVariable[]
-  ): Promise<{
-    valid: boolean;
-    errors: string[];
-  }> {
-    const errors: string[] = [];
-
-    for (const req of requirements) {
-      const value = config[req.name];
-
-      // Check required
-      if (req.required && !value) {
-        errors.push(`Missing required variable: ${req.name}`);
-        continue;
-      }
-
-      if (value && req.validation) {
-        // Pattern validation
-        if (req.validation.pattern) {
-          const regex = new RegExp(req.validation.pattern);
-          if (!regex.test(value)) {
-            errors.push(`${req.name} does not match required pattern: ${req.validation.pattern}`);
-          }
+          return {
+            requiredVars: envVars.filter((v: any) => v.required !== false),
+            optionalVars: envVars.filter((v: any) => v.required === false),
+          };
         }
-
-        // Length validation
-        if (req.validation.minLength && value.length < req.validation.minLength) {
-          errors.push(`${req.name} is too short (min: ${req.validation.minLength})`);
-        }
-        if (req.validation.maxLength && value.length > req.validation.maxLength) {
-          errors.push(`${req.name} is too long (max: ${req.validation.maxLength})`);
-        }
-
-        // Enum validation
-        if (req.validation.enum && !req.validation.enum.includes(value)) {
-          errors.push(`${req.name} must be one of: ${req.validation.enum.join(', ')}`);
-        }
+      } catch {
+        // package.json doesn't exist or doesn't have elizaConfig
       }
-    }
 
-    return {
-      valid: errors.length === 0,
-      errors,
-    };
+      // Fallback: scan plugin files for common environment variable patterns
+      return this.scanForCommonEnvVars(pluginPath);
+    } catch (error) {
+      elizaLogger.error('[PluginConfigurationService] Failed to parse requirements:', error);
+      return null;
+    }
   }
 
-  async generateConfigurationRequest(
-    pluginName: string,
-    pluginPath: string
-  ): Promise<PluginConfigurationRequest> {
-    const currentConfig = await this.getPluginConfiguration(pluginName);
-    const missingVars: string[] = [];
+  /**
+   * Get current plugin configuration status
+   */
+  getPluginConfiguration(pluginName: string): Record<string, string> {
+    // Just return environment variables that are set
+    const config: Record<string, string> = {};
 
-    // Parse full requirements from package.json
-    const { requiredVars, optionalVars } = await this.parsePluginRequirements(pluginPath);
+    // Common plugin environment variable patterns
+    const commonPatterns = [
+      `${pluginName.toUpperCase().replace(/-/g, '_')}_API_KEY`,
+      `${pluginName.toUpperCase().replace(/-/g, '_')}_TOKEN`,
+      `${pluginName.toUpperCase().replace(/-/g, '_')}_SECRET`,
+      `${pluginName.toUpperCase().replace(/-/g, '_')}_URL`,
+    ];
 
-    // Check which required vars are missing
-    for (const reqVar of requiredVars) {
-      if (!currentConfig[reqVar.name]) {
-        missingVars.push(reqVar.name);
+    for (const pattern of commonPatterns) {
+      const value = process.env[pattern];
+      if (value) {
+        config[pattern] = value;
       }
-    }
-
-    return {
-      pluginName,
-      requiredVars,
-      missingVars,
-      optionalVars,
-    };
-  }
-
-  async applyConfigurationToEnvironment(pluginName: string): Promise<Record<string, string>> {
-    const config = await this.getPluginConfiguration(pluginName);
-
-    // Apply configuration to process.env for plugin access
-    for (const [key, value] of Object.entries(config)) {
-      process.env[key] = value;
     }
 
     return config;
   }
 
+  /**
+   * Check if plugin has valid configuration
+   */
   async hasValidConfiguration(pluginName: string, pluginPath: string): Promise<boolean> {
-    const request = await this.generateConfigurationRequest(pluginName, pluginPath);
-    return request.missingVars.length === 0;
-  }
-
-  // Encryption methods
-
-  private async getOrCreateEncryptionKey(): Promise<Buffer> {
-    const dataDir = path.join(process.cwd(), 'data');
-    await fs.ensureDir(dataDir);
-    const keyPath = path.join(dataDir, '.encryption-key');
-
-    if (await fs.pathExists(keyPath)) {
-      const keyData = await fs.readFile(keyPath);
-      return Buffer.from(keyData.toString(), 'hex');
+    const requirements = await this.parsePluginRequirements(pluginPath);
+    if (!requirements || requirements.requiredVars.length === 0) {
+      return true; // No requirements = valid
     }
 
-    // Generate new key
-    const key = crypto.randomBytes(32);
-    await fs.writeFile(keyPath, key.toString('hex'));
+    const currentConfig = this.getPluginConfiguration(pluginName);
 
-    // Secure the file
-    await fs.chmod(keyPath, 0o600);
-
-    logger.info('[PluginConfigurationService] Created new encryption key');
-    return key;
-  }
-
-  private async encrypt(text: string): Promise<string> {
-    if (!this.encryptionKey) {
-      throw new Error('Encryption key not initialized');
-    }
-
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', this.encryptionKey, iv);
-
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-
-    return iv.toString('hex') + ':' + encrypted;
-  }
-
-  private async decrypt(text: string): Promise<string> {
-    if (!this.encryptionKey) {
-      throw new Error('Encryption key not initialized');
-    }
-
-    const [ivHex, encrypted] = text.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-
-    const decipher = crypto.createDecipheriv('aes-256-cbc', this.encryptionKey, iv);
-
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    return decrypted;
-  }
-
-  private isSensitiveKey(key: string): boolean {
-    const lowerKey = key.toLowerCase();
-    return (
-      lowerKey.includes('key') ||
-      lowerKey.includes('secret') ||
-      lowerKey.includes('password') ||
-      lowerKey.includes('token') ||
-      lowerKey.includes('auth')
-    );
-  }
-
-  private async loadConfigurations(): Promise<void> {
-    const dataDir = path.join(process.cwd(), 'data');
-    await fs.ensureDir(dataDir);
-    const configPath = path.join(dataDir, 'plugin-configs.json');
-
-    if (await fs.pathExists(configPath)) {
-      const data = await fs.readJson(configPath);
-
-      for (const [plugin, config] of Object.entries(data)) {
-        this.configStore.set(plugin, config as Record<string, any>);
+    // Check if all required variables are set
+    for (const varInfo of requirements.requiredVars) {
+      if (!process.env[varInfo.name]) {
+        return false;
       }
-
-      logger.info(
-        `[PluginConfigurationService] Loaded configurations for ${this.configStore.size} plugins`
-      );
     }
+
+    return true;
   }
 
-  private async saveConfigurations(): Promise<void> {
-    const dataDir = path.join(process.cwd(), 'data');
-    await fs.ensureDir(dataDir);
-    const configPath = path.join(dataDir, 'plugin-configs.json');
+  /**
+   * Get missing environment variables for a plugin
+   */
+  async getMissingEnvVars(pluginName: string, pluginPath: string): Promise<string[]> {
+    const requirements = await this.parsePluginRequirements(pluginPath);
+    if (!requirements) {
+      return [];
+    }
 
-    const data = Object.fromEntries(this.configStore);
+    const missing: string[] = [];
 
-    await fs.writeJson(configPath, data, { spaces: 2 });
+    for (const varInfo of requirements.requiredVars) {
+      if (!process.env[varInfo.name]) {
+        missing.push(varInfo.name);
+      }
+    }
 
-    // Secure the file
-    await fs.chmod(configPath, 0o600);
+    return missing;
+  }
+
+  /**
+   * Get configuration status for all plugins
+   */
+  async getPluginConfigurationStatus(): Promise<
+    Record<
+      string,
+      {
+        configured: boolean;
+        missingVars: string[];
+        requiredVars: PluginEnvironmentVariable[];
+      }
+    >
+  > {
+    // This would be called by providers to get status
+    // Implementation depends on how plugins are tracked
+    return {};
+  }
+
+  private async scanForCommonEnvVars(pluginPath: string): Promise<{
+    requiredVars: PluginEnvironmentVariable[];
+    optionalVars: PluginEnvironmentVariable[];
+  }> {
+    // Scan common files for environment variable usage
+    const commonEnvPatterns = [
+      { name: 'API_KEY', description: 'API key for service authentication', sensitive: true },
+      { name: 'TOKEN', description: 'Authentication token', sensitive: true },
+      { name: 'SECRET', description: 'Secret key', sensitive: true },
+      { name: 'URL', description: 'Service URL', sensitive: false },
+      { name: 'ENDPOINT', description: 'API endpoint', sensitive: false },
+    ];
+
+    const requiredVars: PluginEnvironmentVariable[] = [];
+
+    // Look for files that might use environment variables
+    try {
+      const files = await fs.readdir(pluginPath, { recursive: true });
+      const codeFiles = files.filter(
+        (f) => typeof f === 'string' && (f.endsWith('.ts') || f.endsWith('.js'))
+      );
+
+      for (const file of codeFiles) {
+        try {
+          const content = await fs.readFile(path.join(pluginPath, file as string), 'utf-8');
+
+          // Look for process.env usage
+          const envMatches = content.match(/process\.env\.([A-Z_]+)/g);
+
+          if (envMatches) {
+            for (const match of envMatches) {
+              const varName = match.replace('process.env.', '');
+
+              // Check if it matches common patterns
+              for (const pattern of commonEnvPatterns) {
+                if (varName.includes(pattern.name)) {
+                  const existing = requiredVars.find((v) => v.name === varName);
+                  if (!existing) {
+                    requiredVars.push({
+                      name: varName,
+                      description: pattern.description,
+                      sensitive: pattern.sensitive,
+                      required: true,
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch {
+          // Skip files that can't be read
+        }
+      }
+    } catch {
+      // Skip if can't read directory
+    }
+
+    return {
+      requiredVars,
+      optionalVars: [],
+    };
   }
 
   async stop(): Promise<void> {
-    logger.info('[PluginConfigurationService] Stopping...');
-    await this.saveConfigurations();
+    elizaLogger.info('[PluginConfigurationService] Stopped');
   }
 }

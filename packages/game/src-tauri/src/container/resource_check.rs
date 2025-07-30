@@ -254,19 +254,6 @@ impl Default for ResourceChecker {
 
 /// Get default resource requirements for container operations
 impl ResourceRequirements {
-    pub fn for_container_startup() -> Self {
-        Self {
-            min_memory_mb: 4096,  // 4GB minimum
-            min_disk_gb: 10,      // 10GB for containers and models
-            required_ports: vec![
-                ("PostgreSQL".to_string(), 5432),
-                ("Ollama".to_string(), 11434),
-                ("Agent".to_string(), 7777),
-            ],
-            estimated_download_mb: 5120, // ~5GB for models
-        }
-    }
-    
     #[allow(dead_code)]
     pub fn for_model_download() -> Self {
         Self {

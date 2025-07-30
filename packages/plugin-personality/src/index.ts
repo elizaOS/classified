@@ -1,5 +1,5 @@
-import type { Plugin, IAgentRuntime } from '@elizaos/core';
-import { logger } from '@elizaos/core';
+import type { Plugin, IAgentRuntime, Memory, CustomMetadata } from '@elizaos/core';
+import { logger, MemoryType } from '@elizaos/core';
 
 import { characterEvolutionEvaluator } from './evaluators/character-evolution';
 import { modifyCharacterAction } from './actions/modify-character';
@@ -89,19 +89,20 @@ export const selfModificationPlugin: Plugin = {
 
       // Create proper initialization memory with correct structure
       try {
-        const initMemory = {
+        // Store initialization state
+        const initMemory: Memory = {
           entityId: runtime.agentId,
-          roomId: runtime.agentId, // Use agentId as roomId for plugin memories
+          roomId: runtime.agentId, // Using agentId as roomId for plugin initialization
           content: {
             text: `Self-modification plugin initialized. Character: ${characterStats.name}, Bio: ${characterStats.bioElements} elements, Topics: ${characterStats.topics}, System: ${characterStats.hasSystemPrompt ? 'present' : 'none'}`,
             source: 'plugin_initialization',
           },
           metadata: {
-            type: 'custom' as const,
+            type: MemoryType.CUSTOM,
             plugin: '@elizaos/plugin-personality',
             timestamp: Date.now(),
             characterBaseline: characterStats,
-          },
+          } as CustomMetadata,
         };
 
         await runtime.createMemory(initMemory, 'plugin_events');

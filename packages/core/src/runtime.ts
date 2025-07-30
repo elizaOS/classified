@@ -47,6 +47,7 @@ import {
   IAgentRuntime,
   type ActionResult,
   type ActionContext,
+  MemoryType,
 } from './types';
 
 import { BM25 } from './search';
@@ -917,7 +918,7 @@ export class AgentRuntime implements IAgentRuntime {
               }),
             },
             metadata: {
-              type: 'action_result',
+              type: MemoryType.ACTION_RESULT,
               actionName: action.name,
               runId,
               actionId,
@@ -1008,8 +1009,9 @@ export class AgentRuntime implements IAgentRuntime {
             roomId: message.roomId,
             worldId: message.worldId,
             metadata: {
-              type: 'action_result',
+              type: MemoryType.ACTION_RESULT,
               actionName: action.name,
+              actionId: this.currentActionContext.actionId,
               runId,
               error: true,
               ...(actionPlan && {

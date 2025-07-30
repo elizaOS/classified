@@ -2,7 +2,6 @@ import { logger, type IAgentRuntime, type UUID } from '@elizaos/core';
 import { schema } from '@elizaos/plugin-sql';
 import archiver from 'archiver';
 import { eq } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/node-postgres';
 import fs from 'fs';
 import path from 'path';
 import { Pool } from 'pg';

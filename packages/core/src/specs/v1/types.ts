@@ -671,6 +671,9 @@ export type Plugin = {
   /** Plugin description */
   description: string;
 
+  /** Check if plugin is valid and ready to use */
+  isValid?: (runtime: IAgentRuntime) => Promise<boolean>;
+
   /** Optional actions */
   actions?: Action[];
 

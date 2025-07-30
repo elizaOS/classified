@@ -7,6 +7,9 @@ export * from './utils';
 // Export schemas
 export * from './schemas/character';
 
+// Export error types
+export * from './errors';
+
 // Then all other exports
 export * from './actions';
 export * from './database';

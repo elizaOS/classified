@@ -1,35 +1,61 @@
-import { describe, expect, it } from 'bun:test';
-import { installPluginFromRegistryAction } from '../../actions/installPluginFromRegistry';
-import { loadPluginAction } from '../../actions/loadPlugin';
-import { startPluginConfigurationAction } from '../../actions/startPluginConfiguration';
-import { unloadPluginAction } from '../../actions/unloadPlugin';
+import { describe, it, expect } from 'vitest';
 import { pluginManagerPlugin } from '../../index';
-import { pluginConfigurationStatusProvider } from '../../providers/pluginConfigurationStatus';
-import { pluginStateProvider } from '../../providers/pluginStateProvider';
-import { registryPluginsProvider } from '../../providers/registryPluginsProvider';
-import { PluginConfigurationService } from '../../services/pluginConfigurationService';
-import { PluginManagerService } from '../../services/pluginManagerService';
-import { PluginUserInteractionService } from '../../services/pluginUserInteractionService';
 
-describe('Plugin Manager Index', () => {
-  it('should export pluginManagerPlugin with correct definitions', () => {
+describe('Plugin Manager Plugin', () => {
+  it('should export a valid plugin structure', () => {
+    expect(pluginManagerPlugin).toBeDefined();
     expect(pluginManagerPlugin.name).toBe('plugin-manager');
-    expect(pluginManagerPlugin.description).toBe(
-      'Manages dynamic loading and unloading of plugins at runtime, including registry installation and configuration management'
-    );
+    expect(pluginManagerPlugin.description).toBeDefined();
+  });
+
+  it('should have required services', () => {
     expect(pluginManagerPlugin.services).toBeDefined();
-    expect(pluginManagerPlugin.services.length).toBeGreaterThan(0);
-    expect(pluginManagerPlugin.providers).toBeDefined();
-    expect(pluginManagerPlugin.providers.length).toBeGreaterThan(0);
-    expect(pluginManagerPlugin.providers).toContainEqual(pluginStateProvider);
-    expect(pluginManagerPlugin.providers).toContainEqual(pluginConfigurationStatusProvider);
-    expect(pluginManagerPlugin.providers).toContainEqual(registryPluginsProvider);
+    expect(pluginManagerPlugin.services?.length).toBeGreaterThan(0);
+
+    // Check for core services by their serviceType property
+    const serviceTypes = pluginManagerPlugin.services?.map((s: any) => s.serviceType) || [];
+    expect(serviceTypes).toContain('plugin_manager');
+    expect(serviceTypes).toContain('plugin_configuration');
+    expect(serviceTypes).toContain('registry');
+  });
+
+  it('should have core actions', () => {
     expect(pluginManagerPlugin.actions).toBeDefined();
-    expect(pluginManagerPlugin.actions.length).toBeGreaterThan(0);
-    expect(pluginManagerPlugin.actions).toContainEqual(loadPluginAction);
-    expect(pluginManagerPlugin.actions).toContainEqual(unloadPluginAction);
-    expect(pluginManagerPlugin.actions).toContainEqual(startPluginConfigurationAction);
-    expect(pluginManagerPlugin.actions).toContainEqual(installPluginFromRegistryAction);
-    expect(pluginManagerPlugin.init).toBeInstanceOf(Function);
+    expect(pluginManagerPlugin.actions?.length).toBeGreaterThan(0);
+
+    const actionNames = pluginManagerPlugin.actions?.map((a) => a.name) || [];
+    expect(actionNames).toContain('LOAD_PLUGIN');
+    expect(actionNames).toContain('UNLOAD_PLUGIN');
+    expect(actionNames).toContain('SEARCH_PLUGINS');
+    expect(actionNames).toContain('CLONE_PLUGIN');
+    expect(actionNames).toContain('PUBLISH_PLUGIN');
+    expect(actionNames).toContain('installPluginFromRegistry');
+    expect(actionNames).toContain('GET_PLUGIN_DETAILS');
+  });
+
+  it('should have required providers', () => {
+    expect(pluginManagerPlugin.providers).toBeDefined();
+    expect(pluginManagerPlugin.providers?.length).toBeGreaterThan(0);
+
+    const providerNames = pluginManagerPlugin.providers?.map((p) => p.name) || [];
+    expect(providerNames).toContain('pluginState');
+    expect(providerNames).toContain('pluginKnowledge');
+    expect(providerNames).toContain('registryPlugins');
+    expect(providerNames).toContain('pluginConfigurationStatus');
+  });
+
+  it('should have empty evaluators array', () => {
+    expect(pluginManagerPlugin.evaluators).toBeDefined();
+    expect(pluginManagerPlugin.evaluators).toHaveLength(0);
+  });
+
+  it('should have empty routes array', () => {
+    expect(pluginManagerPlugin.routes).toBeDefined();
+    expect(pluginManagerPlugin.routes).toHaveLength(0);
+  });
+
+  it('should have an init function', () => {
+    expect(pluginManagerPlugin.init).toBeDefined();
+    expect(typeof pluginManagerPlugin.init).toBe('function');
   });
 });

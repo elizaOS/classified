@@ -43,6 +43,20 @@ Cypress.on('uncaught:exception', (err, _runnable) => {
   return false;
 });
 
+// Global setup for API authentication
+beforeEach(() => {
+  // Set up X-API-KEY header for all requests if auth token is available
+  const authToken = Cypress.env('ELIZA_SERVER_AUTH_TOKEN');
+  if (authToken) {
+    cy.intercept('**', (req) => {
+      // Only add header to API requests to our backend
+      if (req.url.includes('/api/') && req.url.includes('localhost:7777')) {
+        req.headers['X-API-KEY'] = authToken;
+      }
+    });
+  }
+});
+
 // Global before hook
 beforeEach(() => {
   // Set up consistent test environment

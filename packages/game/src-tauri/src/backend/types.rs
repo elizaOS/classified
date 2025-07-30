@@ -87,14 +87,14 @@ impl HealthCheckConfig {
     pub fn ollama_default() -> Self {
         Self {
             command: vec![
-                "curl".to_string(),
-                "-f".to_string(),
-                "http://localhost:11434/api/version".to_string(),
+                "sh".to_string(),
+                "-c".to_string(),
+                "curl -f -s http://localhost:11434/api/version || exit 1".to_string(),
             ],
-            interval_seconds: 10,
-            timeout_seconds: 5,
-            retries: 3,
-            start_period_seconds: 30,
+            interval_seconds: 15,  // Increased from 10
+            timeout_seconds: 10,   // Increased from 5
+            retries: 5,           // Increased from 3
+            start_period_seconds: 60,  // Increased from 30 to give Ollama more time to start
         }
     }
 
@@ -132,6 +132,18 @@ pub enum ContainerState {
     Starting,
     Error,
     Unknown,
+}
+
+impl std::fmt::Display for ContainerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContainerState::Running => write!(f, "Running"),
+            ContainerState::Stopped => write!(f, "Stopped"),
+            ContainerState::Starting => write!(f, "Starting"),
+            ContainerState::Error => write!(f, "Error"),
+            ContainerState::Unknown => write!(f, "Unknown"),
+        }
+    }
 }
 
 impl From<&str> for ContainerState {

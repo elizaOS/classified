@@ -11,21 +11,21 @@ import { logger, ModelType, Service } from '@elizaos/core';
 import { z } from 'zod';
 import {
   AgentAuthService,
-  AuthHelper,
   authPluginIntegration,
   AuthStatusChecker,
   QuickAuthSetup,
 } from './auth/index';
-import {
-  emitProviderUsageEvent,
-  getAvailableProvider,
-  getProviderApiKey,
-  makeProviderRequest,
-} from './providers/multi-provider';
+// Removed multi-provider imports - now using ElizaOS API service directly
 import { ElizaOSServicesTestSuite } from './tests';
 import { RealIntegrationTestSuite } from './tests/real-integration.test';
 import { StorageIntegrationTestSuite } from './tests/storage-integration.test';
 import { ValidationSummaryTestSuite } from './tests/validation-summary.test';
+import {
+  makeElizaOSRequest,
+  getModelForType,
+  checkElizaOSAPI,
+  type ElizaOSChatCompletionRequest,
+} from './providers/elizaos-provider.js';
 /**
  * Dynamically import AWS SDK packages with fallback handling
  */
@@ -406,34 +406,12 @@ export class ElizaOSService extends Service {
   static async start(runtime: IAgentRuntime): Promise<ElizaOSService> {
     logger.info('Starting ElizaOS Services');
 
-    // Validate configuration
-    const apiKey = getAPIKey(runtime);
-    if (!apiKey) {
-      logger.warn('ElizaOS API key not configured - some features will be limited');
+    // Test API connection
+    const isConnected = await checkElizaOSAPI(runtime);
+    if (isConnected) {
+      logger.info('Successfully connected to ElizaOS API');
     } else {
-      // Test API connection
-      try {
-        const response = await fetch(
-          `${getAPIUrl(runtime)}/api/models`,
-          {
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        
-        if (response.ok) {
-          const models = await response.json();
-          logger.info(`Connected to ElizaOS API - ${models.data?.length || 0} models available`);
-        } else {
-          logger.warn(`ElizaOS API returned status ${response.status}`);
-        }
-      } catch (error) {
-        logger.warn(
-          `Error connecting to ElizaOS API: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
+      logger.warn('Failed to connect to ElizaOS API - check your API key and URL');
     }
 
     const service = new ElizaOSService(runtime);
@@ -471,6 +449,7 @@ export const elizaOSServicesPlugin: Plugin = {
     ELIZAOS_STORAGE_ACCESS_KEY: process.env.ELIZAOS_STORAGE_ACCESS_KEY,
     ELIZAOS_STORAGE_SECRET_KEY: process.env.ELIZAOS_STORAGE_SECRET_KEY,
   },
+
   async init(config: Record<string, string>, runtime: IAgentRuntime) {
     logger.info('Initializing ElizaOS Services plugin with comprehensive authentication');
 
@@ -619,46 +598,47 @@ export const elizaOSServicesPlugin: Plugin = {
       }
 
       try {
-        // Use authentication helper to validate provider before use
-        const bestProvider = await AuthHelper.getBestProvider(runtime, 'embeddings');
-        if (!bestProvider) {
-          throw new Error(
-            'No API provider available for embeddings - check your API key configuration'
-          );
-        }
+        const apiUrl =
+          runtime.getSetting('ELIZAOS_API_URL') ??
+          process.env.ELIZAOS_API_URL ??
+          'https://api.elizaos.ai';
+        const apiKey = runtime.getSetting('ELIZAOS_API_KEY') ?? process.env.ELIZAOS_API_KEY;
 
-        const validation = await AuthHelper.validateBeforeUse(runtime, bestProvider, 'embeddings');
-        if (!validation.isValid) {
-          throw new Error(validation.error || 'Provider validation failed');
-        }
-
-        const provider = getAvailableProvider(runtime, ModelType.TEXT_EMBEDDING);
-        if (!provider) {
-          throw new Error('No API provider available for embeddings');
-        }
-
-        const apiKey = getProviderApiKey(runtime, provider.name.toLowerCase());
         if (!apiKey) {
-          throw new Error(`No API key found for ${provider.name}`);
+          throw new Error('ELIZAOS_API_KEY is required for embeddings');
         }
 
-        const model = provider.models[ModelType.TEXT_EMBEDDING];
-        const data = await makeProviderRequest(provider, apiKey, '/embeddings', {
-          model,
-          input: text,
+        const url = `${apiUrl}/api/v1/chat/embeddings`;
+        const model = getModelForType(ModelType.TEXT_EMBEDDING);
+
+        logger.debug(`Generating embedding for text of length ${text.length}`);
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            input: text,
+            model,
+          }),
         });
 
-        if (data.usage) {
-          emitProviderUsageEvent(
-            runtime,
-            provider.name.toLowerCase(),
-            ModelType.TEXT_EMBEDDING,
-            text,
-            data.usage
-          );
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error(`ElizaOS API embeddings error ${response.status}: ${errorText}`);
+          throw new Error(`ElizaOS API embeddings error ${response.status}: ${errorText}`);
         }
 
-        return data.data[0].embedding;
+        const data = await response.json();
+
+        // Extract embedding from OpenAI-compatible response
+        if (data.data && data.data.length > 0 && data.data[0].embedding) {
+          return data.data[0].embedding;
+        }
+
+        throw new Error('Invalid embeddings response format');
       } catch (error) {
         logger.error(
           `Error generating embedding: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -672,18 +652,8 @@ export const elizaOSServicesPlugin: Plugin = {
       { prompt, stopSequences = [], maxTokens = 4096, temperature = 0.7 }: GenerateTextParams
     ) => {
       try {
-        const provider = getAvailableProvider(runtime, ModelType.TEXT_SMALL);
-        if (!provider) {
-          throw new Error('No API provider available for text generation');
-        }
-
-        const apiKey = getProviderApiKey(runtime, provider.name.toLowerCase());
-        if (!apiKey) {
-          throw new Error(`No API key found for ${provider.name}`);
-        }
-
-        const model = provider.models[ModelType.TEXT_SMALL];
-        const data = await makeProviderRequest(provider, apiKey, '/chat/completions', {
+        const model = getModelForType(ModelType.TEXT_SMALL);
+        const request: ElizaOSChatCompletionRequest = {
           model,
           messages: [
             { role: 'system', content: runtime.character.system || 'You are a helpful assistant.' },
@@ -692,19 +662,10 @@ export const elizaOSServicesPlugin: Plugin = {
           max_tokens: maxTokens,
           temperature,
           stop: stopSequences.length > 0 ? stopSequences : undefined,
-        });
+        };
 
-        if (data.usage) {
-          emitProviderUsageEvent(
-            runtime,
-            provider.name.toLowerCase(),
-            ModelType.TEXT_SMALL,
-            prompt,
-            data.usage
-          );
-        }
-
-        return data.choices[0].message.content;
+        const data = await makeElizaOSRequest(runtime, request);
+        return data.choices[0].message.content || '';
       } catch (error) {
         logger.error(
           `Error generating text (small): ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -725,18 +686,8 @@ export const elizaOSServicesPlugin: Plugin = {
       }: GenerateTextParams
     ) => {
       try {
-        const provider = getAvailableProvider(runtime, ModelType.TEXT_LARGE);
-        if (!provider) {
-          throw new Error('No API provider available for text generation');
-        }
-
-        const apiKey = getProviderApiKey(runtime, provider.name.toLowerCase());
-        if (!apiKey) {
-          throw new Error(`No API key found for ${provider.name}`);
-        }
-
-        const model = provider.models[ModelType.TEXT_LARGE];
-        const data = await makeProviderRequest(provider, apiKey, '/chat/completions', {
+        const model = getModelForType(ModelType.TEXT_LARGE);
+        const request: ElizaOSChatCompletionRequest = {
           model,
           messages: [
             { role: 'system', content: runtime.character.system || 'You are a helpful assistant.' },
@@ -747,19 +698,10 @@ export const elizaOSServicesPlugin: Plugin = {
           frequency_penalty: frequencyPenalty,
           presence_penalty: presencePenalty,
           stop: stopSequences.length > 0 ? stopSequences : undefined,
-        });
+        };
 
-        if (data.usage) {
-          emitProviderUsageEvent(
-            runtime,
-            provider.name.toLowerCase(),
-            ModelType.TEXT_LARGE,
-            prompt,
-            data.usage
-          );
-        }
-
-        return data.choices[0].message.content;
+        const data = await makeElizaOSRequest(runtime, request);
+        return data.choices[0].message.content || '';
       } catch (error) {
         logger.error(
           `Error generating text (large): ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -786,18 +728,8 @@ export const elizaOSServicesPlugin: Plugin = {
       }
 
       try {
-        const provider = getAvailableProvider(runtime, ModelType.IMAGE_DESCRIPTION);
-        if (!provider) {
-          throw new Error('No API provider available for image description');
-        }
-
-        const apiKey = getProviderApiKey(runtime, provider.name.toLowerCase());
-        if (!apiKey) {
-          throw new Error(`No API key found for ${provider.name}`);
-        }
-
-        const model = provider.models[ModelType.IMAGE_DESCRIPTION];
-        const data = await makeProviderRequest(provider, apiKey, '/chat/completions', {
+        const model = getModelForType(ModelType.IMAGE_DESCRIPTION);
+        const request: ElizaOSChatCompletionRequest = {
           model,
           messages: [
             {
@@ -805,23 +737,14 @@ export const elizaOSServicesPlugin: Plugin = {
               content: [
                 { type: 'text', text: promptText },
                 { type: 'image_url', image_url: { url: imageUrl } },
-              ],
+              ] as any, // ElizaOS API supports vision content
             },
           ],
           max_tokens: 2048,
-        });
+        };
 
+        const data = await makeElizaOSRequest(runtime, request);
         const content = data.choices[0].message.content;
-
-        if (data.usage) {
-          emitProviderUsageEvent(
-            runtime,
-            provider.name.toLowerCase(),
-            ModelType.IMAGE_DESCRIPTION,
-            promptText,
-            data.usage
-          );
-        }
 
         // Check if custom prompt - return raw content
         const isCustomPrompt =
@@ -835,9 +758,9 @@ export const elizaOSServicesPlugin: Plugin = {
         }
 
         // Parse for title/description format
-        const titleMatch = content.match(/title[:\s]+(.+?)(?:\n|$)/i);
+        const titleMatch = content?.match(/title[:\s]+(.+?)(?:\n|$)/i);
         const title = titleMatch?.[1]?.trim() || 'Image Analysis';
-        const description = content.replace(/title[:\s]+(.+?)(?:\n|$)/i, '').trim();
+        const description = content?.replace(/title[:\s]+(.+?)(?:\n|$)/i, '').trim() || '';
 
         return { title, description };
       } catch (error) {
@@ -853,45 +776,26 @@ export const elizaOSServicesPlugin: Plugin = {
 
     [ModelType.OBJECT_SMALL]: async (runtime: IAgentRuntime, params: ObjectGenerationParams) => {
       try {
-        const provider = getAvailableProvider(runtime, ModelType.TEXT_SMALL); // Use TEXT_SMALL provider for objects
-        if (!provider) {
-          throw new Error('No API provider available for object generation');
-        }
-
-        const apiKey = getProviderApiKey(runtime, provider.name.toLowerCase());
-        if (!apiKey) {
-          throw new Error(`No API key found for ${provider.name}`);
-        }
-
-        const model = provider.models[ModelType.TEXT_SMALL];
-        const data = await makeProviderRequest(provider, apiKey, '/chat/completions', {
+        const model = getModelForType(ModelType.OBJECT_SMALL);
+        const request: ElizaOSChatCompletionRequest = {
           model,
           messages: [
             { role: 'user', content: `${params.prompt}\n\nRespond with valid JSON only.` },
           ],
           temperature: params.temperature || 0,
           max_tokens: 4096,
-        });
+        };
 
+        const data = await makeElizaOSRequest(runtime, request);
         const content = data.choices[0].message.content;
-
-        if (data.usage) {
-          emitProviderUsageEvent(
-            runtime,
-            provider.name.toLowerCase(),
-            ModelType.OBJECT_SMALL,
-            params.prompt,
-            data.usage
-          );
-        }
 
         // Try to parse JSON from content
         try {
-          const cleanedContent = content.replace(/```json\n?|\n?```/g, '').trim();
+          const cleanedContent = (content || '').replace(/```json\n?|\n?```/g, '').trim();
           return JSON.parse(cleanedContent);
         } catch (_parseError) {
           logger.warn('Failed to parse JSON response, returning raw content');
-          return { text: content };
+          return { text: content || '' };
         }
       } catch (error) {
         logger.error(
@@ -903,45 +807,26 @@ export const elizaOSServicesPlugin: Plugin = {
 
     [ModelType.OBJECT_LARGE]: async (runtime: IAgentRuntime, params: ObjectGenerationParams) => {
       try {
-        const provider = getAvailableProvider(runtime, ModelType.TEXT_LARGE); // Use TEXT_LARGE provider for objects
-        if (!provider) {
-          throw new Error('No API provider available for object generation');
-        }
-
-        const apiKey = getProviderApiKey(runtime, provider.name.toLowerCase());
-        if (!apiKey) {
-          throw new Error(`No API key found for ${provider.name}`);
-        }
-
-        const model = provider.models[ModelType.TEXT_LARGE];
-        const data = await makeProviderRequest(provider, apiKey, '/chat/completions', {
+        const model = getModelForType(ModelType.OBJECT_LARGE);
+        const request: ElizaOSChatCompletionRequest = {
           model,
           messages: [
             { role: 'user', content: `${params.prompt}\n\nRespond with valid JSON only.` },
           ],
           temperature: params.temperature || 0,
           max_tokens: 8192,
-        });
+        };
 
+        const data = await makeElizaOSRequest(runtime, request);
         const content = data.choices[0].message.content;
-
-        if (data.usage) {
-          emitProviderUsageEvent(
-            runtime,
-            provider.name.toLowerCase(),
-            ModelType.OBJECT_LARGE,
-            params.prompt,
-            data.usage
-          );
-        }
 
         // Try to parse JSON from content
         try {
-          const cleanedContent = content.replace(/```json\n?|\n?```/g, '').trim();
+          const cleanedContent = (content || '').replace(/```json\n?|\n?```/g, '').trim();
           return JSON.parse(cleanedContent);
         } catch (_parseError) {
           logger.warn('Failed to parse JSON response, returning raw content');
-          return { text: content };
+          return { text: content || '' };
         }
       } catch (error) {
         logger.error(

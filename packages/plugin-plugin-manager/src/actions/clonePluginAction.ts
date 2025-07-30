@@ -1,7 +1,7 @@
 import { Action, HandlerCallback, IAgentRuntime, Memory, State, elizaLogger } from '@elizaos/core';
 import * as path from 'node:path';
 import { PluginManagerService } from '../services/pluginManagerService';
-import { clonePlugin } from '../services/pluginRegistryService';
+import { clonePlugin } from '../services/pluginRegistryService.js';
 
 export const clonePluginAction: Action = {
   name: 'CLONE_PLUGIN',
@@ -44,16 +44,17 @@ export const clonePluginAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     state?: State,
-    options?: any,
+    options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<void> => {
     elizaLogger.info('[clonePluginAction] Starting plugin clone');
 
     const pluginManager = runtime.getService('plugin_manager') as PluginManagerService;
+
     if (!pluginManager) {
       if (callback) {
         await callback({
-          text: 'Plugin manager service is not available.',
+          text: 'Required services are not available.',
           actions: ['CLONE_PLUGIN'],
         });
       }
@@ -62,22 +63,7 @@ export const clonePluginAction: Action = {
 
     // Extract plugin name from message
     const text = message.content?.text || '';
-    const words = text.split(' ');
-    const cloneIndex = words.findIndex((w) => w.toLowerCase() === 'clone');
-
-    let pluginName = '';
-    if (cloneIndex !== -1 && cloneIndex < words.length - 1) {
-      // Get the word after "clone"
-      pluginName = words
-        .slice(cloneIndex + 1)
-        .join(' ')
-        .trim();
-
-      // Remove common words
-      pluginName = pluginName
-        .replace(/\s*(the|plugin|for|development|locally|local)\s*/gi, ' ')
-        .trim();
-    }
+    const pluginName = extractPluginName(text);
 
     if (!pluginName) {
       if (callback) {
@@ -96,7 +82,7 @@ export const clonePluginAction: Action = {
       });
     }
 
-    // Clone the plugin
+    // Clone the plugin using API-based registry service
     const result = await clonePlugin(pluginName);
 
     if (!result.success) {
@@ -137,10 +123,14 @@ export const clonePluginAction: Action = {
     // Optionally register the cloned plugin for development
     if (result.localPath) {
       const absolutePath = path.resolve(result.localPath);
-      const plugin = await import(absolutePath);
-      if (plugin.default) {
-        const pluginId = await pluginManager.registerPlugin(plugin.default);
-        elizaLogger.info(`[clonePluginAction] Registered cloned plugin with ID: ${pluginId}`);
+      try {
+        const plugin = await import(absolutePath);
+        if (plugin.default) {
+          const pluginId = await pluginManager.registerPlugin(plugin.default);
+          elizaLogger.info(`[clonePluginAction] Registered cloned plugin with ID: ${pluginId}`);
+        }
+      } catch (error) {
+        elizaLogger.warn('[clonePluginAction] Could not register cloned plugin:', error);
       }
     }
 
@@ -170,7 +160,7 @@ function extractPluginName(text: string): string | null {
         // Handle "clone the X plugin"
         const pluginType = words[i - 1] === 'the' ? words[i + 1] : words[i - 1];
         if (pluginType && pluginType !== 'the') {
-          return `plugin-${pluginType}`;
+          return `@elizaos/plugin-${pluginType}`;
         }
       } else if (words[i].includes('plugin')) {
         return words[i];

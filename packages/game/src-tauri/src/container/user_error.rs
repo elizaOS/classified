@@ -283,11 +283,6 @@ impl UserError {
     fn from_resource_error(msg: String, technical_details: Option<String>) -> Self {
         let lower_msg = msg.to_lowercase();
         
-        // Check for port conflicts first
-        if lower_msg.contains("port") && (lower_msg.contains("already in use") || lower_msg.contains("in use")) {
-            return Self::port_conflict_error(msg, technical_details);
-        }
-        
         if lower_msg.contains("memory") {
             Self::insufficient_memory_error(msg, technical_details)
         } else if lower_msg.contains("disk") || lower_msg.contains("space") {

@@ -31,7 +31,7 @@ impl HttpServer {
         Self {
             config: BackendConfig::default(),
             container_manager: Arc::new(
-                ContainerManager::new(crate::backend::ContainerRuntimeType::Podman)
+                ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Podman)
                     .expect("Failed to create container manager"),
             ),
             websocket_hub: Arc::new(WebSocketHub::new()),

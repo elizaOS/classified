@@ -1,7 +1,7 @@
 import type { TestSuite, IAgentRuntime, Memory, State } from '@elizaos/core';
 import { createUniqueUuid } from '@elizaos/core';
 import { VisionService } from '../../service';
-import { describeSceneAction, captureImageAction } from '../../action';
+import { visionDescribeAction, captureImageAction } from '../../action';
 
 export class VisionBasicE2ETestSuite implements TestSuite {
   name = 'plugin-vision-basic-e2e';
@@ -59,7 +59,7 @@ export class VisionBasicE2ETestSuite implements TestSuite {
         const visionService = runtime.getService<VisionService>('VISION' as any);
 
         // Validate the action
-        const isValid = await describeSceneAction.validate(runtime, message, state);
+        const isValid = await visionDescribeAction.validate(runtime, message, state);
 
         if (!visionService || !visionService.isActive()) {
           // If vision service is not active, validation should return false
@@ -71,7 +71,7 @@ export class VisionBasicE2ETestSuite implements TestSuite {
           console.log('  Action validation correctly returned false (vision not active)');
 
           // But handler should still work and provide appropriate message
-          await describeSceneAction.handler(runtime, message, state, {}, async (response) => {
+          await visionDescribeAction.handler(runtime, message, state, {}, async (response) => {
             callbackCalled = true;
             callbackResponse = response;
             return [];
@@ -102,7 +102,7 @@ export class VisionBasicE2ETestSuite implements TestSuite {
           }
           console.log('  Action validation: passed');
 
-          await describeSceneAction.handler(runtime, message, state, {}, async (response) => {
+          await visionDescribeAction.handler(runtime, message, state, {}, async (response) => {
             callbackCalled = true;
             callbackResponse = response;
             return [];

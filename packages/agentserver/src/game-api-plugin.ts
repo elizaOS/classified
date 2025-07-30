@@ -1,8 +1,14 @@
 import type { IAgentRuntime, Plugin, Route } from '@elizaos/core';
 import { logger, ModelType, type UUID } from '@elizaos/core';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  getProviderStatus,
+  setProviderPreferences,
+  setSelectedProvider,
+} from '@elizaos/plugin-inference';
 import { exec } from 'child_process';
+import crypto from 'crypto';
 import { promisify } from 'util';
+import { v4 as uuidv4 } from 'uuid';
 
 const execAsync = promisify(exec);
 
@@ -352,22 +358,34 @@ const gameAPIRoutes: Route[] = [
       // Agent status is informational, not a requirement
       const agentStatus = runtime ? 'connected' : 'no_agent';
 
-      // Check if critical services are available - using correct service names
-      const goalService = runtime.getService('goals'); // lowercase 'goals'
-      const todoService = runtime.getService('TODO'); // uppercase 'TODO'
-      const autonomyService = runtime.getService('AUTONOMY'); // uppercase 'AUTONOMY'
-
-      // Debug: Log service lookup results
-      console.log('[HEALTH] Service lookup results:');
-      console.log('  - goals:', !!goalService);
-      console.log('  - TODO:', !!todoService);
-      console.log('  - AUTONOMY:', !!autonomyService);
-
-      const services = {
-        goals: !!goalService,
-        todos: !!todoService,
-        autonomy: !!autonomyService,
+      let services = {
+        goals: false,
+        todos: false,
+        autonomy: false,
       };
+
+      // Check if critical services are available - only if runtime exists
+      if (runtime) {
+        try {
+          const goalService = runtime.getService('goals'); // lowercase 'goals'
+          const todoService = runtime.getService('TODO'); // uppercase 'TODO'
+          const autonomyService = runtime.getService('AUTONOMY'); // uppercase 'AUTONOMY'
+
+          // Debug: Log service lookup results
+          console.log('[HEALTH] Service lookup results:');
+          console.log('  - goals:', !!goalService);
+          console.log('  - TODO:', !!todoService);
+          console.log('  - AUTONOMY:', !!autonomyService);
+
+          services = {
+            goals: !!goalService,
+            todos: !!todoService,
+            autonomy: !!autonomyService,
+          };
+        } catch (error) {
+          console.warn('[HEALTH] Error checking services:', error);
+        }
+      }
 
       res.json(
         successResponse({
@@ -1269,11 +1287,11 @@ const gameAPIRoutes: Route[] = [
 
         // Memory stats (if available)
         memory: await (async () => {
-          const allMemories = await runtime.getAllMemories();
+          const allMemories = await runtime.getMemories({ tableName: 'memories', count: 1000 });
           return {
             totalCount: allMemories.length,
             recentCount: allMemories.filter(
-              (m) => m.createdAt && Date.now() - m.createdAt < 24 * 60 * 60 * 1000
+              (m: any) => m.createdAt && Date.now() - m.createdAt < 24 * 60 * 60 * 1000
             ).length,
           };
         })(),
@@ -2115,6 +2133,106 @@ const gameAPIRoutes: Route[] = [
     },
   },
 
+  // ===== Provider Management Endpoints =====
+
+  // Get available LLM providers and their status
+  {
+    type: 'GET',
+    path: '/api/providers',
+    name: 'Get LLM Provider Status',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const status = await getProviderStatus(runtime);
+        res.json(successResponse(status));
+      } catch (error) {
+        logger.error('[GAME-API] Error getting provider status:', error);
+        res.status(500).json(
+          errorResponse('PROVIDER_STATUS_ERROR', 'Failed to get provider status', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+        );
+      }
+    },
+  },
+
+  // Set selected provider
+  {
+    type: 'PUT',
+    path: '/api/providers/selected',
+    name: 'Set Selected Provider',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const { provider } = req.body;
+
+        if (provider !== null && typeof provider !== 'string') {
+          return res
+            .status(400)
+            .json(errorResponse('INVALID_PROVIDER', 'Provider must be a string or null'));
+        }
+
+        await setSelectedProvider(runtime, provider);
+        const status = await getProviderStatus(runtime);
+
+        res.json(
+          successResponse({
+            message: provider ? `Provider set to ${provider}` : 'Provider selection cleared',
+            status,
+          })
+        );
+      } catch (error) {
+        logger.error('[GAME-API] Error setting selected provider:', error);
+        res.status(500).json(
+          errorResponse('SET_PROVIDER_ERROR', 'Failed to set provider', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+        );
+      }
+    },
+  },
+
+  // Set provider preferences
+  {
+    type: 'PUT',
+    path: '/api/providers/preferences',
+    name: 'Set Provider Preferences',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const { preferences } = req.body;
+
+        if (!Array.isArray(preferences)) {
+          return res
+            .status(400)
+            .json(
+              errorResponse('INVALID_PREFERENCES', 'Preferences must be an array of provider names')
+            );
+        }
+
+        if (!preferences.every((p) => typeof p === 'string')) {
+          return res
+            .status(400)
+            .json(errorResponse('INVALID_PREFERENCES', 'All preferences must be strings'));
+        }
+
+        await setProviderPreferences(runtime, preferences);
+        const status = await getProviderStatus(runtime);
+
+        res.json(
+          successResponse({
+            message: 'Provider preferences updated',
+            status,
+          })
+        );
+      } catch (error) {
+        logger.error('[GAME-API] Error setting provider preferences:', error);
+        res.status(500).json(
+          errorResponse('SET_PREFERENCES_ERROR', 'Failed to set preferences', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+        );
+      }
+    },
+  },
+
   {
     type: 'GET',
     path: '/api/agents/:agentId/knowledge',
@@ -2301,6 +2419,251 @@ const gameAPIRoutes: Route[] = [
           timestamp: Date.now(),
         })
       );
+    },
+  },
+
+  // Runtime State API (for tests)
+  {
+    type: 'GET',
+    path: '/api/server/runtime',
+    name: 'Get Server Runtime State',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const hasConnection = !!runtime;
+        const isConnected = hasConnection && runtime.agentId !== undefined;
+
+        const response: any = {
+          hasConnection,
+          isConnected,
+        };
+
+        if (isConnected) {
+          response.agentId = runtime.agentId;
+          response.agentName = runtime.character?.name || 'Unknown';
+          response.isReady = true;
+
+          // Get list of loaded agents
+          const agents = [];
+          if (runtime) {
+            agents.push({
+              id: runtime.agentId,
+              name: runtime.character?.name || 'Unknown',
+              status: 'active',
+              model: runtime.getSetting('modelProvider') || 'unknown',
+            });
+          }
+          response.agents = agents;
+        }
+
+        return res.json(successResponse(response));
+      } catch (error) {
+        console.error('[API] Error getting runtime state:', error);
+        return res.status(500).json(errorResponse('RUNTIME_ERROR', 'Failed to get runtime state'));
+      }
+    },
+  },
+
+  // Monologue API (for tests)
+  {
+    type: 'GET',
+    path: '/api/monologue',
+    name: 'Get Agent Monologue',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        if (!runtime) {
+          return res.status(404).json(errorResponse('NOT_FOUND', 'No agent runtime available'));
+        }
+
+        // Get recent memories that represent the agent's monologue/thoughts
+        const memories = await runtime.getMemories({
+          roomId: req.query.roomId as UUID,
+          count: parseInt(req.query.count as string, 10) || 10,
+          tableName: 'memories',
+        });
+
+        const monologue = memories
+          .filter((m) => m.content?.type === 'monologue' || m.content?.type === 'thought')
+          .map((m) => ({
+            id: m.id,
+            content: m.content?.text || m.content?.content || '',
+            timestamp: m.createdAt,
+            type: m.content?.type || 'thought',
+          }));
+
+        return res.json(
+          successResponse({
+            monologue,
+            count: monologue.length,
+          })
+        );
+      } catch (error) {
+        console.error('[API] Error getting monologue:', error);
+        return res.status(500).json(errorResponse('MONOLOGUE_ERROR', 'Failed to get monologue'));
+      }
+    },
+  },
+
+  // Message Ingestion API (for tests)
+  {
+    type: 'POST',
+    path: '/api/messaging/ingest-external',
+    name: 'Ingest External Message',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const {
+          channel_id,
+          server_id,
+          author_id,
+          author_display_name,
+          content,
+          source_type,
+          raw_message,
+          metadata,
+        } = req.body;
+
+        // Validate required fields
+        if (!channel_id || !content || !author_id) {
+          return res
+            .status(400)
+            .json(
+              errorResponse(
+                'MISSING_FIELDS',
+                'Missing required fields: channel_id, content, author_id'
+              )
+            );
+        }
+
+        // Check if we have a runtime
+        if (!runtime) {
+          return res.status(500).json(errorResponse('NO_RUNTIME', 'No agent runtime available'));
+        }
+
+        // Get the server instance from the global variable
+        const serverInstance = (global as any).elizaAgentServer;
+        if (!serverInstance) {
+          console.error('[API] Server instance not available globally');
+          return res.status(500).json(errorResponse('SERVER_ERROR', 'Failed to ingest message'));
+        }
+
+        // Check if channel exists, create if not
+        let channel = await serverInstance.getChannelDetails(channel_id as UUID);
+        if (!channel) {
+          console.log(`[API] Channel ${channel_id} does not exist, creating it...`);
+
+          // Use the provided server_id or default
+          const serverId = (server_id || '00000000-0000-0000-0000-000000000000') as UUID;
+
+          // Create the channel
+          channel = await serverInstance.createChannel({
+            id: channel_id as UUID,
+            serverId,
+            name: metadata?.channel_name || `Test Channel ${channel_id.substring(0, 8)}`,
+            type: 'GROUP' as any,
+            sourceType: source_type || 'test',
+            metadata: {
+              created_by: 'ingest_external_api',
+              created_for: author_id,
+              created_at: new Date().toISOString(),
+              ...metadata,
+            },
+          });
+
+          console.log(`[API] Created channel ${channel_id} successfully`);
+        }
+
+        // Create message in the database
+        const messageId = crypto.randomUUID() as UUID;
+        const messageToCreate = {
+          id: messageId,
+          channelId: channel_id as UUID,
+          authorId: author_id as UUID,
+          content,
+          rawMessage: raw_message || { text: content },
+          sourceId: source_type || 'external',
+          source_type: source_type || 'external',
+          metadata: {
+            ...metadata,
+            author_display_name,
+            server_id,
+            ingested_at: Date.now(),
+          },
+        };
+
+        const createdMessage = await serverInstance.createMessage(messageToCreate);
+
+        // Emit to the internal message bus for agent processing
+        const messageForBus = {
+          id: createdMessage.id!,
+          channel_id: createdMessage.channelId,
+          server_id: server_id || '00000000-0000-0000-0000-000000000000',
+          author_id: createdMessage.authorId,
+          author_display_name: author_display_name || 'User',
+          content: createdMessage.content,
+          raw_message: createdMessage.rawMessage,
+          source_id: createdMessage.sourceId,
+          source_type: createdMessage.source_type,
+          created_at: new Date(createdMessage.createdAt).getTime(),
+          metadata: createdMessage.metadata,
+        };
+
+        const bus = (global as any).elizaInternalMessageBus;
+        if (bus) {
+          bus.emit('new_message', messageForBus);
+          console.log('[API] Published message to internal message bus:', createdMessage.id);
+        }
+
+        res.json({
+          success: true,
+          data: { messageId: createdMessage.id },
+        });
+      } catch (error) {
+        console.error('[API] Error ingesting message:', error);
+        res.status(500).json(errorResponse('INGEST_ERROR', 'Failed to ingest message'));
+      }
+    },
+  },
+
+  // Legacy message endpoint (redirect to new endpoint)
+  {
+    type: 'POST',
+    path: '/api/agents/:agentId/message',
+    name: 'Send Message (Legacy)',
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      try {
+        const { text, userId, roomId, messageId } = req.body;
+
+        // Transform to new format
+        const newPayload = {
+          channel_id: roomId,
+          server_id: '00000000-0000-0000-0000-000000000000',
+          author_id: userId,
+          author_display_name: userId,
+          content: text,
+          source_type: 'legacy',
+          raw_message: { text, messageId },
+          metadata: {
+            legacy: true,
+            originalMessageId: messageId,
+            agentId: req.params.agentId,
+          },
+        };
+
+        // Forward to new endpoint
+        req.body = newPayload;
+        const ingestHandler = gameAPIRoutes.find(
+          (r) => r.path === '/api/messaging/ingest-external'
+        )?.handler;
+        if (ingestHandler) {
+          return ingestHandler(req, res, runtime);
+        } else {
+          return res
+            .status(500)
+            .json(errorResponse('FORWARD_ERROR', 'Failed to forward to new messaging endpoint'));
+        }
+      } catch (error) {
+        console.error('[API] Error in legacy message endpoint:', error);
+        return res.status(500).json(errorResponse('LEGACY_ERROR', 'Failed to process message'));
+      }
     },
   },
 ];

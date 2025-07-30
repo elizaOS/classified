@@ -1,5 +1,5 @@
 import type { IAgentRuntime, Memory } from '@elizaos/core';
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installPluginFromRegistryAction } from '../../actions/installPluginFromRegistry';
 import { PluginManagerService } from '../../services/pluginManagerService';
 
@@ -9,14 +9,14 @@ describe('installPluginFromRegistry', () => {
 
   beforeEach(() => {
     mockPluginManager = {
-      installPluginFromRegistry: mock(),
+      installPluginFromRegistry: vi.fn(),
     } as any;
 
     mockRuntime = {
-      getService: mock().mockReturnValue(mockPluginManager),
-      getSetting: mock(),
+      getService: vi.fn().mockReturnValue(mockPluginManager),
+      getSetting: vi.fn(),
       services: {
-        get: mock().mockReturnValue(mockPluginManager),
+        get: vi.fn().mockReturnValue(mockPluginManager),
       },
     } as any;
   });
@@ -54,7 +54,7 @@ describe('installPluginFromRegistry', () => {
     });
 
     it('should not validate when plugin manager service is not available', async () => {
-      mockRuntime.getService = mock().mockReturnValue(null);
+      (mockRuntime.getService as any).mockReturnValue(null);
       const mockMessage: Memory = {
         id: '12345678-1234-1234-1234-123456789012',
         entityId: '12345678-1234-1234-1234-123456789015',
@@ -77,13 +77,13 @@ describe('installPluginFromRegistry', () => {
     };
 
     it('should extract plugin name from message and install', async () => {
-      mockPluginManager.installPluginFromRegistry = mock().mockResolvedValue({
+      (mockPluginManager.installPluginFromRegistry as any).mockResolvedValue({
         name: '@elizaos/plugin-example',
         version: '1.0.0',
         status: 'installed',
       });
 
-      const mockCallback = mock();
+      const mockCallback = vi.fn();
       await installPluginFromRegistryAction.handler(
         mockRuntime,
         message,
@@ -108,13 +108,13 @@ describe('installPluginFromRegistry', () => {
         content: { text: 'install plugin-example from registry' },
       };
 
-      mockPluginManager.installPluginFromRegistry = mock().mockResolvedValue({
+      (mockPluginManager.installPluginFromRegistry as any).mockResolvedValue({
         name: 'plugin-example',
         version: '1.0.0',
         status: 'installed',
       });
 
-      const mockCallback = mock();
+      const mockCallback = vi.fn();
       await installPluginFromRegistryAction.handler(
         mockRuntime,
         testMessage,
@@ -135,13 +135,13 @@ describe('installPluginFromRegistry', () => {
         content: { text: 'install @elizaos/plugin-example@1.2.3 from registry' },
       };
 
-      mockPluginManager.installPluginFromRegistry = mock().mockResolvedValue({
+      (mockPluginManager.installPluginFromRegistry as any).mockResolvedValue({
         name: '@elizaos/plugin-example',
         version: '1.2.3',
         status: 'installed',
       });
 
-      const mockCallback = mock();
+      const mockCallback = vi.fn();
       await installPluginFromRegistryAction.handler(
         mockRuntime,
         testMessage,
@@ -161,7 +161,7 @@ describe('installPluginFromRegistry', () => {
     });
 
     it('should handle plugins that need configuration', async () => {
-      mockPluginManager.installPluginFromRegistry = mock().mockResolvedValue({
+      (mockPluginManager.installPluginFromRegistry as any).mockResolvedValue({
         name: '@elizaos/plugin-example',
         version: '1.0.0',
         status: 'needs_configuration',
@@ -171,7 +171,7 @@ describe('installPluginFromRegistry', () => {
         ],
       });
 
-      const mockCallback = mock();
+      const mockCallback = vi.fn();
       await installPluginFromRegistryAction.handler(
         mockRuntime,
         message,
@@ -185,7 +185,7 @@ describe('installPluginFromRegistry', () => {
           'Plugin @elizaos/plugin-example has been installed but requires configuration'
         ),
       });
-      const callArg = mockCallback.mock.calls[0][0].text;
+      const callArg = (mockCallback as any).mock.calls[0][0].text;
       expect(callArg).toContain('API_KEY: API Key for service (sensitive)');
       expect(callArg).toContain('API_URL: API endpoint URL');
       expect(callArg).toContain(
@@ -194,11 +194,11 @@ describe('installPluginFromRegistry', () => {
     });
 
     it('should handle installation errors', async () => {
-      mockPluginManager.installPluginFromRegistry = mock().mockRejectedValue(
+      (mockPluginManager.installPluginFromRegistry as any).mockRejectedValue(
         new Error('Failed to install plugin')
       );
 
-      const mockCallback = mock();
+      const mockCallback = vi.fn();
       await expect(
         installPluginFromRegistryAction.handler(
           mockRuntime,
@@ -211,9 +211,9 @@ describe('installPluginFromRegistry', () => {
     });
 
     it('should handle missing plugin manager service', async () => {
-      mockRuntime.getService = mock().mockReturnValue(null);
+      (mockRuntime.getService as any).mockReturnValue(null);
 
-      const mockCallback = mock();
+      const mockCallback = vi.fn();
       await installPluginFromRegistryAction.handler(
         mockRuntime,
         message,
@@ -233,7 +233,7 @@ describe('installPluginFromRegistry', () => {
         content: { text: 'install from registry' },
       };
 
-      const mockCallback = mock();
+      const mockCallback = vi.fn();
       await installPluginFromRegistryAction.handler(
         mockRuntime,
         testMessage,
@@ -254,7 +254,7 @@ describe('installPluginFromRegistry', () => {
         { text: 'get plugin test-pkg', expected: 'test-pkg' },
       ];
 
-      mockPluginManager.installPluginFromRegistry = mock().mockResolvedValue({
+      (mockPluginManager.installPluginFromRegistry as any).mockResolvedValue({
         name: 'test',
         version: '1.0.0',
         status: 'installed',
@@ -266,7 +266,7 @@ describe('installPluginFromRegistry', () => {
           content: { text: format.text },
         };
 
-        const mockCallback = mock();
+        const mockCallback = vi.fn();
         await installPluginFromRegistryAction.handler(
           mockRuntime,
           testMessage,

@@ -12,7 +12,7 @@
     "build": "bun scripts/build-all.js",
     "build:clean": "CLEAN_CACHE=true bun scripts/build-all.js",
     "build:binary": "bun scripts/build-binary.js",
-    "clean": "bun -e 'const { cleanContainerCache } = await import(\"./scripts/build-all.js\"); await cleanContainerCache();'",
+    "clean": "bun scripts/clean.js",
     "test": "bun test",
     "lint": "eslint . --fix && prettier --write ."
   },
@@ -25,6 +25,7 @@
     "@elizaos/plugin-bootstrap": "workspace:*",
     "@elizaos/plugin-experience": "workspace:*",
     "@elizaos/plugin-goals": "workspace:*",
+    "@elizaos/plugin-inference": "workspace:*",
     "@elizaos/plugin-knowledge": "workspace:*",
     "@elizaos/plugin-ollama": "workspace:*",
     "@elizaos/plugin-openai": "^1.0.0",

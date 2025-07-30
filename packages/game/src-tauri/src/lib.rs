@@ -16,14 +16,14 @@ mod server;
 mod startup;
 mod tests;
 
-// Re-export common constants for tests
-pub use common::{AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER};
+// Re-export common constants and utilities for tests
+pub use common::{AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER, is_port_available};
 // Export types for external use (tests, etc.)
 pub use backend::{
     AgentConfig, BackendConfig, BackendError, BackendResult, ContainerConfig, ContainerRuntimeType,
     ContainerState, ContainerStatus, HealthStatus, PortMapping, SetupProgress, VolumeMount,
 };
-pub use container::{ContainerManager, HealthMonitor, RuntimeDetectionStatus};
+pub use container::{ContainerManager, HealthMonitor, RuntimeDetectionStatus, PortConfig};
 pub use ipc::commands::*;
 pub use server::{HttpServer, WebSocketHub};
 pub use startup::{AiProvider, StartupManager, StartupStage, StartupStatus, UserConfig};
@@ -100,6 +100,14 @@ async fn route_message_to_agent(
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let client = reqwest::Client::new();
 
+    // Get the dynamic agent port
+    let agent_port = if let Some(manager) = &container_manager {
+        let port_config = manager.get_port_config().await;
+        port_config.agent_port
+    } else {
+        7777 // Default fallback
+    };
+
     // Use the autonomous thoughts room which exists in the agent
     let room_id = "ce5f41b4-fe24-4c01-9971-aecfed20a6bd"; // Autonomous thoughts room
     let _agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f"; // Agent ID
@@ -108,16 +116,16 @@ async fn route_message_to_agent(
     let attempt_request = || async {
         // First, ensure the room/channel exists in the messaging system
         // Create a proper channel entry if needed
-        let channel_url = format!("http://localhost:7777/api/messaging/central-channels/{}", room_id);
+        let channel_url = format!("http://localhost:{}/api/messaging/central-channels/{}", agent_port, room_id);
         let channel_check = client.get(&channel_url).send().await;
         
         if channel_check.is_err() || !channel_check.unwrap().status().is_success() {
             info!("Channel doesn't exist in messaging system, creating it...");
             
             // Try to create the channel
-            let create_channel_url = "http://localhost:7777/api/messaging/central-channels";
+            let create_channel_url = format!("http://localhost:{}/api/messaging/central-channels", agent_port);
             let _ = client
-                .post(create_channel_url)
+                .post(&create_channel_url)
                 .json(&serde_json::json!({
                     "id": room_id,
                     "server_id": "00000000-0000-0000-0000-000000000000",
@@ -132,10 +140,10 @@ async fn route_message_to_agent(
         }
         
         // Use the ingest-external endpoint which works properly
-        let message_url = "http://localhost:7777/api/messaging/ingest-external";
+        let message_url = format!("http://localhost:{}/api/messaging/ingest-external", agent_port);
         
         let response = client
-            .post(message_url)
+            .post(&message_url)
             .json(&serde_json::json!({
                 "channel_id": room_id,
                 "server_id": "00000000-0000-0000-0000-000000000000",
@@ -370,14 +378,20 @@ async fn wait_for_server(
 }
 
 #[tauri::command]
-async fn get_agent_configuration() -> Result<serde_json::Value, String> {
+async fn get_agent_configuration(
+    container_manager: State<'_, Arc<ContainerManager>>,
+) -> Result<serde_json::Value, String> {
     info!("📊 Getting agent configuration from ElizaOS server");
 
+    // Get the dynamic agent port
+    let port_config = container_manager.get_port_config().await;
+    let agent_port = port_config.agent_port;
+
     let client = reqwest::Client::new();
-    let url = "http://localhost:7777/api/agents";
+    let url = format!("http://localhost:{}/api/agents", agent_port);
 
     let response = client
-        .get(url)
+        .get(&url)
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
@@ -534,6 +548,7 @@ async fn test_native_websocket(
 async fn run_startup_hello_world_test(
     startup_manager: State<'_, Arc<Mutex<StartupManager>>>,
     native_ws_client: State<'_, Arc<server::websocket::WebSocketClient>>,
+    container_manager: State<'_, Arc<ContainerManager>>,
 ) -> Result<String, String> {
     info!("🧪 Running comprehensive startup hello world test");
 
@@ -552,10 +567,19 @@ async fn run_startup_hello_world_test(
         test_results.push("✅ Startup manager is ready".to_string());
     }
 
+    // Get dynamic port configuration
+    let port_config = container_manager.get_port_config().await;
+    let agent_port = port_config.agent_port;
+    
+    if agent_port != 7777 {
+        test_results.push(format!("ℹ️ Using alternative agent port: {}", agent_port));
+    }
+
     // Step 2: Test HTTP API connectivity to agent server
     let client = reqwest::Client::new();
+    let api_url = format!("http://localhost:{}/api/agents", agent_port);
     match client
-        .get("http://localhost:7777/api/agents")
+        .get(&api_url)
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
@@ -581,7 +605,8 @@ async fn run_startup_hello_world_test(
         test_results.push("✅ WebSocket already connected".to_string());
     } else {
         info!("WebSocket not connected, attempting to connect...");
-        match native_ws_client.connect("ws://localhost:7777/ws").await {
+        let ws_url = format!("ws://localhost:{}/ws", agent_port);
+        match native_ws_client.connect(&ws_url).await {
             Ok(_) => {
                 test_results.push("✅ WebSocket connection established".to_string());
                 // Wait a moment for connection to stabilize
@@ -606,12 +631,12 @@ async fn run_startup_hello_world_test(
     }
 
     // Step 5: Test HTTP message ingestion (fallback method)
-    let message_url = "http://localhost:7777/api/messaging/ingest-external";
+    let message_url = format!("http://localhost:{}/api/messaging/ingest-external", agent_port);
     let channel_id = "e292bdf2-0baa-4677-a3a6-9426672ce6d8";
     let author_id = "00000000-0000-0000-0000-000000000001";
 
     match client
-        .post(message_url)
+        .post(&message_url)
         .json(&serde_json::json!({
             "channel_id": channel_id,
             "server_id": "00000000-0000-0000-0000-000000000000",
@@ -676,14 +701,14 @@ async fn run_startup_hello_world_test(
     Ok(test_results.join("\n"))
 }
 
-async fn wait_for_agent_server_ready() -> bool {
+async fn wait_for_agent_server_ready(agent_port: u16) -> bool {
     let client = reqwest::Client::new();
-    let url = "http://localhost:7777/api/server/health"; // Health check endpoint
+    let url = format!("http://localhost:{}/api/server/health", agent_port); // Health check endpoint
 
     for attempt in 0..20 { // Retry up to 20 times
         info!("⏳ Waiting for agent server health check (attempt {}/20)...", attempt + 1);
         let response = client
-            .get(url)
+            .get(&url)
             .timeout(std::time::Duration::from_secs(5))
             .send()
             .await;
@@ -695,7 +720,7 @@ async fn wait_for_agent_server_ready() -> bool {
                 // Now check if the game API plugin routes are ready
                 info!("🔍 Checking if game API plugin routes are ready...");
                 let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
-                let settings_url = format!("http://localhost:7777/api/agents/{}/settings", agent_id);
+                let settings_url = format!("http://localhost:{}/api/agents/{}/settings", agent_port, agent_id);
                 let settings_response = client
                     .get(&settings_url)
                     .timeout(std::time::Duration::from_secs(5))
@@ -845,7 +870,7 @@ pub fn run() {
                 warn!("🚨 Detected previous crash, running recovery...");
                 
                 // Store container manager reference for recovery
-                let recovery_container_manager = match ContainerManager::new(crate::backend::ContainerRuntimeType::Podman) {
+                let recovery_container_manager = match ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Podman) {
                     Ok(manager) => Some(Arc::new(manager)),
                     Err(e) => {
                         warn!("Failed to create container manager for recovery: {}", e);
@@ -906,13 +931,13 @@ pub fn run() {
             // Initialize container manager for Tauri commands
             // Note: This will be replaced by startup manager's instance once initialized
             let initial_container_manager =
-                match ContainerManager::new(crate::backend::ContainerRuntimeType::Podman) {
+                match ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Podman) {
                     Ok(manager) => Arc::new(manager),
                     Err(e) => {
                         error!("Failed to create initial container manager: {}", e);
                         // Create a dummy manager to prevent panics
                         Arc::new(
-                            ContainerManager::new(crate::backend::ContainerRuntimeType::Docker)
+                            ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Docker)
                                 .unwrap_or_else(|_| {
                                     panic!("Failed to create any container manager")
                                 }),
@@ -987,7 +1012,13 @@ pub fn run() {
                     
                     // Wait for agent server to be fully ready before running tests
                     info!("⏳ Waiting for agent server to be fully ready...");
-                    let agent_ready = wait_for_agent_server_ready().await;
+                    
+                    // Get the dynamic agent port from container manager
+                    let container_manager: Arc<ContainerManager> = app_handle_clone.state::<Arc<ContainerManager>>().inner().clone();
+                    let port_config = container_manager.get_port_config().await;
+                    let agent_port = port_config.agent_port;
+                    
+                    let agent_ready = wait_for_agent_server_ready(agent_port).await;
                     
                     if !agent_ready {
                         error!("❌ Agent server failed to become ready after waiting");
@@ -1058,7 +1089,15 @@ pub fn run() {
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
                 // Try to connect with retries
-                if let Err(e) = connect_with_retry(native_ws_clone, "ws://localhost:7777/ws", 5).await {
+                let container_manager: Arc<ContainerManager> = app_handle_clone.state::<Arc<ContainerManager>>().inner().clone();
+                let port_config = container_manager.get_port_config().await;
+                let ws_url = format!("ws://localhost:{}/ws", port_config.agent_port);
+                
+                if port_config.agent_port != 7777 {
+                    info!("🔌 Using alternative agent port {} for WebSocket connection", port_config.agent_port);
+                }
+                
+                if let Err(e) = connect_with_retry(native_ws_clone, &ws_url, 5).await {
                     error!("Failed to connect WebSocket after retries: {}", e);
                     info!("💡 Agent server may not be running - messages will fallback to HTTP");
                 } else {

@@ -1,14 +1,28 @@
 # First stage - build stagehand server
 FROM node:20-slim AS stagehand-builder
 
-WORKDIR /stagehand
-
-# Install build dependencies
+# Install build dependencies and playwright dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libatspi2.0-0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /stagehand
 
 # Copy stagehand server source
 COPY packages/plugin-stagehand/stagehand-server/package*.json ./
@@ -58,10 +72,28 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     libgbm1 \
     libasound2 \
+    # ONNX Runtime dependencies
+    wget \
+    libgomp1 \
+    # Sharp dependencies
+    libvips42 \
+    libvips-dev \
+    build-essential \
+    python3 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1001 eliza \
     && useradd -u 1001 -g eliza -m eliza
 
+# Download and install ONNX Runtime for ARM64
+RUN if [ "$(uname -m)" = "aarch64" ]; then \
+        wget https://github.com/microsoft/onnxruntime/releases/download/v1.14.0/onnxruntime-linux-aarch64-1.14.0.tgz && \
+        tar -xzf onnxruntime-linux-aarch64-1.14.0.tgz && \
+        cp onnxruntime-linux-aarch64-1.14.0/lib/* /usr/local/lib/ && \
+        ldconfig && \
+        rm -rf onnxruntime-linux-aarch64-1.14.0.tgz onnxruntime-linux-aarch64-1.14.0; \
+    fi
+
+# Set working directory
 WORKDIR /app
 
 # Add cache busting argument
@@ -93,6 +125,16 @@ RUN chmod +x ./docker-startup.sh
 # Copy public folder for web UI
 COPY --chown=eliza:eliza packages/agentserver/public ./public
 
+# Install sharp module for ARM64 architecture
+# This is needed because the compiled binary doesn't include native modules
+RUN mkdir -p /app/node_modules && \
+    cd /app && \
+    npm init -y --scope=@elizaos && \
+    npm install sharp@0.34.3 --platform=linux --arch=arm64 --no-save && \
+    # Create a symlink so the binary can find node_modules
+    ln -sf /app/node_modules /node_modules && \
+    chown -R eliza:eliza /app/node_modules
+
 # Copy stagehand server from builder stage
 # First create directories
 RUN mkdir -p /app/stagehand-server/dist /usr/local/bin
@@ -104,7 +146,7 @@ COPY --from=stagehand-builder --chown=eliza:eliza /stagehand/package*.json /app/
 # Copy node_modules for the stagehand server
 COPY --from=stagehand-builder --chown=eliza:eliza /stagehand/node_modules /app/stagehand-server/node_modules/
 
-# Copy Playwright browsers
+# Copy Playwright browsers from the correct location
 COPY --from=stagehand-builder --chown=eliza:eliza /root/.cache/ms-playwright /home/eliza/.cache/ms-playwright
 
 # Try to copy the binary if it was built successfully
@@ -144,16 +186,6 @@ exec "$@"' > /app/start-with-display.sh && \
     chmod +x /app/start-with-display.sh && \
     chown eliza:eliza /app/start-with-display.sh
 
-# Switch to non-root user
-USER eliza
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD ["./health-check.sh"]
-
-# Expose ports
-EXPOSE 7777 5900
-
 # Set environment variables
 ENV NODE_ENV=production \
     PORT=7777 \
@@ -169,7 +201,19 @@ ENV NODE_ENV=production \
     XVFB_SCREEN_SIZE=1280x720x24 \
     STAGEHAND_SERVER_PORT=8080 \
     BROWSER_HEADLESS=true \
-    PLAYWRIGHT_BROWSERS_PATH=/home/eliza/.cache/ms-playwright
+    PLAYWRIGHT_BROWSERS_PATH=/home/eliza/.cache/ms-playwright \
+    LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH \
+    NODE_PATH=/app/node_modules
+
+# Switch to non-root user
+USER eliza
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD ["./health-check.sh"]
+
+# Expose ports
+EXPOSE 7777 5900
 
 # Use dumb-init with virtual display wrapper
 ENTRYPOINT ["dumb-init", "--", "/app/start-with-display.sh"]

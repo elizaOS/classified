@@ -413,21 +413,27 @@ describe('Setup and Configuration', () => {
 
   describe('Database Verification', () => {
     it('should verify database connection and persistence', () => {
-      // Database should already be connected since backend is running
-      cy.wait(2000);
-
-      // Test database connection
-      cy.task('testDatabaseConnection').then((result: any) => {
-        expect(result.success).to.be.true;
-        expect(result.database.hasConnection).to.be.true;
-        expect(result.database.isConnected).to.be.true;
+      cy.log('Testing database connection...');
+      cy.request('GET', `${BACKEND_URL}/api/server/health`).then((response) => {
+        expect(response.status).to.eq(200);
       });
 
-      // Test memory system (requires database)
+      // Test memory persistence
       const testRoomId = '550e8400-e29b-41d4-a716-446655440002';
-      cy.task('testAgentMemory', { roomId: testRoomId }).then((result: any) => {
-        expect(result.success).to.be.true;
-        expect(result.memories).to.be.an('array');
+      cy.log(`Testing agent memory for room: ${testRoomId}`);
+      cy.sendMessage({
+        text: 'Database persistence test message',
+        userId: 'test-user',
+        roomId: testRoomId,
+      }).then(() => {
+        cy.wait(2000); // Wait for processing
+        cy.request('GET', `${BACKEND_URL}/api/memories?roomId=${testRoomId}&count=5`).then(
+          (response) => {
+            expect(response.status).to.eq(200);
+            expect(response.body.data.some((m: any) => m.content.includes('persistence test'))).to
+              .be.true;
+          }
+        );
       });
     });
   });

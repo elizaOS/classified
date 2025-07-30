@@ -1,8 +1,0 @@
-[test]
-# Configure JSX for React testing
-jsx = "react-jsx"
-preload = ["./test.setup.ts"]
-
-[build]
-# Use the correct JSX configuration
-jsx = "react-jsx"

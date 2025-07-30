@@ -756,16 +756,12 @@ const postGeneratedHandler = async ({
     worldId: worldId,
   });
 
-  const message = {
+  const message: Memory = {
     id: createUniqueUuid(runtime, `tweet-${Date.now()}`) as UUID,
     entityId: runtime.agentId,
     agentId: runtime.agentId,
     roomId: roomId,
     content: {},
-    metadata: {
-      entityName: runtime.character.name,
-      type: 'message',
-    },
   };
 
   // generate thought of which providers to use using messageHandlerTemplate

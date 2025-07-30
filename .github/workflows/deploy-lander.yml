@@ -35,27 +35,31 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 'latest'
 
       - name: Install dependencies
         run: |
           cd packages/lander
-          npm ci
+          bun install --frozen-lockfile
 
       - name: Type check
         run: |
           cd packages/lander
-          npm run type-check
+          bun run type-check
 
       - name: Lint
         run: |
           cd packages/lander
-          npm run lint
+          bun run lint
 
       - name: Build
         run: |
           cd packages/lander
-          npm run build
+          bun run build
         env:
           GITHUB_SHA: ${{ github.sha }}
 

@@ -144,17 +144,40 @@ async fn perform_health_check(
     let mut cmd = tokio::process::Command::new("podman"); // TODO: Make this configurable
     cmd.args(["exec", container_name])
         .args(command)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
 
     match tokio::time::timeout(timeout, cmd.output()).await {
-        Ok(Ok(output)) => Ok(output.status.success()),
-        Ok(Err(e)) => Err(BackendError::Container(format!(
-            "Health check execution failed: {e}"
-        ))),
-        Err(_) => Err(BackendError::Container(
-            "Health check timed out".to_string(),
-        )),
+        Ok(Ok(output)) => {
+            if !output.status.success() {
+                // Log the failure details for debugging
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                if !stderr.is_empty() && !stderr.contains("connection refused") {
+                    // Only log non-transient errors
+                    debug!("Health check failed for {}: {}", container_name, stderr);
+                }
+            }
+            Ok(output.status.success())
+        }
+        Ok(Err(e)) => {
+            // Check if it's a transient error
+            let error_string = e.to_string();
+            if error_string.contains("No such container") || error_string.contains("is not running") {
+                // Container is not running, this is expected during shutdown
+                debug!("Container {} is not running: {}", container_name, e);
+            } else {
+                warn!("Health check execution failed for {}: {}", container_name, e);
+            }
+            Err(BackendError::Container(format!(
+                "Health check execution failed: {e}"
+            )))
+        }
+        Err(_) => {
+            debug!("Health check timed out for {} after {:?}", container_name, timeout);
+            Err(BackendError::Container(
+                "Health check timed out".to_string(),
+            ))
+        }
     }
 }
 

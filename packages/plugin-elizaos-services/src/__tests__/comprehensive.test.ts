@@ -35,7 +35,14 @@ describe('ElizaOS Services Plugin - Comprehensive Tests', () => {
 
   describe('Plugin Configuration', () => {
     test('plugin initialization with valid config', async () => {
-      const mockRuntime = createMockRuntime();
+      const mockRuntime = createMockRuntime({
+        getSetting: mock((key: string) => {
+          if (key === 'OPENAI_API_KEY') return 'test-openai-key';
+          if (key === 'ELIZAOS_API_URL') return 'https://api.elizaos.ai';
+          if (key === 'ELIZAOS_API_KEY') return 'test-key-123';
+          return null;
+        }),
+      });
       const config = {
         ELIZAOS_API_URL: 'https://api.elizaos.ai',
         ELIZAOS_API_KEY: 'test-key-123',
@@ -48,7 +55,12 @@ describe('ElizaOS Services Plugin - Comprehensive Tests', () => {
     });
 
     test('plugin initialization with minimal config', async () => {
-      const mockRuntime = createMockRuntime();
+      const mockRuntime = createMockRuntime({
+        getSetting: mock((key: string) => {
+          if (key === 'OPENAI_API_KEY') return 'test-openai-key';
+          return null;
+        }),
+      });
       const config = {};
 
       // Should not throw even with empty config
@@ -146,14 +158,23 @@ describe('ElizaOS Services Plugin - Comprehensive Tests', () => {
   });
 
   describe('Provider Utils', () => {
-    test('provider utilities are exported from multi-provider module', async () => {
-      const { getAvailableProvider, getProviderApiKey, makeProviderRequest } = await import(
-        '../providers/multi-provider.js'
+    test('ElizaOS provider utilities are exported', async () => {
+      const { makeElizaOSRequest, getModelForType, checkElizaOSAPI } = await import(
+        '../providers/elizaos-provider.js'
       );
 
-      expect(typeof getAvailableProvider).toBe('function');
-      expect(typeof getProviderApiKey).toBe('function');
-      expect(typeof makeProviderRequest).toBe('function');
+      expect(typeof makeElizaOSRequest).toBe('function');
+      expect(typeof getModelForType).toBe('function');
+      expect(typeof checkElizaOSAPI).toBe('function');
+    });
+
+    test('getModelForType returns correct models', async () => {
+      const { getModelForType } = await import('../providers/elizaos-provider.js');
+
+      expect(getModelForType('TEXT_SMALL')).toBe('gpt-4o-mini');
+      expect(getModelForType('TEXT_LARGE')).toBe('gpt-4o');
+      expect(getModelForType('IMAGE_DESCRIPTION')).toBe('gpt-4o');
+      expect(getModelForType('EMBEDDING')).toBe('text-embedding-3-small');
     });
   });
 

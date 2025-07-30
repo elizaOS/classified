@@ -30,9 +30,9 @@ export const installPluginFromRegistryAction: Action = {
     }
 
     // Extract plugin name from message content
-    const content = message.content.text.toLowerCase();
-    let pluginNameMatch = null;
-    let pluginName = null;
+    const content = message.content?.text?.toLowerCase() || '';
+    let pluginNameMatch: RegExpMatchArray | null = null;
+    let pluginName: string | null = null;
 
     // Try different patterns to extract plugin name
     // Pattern 1: install [plugin] from registry <name>

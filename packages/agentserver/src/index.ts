@@ -13,7 +13,7 @@ import GoalsPlugin from '@elizaos/plugin-goals';
 import TodoPlugin from '@elizaos/plugin-todo';
 import shellPlugin from '@elizaos/plugin-shell';
 import { knowledgePlugin } from '@elizaos/plugin-knowledge';
-import { ollamaPlugin } from '@elizaos/plugin-ollama';
+import { inferencePlugin } from '@elizaos/plugin-inference';
 import PersonalityPlugin from '@elizaos/plugin-personality';
 import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
 import { experiencePlugin } from '@elizaos/plugin-experience';
@@ -76,8 +76,8 @@ const modelProvider =
 const plugins: Plugin[] = [
   sqlPlugin,
   bootstrapPlugin,
-  // Only load model provider plugins that are being used
-  ...(modelProvider === 'ollama' || modelProvider === 'all' ? [ollamaPlugin] : []),
+  // Always load inference plugin - it handles routing to all model providers
+  inferencePlugin,
   autonomyPlugin,
   GoalsPlugin,
   TodoPlugin,
@@ -85,8 +85,8 @@ const plugins: Plugin[] = [
   experiencePlugin,
   knowledgePlugin,
   shellPlugin,
-  // Conditionally load stagehand plugin only if explicitly enabled
-  ...(process.env.ENABLE_STAGEHAND === 'true' ? [stagehandPlugin] : []),
+  // Always load stagehand plugin - it manages its own lifecycle
+  stagehandPlugin,
   gameAPIPlugin,
 ].filter(Boolean);
 
@@ -275,7 +275,7 @@ export async function startServer() {
   // Knowledge Files endpoint (expected by frontend)
   server.app.get('/api/knowledge/files', async (req: any, res: any) => {
     try {
-      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as any;
       if (!targetRuntime) {
         return res.json({ success: true, data: { files: [], count: 0 } });
       }
@@ -328,11 +328,11 @@ export async function startServer() {
   server.app.post('/api/agents/:agentId/capabilities/:capability', async (req: any, res: any) => {
     try {
       const capability = req.params.capability.toLowerCase();
-      let targetRuntime: IAgentRuntime | undefined;
+      let targetRuntime: any | undefined;
 
       // Handle "default" as a special case - get the first agent
       if (req.params.agentId === 'default') {
-        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+        targetRuntime = Array.from((server as any).agents?.values() || [])[0];
       } else {
         // Try to get the specific agent by ID
         targetRuntime = (server as any).agents?.get(req.params.agentId);
@@ -396,10 +396,10 @@ export async function startServer() {
       console.log('[BACKEND] Direct delete endpoint called for document:', req.params.documentId);
 
       // Find the runtime with the knowledge service
-      let targetRuntime: IAgentRuntime | null = null;
+      let targetRuntime: any | null = null;
 
       // Get all agents from the server
-      const agents = Array.from((server as any).agents?.values() || []) as IAgentRuntime[];
+      const agents = Array.from((server as any).agents?.values() || []) as any[];
       for (const runtime of agents) {
         const knowledgeService = runtime.getService('knowledge');
         if (knowledgeService) {
@@ -441,9 +441,7 @@ export async function startServer() {
   // GET primary agent endpoint - returns the first available agent
   server.app.get('/api/agents/primary', async (req: any, res: any) => {
     try {
-      const primaryAgent = Array.from((server as any).agents?.values() || [])[0] as
-        | IAgentRuntime
-        | undefined;
+      const primaryAgent = Array.from((server as any).agents?.values() || [])[0] as any | undefined;
 
       if (!primaryAgent) {
         return res.status(200).json({
@@ -479,7 +477,7 @@ export async function startServer() {
   server.app.get('/api/agents', async (req: any, res: any) => {
     try {
       const agentEntries = Array.from((server as any).agents?.entries() || []) as Array<
-        [string, IAgentRuntime]
+        [string, any]
       >;
       const agents = agentEntries.map(([id, runtime]) => ({
         id,
@@ -504,7 +502,7 @@ export async function startServer() {
   server.app.get('/api/agents/default/settings', async (req: any, res: any) => {
     try {
       // Get the first available agent
-      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as any;
 
       if (!targetRuntime) {
         // Return a minimal response indicating server is ready but no agent yet
@@ -560,11 +558,11 @@ export async function startServer() {
   // GET settings endpoint - supports both /api/agents/default/settings and /api/agents/:agentId/settings
   server.app.get('/api/agents/:agentId/settings', async (req: any, res: any) => {
     try {
-      let targetRuntime: IAgentRuntime | undefined;
+      let targetRuntime: any | undefined;
 
       // Handle "default" as a special case - get the first agent
       if (req.params.agentId === 'default') {
-        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as any;
       } else {
         // Try to get the specific agent by ID
         targetRuntime = (server as any).agents?.get(req.params.agentId);

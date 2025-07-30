@@ -3,8 +3,7 @@
  * Handles API key validation, testing, and management across all modalities
  */
 
-import type { IAgentRuntime } from '@elizaos/core';
-import { logger } from '@elizaos/core';
+import { IAgentRuntime, logger } from '@elizaos/core';
 
 export interface ApiKeyValidationResult {
   isValid: boolean;
@@ -62,15 +61,13 @@ export class AuthenticationService {
    */
   async validateApiKey(provider: string, apiKey: string): Promise<ApiKeyValidationResult> {
     // Check cache first
-    const cacheKey = `${provider}:${apiKey.substring(0, 10)}`;
+    const cacheKey = `${provider}:${apiKey}`;
     const cached = this.validationCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
       return cached.result;
     }
 
-    logger.debug(`Validating ${provider} API key...`);
-
-    // Check if it's a test key
+    // Skip validation for test keys
     if (this.isTestKey(apiKey)) {
       const result: ApiKeyValidationResult = {
         isValid: true,
@@ -78,25 +75,28 @@ export class AuthenticationService {
         keyType: 'test',
         capabilities: this.getTestKeyCapabilities(provider),
       };
+
       this.validationCache.set(cacheKey, { result, timestamp: Date.now() });
       return result;
     }
 
-    // Validate real API key
+    // Perform real validation
     try {
       const result = await this.performRealKeyValidation(provider, apiKey);
       this.validationCache.set(cacheKey, { result, timestamp: Date.now() });
       return result;
     } catch (error) {
-      const result: ApiKeyValidationResult = {
+      logger.error(`Failed to validate ${provider} key:`, error);
+
+      const errorResult: ApiKeyValidationResult = {
         isValid: false,
         provider,
         keyType: 'invalid',
         capabilities: [],
-        errorMessage: error instanceof Error ? error.message : 'Unknown validation error',
+        errorMessage: error instanceof Error ? error.message : 'Validation failed',
       };
-      this.validationCache.set(cacheKey, { result, timestamp: Date.now() });
-      return result;
+
+      return errorResult;
     }
   }
 

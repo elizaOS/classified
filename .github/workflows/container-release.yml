@@ -254,10 +254,22 @@ jobs:
             - \`${registry}/${imageName}:${tag}\` (linux/amd64, linux/arm64)
             - \`${registry}/${imageName}:latest\` (if this is the latest release)
 
-            **Quick Start:**
+            **Note:** These images are OCI-compliant and work with both Docker and Podman [[memory:4430015]].
+
+            **Quick Start with Docker:**
             \`\`\`bash
             # Pull and run the latest version
             docker run -d \\
+              --name eliza-game \\
+              -p 5173:5173 -p 7777:7777 \\
+              -e OPENAI_API_KEY=your_key_here \\
+              ${registry}/${imageName}:${tag}
+            \`\`\`
+
+            **Quick Start with Podman:**
+            \`\`\`bash
+            # Pull and run the latest version
+            podman run -d \\
               --name eliza-game \\
               -p 5173:5173 -p 7777:7777 \\
               -e OPENAI_API_KEY=your_key_here \\

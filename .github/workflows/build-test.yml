@@ -26,28 +26,31 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: 'packages/lander/package.json'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 'latest'
 
       - name: Install lander dependencies
         run: |
           cd packages/lander
-          npm install
+          bun install
 
       - name: Type check
         run: |
           cd packages/lander
-          npm run type-check || echo "Type check not available"
+          bun run type-check || echo "Type check not available"
 
       - name: Lint
         run: |
           cd packages/lander
-          npm run lint || echo "Lint not available"
+          bun run lint || echo "Lint not available"
 
       - name: Build lander
         run: |
           cd packages/lander
-          npm run build
+          bun run build
 
       - name: Check lander build output
         run: |
@@ -62,18 +65,24 @@ jobs:
         include:
           - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
-          - platform: 'ubuntu-20.04'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
             args: ''
           - platform: 'windows-latest'
             args: ''
 
     runs-on: ${{ matrix.platform }}
+    env:
+      # Set CI environment variable to skip postinstall scripts
+      CI: true
+      GITHUB_ACTIONS: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install dependencies (Ubuntu only)
-        if: matrix.platform == 'ubuntu-20.04'
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -81,12 +90,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '23.3.0'
+          node-version: '20'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.2.15'
+          bun-version: 'latest'
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
@@ -98,28 +107,37 @@ jobs:
         with:
           workspaces: './packages/game/src-tauri -> target'
 
-      - name: Install dependencies
-        run: bun install
-        working-directory: packages/game
+      - name: Install dependencies (root)
+        run: |
+          bun install --frozen-lockfile || bun install
 
-      - name: Build frontend and backend
-        run: bun run build
-        working-directory: packages/game
+      - name: Install dependencies (game)
+        run: |
+          cd packages/game
+          bun install --frozen-lockfile || bun install
 
-      - name: Build Tauri app (test only)
+      - name: Build backend without Podman
+        run: |
+          cd packages/game
+          bun run build:backend
+
+      - name: Build frontend
+        run: |
+          cd packages/game
+          bun run build:frontend
+
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: packages/game
           args: ${{ matrix.args }}
-          # Don't upload to release for test builds
-          releaseId: ''
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.platform }}-${{ github.sha }}
           path: |
-            packages/game/src-tauri/target/release/bundle/
+            packages/game/src-tauri/target/*/release/bundle/
           retention-days: 7

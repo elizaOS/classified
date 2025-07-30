@@ -1,6 +1,7 @@
 import {
   type Action,
   type ActionExample,
+  type ActionResult,
   booleanFooter,
   composePromptFromState,
   type HandlerCallback,
@@ -9,7 +10,6 @@ import {
   type Memory,
   ModelType,
   type State,
-  type ActionResult,
 } from '@elizaos/core';
 
 /**
@@ -117,9 +117,6 @@ export const followRoomAction: Action = {
               thought: 'I will now follow this room and chime in',
               actions: ['FOLLOW_ROOM_STARTED'],
             },
-            metadata: {
-              type: 'FOLLOW_ROOM',
-            },
           },
           'messages'
         );
@@ -143,9 +140,6 @@ export const followRoomAction: Action = {
               source: message.content.source,
               thought: 'I decided to not follow this room',
               actions: ['FOLLOW_ROOM_FAILED'],
-            },
-            metadata: {
-              type: 'FOLLOW_ROOM',
             },
           },
           'messages'

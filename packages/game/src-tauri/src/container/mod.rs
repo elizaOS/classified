@@ -13,7 +13,7 @@ pub mod user_error;
 // Tests moved to tests/container directory
 
 pub use health::HealthMonitor;
-pub use manager::{ContainerInfo, ContainerManager};
+pub use manager::{ContainerInfo, ContainerManager, PortConfig};
 pub use operation_lock::OperationLock;
 pub use resource_check::ResourceRequirements;
 pub use runtime_manager::RuntimeManager;

@@ -1,8 +1,9 @@
 import { type UUID, logger } from '@elizaos/core';
 import { drizzle } from 'drizzle-orm/pglite';
 import { BaseDrizzleAdapter } from '../base';
+import * as schema from '../schema';
 import { DIMENSION_MAP, type EmbeddingDimensionColumn } from '../schema/embedding';
-import type { PGliteClientManager } from './manager';
+import { PGliteClientManager } from './manager';
 
 /**
  * PgliteDatabaseAdapter class represents an adapter for interacting with a PgliteDatabase.
@@ -23,8 +24,8 @@ import type { PGliteClientManager } from './manager';
  * @return {void} - A Promise that resolves when the database is closed.
  */
 export class PgliteDatabaseAdapter extends BaseDrizzleAdapter {
-  private manager: PGliteClientManager;
   protected embeddingDimension: EmbeddingDimensionColumn = DIMENSION_MAP[768];
+  protected manager: PGliteClientManager;
 
   /**
    * Constructor for creating an instance of a class.
@@ -34,7 +35,7 @@ export class PgliteDatabaseAdapter extends BaseDrizzleAdapter {
   constructor(agentId: UUID, manager: PGliteClientManager) {
     super(agentId);
     this.manager = manager;
-    this.db = drizzle(this.manager.getConnection() as any);
+    this.db = drizzle(this.manager.getConnection() as any, { schema });
   }
 
   /**

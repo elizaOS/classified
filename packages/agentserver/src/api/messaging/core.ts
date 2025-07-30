@@ -52,6 +52,34 @@ export function createMessagingCoreRouter(serverInstance: AgentServer): express.
     }
 
     try {
+      // Check if channel exists, create if not (for autonomous thoughts)
+      let channel = await serverInstance.getChannelDetails(channel_id as UUID);
+      if (!channel) {
+        logger.info(
+          `[Messages Router /submit] Channel ${channel_id} does not exist, creating it...`
+        );
+
+        // Use the provided server_id
+        const serverId = server_id as UUID;
+
+        // Create the channel
+        channel = await serverInstance.createChannel({
+          id: channel_id as UUID,
+          serverId,
+          name: metadata?.channel_name || `Agent Channel ${channel_id.substring(0, 8)}`,
+          type: 'GROUP' as any,
+          sourceType: source_type || 'agent',
+          metadata: {
+            created_by: 'agent_submit_api',
+            created_for: author_id,
+            created_at: new Date().toISOString(),
+            ...metadata,
+          },
+        });
+
+        logger.info(`[Messages Router /submit] Created channel ${channel_id} successfully`);
+      }
+
       const newRootMessageData = {
         channelId: validateUuid(channel_id)!,
         authorId: validateUuid(author_id)!,

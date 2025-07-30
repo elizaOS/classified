@@ -94,9 +94,6 @@ export const unmuteRoomAction: Action = {
               thought: 'I will now unmute this room and start considering it for responses again',
               actions: ['UNMUTE_ROOM_STARTED'],
             },
-            metadata: {
-              type: 'UNMUTE_ROOM',
-            },
           },
           'messages'
         );
@@ -120,9 +117,6 @@ export const unmuteRoomAction: Action = {
               source: message.content.source,
               thought: 'I tried to unmute a room but I decided not to',
               actions: ['UNMUTE_ROOM_FAILED'],
-            },
-            metadata: {
-              type: 'UNMUTE_ROOM',
             },
           },
           'messages'

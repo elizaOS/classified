@@ -118,13 +118,6 @@ export function createAgentTodosRouter(
         return sendError(res, 500, 'TODO_CREATE_FAILED', 'Failed to create todo');
       }
 
-      // Fetch the created todo to return full details
-      const createdTodos = await (todoService as any).getTodos({
-        agentId,
-        limit: 1,
-      });
-      const createdTodo = createdTodos.find((t: any) => t.id === todoId);
-
       const todo: Todo = {
         id: todoId,
         task,

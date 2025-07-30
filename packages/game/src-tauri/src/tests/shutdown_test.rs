@@ -15,7 +15,7 @@ mod shutdown_tests {
 
         // Create a test container manager
         let container_manager = Arc::new(
-            ContainerManager::new(ContainerRuntimeType::Podman)
+            ContainerManager::new_with_runtime_type(ContainerRuntimeType::Podman)
                 .expect("Failed to create container manager"),
         );
 

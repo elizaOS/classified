@@ -1,5 +1,5 @@
 import type { IAgentRuntime } from '@elizaos/core';
-import { logger, validateUuid, type UUID } from '@elizaos/core';
+import { logger, stringToUuid, validateUuid, type UUID } from '@elizaos/core';
 import type { IncomingMessage } from 'http';
 import type { WebSocket, WebSocketServer } from 'ws';
 import type { AgentServer } from '../index';
@@ -193,10 +193,15 @@ export class WebSocketRouter {
       const messageId = crypto.randomUUID() as UUID;
       const authorId = crypto.randomUUID() as UUID; // Generate a unique ID for WebSocket users
 
+      // Convert channel ID to UUID (use existing string or generate new UUID)
+      const channelUuid = targetChannelId
+        ? stringToUuid(targetChannelId)
+        : (crypto.randomUUID() as UUID);
+
       // Create message in the database first
       const messageToCreate = {
         id: messageId,
-        channelId: (targetChannelId || crypto.randomUUID()) as UUID,
+        channelId: channelUuid,
         authorId,
         content,
         rawMessage: { content },

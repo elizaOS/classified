@@ -1,4 +1,4 @@
-import { type Character, type IAgentRuntime, logger, type UUID } from '@elizaos/core';
+import { type Character, type IAgentRuntime, logger, stringToUuid, type UUID } from '@elizaos/core';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import helmet from 'helmet';
@@ -1018,6 +1018,9 @@ export class AgentServer {
         throw new Error('Missing required fields: channelId, content, author');
       }
 
+      // Convert channelId string to UUID
+      const channelUuid = stringToUuid(channelId);
+
       // Find the agent runtime
       const runtime = this.agents.get(agentId as UUID) || Array.from(this.agents.values())[0];
       if (!runtime) {
@@ -1025,7 +1028,7 @@ export class AgentServer {
       }
 
       // Check if channel exists, if not create it
-      let channel = await this.getChannelDetails(channelId as UUID);
+      let channel = await this.getChannelDetails(channelUuid);
       if (!channel) {
         logger.info(`[WebSocket] Channel ${channelId} does not exist, creating it...`);
 
@@ -1050,7 +1053,7 @@ export class AgentServer {
 
         // Create the channel
         channel = await this.createChannel({
-          id: channelId as UUID,
+          id: channelUuid,
           serverId,
           name: metadata?.channel_name || `Game Channel ${channelId.substring(0, 8)}`,
           type: ChannelType.GROUP,
@@ -1068,7 +1071,7 @@ export class AgentServer {
 
       // Create message for internal processing
       const internalMessage = {
-        channelId: channelId as UUID,
+        channelId: channelUuid,
         authorId: author as UUID,
         content,
         rawMessage: {

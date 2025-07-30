@@ -77,184 +77,94 @@ async function cleanContainerCache() {
   }
 }
 
-async function buildEverything() {
+async function main() {
+  const rootDir = path.join(__dirname, '..', '..', '..');
+  const platform = process.env.TARGET_PLATFORM || `linux/${process.arch}`;
+  const useCache = process.env.USE_CACHE !== 'false';
+  const cleanCache = process.env.CLEAN_CACHE === 'true';
+
   console.log('🚀 ElizaOS Agent Server - Complete Build Process\n');
 
+  if (cleanCache) {
+    console.log('💨 Cleaning cache...');
+    await $`podman image rm elizaos/agent-server:latest || true`;
+    console.log('   ✅ Cache cleaned');
+  } else {
+    console.log('💨 Skipping cache cleanup (use CLEAN_CACHE=true to force cleanup)');
+  }
+  console.log('');
+
+  console.log('🔄 Ensuring fresh build artifacts...');
+  await $`rm -rf ${path.join(__dirname, '..', 'dist')}`;
+  await $`rm -rf ${path.join(__dirname, '..', 'dist-binaries')}`;
+  console.log('  🗑️  Removing old backend build...');
+  console.log('  🗑️  Removing old binaries...');
+  console.log('  ✅ Clean slate for fresh builds');
+  console.log('');
+
+  console.log('📦 Step 1/4: Building backend...');
   try {
-    // Step 0: Clean container cache and remove existing agent images
-    // Only clean cache if explicitly requested via CLEAN_CACHE=true
-    if (process.env.CLEAN_CACHE === 'true') {
-      console.log('🧹 Step 0/4: Cleaning container cache and removing old agent images...');
-      await cleanContainerCache();
-    } else {
-      console.log('💨 Skipping cache cleanup (use CLEAN_CACHE=true to force cleanup)\n');
-    }
-
-    // Step 0.5: Always clean build artifacts to ensure fresh builds
-    console.log('🔄 Ensuring fresh build artifacts...');
-
-    // Remove existing backend build to force rebuild
-    const distBackendDir = path.join(__dirname, '..', 'dist');
-    if (existsSync(distBackendDir)) {
-      console.log('  🗑️  Removing old backend build...');
-      await $`rm -rf ${distBackendDir}`;
-    }
-
-    // Remove existing binaries to force rebuild
-    const distBinariesDir = path.join(__dirname, '..', 'dist-binaries');
-    if (existsSync(distBinariesDir)) {
-      console.log('  🗑️  Removing old binaries...');
-      await $`rm -rf ${distBinariesDir}`;
-    }
-
-    console.log('  ✅ Clean slate for fresh builds\n');
-
-    // Step 1: Build the backend
-    console.log('📦 Step 1/4: Building backend...');
     await $`bun ${path.join(__dirname, 'build.js')}`;
+    console.log('✅ Backend built successfully');
+    console.log(`   ${path.join(__dirname, '..', 'dist', 'server.js')}`);
+  } catch (error) {
+    console.error('❌ Failed to build backend:', error);
+    process.exit(1);
+  }
+  console.log('');
 
-    // Verify backend build
-    const backendPath = path.join(__dirname, '..', 'dist', 'server.js');
-    if (!existsSync(backendPath)) {
-      throw new Error('Backend build failed - server.js not found');
-    }
-
-    // Get file info to confirm it's fresh
-    const backendStats = await $`ls -la ${backendPath}`.text();
-    console.log(`✅ Backend built successfully\n   ${backendStats.trim()}\n`);
-
-    // Step 2: Build Linux binary
-    console.log('🔨 Step 2/4: Building Linux binary...');
-
-    // Create output directory
+  console.log('🔨 Step 2/4: Building Linux binary...');
+  try {
     const binariesDir = path.join(__dirname, '..', 'dist-binaries');
     await $`mkdir -p ${binariesDir}`;
 
-    const backendFile = backendPath;
+    const backendFile = path.join(__dirname, '..', 'dist', 'server.js');
 
-    // Build both Linux architectures for containers
-    const targets = [
-      { target: 'bun-linux-x64', output: path.join(binariesDir, 'server-linux-amd64') },
-      { target: 'bun-linux-arm64', output: path.join(binariesDir, 'server-linux-arm64') },
-    ];
+    console.log('📦 Cross-compiling for bun-linux-x64...');
+    await $`bun build ${backendFile} --compile --outfile ${binariesDir}/server-linux-amd64 --target bun-linux-x64`;
+    console.log('✅ Built bun-linux-x64 successfully');
 
-    for (const { target, output } of targets) {
-      try {
-        console.log(`📦 Cross-compiling for ${target}...`);
-        await $`bun build --compile --target=${target} ${backendFile} --outfile ${output}`;
-        await $`chmod +x ${output}`;
-        console.log(`✅ Built ${target} successfully`);
-      } catch (error) {
-        console.warn(`⚠️  Failed to build ${target}: ${error.message}`);
-        // Continue with other targets even if one fails
-      }
-    }
+    console.log('📦 Cross-compiling for bun-linux-arm64...');
+    await $`bun build ${backendFile} --compile --outfile ${binariesDir}/server-linux-arm64 --target bun-linux-aarch64`;
+    console.log('✅ Built bun-linux-arm64 successfully');
 
-    // Verify at least one binary was created
-    const primaryBinary = path.join(binariesDir, 'server-linux-amd64');
-    if (!existsSync(primaryBinary)) {
-      throw new Error('Binary compilation failed - no usable Linux binary created');
-    }
-
-    const stats = await $`ls -lh ${binariesDir}/server-linux-*`.text();
-    console.log(`✅ Linux binaries created:\n${stats.trim()}\n`);
-
-    // Step 3: Build Podman image
-    console.log('🐳 Step 3/4: Building Podman image...');
-
-    // Verify podman is available and ensure machine is running
-    try {
-      await $`podman --version`.quiet();
-
-      // Check if we can connect to Podman
-      try {
-        await $`podman system connection list`.quiet();
-      } catch (connectionError) {
-        console.log('⚠️ Cannot connect to Podman, attempting to start machine...');
-
-        // Try to start the default Podman machine
-        try {
-          // Check if machine exists
-          const machineList = await $`podman machine list --format json`.quiet();
-          const machines = JSON.parse(machineList.stdout);
-
-          if (machines && machines.length > 0) {
-            // Start the first available machine (usually 'podman-machine-default')
-            const machineName = machines[0].Name || 'podman-machine-default';
-            console.log(`🔧 Starting Podman machine: ${machineName}`);
-            await $`podman machine start ${machineName}`.quiet();
-            console.log('✅ Podman machine started successfully');
-
-            // Wait a moment for the machine to be fully ready
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-          } else {
-            // No machine exists, create one
-            console.log('🔧 No Podman machine found, initializing a new one...');
-            await $`podman machine init`.quiet();
-            await $`podman machine start`.quiet();
-            console.log('✅ Podman machine initialized and started');
-
-            // Wait a bit longer for first-time init
-            await new Promise((resolve) => setTimeout(resolve, 3000));
-          }
-        } catch (machineError) {
-          console.warn('⚠️ Could not automatically start Podman machine:', machineError.message);
-          console.log('Please run "podman machine start" manually and try again.');
-          throw new Error('Podman machine not running');
-        }
-      }
-    } catch {
-      throw new Error('Podman not found. Please install Podman.');
-    }
-
-    // Build the image for the native platform architecture
-    const imageName = 'eliza-agent:latest';
-
-    // Build for native architecture to avoid Rosetta issues
-    const arch = process.arch;
-    const platform = arch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
-
-    // Allow disabling cache for production builds
-    const noCache = process.env.NO_CACHE === 'true';
-    const cacheFlag = noCache ? '--no-cache' : '';
-    const cacheMsg = noCache ? ' (no cache)' : ' (with cache)';
-
-    console.log(`📦 Building container for platform: ${platform}${cacheMsg}`);
-    const dockerfileDir = path.join(__dirname, '..');
-    const rootDir = path.join(__dirname, '..', '..', '..');
-
-    // Add cache-busting build arg to ensure fresh COPY of binaries
-    const buildTimestamp = Date.now();
-    // Build from root directory with correct context
-    await $`cd ${rootDir} && podman build --format docker ${cacheFlag} --build-arg CACHE_BUST=${buildTimestamp} --platform ${platform} -t ${imageName} -f packages/agentserver/Dockerfile .`;
-
-    // Tag for Rust compatibility
-    await $`podman tag ${imageName} eliza-agent:latest`;
-
-    console.log('✅ Podman image built successfully\n');
-
-    // Show final summary
-    console.log('🎉 Build completed successfully!\n');
-    console.log('📋 Artifacts created:');
-    console.log(
-      `   - Backend: ${path.relative(process.cwd(), path.join(__dirname, '..', 'dist', 'server.js'))}`
-    );
-    console.log(
-      `   - Binaries: ${path.relative(process.cwd(), path.join(__dirname, '..', 'dist-binaries'))}/server-linux-amd64, server-linux-arm64`
-    );
-    console.log('   - Image:   eliza-agent:latest');
-    console.log('\n🚀 The Rust container manager can now start the agent using:');
-    console.log('   podman run -p 7777:7777 eliza-agent:latest');
+    console.log('✅ Linux binaries created:');
+    console.log(`   ${path.join(__dirname, '..', 'dist-binaries', `server-linux-arm64`)}`);
+    console.log(`   ${path.join(__dirname, '..', 'dist-binaries', `server-linux-amd64`)}`);
   } catch (error) {
-    console.error('\n❌ Build failed:', error.message);
+    console.error('❌ Failed to build Linux binaries:', error);
     process.exit(1);
   }
+  console.log('');
+
+  console.log('🐳 Step 3/4: Building Podman image...');
+  const imageName = `elizaos/agent-server:latest-${platform.replace('/', '-')}`;
+  const buildTimestamp = Date.now();
+
+  const noCache = process.env.NO_CACHE === 'true';
+  const cacheFlag = noCache ? '--no-cache' : '';
+  const cacheMsg = noCache ? ' (no cache)' : ' (with cache)';
+
+  console.log(`📦 Building container for platform: ${platform}${cacheMsg}`);
+  await $`cd ${rootDir} && podman build --format docker ${cacheFlag} --build-arg CACHE_BUST=${buildTimestamp} --platform ${platform} -t ${imageName} -f packages/agentserver/Dockerfile .`;
+
+  await $`podman tag ${imageName} eliza-agent:latest`;
+
+  console.log('✅ Podman image built successfully');
+  console.log(`   Image: ${imageName}`);
+  console.log('');
+
+  console.log('✨ Step 4/4: Finalizing...');
+  console.log('🎉 Build complete!');
+  console.log('To run the server, use: podman run -it --rm -p 7777:7777', imageName);
 }
 
-// Run the complete build
 if (import.meta.main) {
-  await buildEverything();
+  main().catch((error) => {
+    console.error('\n❌ Build failed:', error.message);
+    process.exit(1);
+  });
 }
 
 // Export functions for use by other scripts
-export { cleanContainerCache, buildEverything };
+export { main, cleanContainerCache };

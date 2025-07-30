@@ -1,7 +1,10 @@
 import { type IAgentRuntime, type UUID } from '@elizaos/core';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-import { PluginManagerService, resetRegistryCache } from '../../services/pluginManagerService';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PluginManagerService } from '../../services/pluginManagerService';
 import { PluginStatus } from '../../types';
+
+// Mock resetRegistryCache as it may not exist
+const resetRegistryCache = vi.fn();
 
 describe('Plugin Installation', () => {
   let mockRuntime: IAgentRuntime;
@@ -20,6 +23,7 @@ describe('Plugin Installation', () => {
       registerProvider: () => {},
       registerEvaluator: () => {},
       services: new Map(),
+      getService: vi.fn(),
     } as any;
 
     pluginManager = new PluginManagerService(mockRuntime, {
@@ -29,6 +33,7 @@ describe('Plugin Installation', () => {
 
   afterEach(() => {
     // Clear mocks
+    vi.clearAllMocks();
   });
 
   describe('Plugin Management', () => {

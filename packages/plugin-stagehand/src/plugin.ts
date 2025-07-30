@@ -1055,7 +1055,25 @@ async function testStagehandConnection(runtime: IAgentRuntime): Promise<void> {
   try {
     logger.info('[Stagehand] Running Google.com test to verify browser automation...');
 
-    const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+    // Retry getting the service with exponential backoff
+    let service: StagehandService | null = null;
+    let retries = 0;
+    const maxRetries = 5;
+    
+    while (!service && retries < maxRetries) {
+      service = runtime.getService<StagehandService>(StagehandService.serviceType);
+      if (!service) {
+        if (retries === maxRetries - 1) {
+          logger.warn('[Stagehand] Service not available after retries. The plugin may not be fully initialized.');
+          return;
+        }
+        const waitTime = Math.pow(2, retries) * 1000; // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+        logger.debug(`[Stagehand] Service not available yet, retrying in ${waitTime}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+        retries++;
+      }
+    }
+
     if (!service) {
       logger.warn('[Stagehand] Service not available for test');
       return;
@@ -1124,12 +1142,30 @@ export const stagehandPlugin: Plugin = {
         }
       }
 
-      // Schedule the Google test to run after a short delay to ensure service is ready
-      setTimeout(() => {
-        testStagehandConnection(runtime).catch((error) => {
-          logger.error('[Stagehand] Init test error:', error);
-        });
-      }, 5000); // 5 second delay to ensure everything is initialized
+      // Schedule the Google test with a more robust approach
+      // Check periodically if the runtime is ready before running the test
+      let testScheduled = false;
+      const scheduleTest = async () => {
+        if (testScheduled) return;
+        
+        // Check if runtime has the service available
+        const service = runtime.getService<StagehandService>(StagehandService.serviceType);
+        if (service) {
+          testScheduled = true;
+          // Run the test after a short delay to ensure everything is ready
+          setTimeout(() => {
+            testStagehandConnection(runtime).catch((error) => {
+              logger.error('[Stagehand] Init test error:', error);
+            });
+          }, 2000);
+        } else {
+          // If service not available yet, check again in 1 second
+          setTimeout(scheduleTest, 1000);
+        }
+      };
+
+      // Start checking for service availability after 3 seconds
+      setTimeout(scheduleTest, 3000);
     } catch (error) {
       if (error instanceof z.ZodError) {
         throw new Error(

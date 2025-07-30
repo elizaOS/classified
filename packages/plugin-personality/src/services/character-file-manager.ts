@@ -1,4 +1,10 @@
-import { Service, type IAgentRuntime, logger, type MessageExample } from '@elizaos/core';
+import {
+  Service,
+  type IAgentRuntime,
+  logger,
+  type MessageExample,
+  MemoryType,
+} from '@elizaos/core';
 import fs from 'fs-extra';
 import path from 'path';
 import { z } from 'zod';
@@ -376,7 +382,9 @@ export class CharacterFileManager extends Service {
             source: 'character_modification',
           },
           metadata: {
-            type: 'custom' as const,
+            type: MemoryType.CUSTOM,
+            service: PersonalityServiceType,
+            action: 'character_modified',
             timestamp: Date.now(),
             filePath: this.characterFilePath,
             modificationType: 'file_update',
@@ -486,7 +494,9 @@ export class CharacterFileManager extends Service {
             source: 'character_restoration',
           },
           metadata: {
-            type: 'custom' as const,
+            type: MemoryType.CUSTOM,
+            service: PersonalityServiceType,
+            action: 'character_reset',
             timestamp: Date.now(),
             backupPath,
             previousBackup: currentBackupPath,

@@ -211,6 +211,24 @@ export const createApiRateLimit = () => {
     },
     standardHeaders: true, // Return rate limit info in the `RateLimitInfo` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    skip: (req) => {
+      // Skip rate limiting for health check and critical startup endpoints
+      const exemptPaths = [
+        '/api/server/health',
+        '/api/ping',
+        '/api/agents/primary',
+        '/api/system/health',
+        '/api/system/environment',
+      ];
+      
+      // Check if the request path starts with any exempt path
+      const isExempt = exemptPaths.some(path => req.path.startsWith(path));
+      
+      // Also skip rate limiting for localhost during development/startup
+      const isLocalhost = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+      
+      return isExempt || (isLocalhost && process.env.NODE_ENV !== 'production');
+    },
     handler: (req, res) => {
       const clientIp = req.ip || 'unknown';
       logger.warn(`[SECURITY] Rate limit exceeded for IP: ${clientIp}`);

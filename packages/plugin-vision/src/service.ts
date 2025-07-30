@@ -1729,7 +1729,11 @@ export class VisionService extends Service {
       : 100;
 
     // Update scene description if significant change
-    if (changePercentage > this.visionConfig.vlmChangeThreshold && stream.type && stream.source) {
+    if (
+      changePercentage > (this.visionConfig?.vlmChangeThreshold || 50) &&
+      stream.type &&
+      stream.source
+    ) {
       // Get current description synchronously
       const currentDescription = this.lastSceneDescription;
       const newDescription = `[External ${stream.type} from ${stream.source}] ${currentDescription?.description || 'Scene detected'}`;

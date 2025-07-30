@@ -161,9 +161,6 @@ export const unfollowRoomAction: Action = {
             thought: "I tried to unfollow a room but I'm not in a room",
             actions: ['UNFOLLOW_ROOM_FAILED'],
           },
-          metadata: {
-            type: 'UNFOLLOW_ROOM',
-          },
         },
         'messages'
       );

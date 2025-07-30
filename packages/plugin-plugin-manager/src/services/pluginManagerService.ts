@@ -3,7 +3,7 @@ import {
   type IAgentRuntime,
   type ServiceTypeName,
   logger,
-  type Plugin,
+  type Plugin as ElizaPlugin,
   createUniqueUuid,
 } from '@elizaos/core';
 import {
@@ -13,7 +13,6 @@ import {
   type LoadPluginParams,
   type UnloadPluginParams,
   type PluginManagerConfig,
-  EventType,
   PluginManagerServiceType,
   type ComponentRegistration,
   type PluginComponents,
@@ -239,7 +238,7 @@ export class PluginManagerService extends Service implements PluginRegistry {
 
   public plugins: Map<string, PluginState> = new Map();
   private pluginManagerConfig: PluginManagerConfig;
-  private originalPlugins: Plugin[] = [];
+  private originalPlugins: ElizaPlugin[] = [];
   private originalActions: Set<string> = new Set();
   private originalProviders: Set<string> = new Set();
   private originalEvaluators: Set<string> = new Set();
@@ -409,12 +408,6 @@ export class PluginManagerService extends Service implements PluginRegistry {
 
     logger.info(`[PluginManagerService] Loading plugin ${pluginState.name}...`);
 
-    // Emit loading event
-    await this.runtime.emitEvent(EventType.PLUGIN_BUILDING, {
-      pluginId,
-      pluginName: pluginState.name,
-    });
-
     // Initialize plugin if it has an init function
     if (pluginState.plugin.init) {
       await pluginState.plugin.init({}, this.runtime);
@@ -428,12 +421,6 @@ export class PluginManagerService extends Service implements PluginRegistry {
       status: PluginStatus.LOADED,
       loadedAt: Date.now(),
       error: undefined,
-    });
-
-    // Emit loaded event
-    await this.runtime.emitEvent(EventType.PLUGIN_LOADED, {
-      pluginId,
-      pluginName: pluginState.name,
     });
 
     logger.success(`[PluginManagerService] Plugin ${pluginState.name} loaded successfully`);
@@ -472,16 +459,10 @@ export class PluginManagerService extends Service implements PluginRegistry {
       unloadedAt: Date.now(),
     });
 
-    // Emit unloaded event
-    await this.runtime.emitEvent(EventType.PLUGIN_UNLOADED, {
-      pluginId,
-      pluginName: pluginState.name,
-    });
-
     logger.success(`[PluginManagerService] Plugin ${pluginState.name} unloaded successfully`);
   }
 
-  async registerPlugin(plugin: Plugin): Promise<string> {
+  async registerPlugin(plugin: ElizaPlugin): Promise<string> {
     const pluginId = createUniqueUuid(this.runtime, plugin.name);
 
     if (this.plugins.has(pluginId)) {
@@ -507,11 +488,6 @@ export class PluginManagerService extends Service implements PluginRegistry {
 
     this.plugins.set(pluginId, state);
 
-    await this.runtime.emitEvent(EventType.PLUGIN_READY, {
-      pluginId,
-      pluginName: plugin.name,
-    });
-
     return pluginId;
   }
 
@@ -533,7 +509,7 @@ export class PluginManagerService extends Service implements PluginRegistry {
     this.componentRegistry.get(pluginId)!.push(registration);
   }
 
-  private async registerPluginComponents(plugin: Plugin): Promise<void> {
+  private async registerPluginComponents(plugin: ElizaPlugin): Promise<void> {
     const pluginState = Array.from(this.plugins.values()).find((p) => p.plugin === plugin);
     if (!pluginState) {
       throw new Error('Plugin state not found during component registration');
@@ -585,8 +561,14 @@ export class PluginManagerService extends Service implements PluginRegistry {
       for (const ServiceClass of plugin.services) {
         const service = await ServiceClass.start(this.runtime);
         const serviceType = ServiceClass.serviceType as ServiceTypeName;
-        // Fix: Ensure service is an array when setting
-        this.runtime.services.set(serviceType, [service]);
+
+        // Get existing services array or create new one
+        const existingServices =
+          ((this.runtime.services as any).get(serviceType) as Service[]) || [];
+        existingServices.push(service);
+
+        // Store the updated array
+        (this.runtime.services as any).set(serviceType, existingServices);
         pluginState.components!.services.add(serviceType);
         this.trackComponentRegistration(pluginState.id, 'service', serviceType);
       }
@@ -599,7 +581,7 @@ export class PluginManagerService extends Service implements PluginRegistry {
     this.runtime.plugins.push(plugin);
   }
 
-  private async unregisterPluginComponents(plugin: Plugin): Promise<void> {
+  private async unregisterPluginComponents(plugin: ElizaPlugin): Promise<void> {
     const pluginState = Array.from(this.plugins.values()).find((p) => p.plugin === plugin);
     if (!pluginState || !pluginState.components) {
       logger.warn('Plugin state or components not found during unregistration');
@@ -666,14 +648,16 @@ export class PluginManagerService extends Service implements PluginRegistry {
       for (const ServiceClass of plugin.services) {
         const serviceType = ServiceClass.serviceType;
         if (!this.originalServices.has(serviceType)) {
-          const services = this.runtime.services.get(serviceType as ServiceTypeName);
-          if (services) {
-            // Fix: Stop each service in the array
+          const services = (this.runtime.services as any).get(
+            serviceType as ServiceTypeName
+          ) as Service[];
+          if (services && Array.isArray(services)) {
+            // Stop each service in the array
             for (const service of services) {
               await service.stop();
             }
             logger.debug(`Stopped services for: ${serviceType}`);
-            this.runtime.services.delete(serviceType as ServiceTypeName);
+            (this.runtime.services as any).delete(serviceType as ServiceTypeName);
             pluginState.components.services.delete(serviceType);
             logger.debug(`Unregistered services: ${serviceType}`);
           }
@@ -927,7 +911,7 @@ export class PluginManagerService extends Service implements PluginRegistry {
     };
   }
 
-  private async loadPluginModule(pluginPath: string): Promise<Plugin> {
+  private async loadPluginModule(pluginPath: string): Promise<ElizaPlugin> {
     const packageJsonPath = path.join(pluginPath, 'package.json');
     let mainEntry = pluginPath;
 
@@ -958,7 +942,7 @@ export class PluginManagerService extends Service implements PluginRegistry {
     throw new Error(`Could not find a valid plugin export in ${mainEntry}`);
   }
 
-  private isValidPlugin(obj: any): obj is Plugin {
+  private isValidPlugin(obj: any): obj is ElizaPlugin {
     return (
       obj &&
       typeof obj === 'object' &&

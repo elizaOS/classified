@@ -832,10 +832,7 @@ export class KnowledgeService extends Service {
     return chunks.map((chunk, index) => {
       // Create a unique ID for the fragment based on document ID, index, and timestamp
       const fragmentIdContent = `${document.id}-fragment-${index}-${Date.now()}`;
-      const fragmentId = createUniqueUuid(
-        this.runtime.agentId + fragmentIdContent,
-        fragmentIdContent
-      );
+      const fragmentId = createUniqueUuid(this.runtime, fragmentIdContent);
 
       return {
         id: fragmentId,

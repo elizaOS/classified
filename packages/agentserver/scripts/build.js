@@ -56,6 +56,12 @@ async function build() {
         // Vision plugin dependencies that should remain external
         'sharp',
         'jimp',
+        // Fastembed and ONNX Runtime dependencies - have native bindings
+        'fastembed',
+        'onnxruntime-node',
+        '@anush008/tokenizers',
+        '@anush008/tokenizers-darwin-universal',
+        'onnxruntime-extensions',
       ],
       // Add a plugin to resolve workspace dependencies
       plugins: [

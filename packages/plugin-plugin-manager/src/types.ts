@@ -1,24 +1,19 @@
-import type { Plugin, IAgentRuntime, UUID } from '@elizaos/core';
+import { type ServiceTypeName, type Plugin as ElizaPlugin } from '@elizaos/core';
 
-// Extend the core service types with plugin manager service
+// Service type declarations for plugin manager
 declare module '@elizaos/core' {
   interface ServiceTypeRegistry {
     PLUGIN_MANAGER: 'plugin_manager';
     PLUGIN_CONFIGURATION: 'plugin_configuration';
-    PLUGIN_USER_INTERACTION: 'plugin_user_interaction';
     REGISTRY: 'registry';
-    LLM_PROVIDER_MANAGER: 'llm_provider_manager';
   }
 }
 
-// Export service type constant
 export const PluginManagerServiceType = {
-  PLUGIN_MANAGER: 'plugin_manager' as const,
-  PLUGIN_CONFIGURATION: 'plugin_configuration' as const,
-  PLUGIN_USER_INTERACTION: 'plugin_user_interaction' as const,
-  REGISTRY: 'registry' as const,
-  LLM_PROVIDER_MANAGER: 'llm_provider_manager' as const,
-} satisfies Partial<import('@elizaos/core').ServiceTypeRegistry>;
+  PLUGIN_MANAGER: 'plugin_manager' as ServiceTypeName,
+  PLUGIN_CONFIGURATION: 'plugin_configuration' as ServiceTypeName,
+  REGISTRY: 'registry' as ServiceTypeName,
+} as const;
 
 export enum PluginStatus {
   BUILDING = 'building',
@@ -27,10 +22,8 @@ export enum PluginStatus {
   ERROR = 'error',
   UNLOADED = 'unloaded',
   NEEDS_CONFIGURATION = 'needs_configuration',
-  CONFIGURATION_IN_PROGRESS = 'configuration_in_progress',
 }
 
-// Configuration-related types
 export interface PluginEnvironmentVariable {
   name: string;
   description: string;
@@ -45,25 +38,6 @@ export interface PluginEnvironmentVariable {
   };
 }
 
-export interface PluginConfigurationRequest {
-  pluginName: string;
-  requiredVars: PluginEnvironmentVariable[];
-  missingVars: string[];
-  optionalVars: PluginEnvironmentVariable[];
-}
-
-export interface ConfigurationDialog {
-  id: string;
-  pluginName: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-  request: PluginConfigurationRequest;
-  responses: Record<string, string>;
-  currentVariable?: string;
-  startedAt: Date;
-  completedAt?: Date;
-}
-
-// Component tracking types
 export interface PluginComponents {
   actions: Set<string>;
   providers: Set<string>;
@@ -83,7 +57,7 @@ export interface PluginState {
   id: string;
   name: string;
   status: PluginStatus;
-  plugin?: Plugin;
+  plugin?: ElizaPlugin;
   missingEnvVars: string[];
   buildLog: string[];
   sourceCode?: string;
@@ -110,13 +84,6 @@ export interface PluginRegistry {
   updatePluginState(id: string, update: Partial<PluginState>): void;
 }
 
-export interface CreatePluginParams {
-  name: string;
-  description: string;
-  capabilities: string[];
-  dependencies?: string[];
-}
-
 export interface LoadPluginParams {
   pluginId: string;
   force?: boolean;
@@ -139,14 +106,15 @@ export interface InstallProgress {
   message: string;
 }
 
-export const EventType = {
-  PLUGIN_BUILDING: 'PLUGIN_BUILDING',
-  PLUGIN_READY: 'PLUGIN_READY',
-  PLUGIN_LOADED: 'PLUGIN_LOADED',
-  PLUGIN_UNLOADED: 'PLUGIN_UNLOADED',
-  PLUGIN_ERROR: 'PLUGIN_ERROR',
-  PLUGIN_ENV_MISSING: 'PLUGIN_ENV_MISSING',
-  PLUGIN_CONFIGURATION_REQUIRED: 'PLUGIN_CONFIGURATION_REQUIRED',
-  PLUGIN_CONFIGURATION_STARTED: 'PLUGIN_CONFIGURATION_STARTED',
-  PLUGIN_CONFIGURATION_COMPLETED: 'PLUGIN_CONFIGURATION_COMPLETED',
-} as const;
+export interface PluginMetadata {
+  name: string;
+  description: string;
+  author: string;
+  repository: string;
+  versions: string[];
+  latestVersion: string;
+  runtimeVersion: string;
+  maintainer: string;
+  tags?: string[];
+  categories?: string[];
+}

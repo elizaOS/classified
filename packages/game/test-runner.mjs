@@ -9,6 +9,9 @@ import { spawn } from 'child_process';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
+import { createWriteStream } from 'fs';
+import { mkdir } from 'fs/promises';
+import { readFileSync } from 'fs';
 
 // Get the directory name for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -27,20 +30,21 @@ const BACKEND_PORT = 7777;
 const FRONTEND_PORT = 5173;
 const BACKEND_DIR = join(__dirname, '..', 'agentserver');
 const TIMEOUT_SECONDS = 60;
+const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
 let backendProcess = null;
 let frontendProcess = null;
 let exitCode = 0;
 
 // Helper function to check if a server is running
-async function checkServer(url, maxAttempts = 60) {
+async function checkServer(url, maxAttempts = TIMEOUT_SECONDS) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
       const response = await fetch(url);
       if (response.ok || response.status < 500) {
         return true;
       }
-    } catch (error) {
+    } catch (_error) {
       // Server not ready yet
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -52,37 +56,72 @@ async function checkServer(url, maxAttempts = 60) {
 // Start backend server
 async function startBackend() {
   console.log(`${colors.yellow}Starting backend server...${colors.reset}`);
+  const backendLogStream = createWriteStream(join(__dirname, 'backend.log'));
 
   return new Promise((resolve, reject) => {
-    backendProcess = spawn('bun', ['run', 'dev'], {
-      cwd: BACKEND_DIR,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    // Start backend directly with environment variables for local PostgreSQL
+    backendProcess = spawn(
+      'env',
+      [
+        'EMBEDDING_PROVIDER=local_embedding',
+        'MODEL_PROVIDER=openai',
+        'TEXT_PROVIDER=openai',
+        'ANTHROPIC_API_KEY=',
+        'OLLAMA_ENABLED=false',
+        'bun',
+        'src/index.ts',
+      ],
+      {
+        cwd: BACKEND_DIR,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    );
 
-    let output = '';
-    backendProcess.stdout.on('data', (data) => {
-      output += data.toString();
-    });
+    backendProcess.stdout.pipe(backendLogStream);
+    backendProcess.stderr.pipe(backendLogStream);
 
-    backendProcess.stderr.on('data', (data) => {
-      output += data.toString();
-    });
+    const timer = setTimeout(() => {
+      console.log(`\n${colors.red}✗ Backend failed to start${colors.reset}`);
+
+      // Read the last part of the log file to show what happened
+      try {
+        const logContent = readFileSync(join(__dirname, 'backend.log'), 'utf8');
+        console.log('Last output:', logContent.slice(-500));
+      } catch (err) {
+        console.log('Could not read backend log');
+      }
+
+      reject(new Error('Backend startup timeout'));
+    }, 60000);
+
+    // Check if backend started successfully
+    const checkInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/server/health`);
+        if (response.ok) {
+          clearInterval(checkInterval);
+          clearTimeout(timer);
+          console.log(`${colors.green}✓ Backend started successfully${colors.reset}`);
+          resolve();
+        }
+      } catch (error) {
+        process.stdout.write('.');
+      }
+    }, 1000);
 
     backendProcess.on('error', (error) => {
-      console.error(`${colors.red}Backend failed to start:${colors.reset}`, error);
+      clearInterval(checkInterval);
+      clearTimeout(timer);
+      console.log(`${colors.red}✗ Backend process error: ${error}${colors.reset}`);
       reject(error);
     });
 
-    // Check if backend is ready
-    process.stdout.write('Waiting for backend to start');
-    checkServer(`http://localhost:${BACKEND_PORT}/api/server/health`).then((isRunning) => {
-      if (isRunning) {
-        console.log(`\n${colors.green}✓ Backend is ready!${colors.reset}`);
-        resolve();
-      } else {
-        console.log(`\n${colors.red}✗ Backend failed to start${colors.reset}`);
-        console.log('Last output:', output.slice(-500));
-        reject(new Error('Backend failed to start'));
+    backendProcess.on('exit', (code) => {
+      clearInterval(checkInterval);
+      clearTimeout(timer);
+      if (code !== 0) {
+        console.log(`${colors.red}✗ Backend exited with code ${code}${colors.reset}`);
+        reject(new Error(`Backend exited with code ${code}`));
       }
     });
   });
@@ -91,6 +130,7 @@ async function startBackend() {
 // Start frontend server
 async function startFrontend() {
   console.log(`${colors.yellow}Starting frontend server...${colors.reset}`);
+  const frontendLogStream = createWriteStream(join(__dirname, 'frontend.log'));
 
   return new Promise((resolve, reject) => {
     frontendProcess = spawn('npx', ['vite', '--host'], {
@@ -98,14 +138,8 @@ async function startFrontend() {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    let output = '';
-    frontendProcess.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    frontendProcess.stderr.on('data', (data) => {
-      output += data.toString();
-    });
+    frontendProcess.stdout.pipe(frontendLogStream);
+    frontendProcess.stderr.pipe(frontendLogStream);
 
     frontendProcess.on('error', (error) => {
       console.error(`${colors.red}Frontend failed to start:${colors.reset}`, error);

@@ -8,17 +8,94 @@ use crate::common::{
 };
 use crate::container::runtime_manager::RuntimeType;
 use crate::container::retry::{retry_with_backoff, RetryConfig, is_retryable_error};
-use crate::container::resource_check::ResourceChecker;
+use crate::container::resource_check::{ResourceChecker};
 use crate::container::user_error::handle_user_error;
 use dashmap::DashMap;
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::RwLock;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
+
+/// Port configuration for dynamic port allocation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PortConfig {
+    pub postgres_port: u16,
+    pub ollama_port: u16,
+    pub agent_port: u16,
+}
+
+impl Default for PortConfig {
+    fn default() -> Self {
+        Self {
+            postgres_port: 5432,
+            ollama_port: 11434,
+            agent_port: 7777,
+        }
+    }
+}
+
+impl PortConfig {
+    /// Find available ports, using alternatives if defaults are in use
+    pub async fn find_available_ports() -> Self {
+        let mut config = Self::default();
+        
+        // Check PostgreSQL port
+        if !crate::common::is_port_available(config.postgres_port) {
+            info!("PostgreSQL port {} is in use, trying alternative...", config.postgres_port);
+            config.postgres_port = 5433;
+            if !crate::common::is_port_available(config.postgres_port) {
+                // Try a range of ports
+                for port in 5434..5440 {
+                    if crate::common::is_port_available(port) {
+                        config.postgres_port = port;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Check Ollama port
+        if !crate::common::is_port_available(config.ollama_port) {
+            info!("Ollama port {} is in use, trying alternative...", config.ollama_port);
+            config.ollama_port = 11435;
+            if !crate::common::is_port_available(config.ollama_port) {
+                // Try a range of ports
+                for port in 11436..11440 {
+                    if crate::common::is_port_available(port) {
+                        config.ollama_port = port;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Check Agent port
+        if !crate::common::is_port_available(config.agent_port) {
+            info!("Agent port {} is in use, trying alternative...", config.agent_port);
+            config.agent_port = 7778;
+            if !crate::common::is_port_available(config.agent_port) {
+                // Try a range of ports
+                for port in 7779..7785 {
+                    if crate::common::is_port_available(port) {
+                        config.agent_port = port;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        info!("Using ports - PostgreSQL: {}, Ollama: {}, Agent: {}", 
+              config.postgres_port, config.ollama_port, config.agent_port);
+        
+        config
+    }
+}
 
 pub struct ContainerManager {
     runtime: ContainerRuntime,
@@ -30,6 +107,8 @@ pub struct ContainerManager {
     resource_dir: Option<std::path::PathBuf>,
     podman_restart_mutex: Arc<Mutex<()>>,
     memory_limits: Option<crate::startup::ContainerMemoryLimits>,
+    progress_tracker: Arc<RwLock<HashMap<String, f32>>>,
+    port_config: Arc<RwLock<PortConfig>>,
 }
 
 #[derive(Debug, Clone)]
@@ -103,7 +182,46 @@ impl ContainerManager {
     /// # Errors
     ///
     /// Returns an error if the container runtime client cannot be initialized.
-    pub fn new(runtime_type: crate::backend::ContainerRuntimeType) -> BackendResult<Self> {
+    pub fn new(
+        runtime: ContainerRuntime,
+        app_handle: Option<AppHandle>,
+        resource_dir: Option<std::path::PathBuf>,
+    ) -> BackendResult<Self> {
+        let health_monitor = Arc::new(HealthMonitor::new());
+        let setup_progress = Arc::new(RwLock::new(SetupProgress {
+            stage: "initialized".to_string(),
+            progress: 0,
+            message: "Container manager initialized".to_string(),
+            details: "Ready to start containers".to_string(),
+            can_retry: false,
+            model_progress: None,
+        }));
+        
+        // Initialize with default port config, will be updated when containers start
+        let port_config = Arc::new(RwLock::new(PortConfig::default()));
+        
+        Ok(Self {
+            runtime,
+            containers: Arc::new(DashMap::new()),
+            health_monitor,
+            log_streamer: Arc::new(LogStreamManager::new()),
+            setup_progress,
+            app_handle,
+            resource_dir,
+            podman_restart_mutex: Arc::new(Mutex::new(())),
+            memory_limits: None,
+            progress_tracker: Arc::new(RwLock::new(HashMap::new())),
+            port_config,
+        })
+    }
+
+    /// Creates a new container manager with the specified runtime type.
+    /// This is a convenience method that creates the appropriate runtime client.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the container runtime client cannot be initialized.
+    pub fn new_with_runtime_type(runtime_type: crate::backend::ContainerRuntimeType) -> BackendResult<Self> {
         let runtime = match runtime_type {
             crate::backend::ContainerRuntimeType::Podman => {
                 ContainerRuntime::Podman(super::podman::PodmanClient::new())
@@ -112,27 +230,8 @@ impl ContainerManager {
                 ContainerRuntime::Docker(super::docker::DockerClient::new())
             }
         };
-
-        let health_monitor = Arc::new(HealthMonitor::new());
-
-        Ok(Self {
-            runtime,
-            containers: Arc::new(DashMap::new()),
-            health_monitor,
-            log_streamer: Arc::new(LogStreamManager::new()),
-            setup_progress: Arc::new(RwLock::new(SetupProgress {
-                stage: "initialized".to_string(),
-                progress: 0,
-                message: "Container manager initialized".to_string(),
-                details: String::new(),
-                can_retry: false,
-                model_progress: None,
-            })),
-            app_handle: None,
-            resource_dir: None,
-            podman_restart_mutex: Arc::new(Mutex::new(())),
-            memory_limits: None,
-        })
+        
+        Self::new(runtime, None, None)
     }
 
     /// Creates a new container manager using runtime detection and management.
@@ -191,6 +290,8 @@ impl ContainerManager {
                     resource_dir: Some(resource_dir),
                     podman_restart_mutex: Arc::new(Mutex::new(())),
                     memory_limits: None,
+                    progress_tracker: Arc::new(RwLock::new(HashMap::new())),
+                    port_config: Arc::new(RwLock::new(PortConfig::default())),
                 })
             }
             Err(e) => {
@@ -226,6 +327,14 @@ impl ContainerManager {
         self.setup_postgres_init_scripts().await?;
         info!("Starting PostgreSQL container");
 
+        // Get the current port configuration
+        let port_config = self.port_config.read().await;
+        let postgres_port = port_config.postgres_port;
+        
+        if postgres_port != 5432 {
+            info!("Using alternative PostgreSQL port: {}", postgres_port);
+        }
+
         // Use dynamic memory limit or fallback to default
         let memory_limit = self.memory_limits
             .as_ref()
@@ -235,7 +344,7 @@ impl ContainerManager {
         let config = ContainerConfig {
             name: POSTGRES_CONTAINER.to_string(),
             image: "pgvector/pgvector:pg16".to_string(),
-            ports: vec![PortMapping::new(5432, 5432)],
+            ports: vec![PortMapping::new(postgres_port, 5432)], // Map host port to container's 5432
             environment: vec![
                 "POSTGRES_DB=eliza".to_string(),
                 "POSTGRES_USER=eliza".to_string(),
@@ -274,83 +383,25 @@ impl ContainerManager {
     pub async fn start_ollama(&self) -> BackendResult<ContainerStatus> {
         info!("Starting Ollama container");
 
+        // Get the current port configuration
+        let port_config = self.port_config.read().await;
+        let ollama_port = port_config.ollama_port;
+        
+        if ollama_port != 11434 {
+            info!("Using alternative Ollama port: {}", ollama_port);
+        }
+
         // Use dynamic memory limit or fallback to default
         let memory_limit = self.memory_limits
             .as_ref()
             .map(|limits| limits.ollama_limit_str())
             .unwrap_or_else(|| "8g".to_string());
 
-        // Check if port 11434 is available
-        if !crate::common::is_port_available(11434) {
-            info!("Port 11434 is in use, checking if it's native Ollama...");
-            
-            // Try to detect if it's native Ollama
-            match reqwest::get("http://localhost:11434/api/version").await {
-                Ok(resp) if resp.status().is_success() => {
-                    warn!("Native Ollama detected on port 11434. Attempting to stop it...");
-                    
-                    // Try to stop native Ollama service
-                    #[cfg(target_os = "macos")]
-                    {
-                        let _ = tokio::process::Command::new("pkill")
-                            .arg("-f")
-                            .arg("ollama")
-                            .output()
-                            .await;
-                    }
-                    
-                    #[cfg(target_os = "linux")]
-                    {
-                        let _ = tokio::process::Command::new("systemctl")
-                            .arg("stop")
-                            .arg("ollama")
-                            .output()
-                            .await;
-                            
-                        // Also try pkill as backup
-                        let _ = tokio::process::Command::new("pkill")
-                            .arg("-f")
-                            .arg("ollama")
-                            .output()
-                            .await;
-                    }
-                    
-                    #[cfg(target_os = "windows")]
-                    {
-                        let _ = tokio::process::Command::new("taskkill")
-                            .args(&["/F", "/IM", "ollama.exe"])
-                            .output()
-                            .await;
-                    }
-                    
-                    // Wait a moment for the port to be released
-                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                    
-                    // Check again
-                    if !crate::common::is_port_available(11434) {
-                        let backend_error = BackendError::Container(
-                            "Port 11434 is still in use after attempting to stop native Ollama. Please manually stop any process using port 11434.".to_string()
-                        );
-                        let user_error = crate::container::user_error::handle_user_error(backend_error, self.app_handle.as_ref()).await;
-                        return Err(BackendError::Container(user_error.message));
-                    }
-                }
-                _ => {
-                    // Something else is using the port
-                    let backend_error = BackendError::Container(
-                        "Port 11434 is in use by an unknown process. Please stop any process using port 11434.".to_string()
-                    );
-                    let user_error = crate::container::user_error::handle_user_error(backend_error, self.app_handle.as_ref()).await;
-                    return Err(BackendError::Container(user_error.message));
-                }
-            }
-        }
-
-        // Start our Ollama container on the eliza-network with standard port
+        // Start our Ollama container on the eliza-network with dynamic port
         let config = ContainerConfig {
             name: OLLAMA_CONTAINER.to_string(),
             image: "ollama/ollama:latest".to_string(),
-            ports: vec![PortMapping::new(11434, 11434)], // Standard Ollama port
+            ports: vec![PortMapping::new(ollama_port, 11434)], // Map host port to container's 11434
             environment: vec!["OLLAMA_PORT=11434".to_string()],
             volumes: vec![VolumeMount::new("eliza-ollama-data", "/root/.ollama")],
             health_check: Some(HealthCheckConfig::ollama_default()),
@@ -944,6 +995,14 @@ impl ContainerManager {
 
         info!("Using agent container image: {}", image_name);
 
+        // Get the current port configuration
+        let port_config = self.port_config.read().await;
+        let agent_port = port_config.agent_port;
+        
+        if agent_port != 7777 {
+            info!("Using alternative Agent port: {}", agent_port);
+        }
+
         // Build environment variables for the agent container
         let mut environment = vec![
             "NODE_ENV=production".to_string(),
@@ -952,6 +1011,7 @@ impl ContainerManager {
             "PORT=7777".to_string(),
             "SERVER_PORT=7777".to_string(),
             // Database connection - connects to eliza-postgres container
+            // Note: PostgreSQL always runs on port 5432 inside its container
             "DATABASE_URL=postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza"
                 .to_string(),
             "POSTGRES_URL=postgresql://eliza:eliza_secure_pass@eliza-postgres:5432/eliza"
@@ -962,6 +1022,7 @@ impl ContainerManager {
             "POSTGRES_USER=eliza".to_string(),
             "POSTGRES_PASSWORD=eliza_secure_pass".to_string(),
             // Ollama connection - connects to eliza-ollama container via container network
+            // Note: Ollama always runs on port 11434 inside its container
             "OLLAMA_URL=http://eliza-ollama:11434".to_string(),
             "OLLAMA_SERVER_URL=http://eliza-ollama:11434".to_string(),
             "OLLAMA_BASE_URL=http://eliza-ollama:11434".to_string(),
@@ -1016,7 +1077,7 @@ impl ContainerManager {
         let config = ContainerConfig {
             name: AGENT_CONTAINER.to_string(),
             image: image_name,
-            ports: vec![PortMapping::new(7777, 7777)], // Agent API port
+            ports: vec![PortMapping::new(agent_port, 7777)], // Map host port to container's 7777
             environment,
             volumes: vec![
                 VolumeMount::new("eliza-agent-data", "/app/data"),
@@ -1109,6 +1170,28 @@ impl ContainerManager {
     pub async fn start_containers_with_dependencies(&self) -> BackendResult<()> {
         info!("🚀 Starting containers with dependency management...");
 
+        // Find available ports before starting
+        self.update_progress(
+            "checking",
+            3,
+            "Finding available ports...",
+            "Checking for port conflicts and finding alternatives",
+        )
+        .await;
+        
+        let available_ports = PortConfig::find_available_ports().await;
+        *self.port_config.write().await = available_ports.clone();
+        
+        if available_ports.postgres_port != 5432 {
+            info!("⚠️ Using alternative PostgreSQL port: {}", available_ports.postgres_port);
+        }
+        if available_ports.ollama_port != 11434 {
+            info!("⚠️ Using alternative Ollama port: {}", available_ports.ollama_port);
+        }
+        if available_ports.agent_port != 7777 {
+            info!("⚠️ Using alternative Agent port: {}", available_ports.agent_port);
+        }
+
         // Pre-flight resource checks
         self.update_progress(
             "checking",
@@ -1119,7 +1202,17 @@ impl ContainerManager {
         .await;
 
         let mut resource_checker = ResourceChecker::new();
-        let requirements = crate::container::ResourceRequirements::for_container_startup();
+        // Create requirements with the actual ports we'll use
+        let requirements = crate::container::ResourceRequirements {
+            min_memory_mb: 4096,
+            min_disk_gb: 10,
+            required_ports: vec![
+                ("PostgreSQL".to_string(), available_ports.postgres_port),
+                ("Ollama".to_string(), available_ports.ollama_port),
+                ("Agent".to_string(), available_ports.agent_port),
+            ],
+            estimated_download_mb: 5120,
+        };
         
         match resource_checker.check_resources(&requirements).await {
             Ok(result) => {
@@ -2597,6 +2690,11 @@ impl ContainerManager {
             }
         }
     }
+
+    /// Get the current port configuration
+    pub async fn get_port_config(&self) -> PortConfig {
+        self.port_config.read().await.clone()
+    }
 }
 
 impl Clone for ContainerManager {
@@ -2614,6 +2712,8 @@ impl Clone for ContainerManager {
             resource_dir: self.resource_dir.clone(),
             podman_restart_mutex: self.podman_restart_mutex.clone(),
             memory_limits: self.memory_limits.clone(),
+            progress_tracker: self.progress_tracker.clone(),
+            port_config: self.port_config.clone(),
         }
     }
 }

@@ -1,7 +1,6 @@
 import { Action, HandlerCallback, IAgentRuntime, Memory, State, elizaLogger } from '@elizaos/core';
 import * as fs from 'fs/promises';
 import * as path from 'node:path';
-import { publishPlugin } from '../services/pluginRegistryService';
 
 export const publishPluginAction: Action = {
   name: 'PUBLISH_PLUGIN',
@@ -45,89 +44,18 @@ export const publishPluginAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     state?: State,
-    options?: any,
+    options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<void> => {
     elizaLogger.info('[publishPluginAction] Starting plugin publication');
 
-    // Extract plugin path or name from message
-    const pluginInfo = extractPluginInfo(message.content?.text || '');
-    if (!pluginInfo) {
-      if (callback) {
-        await callback({
-          text: "Please specify which plugin you want to publish. You can provide a path to the plugin directory or the plugin name if it's in the current directory.",
-          actions: ['PUBLISH_PLUGIN'],
-        });
-      }
-      return;
-    }
-
-    // Verify plugin exists and has package.json
-    const pluginPath = await resolvePluginPath(pluginInfo);
-    if (!pluginPath) {
-      if (callback) {
-        await callback({
-          text: `Could not find plugin at: ${pluginInfo}. Make sure the path is correct and contains a package.json file.`,
-          actions: ['PUBLISH_PLUGIN'],
-        });
-      }
-      return;
-    }
-
-    // Read package.json
-    const packageJsonPath = path.join(pluginPath, 'package.json');
-    const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
-
+    // Temporarily disabled while migrating to new registry system
     if (callback) {
       await callback({
-        text: `Publishing ${packageJson.name} v${packageJson.version}...\n\nThis will:\n1. Run tests to ensure quality\n2. Build the plugin\n3. Publish to npm registry`,
+        text: '⚠️ Plugin publishing is temporarily unavailable while we migrate to the new registry system.\n\nYou can still publish manually using:\n```bash\nnpm publish --access public\n```\n\nMake sure to:\n1. Run tests with `npm test`\n2. Build with `npm run build`\n3. Login to npm with `npm login`',
         actions: ['PUBLISH_PLUGIN'],
       });
     }
-
-    // Publish the plugin
-    const result = await publishPlugin(pluginPath);
-
-    if (!result.success) {
-      if (callback) {
-        await callback({
-          text: `Failed to publish plugin: ${result.error}`,
-          actions: ['PUBLISH_PLUGIN'],
-        });
-      }
-      return;
-    }
-
-    // Prepare success response
-    let responseText = `Successfully published **${result.packageName}** v${result.version}!\n\n`;
-
-    if (result.npmUrl) {
-      responseText += `**NPM Registry:** ${result.npmUrl}\n\n`;
-    }
-
-    responseText += '**Next steps:**\n';
-    responseText += '1. Create a PR to add your plugin to the official Eliza registry\n';
-    responseText += '2. Update your README with installation instructions\n';
-    responseText += '3. Share your plugin with the community!\n\n';
-
-    if (result.registryPR) {
-      responseText += `**Registry PR:** ${result.registryPR}\n`;
-      responseText +=
-        'Your pull request to add the plugin to the official registry has been created.';
-    } else {
-      responseText +=
-        'To add your plugin to the official registry, run: `create registry PR for ' +
-        result.packageName +
-        '`';
-    }
-
-    if (callback) {
-      await callback({
-        text: responseText,
-        actions: ['PUBLISH_PLUGIN'],
-      });
-    }
-
     return;
   },
 };
@@ -171,12 +99,16 @@ function extractPluginInfo(text: string): string | null {
 async function resolvePluginPath(pluginInfo: string): Promise<string | null> {
   // Check if it's already a path
   if (pluginInfo.includes('/') || pluginInfo.includes('.')) {
-    const absolutePath = path.resolve(pluginInfo);
-    const stat = await fs.stat(absolutePath);
-    if (stat.isDirectory()) {
-      // Check for package.json
-      await fs.access(path.join(absolutePath, 'package.json'));
-      return absolutePath;
+    try {
+      const absolutePath = path.resolve(pluginInfo);
+      const stat = await fs.stat(absolutePath);
+      if (stat.isDirectory()) {
+        // Check for package.json
+        await fs.access(path.join(absolutePath, 'package.json'));
+        return absolutePath;
+      }
+    } catch {
+      // Path doesn't exist or isn't accessible, continue with other checks
     }
   }
 
@@ -189,11 +121,16 @@ async function resolvePluginPath(pluginInfo: string): Promise<string | null> {
   ];
 
   for (const possiblePath of possiblePaths) {
-    const stat = await fs.stat(possiblePath);
-    if (stat.isDirectory()) {
-      // Check for package.json
-      await fs.access(path.join(possiblePath, 'package.json'));
-      return possiblePath;
+    try {
+      const stat = await fs.stat(possiblePath);
+      if (stat.isDirectory()) {
+        // Check for package.json
+        await fs.access(path.join(possiblePath, 'package.json'));
+        return possiblePath;
+      }
+    } catch {
+      // Path doesn't exist or isn't accessible, continue with next path
+      continue;
     }
   }
 

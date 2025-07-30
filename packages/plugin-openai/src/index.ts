@@ -1,32 +1,79 @@
-import { createOpenAI } from '@ai-sdk/openai';
 import type {
-  DetokenizeTextParams,
-  GenerateTextParams,
   IAgentRuntime,
-  ImageDescriptionParams,
+  GenerateTextParams,
   ModelTypeName,
-  ObjectGenerationParams,
   Plugin,
+  ObjectGenerationParams,
   TextEmbeddingParams,
+  DetokenizeTextParams,
   TokenizeTextParams,
+  ImageDescriptionParams,
 } from '@elizaos/core';
 import {
-  EventType,
-  logger,
   ModelType,
-  safeReplacer,
+  logger,
+  Service,
   ServiceType,
+  type ServiceTypeName,
+  EventType,
+  safeReplacer,
   VECTOR_DIMS,
 } from '@elizaos/core';
 import {
-  generateObject,
+  LanguageModelUsage,
+  streamText,
   generateText,
-  JSONParseError,
+  generateObject,
+  embed,
   type JSONValue,
-  type LanguageModelUsage,
+  JSONParseError,
 } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
 import { encodingForModel, type TiktokenModel } from 'js-tiktoken';
 import { fetch, FormData } from 'undici';
+
+/**
+ * Validation service for OpenAI plugin
+ * Provides runtime validation for API key availability
+ */
+class OpenAIValidationService extends Service {
+  static override serviceType: ServiceTypeName = 'openai-validation' as ServiceTypeName;
+  static serviceName = 'openai-validation';
+
+  override capabilityDescription = 'Validates OpenAI plugin configuration and API availability';
+
+  constructor(runtime: IAgentRuntime) {
+    super(runtime);
+  }
+
+  static async start(runtime: IAgentRuntime): Promise<OpenAIValidationService> {
+    return new OpenAIValidationService(runtime);
+  }
+
+  async stop(): Promise<void> {
+    // No cleanup needed
+  }
+
+  /**
+   * Check if OpenAI is properly configured and available
+   */
+  async isValid(): Promise<boolean> {
+    const apiKey = getApiKey(this.runtime);
+    if (!apiKey) {
+      return false;
+    }
+
+    try {
+      const baseURL = getBaseURL(this.runtime);
+      const response = await fetch(`${baseURL}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+}
 
 /**
  * Retrieves a configuration setting from the runtime, falling back to environment variables or a default value if not found.
@@ -369,42 +416,25 @@ export const openaiPlugin: Plugin = {
     OPENAI_EXPERIMENTAL_TELEMETRY: process.env.OPENAI_EXPERIMENTAL_TELEMETRY,
   },
   async init(_config, runtime) {
-    // do check in the background
-    new Promise<void>(async (resolve) => {
-      resolve();
-      try {
-        if (!getApiKey(runtime)) {
-          logger.warn(
-            'OPENAI_API_KEY is not set in environment - OpenAI functionality will be limited'
-          );
-          return;
-        }
-        try {
-          const baseURL = getBaseURL(runtime);
-          const response = await fetch(`${baseURL}/models`, {
-            headers: { Authorization: `Bearer ${getApiKey(runtime)}` },
-          });
-          if (!response.ok) {
-            logger.warn(`OpenAI API key validation failed: ${response.statusText}`);
-            logger.warn('OpenAI functionality will be limited until a valid API key is provided');
-          } else {
-            logger.log('OpenAI API key validated successfully');
-          }
-        } catch (fetchError: unknown) {
-          const message = fetchError instanceof Error ? fetchError.message : String(fetchError);
-          logger.warn(`Error validating OpenAI API key: ${message}`);
-          logger.warn('OpenAI functionality will be limited until a valid API key is provided');
-        }
-      } catch (error: unknown) {
-        const message =
-          (error as { errors?: Array<{ message: string }> })?.errors
-            ?.map((e) => e.message)
-            .join(', ') || (error instanceof Error ? error.message : String(error));
+    try {
+      // Register the validation service
+      await runtime.registerService(OpenAIValidationService);
+
+      const apiKey = getApiKey(runtime);
+      // If API key is not set, we'll show a warning but continue
+      if (!apiKey) {
         logger.warn(
-          `OpenAI plugin configuration issue: ${message} - You need to configure the OPENAI_API_KEY in your environment variables`
+          'OPENAI_API_KEY is not set in environment - OpenAI functionality will be limited'
         );
+        // Return early without throwing an error
+        return;
       }
-    });
+    } catch (error) {
+      // Convert to warning instead of error
+      logger.warn(
+        `OpenAI plugin configuration issue: ${error} - You need to configure the OPENAI_API_KEY in your environment variables`
+      );
+    }
   },
 
   models: {

@@ -33,6 +33,9 @@ export interface Plugin {
   // Initialize plugin with runtime services
   init?: (config: Record<string, string>, runtime: IAgentRuntime) => Promise<void>;
 
+  // Check if plugin is valid and ready to use
+  isValid?: (runtime: IAgentRuntime) => Promise<boolean>;
+
   // Configuration
   config?: { [key: string]: any };
 

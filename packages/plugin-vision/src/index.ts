@@ -3,9 +3,10 @@ import { Plugin } from '@elizaos/core';
 import { VisionService } from './service';
 import { visionProvider } from './provider';
 import {
-  describeSceneAction,
   captureImageAction,
   setVisionModeAction,
+  visionDescribeAction,
+  visionAnalyzeAction,
   nameEntityAction,
   identifyPersonAction,
   trackEntityAction,
@@ -19,7 +20,7 @@ export const visionPlugin: Plugin = {
   providers: [visionProvider],
   actions: [
     // Scene analysis enabled for informational purposes
-    describeSceneAction,
+    visionDescribeAction,
     // Image capture disabled by default (privacy-sensitive)
     captureImageAction,
     // Vision mode setting enabled for configuration

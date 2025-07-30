@@ -5,9 +5,40 @@ import type {
   ObjectGenerationParams,
   Plugin,
 } from '@elizaos/core';
-import { ModelType, logger } from '@elizaos/core';
+import { ModelType, logger, Service, ServiceType, type ServiceTypeName } from '@elizaos/core';
 import { generateText } from 'ai';
 import { ensureReflectionProperties, extractAndParseJSON } from './utils';
+
+/**
+ * Validation service for Anthropic plugin
+ * Provides runtime validation for API key availability
+ */
+class AnthropicValidationService extends Service {
+  static override serviceType: ServiceTypeName = 'anthropic-validation' as ServiceTypeName;
+  static serviceName = 'anthropic-validation';
+
+  override capabilityDescription = 'Validates Anthropic plugin configuration and API availability';
+
+  constructor(runtime: IAgentRuntime) {
+    super(runtime);
+  }
+
+  static async start(runtime: IAgentRuntime): Promise<AnthropicValidationService> {
+    return new AnthropicValidationService(runtime);
+  }
+
+  async stop(): Promise<void> {
+    // No cleanup needed
+  }
+
+  /**
+   * Check if Anthropic is properly configured and available
+   */
+  async isValid(): Promise<boolean> {
+    const apiKey = getApiKey(this.runtime);
+    return !!apiKey;
+  }
+}
 
 /**
  * Retrieves a configuration setting from the runtime, falling back to environment variables or a default value if not found.
@@ -84,6 +115,9 @@ export const anthropicPlugin: Plugin = {
   },
   async init(config: Record<string, string>, runtime: IAgentRuntime) {
     try {
+      // Register the validation service
+      await runtime.registerService(AnthropicValidationService);
+
       const apiKey = getApiKey(runtime);
       // If API key is not set, we'll show a warning but continue
       if (!apiKey) {
@@ -100,6 +134,7 @@ export const anthropicPlugin: Plugin = {
       );
     }
   },
+
   models: {
     [ModelType.TEXT_SMALL]: async (runtime, { prompt, stopSequences = [] }: GenerateTextParams) => {
       ensureAnthropicAPIKeyExists(runtime);

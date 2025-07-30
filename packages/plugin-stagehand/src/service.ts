@@ -30,9 +30,30 @@ export class StagehandService extends Service {
 
   static async start(runtime: IAgentRuntime) {
     logger.info('Starting Stagehand browser automation service');
-    const service = new StagehandService(runtime);
-    await service.initialize();
-    return service;
+    try {
+      const service = new StagehandService(runtime);
+
+      // Start the Stagehand server process
+      logger.info('Starting Stagehand server process...');
+      try {
+        await service.processManager.start();
+        logger.info('Stagehand server started successfully');
+      } catch (error) {
+        logger.error('Failed to start Stagehand server:', error);
+        logger.warn('Stagehand plugin will be available but browser automation will not work');
+        logger.warn('To fix this, run: cd packages/plugin-stagehand && npm run build:binary');
+        // Don't throw - allow the service to start but in a degraded state
+      }
+
+      // Initialize WebSocket client
+      logger.info('Initializing WebSocket client...');
+      await service.initialize();
+
+      return service;
+    } catch (error) {
+      logger.error('Failed to start Stagehand service:', error);
+      throw error;
+    }
   }
 
   static async stop(runtime: IAgentRuntime) {
@@ -50,9 +71,12 @@ export class StagehandService extends Service {
     }
 
     try {
-      logger.info('Starting Stagehand server process...');
-      await this.processManager.start();
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Process manager is already started in the static start method
+      if (!this.processManager.isServerRunning()) {
+        logger.warn('Stagehand server is not running, attempting to start...');
+        await this.processManager.start();
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
 
       logger.info('Connecting to Stagehand server...');
       await this.client.connect();

@@ -173,7 +173,6 @@ describe('Backend API', () => {
   });
 
   describe('Memory System API', () => {
-    // Use a deterministic UUID for the test room
     const testRoomId = '550e8400-e29b-41d4-a716-446655440001';
 
     it('should create and retrieve memories', () => {
@@ -243,25 +242,28 @@ describe('Backend API', () => {
     });
 
     it('should handle memory pagination', () => {
-      cy.request({
-        method: 'GET',
-        url: `${BACKEND_URL}/api/memory/query`,
-        qs: {
-          agentId: DEFAULT_AGENT_ID,
-          roomId: testRoomId,
-          count: 5,
-          page: 1,
-        },
-        failOnStatusCode: false,
-      }).then((response) => {
-        if (response.status === 200) {
-          expect(response.body.success).to.be.true;
-          expect(response.body.data).to.be.an('array');
-          expect(response.body.data.length).to.be.lte(5);
-        } else {
-          cy.log('⚠️ Memory pagination not available');
-        }
-      });
+      const roomId = '550e8400-e29b-41d4-a716-446655440003';
+      // Send multiple messages to ensure pagination is needed
+      for (let i = 0; i < 5; i++) {
+        cy.sendMessage({
+          text: `Pagination test message ${i}`,
+          userId: 'pagination-user',
+          roomId: roomId,
+          messageId: `msg-${Date.now()}-${i}`,
+        });
+      }
+
+      cy.wait(3000) // Wait for all messages to be processed
+        .request('GET', `${BACKEND_URL}/api/memories?roomId=${roomId}&count=2`)
+        .then((response) => {
+          expect(response.status).to.eq(200);
+          expect(response.body.data).to.have.lengthOf(2);
+          return cy.request('GET', `${BACKEND_URL}/api/memories?roomId=${roomId}&count=2&offset=2`);
+        })
+        .then((response) => {
+          expect(response.status).to.eq(200);
+          expect(response.body.data).to.have.lengthOf(2);
+        });
     });
   });
 
@@ -478,7 +480,13 @@ describe('Backend API Summary', () => {
       { name: 'Todos', url: '/api/todos', optional: true }, // Plugin might not be loaded
     ];
 
-    const results = [];
+    const results: {
+      name: string;
+      url: string;
+      status: number;
+      success: boolean;
+      optional: boolean;
+    }[] = [];
 
     // Test all endpoints
     criticalEndpoints.forEach((endpoint) => {

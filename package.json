@@ -64,6 +64,7 @@
     "esbuild",
     "node-llama-cpp",
     "protobufjs",
+    "sharp",
     "utf-8-validate"
   ],
   "dependencies": {

@@ -1,7 +1,7 @@
 import { Action, HandlerCallback, IAgentRuntime, Memory, State, elizaLogger } from '@elizaos/core';
-import { RegistryService, type PluginSearchResult } from '../services/registryService';
+import { searchPluginsByContent, getPluginDetails } from '../services/pluginRegistryService.js';
 
-export const enhancedSearchPluginAction: Action = {
+export const searchPluginAction: Action = {
   name: 'SEARCH_PLUGINS',
   similes: [
     'search for plugins',
@@ -62,23 +62,10 @@ export const enhancedSearchPluginAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     state?: State,
-    options?: any,
+    options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<void> => {
     elizaLogger.info('[searchPluginAction] Starting plugin search');
-
-    // Get the registry service
-    const registryService = runtime.getService<RegistryService>('REGISTRY');
-    if (!registryService) {
-      elizaLogger.error('[searchPluginAction] Registry service not available');
-      if (callback) {
-        await callback({
-          text: '❌ Plugin search is not available. The registry service is not running.',
-          actions: ['SEARCH_PLUGINS'],
-        });
-      }
-      return;
-    }
 
     // Extract search query from message
     const query = extractSearchQuery(message.content?.text || '');
@@ -95,60 +82,68 @@ export const enhancedSearchPluginAction: Action = {
 
     elizaLogger.info(`[searchPluginAction] Searching for: "${query}"`);
 
-    // Perform vectorized search
-    const results = await registryService.searchPlugins(query, 8);
+    try {
+      // Search using the API-based registry service
+      const results = await searchPluginsByContent(query);
 
-    if (results.length === 0) {
+      if (results.length === 0) {
+        if (callback) {
+          await callback({
+            text: `🔍 No plugins found matching "${query}".\n\n💡 Try using different keywords like:\n• Functionality: "database", "api", "blockchain", "ai"\n• Technology: "twitter", "discord", "solana", "ethereum"\n• Purpose: "authentication", "monitoring", "trading"`,
+            actions: ['SEARCH_PLUGINS'],
+          });
+        }
+        return;
+      }
+
+      // Format results with rich information
+      let responseText = `🔍 Found ${results.length} plugin${results.length > 1 ? 's' : ''} matching "${query}":\n\n`;
+
+      results.forEach((plugin, index) => {
+        const score = plugin.score ? (plugin.score * 100).toFixed(0) : '';
+
+        responseText += `${index + 1}. **${plugin.name}**${score ? ` (Score: ${score}%)` : ''}\n`;
+
+        if (plugin.description) {
+          responseText += `   💡 ${plugin.description}\n`;
+        }
+
+        if (plugin.tags && plugin.tags.length > 0) {
+          const displayTags = plugin.tags.slice(0, 5);
+          responseText += `   🏷️ Tags: ${displayTags.join(', ')}\n`;
+        }
+
+        if (plugin.relevantSection) {
+          responseText += `   📄 "${plugin.relevantSection}"\n`;
+        }
+
+        if (plugin.version) {
+          responseText += `   📌 Version: ${plugin.version}\n`;
+        }
+
+        responseText += '\n';
+      });
+
+      // Add helpful suggestions
+      responseText += '💡 **Next steps:**\n';
+      responseText += '• Say "tell me more about [plugin-name]" for detailed info\n';
+      responseText += '• Say "install [plugin-name]" to install a plugin\n';
+      responseText += '• Say "clone [plugin-name]" to clone for development';
+
       if (callback) {
         await callback({
-          text: `🔍 No plugins found matching "${query}".\n\n💡 Try using different keywords like:\n• Functionality: "database", "api", "blockchain", "ai"\n• Technology: "twitter", "discord", "solana", "ethereum"\n• Purpose: "authentication", "monitoring", "trading"`,
+          text: responseText,
           actions: ['SEARCH_PLUGINS'],
         });
       }
-      return;
-    }
-
-    // Format results with rich information
-    let responseText = `🔍 Found ${results.length} plugin${results.length > 1 ? 's' : ''} matching "${query}":\n\n`;
-
-    results.forEach((plugin, index) => {
-      const score = (plugin.relevanceScore * 100).toFixed(0);
-
-      responseText += `${index + 1}. **${plugin.name}** (Score: ${score}%)\n`;
-
-      if (plugin.description) {
-        responseText += `   💡 ${plugin.description}\n`;
+    } catch (error) {
+      elizaLogger.error('[searchPluginAction] Search failed:', error);
+      if (callback) {
+        await callback({
+          text: '❌ Failed to search plugins. Please try again later.',
+          actions: ['SEARCH_PLUGINS'],
+        });
       }
-
-      if (plugin.tags && plugin.tags.length > 0) {
-        const displayTags = plugin.tags.slice(0, 5);
-        responseText += `   🏷️ Tags: ${displayTags.join(', ')}\n`;
-      }
-
-      if (plugin.features && plugin.features.length > 0) {
-        const displayFeatures = plugin.features.slice(0, 3);
-        responseText += `   📦 Features: ${displayFeatures.join(', ')}\n`;
-      }
-
-      if (plugin.version) {
-        responseText += `   📌 Version: ${plugin.version}\n`;
-      }
-
-      responseText += '\n';
-    });
-
-    // Add helpful suggestions
-    responseText += '💡 **Next steps:**\n';
-    responseText += '• Say "tell me more about [plugin-name]" for detailed info\n';
-    responseText += '• Say "install [plugin-name]" to install a plugin\n';
-    responseText += '• Say "find similar to [plugin-name]" for related plugins\n';
-    responseText += '• Say "show dependencies for [plugin-name]" for integration info';
-
-    if (callback) {
-      await callback({
-        text: responseText,
-        actions: ['SEARCH_PLUGINS'],
-      });
     }
 
     return;
@@ -246,19 +241,9 @@ export const getPluginDetailsAction: Action = {
     runtime: IAgentRuntime,
     message: Memory,
     state?: State,
-    options?: any,
+    options?: { [key: string]: unknown },
     callback?: HandlerCallback
   ): Promise<void> => {
-    const registryService = runtime.getService<RegistryService>('REGISTRY');
-    if (!registryService) {
-      if (callback) {
-        await callback({
-          text: '❌ Registry service not available.',
-        });
-      }
-      return;
-    }
-
     const text = message.content?.text || '';
     const pluginMatch = text.match(/@?([\w-]+\/plugin-[\w-]+|plugin-[\w-]+)/i);
 
@@ -276,75 +261,58 @@ export const getPluginDetailsAction: Action = {
       pluginName = `@elizaos/${pluginName}`;
     }
 
-    const details = await registryService.getPluginDetails(pluginName);
+    try {
+      const details = await getPluginDetails(pluginName);
 
-    if (!details) {
+      if (!details) {
+        if (callback) {
+          await callback({
+            text: `❌ Plugin "${pluginName}" not found in the registry.\n\nTry searching for plugins first: "search for [functionality]"`,
+          });
+        }
+        return;
+      }
+
+      let responseText = `📋 **${details.name}** Details:\n\n`;
+
+      if (details.description) {
+        responseText += `💡 **Description:** ${details.description}\n\n`;
+      }
+
+      if (details.tags && details.tags.length > 0) {
+        responseText += `🏷️ **Tags:** ${details.tags.join(', ')}\n\n`;
+      }
+
+      // Remove features and requiredConfig - these properties don't exist on PluginMetadata
+
+      if (details.latestVersion) {
+        responseText += `📌 **Version:** ${details.latestVersion}\n`;
+      }
+      if (details.repository) {
+        responseText += `📍 **Repository:** ${details.repository}\n`;
+      }
+      // Remove npmPackage - this property doesn't exist on PluginMetadata
+
+      // Add related plugins if available
+      // This functionality will be re-enabled once the API supports it
+      // if (details.relatedPlugins && details.relatedPlugins.length > 0) {
+      //   responseText += `\n💡 **Related Plugins:**\n${details.relatedPlugins.map((p) => `• ${p.name} (${p.reason})`).join('\n')}`;
+      // }
+
+      responseText += `\n\nTo install: "install ${details.name}"`;
+
       if (callback) {
         await callback({
-          text: `❌ Plugin "${pluginName}" not found in the registry.\n\nTry searching for plugins first: "search for [functionality]"`,
+          text: responseText,
         });
       }
-      return;
+    } catch (error) {
+      elizaLogger.error('[getPluginDetailsAction] Failed to get plugin details:', error);
+      if (callback) {
+        await callback({
+          text: '❌ Failed to get plugin details. Please try again later.',
+        });
+      }
     }
-
-    // Get related plugins
-    const related = await registryService.findRelatedPlugins(pluginName);
-
-    let responseText = `📋 **${details.name}** Details:\n\n`;
-
-    if (details.description) {
-      responseText += `💡 **Description:** ${details.description}\n\n`;
-    }
-
-    if (details.tags.length > 0) {
-      responseText += `🏷️ **Tags:** ${details.tags.join(', ')}\n\n`;
-    }
-
-    if (details.features.length > 0) {
-      responseText += `📦 **Features:**\n${details.features.map((f) => `• ${f}`).join('\n')}\n\n`;
-    }
-
-    if (details.dependsOn.length > 0) {
-      responseText += `🔗 **Dependencies:** ${details.dependsOn.join(', ')}\n\n`;
-    } else {
-      responseText += `🔗 **Dependencies:** None\n\n`;
-    }
-
-    responseText += `📌 **Version:** ${details.version}\n`;
-    responseText += `📍 **Repository:** ${details.repository}\n`;
-    responseText += `📦 **NPM:** ${details.npmPackage}\n\n`;
-
-    // Show related plugins
-    const relatedSummary = [];
-    if (related.similar.length > 0) {
-      relatedSummary.push(
-        `Similar: ${related.similar
-          .slice(0, 2)
-          .map((p) => p.name)
-          .join(', ')}`
-      );
-    }
-    if (related.complementary.length > 0) {
-      relatedSummary.push(
-        `Complementary: ${related.complementary
-          .slice(0, 2)
-          .map((p) => p.name)
-          .join(', ')}`
-      );
-    }
-
-    if (relatedSummary.length > 0) {
-      responseText += `💡 **Related Plugins:**\n• ${relatedSummary.join('\n• ')}\n\n`;
-    }
-
-    responseText += `To install: "install ${details.name}"`;
-
-    if (callback) {
-      await callback({
-        text: responseText,
-      });
-    }
-
-    return;
   },
 };

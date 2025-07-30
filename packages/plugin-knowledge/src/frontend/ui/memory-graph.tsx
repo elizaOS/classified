@@ -1,10 +1,17 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import type { Memory, UUID } from '@elizaos/core';
-// @ts-expect-error
+import { isDocumentMemory, isFragmentMemory } from '@elizaos/core';
+import type { Memory, MemoryMetadata, UUID, FragmentMetadata } from '@elizaos/core';
 import ForceGraph2D, { ForceGraphMethods, LinkObject, NodeObject } from 'react-force-graph-2d';
-import { ExtendedMemoryMetadata } from '../../types';
 
-type MemoryMetadata = ExtendedMemoryMetadata;
+interface KnowledgeDocumentProperties {
+  title?: string;
+  filename?: string;
+  originalFilename?: string;
+  path?: string;
+  position?: number;
+}
+
+type KnowledgeDocumentMetadata = MemoryMetadata & KnowledgeDocumentProperties;
 
 interface MemoryNode extends NodeObject {
   id: UUID;
@@ -35,15 +42,15 @@ const processGraphData = (memories: Memory[]) => {
 
   // First pass: count fragments per document
   memories.forEach((memory) => {
-    const metadata = memory.metadata as MemoryMetadata;
-    if (metadata?.type === 'fragment' && metadata.documentId) {
-      const count = documentFragmentCounts.get(metadata.documentId as UUID) || 0;
-      documentFragmentCounts.set(metadata.documentId as UUID, count + 1);
+    if (isFragmentMemory(memory)) {
+      const metadata = memory.metadata;
+      const count = documentFragmentCounts.get(metadata.documentId) || 0;
+      documentFragmentCounts.set(metadata.documentId, count + 1);
     }
   });
 
   memories.forEach((memory) => {
-    const metadata = memory.metadata as MemoryMetadata;
+    const metadata = memory.metadata as KnowledgeDocumentMetadata;
 
     if (!memory.id || !metadata || typeof metadata !== 'object') {
       return;
@@ -57,13 +64,13 @@ const processGraphData = (memories: Memory[]) => {
       else if (metadata.originalFilename) baseName = metadata.originalFilename;
       else if (metadata.path) baseName = metadata.path.split('/').pop() || metadata.path;
       else {
-        const nodeType = (metadata.type || '').toLowerCase() === 'document' ? 'Doc' : 'Fragment';
+        const nodeType = isDocumentMemory(memory) ? 'Doc' : 'Fragment';
         baseName = `${nodeType} ${memory.id ? memory.id.substring(0, 8) : 'Unknown'}`;
       }
 
       // Add fragment count for documents
-      if (metadata.type === 'document' && memory.id) {
-        const fragmentCount = documentFragmentCounts.get(memory.id as UUID) || 0;
+      if (isDocumentMemory(memory) && memory.id) {
+        const fragmentCount = documentFragmentCounts.get(memory.id) || 0;
         if (fragmentCount > 0) {
           baseName += ` (${fragmentCount} fragments)`;
         }
@@ -77,17 +84,14 @@ const processGraphData = (memories: Memory[]) => {
       name: getNodeName(),
       memory: memory,
       val: 3, // Reduced base node size
-      type: (metadata.type || '').toLowerCase() === 'document' ? 'document' : 'fragment',
+      type: isDocumentMemory(memory) ? 'document' : 'fragment',
     };
 
     // Adjust node size based on type
-    if ((metadata.type || '').toLowerCase() === 'document') {
+    if (isDocumentMemory(memory)) {
       memoryNode.val = 5; // Documents smaller than before
       documents.push(memoryNode);
-    } else if (
-      (metadata.type || '').toLowerCase() === 'fragment' ||
-      (metadata.documentId && (metadata.type || '').toLowerCase() !== 'document')
-    ) {
+    } else if (isFragmentMemory(memory)) {
       memoryNode.val = 3; // Fragments smaller
       fragments.push(memoryNode);
     } else {
@@ -100,8 +104,8 @@ const processGraphData = (memories: Memory[]) => {
   const links: MemoryLink[] = [];
 
   fragments.forEach((fragment) => {
-    const fragmentMetadata = fragment.memory.metadata as MemoryMetadata;
-    if (fragmentMetadata.documentId) {
+    if (isFragmentMemory(fragment.memory)) {
+      const fragmentMetadata = fragment.memory.metadata;
       // Find parent document
       const sourceDoc = documents.find((doc) => doc.id === fragmentMetadata.documentId);
       if (sourceDoc) {
@@ -251,8 +255,10 @@ export function MemoryGraph({ memories, onNodeClick, selectedMemoryId }: MemoryG
                 : 'hsl(210, 10%, 70%)' // Gray for fragments
           }
           nodeLabel={(node: MemoryNode) => {
-            const metadata = node.memory.metadata as MemoryMetadata;
-            return `${node.type === 'document' ? 'Document' : 'Fragment'}: ${metadata.title || node.id.substring(0, 8)}`;
+            const metadata = node.memory.metadata as KnowledgeDocumentMetadata;
+            return `${node.type === 'document' ? 'Document' : 'Fragment'}: ${
+              metadata.title || node.id.substring(0, 8)
+            }`;
           }}
           onNodeClick={(node: MemoryNode) => {
             onNodeClick(node.memory);
@@ -294,7 +300,7 @@ export function MemoryGraph({ memories, onNodeClick, selectedMemoryId }: MemoryG
             if (globalScale >= 1.4 || isSelected) {
               // Higher threshold to display text
               const label = node.name || node.id.substring(0, 6);
-              const metadata = node.memory.metadata as MemoryMetadata;
+              const metadata = node.memory.metadata as FragmentMetadata;
               const nodeText = isDocument
                 ? label
                 : metadata.position !== undefined

@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { UUID } from '@elizaos/core';
+
 /**
  * Full Integration Tests
  * Tests complete user flow, all features working together, performance, and error recovery
@@ -7,7 +9,6 @@
 
 describe('Full Integration', () => {
   const BACKEND_URL = Cypress.env('BACKEND_URL') || 'http://localhost:7777';
-  const DEFAULT_AGENT_ID = '15aec527-fb92-0792-91b6-becd4fac5050';
   const TEST_API_KEY = `sk-test-integration-${Date.now()}`;
 
   before(() => {
@@ -117,14 +118,14 @@ describe('Full Integration', () => {
 
     it('should handle concurrent operations', () => {
       // Start multiple operations simultaneously
-      const operations = [];
+      const operations: Cypress.Chainable<any>[] = [];
 
       // Send chat message
       operations.push(
         cy.sendMessage({
           text: 'Concurrent test message',
           userId: 'test-user',
-          roomId: 'concurrent-test',
+          roomId: '550e8400-e29b-41d4-a716-446655440013' as UUID,
           messageId: `concurrent-${Date.now()}`,
         })
       );
@@ -164,7 +165,7 @@ describe('Full Integration', () => {
       cy.sendMessage({
         text: 'Please create a goal to improve the system',
         userId: 'test-user',
-        roomId: 'state-test',
+        roomId: '550e8400-e29b-41d4-a716-446655440014',
         messageId: `state-${Date.now()}`,
       });
 
@@ -223,7 +224,7 @@ describe('Full Integration', () => {
 
     it('should handle large data sets', () => {
       // Upload multiple files
-      const uploads = [];
+      const uploads: Cypress.Chainable<any>[] = [];
       for (let i = 0; i < 10; i++) {
         const fileName = `perf-test-${i}-${Date.now()}.txt`;
         const content = `Performance test document ${i}\n`.repeat(100);
@@ -247,15 +248,18 @@ describe('Full Integration', () => {
     });
 
     it('should maintain responsiveness under load', () => {
+      const startTime = Date.now();
+
       // Send multiple messages concurrently
       const messages = Array.from({ length: 5 }, (_, i) => ({
         text: `Concurrent test message ${i}`,
         userId: 'test-user',
-        roomId: 'concurrent-test',
+        roomId: '550e8400-e29b-41d4-a716-446655440016',
         messageId: `concurrent-${i}-${Date.now()}`,
       }));
 
-      const requests = messages.map((msg) => cy.sendMessage(msg));
+      // Send messages concurrently
+      messages.forEach((msg) => cy.sendMessage(msg));
 
       // UI should still be responsive
       cy.get('[data-testid="message-input"]').should('be.visible');
@@ -322,7 +326,7 @@ describe('Full Integration', () => {
 
     it('should recover from temporary backend unavailability', () => {
       // Make multiple requests even if some fail
-      const requests = [];
+      const requests: Cypress.Chainable<any>[] = [];
       for (let i = 0; i < 5; i++) {
         requests.push(
           cy.request({
@@ -339,8 +343,8 @@ describe('Full Integration', () => {
       let completed = 0;
 
       requests.forEach((request) => {
-        request.then(
-          () => {
+        request
+          .then((response) => {
             successful++;
             completed++;
             if (completed === requests.length) {
@@ -348,16 +352,15 @@ describe('Full Integration', () => {
               // At least some should succeed
               expect(successful).to.be.at.least(1);
             }
-          },
-          () => {
+          })
+          .catch(() => {
             completed++;
             if (completed === requests.length) {
               cy.log(`✅ ${successful}/5 requests succeeded`);
               // At least some should succeed
               expect(successful).to.be.at.least(1);
             }
-          }
-        );
+          });
       });
     });
   });
@@ -405,7 +408,7 @@ describe('Full Integration', () => {
       cy.sendMessage({
         text: 'Try to use shell and browser capabilities',
         userId: 'test-user',
-        roomId: 'capability-test',
+        roomId: '550e8400-e29b-41d4-a716-446655440018',
         messageId: `cap-test-${Date.now()}`,
       });
 

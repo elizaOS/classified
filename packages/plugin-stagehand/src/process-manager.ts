@@ -16,12 +16,26 @@ export class StagehandProcessManager {
     this.binaryPath = this.findBinary();
   }
 
+  private getBinaryName(): { primary: string; fallback: string } {
+    const platformName = platform();
+    const arch = process.arch;
+    const ext = platformName === 'win32' ? '.exe' : '';
+
+    // Try architecture-specific binary first, then fall back to platform-only
+    return {
+      primary: `stagehand-server-${platformName}-${arch}${ext}`,
+      fallback: `stagehand-server-${platformName}${ext}`,
+    };
+  }
+
   private findBinary(): string | null {
     // Get the directory where this module is located
     const moduleDir = dirname(fileURLToPath(import.meta.url));
 
     // Check if we're in a Docker container
     const isDocker = process.env.DOCKER_CONTAINER === 'true' || existsSync('/.dockerenv');
+
+    const binaryNames = this.getBinaryName();
 
     // Possible locations for the binary
     const possiblePaths = [
@@ -31,13 +45,22 @@ export class StagehandProcessManager {
             '/usr/local/bin/stagehand-server',
             '/usr/local/bin/stagehand-server-linux',
             '/app/stagehand-server',
-            `/app/binaries/${this.getBinaryName()}`,
+            `/app/binaries/${binaryNames.primary}`,
+            `/app/binaries/${binaryNames.fallback}`,
           ]
         : []),
-      // When running from plugin directory
-      join(moduleDir, '../stagehand-server/binaries', this.getBinaryName()),
+
+      // For local dev, prioritize JS version to avoid signing issues on macOS
+      ...(!isDocker ? [join(moduleDir, '../stagehand-server/dist/index.js')] : []),
+
+      // When running from plugin directory - arch-specific first
+      join(moduleDir, '../stagehand-server/binaries', binaryNames.primary),
+      join(moduleDir, '../stagehand-server/binaries', binaryNames.fallback),
       // When packaged with agentserver
-      join(moduleDir, '../../../stagehand-server', this.getBinaryName()),
+      join(moduleDir, '../../../stagehand-server', binaryNames.primary),
+      join(moduleDir, '../../../stagehand-server', binaryNames.fallback),
+      // When in node_modules
+      join(moduleDir, '../../.bin', 'stagehand-server'),
       // Development fallback - run via node
       join(moduleDir, '../stagehand-server/dist/index.js'),
       // Docker fallback - if binary not found, try JS file
@@ -56,14 +79,16 @@ export class StagehandProcessManager {
       }
     }
 
-    logger.error('Could not find Stagehand server binary or JS file');
-    return null;
-  }
+    // If no binary found, check if we can run from source
+    const srcPath = join(moduleDir, '../stagehand-server/src/index.ts');
+    if (existsSync(srcPath)) {
+      logger.warn('No compiled binary found, will try to run from source with tsx');
+      return srcPath;
+    }
 
-  private getBinaryName(): string {
-    const platformName = platform();
-    const ext = platformName === 'win32' ? '.exe' : '';
-    return `stagehand-server-${platformName}${ext}`;
+    logger.error('Could not find Stagehand server binary or source files');
+    logger.error('Searched paths:', possiblePaths);
+    return null;
   }
 
   async start(): Promise<void> {
@@ -73,8 +98,12 @@ export class StagehandProcessManager {
     }
 
     if (!this.binaryPath) {
-      throw new Error('Stagehand server binary not found');
+      throw new Error(
+        'Stagehand server binary not found - please ensure stagehand-server is built'
+      );
     }
+
+    const binaryPath = this.binaryPath; // Store in local variable for TypeScript
 
     return new Promise((resolve, reject) => {
       const env = {
@@ -92,15 +121,20 @@ export class StagehandProcessManager {
         OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.2-vision',
       };
 
-      // Determine if we're running a binary or a JS file
-      const isBinary = !this.binaryPath.endsWith('.js');
+      // Determine if we're running a binary, JS file, or TS file
+      const isBinary = !binaryPath.endsWith('.js') && !binaryPath.endsWith('.ts');
+      const isTypeScript = binaryPath.endsWith('.ts');
 
       if (isBinary) {
         // Run the binary directly
-        this.process = spawn(this.binaryPath, [], { env });
+        this.process = spawn(binaryPath, [], { env });
+      } else if (isTypeScript) {
+        // Run TypeScript via tsx (development mode)
+        const tsxPath = require.resolve('tsx/cli', { paths: [process.cwd()] });
+        this.process = spawn('node', [tsxPath, binaryPath], { env });
       } else {
-        // Run via node (development mode)
-        this.process = spawn('node', [this.binaryPath], { env });
+        // Run via node (JS file)
+        this.process = spawn('node', [binaryPath], { env });
       }
 
       this.process.stdout?.on('data', (data) => {

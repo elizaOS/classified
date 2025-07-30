@@ -69,7 +69,7 @@
   "peerDependencies": {},
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.40.1",
-    "@elizaos/cli": "^1.3.0",
+    "@elizaos/cli": "workspace:*",
     "@elizaos/plugin-forms": "workspace:*",
     "@elizaos/plugin-sql": "workspace:*",
     "@types/dockerode": "^3.3.31",

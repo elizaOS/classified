@@ -1,25 +1,26 @@
-import { type IAgentRuntime, type Memory, type Provider, type State, logger } from '@elizaos/core';
-import { PluginConfigurationService } from '../services/pluginConfigurationService.ts';
-import { PluginUserInteractionService } from '../services/pluginUserInteractionService.ts';
-import { PluginManagerServiceType } from '../types.ts';
+import {
+  type IAgentRuntime,
+  type Memory,
+  type Provider,
+  type State,
+  elizaLogger,
+} from '@elizaos/core';
+import { PluginConfigurationService } from '../services/pluginConfigurationService';
+import { PluginManagerServiceType } from '../types';
 
 export const pluginConfigurationStatusProvider: Provider = {
   name: 'pluginConfigurationStatus',
-  description:
-    'Provides information about plugin configuration status, missing environment variables, and active configuration dialogs',
+  description: 'Provides basic plugin configuration status and missing environment variables',
 
   get: async (runtime: IAgentRuntime, message?: Memory, state?: State) => {
     const configService = runtime.getService(
       PluginManagerServiceType.PLUGIN_CONFIGURATION
     ) as PluginConfigurationService;
-    const interactionService = runtime.getService(
-      PluginManagerServiceType.PLUGIN_USER_INTERACTION
-    ) as PluginUserInteractionService;
     const pluginManagerService = runtime.getService(PluginManagerServiceType.PLUGIN_MANAGER) as any;
 
-    if (!configService || !interactionService) {
+    if (!configService) {
       return {
-        text: '',
+        text: 'Configuration service not available',
         data: { available: false },
         values: { configurationServicesAvailable: false },
       };
@@ -28,7 +29,6 @@ export const pluginConfigurationStatusProvider: Provider = {
     const statusData: any = {
       available: true,
       plugins: [],
-      activeDialogs: [],
       totalPlugins: 0,
       configuredPlugins: 0,
       needsConfiguration: 0,
@@ -42,40 +42,54 @@ export const pluginConfigurationStatusProvider: Provider = {
       statusData.totalPlugins = allPlugins.length;
 
       for (const plugin of allPlugins) {
-        // Try to parse plugin requirements
-        const result = await configService.parsePluginRequirements(`./plugins/${plugin.name}`);
+        try {
+          // Try to parse plugin requirements
+          const result = await configService.parsePluginRequirements(`./plugins/${plugin.name}`);
 
-        if (result && result.requiredVars.length > 0) {
-          // Check configuration status
-          const currentConfig = await configService.getPluginConfiguration(plugin.name);
-          const missingVars = result.requiredVars
-            .filter((varInfo) => !currentConfig[varInfo.name])
-            .map((varInfo) => varInfo.name);
+          if (result && result.requiredVars.length > 0) {
+            // Check configuration status
+            const missingVars = await configService.getMissingEnvVars(
+              plugin.name,
+              `./plugins/${plugin.name}`
+            );
 
-          const pluginStatus = {
-            name: plugin.name,
-            status: plugin.status,
-            requiredVars: result.requiredVars.length,
-            missingVars: missingVars.length,
-            configured: missingVars.length === 0,
-            variables: result.requiredVars.map((v) => ({
-              name: v.name,
-              description: v.description,
-              required: v.required,
-              sensitive: v.sensitive,
-              configured: !!currentConfig[v.name],
-            })),
-          };
+            const pluginStatus = {
+              name: plugin.name,
+              status: plugin.status,
+              requiredVars: result.requiredVars.length,
+              missingVars: missingVars.length,
+              configured: missingVars.length === 0,
+              variables: result.requiredVars.map((v) => ({
+                name: v.name,
+                description: v.description,
+                required: v.required,
+                sensitive: v.sensitive,
+                configured: !missingVars.includes(v.name),
+              })),
+            };
 
-          statusData.plugins.push(pluginStatus);
+            statusData.plugins.push(pluginStatus);
 
-          if (pluginStatus.configured) {
-            statusData.configuredPlugins++;
+            if (pluginStatus.configured) {
+              statusData.configuredPlugins++;
+            } else {
+              statusData.needsConfiguration++;
+            }
           } else {
-            statusData.needsConfiguration++;
+            // Plugin doesn't require configuration
+            statusData.plugins.push({
+              name: plugin.name,
+              status: plugin.status,
+              requiredVars: 0,
+              missingVars: 0,
+              configured: true,
+              variables: [],
+            });
+            statusData.configuredPlugins++;
           }
-        } else {
-          // Plugin doesn't require configuration
+        } catch (error) {
+          elizaLogger.warn(`[pluginConfigurationStatus] Failed to check ${plugin.name}:`, error);
+          // Assume configured if we can't check
           statusData.plugins.push({
             name: plugin.name,
             status: plugin.status,
@@ -88,20 +102,6 @@ export const pluginConfigurationStatusProvider: Provider = {
         }
       }
     }
-
-    // Get active configuration dialogs
-    const activeDialogs = interactionService.getActiveDialogs();
-    statusData.activeDialogs = activeDialogs.map((dialog) => ({
-      id: dialog.id,
-      pluginName: dialog.pluginName,
-      status: dialog.status,
-      currentVariable: dialog.currentVariable,
-      progress: {
-        completed: Object.keys(dialog.responses).length,
-        total: dialog.request.missingVars.length,
-      },
-      startedAt: dialog.startedAt,
-    }));
 
     // Build status text
     if (statusData.totalPlugins === 0) {
@@ -120,13 +120,6 @@ export const pluginConfigurationStatusProvider: Provider = {
             statusText += `• ${plugin.name}: ${plugin.missingVars} missing variables\n`;
           });
       }
-
-      if (statusData.activeDialogs.length > 0) {
-        statusText += `\nActive configuration dialogs:\n`;
-        statusData.activeDialogs.forEach((dialog: any) => {
-          statusText += `• ${dialog.pluginName}: ${dialog.progress.completed}/${dialog.progress.total} variables collected\n`;
-        });
-      }
     }
 
     return {
@@ -137,9 +130,7 @@ export const pluginConfigurationStatusProvider: Provider = {
         totalPlugins: statusData.totalPlugins,
         configuredPlugins: statusData.configuredPlugins,
         needsConfiguration: statusData.needsConfiguration,
-        activeDialogs: statusData.activeDialogs.length,
         hasUnconfiguredPlugins: statusData.needsConfiguration > 0,
-        hasActiveDialogs: statusData.activeDialogs.length > 0,
       },
     };
   },
