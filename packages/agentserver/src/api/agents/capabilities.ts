@@ -107,7 +107,9 @@ export function createAgentCapabilitiesRouter(
           enabled = runtime.plugins?.some((p) => p.name?.includes('shell')) || false;
           break;
         case 'browser':
-          enabled = runtime.plugins?.some((p) => p.name?.includes('browser')) || false;
+          enabled = runtime.plugins?.some((p) => 
+            p.name?.includes('browser') || p.name?.includes('stagehand')
+          ) || false;
           break;
         case 'camera':
           enabled =
@@ -181,8 +183,7 @@ export function createAgentCapabilitiesRouter(
         `[CAPABILITY TOGGLE] ${enabled ? 'Enabling' : 'Disabling'} ${capability} for agent ${agentId}`
       );
 
-      // For now, we'll just log the capability toggle
-      // In a full implementation, this would actually enable/disable plugins or features
+      // Handle capability toggle - register/unregister progressive plugins
       switch (capability) {
         case 'autonomy':
           // Toggle autonomy - this would affect the agent's autonomous behavior
@@ -196,10 +197,19 @@ export function createAgentCapabilitiesRouter(
         case 'screen':
         case 'microphone':
         case 'speakers':
-          // These would typically involve loading/unloading plugins
+          // Register/unregister progressive plugins based on capability
           logger.info(
             `${capability} capability ${enabled ? 'enabled' : 'disabled'} for agent ${runtime.character.name}`
           );
+          
+          console.log(`[API] Checking runtime for registerProgressivePlugin:`, typeof (runtime as any).registerProgressivePlugin);
+          
+          if (enabled && typeof (runtime as any).registerProgressivePlugin === 'function') {
+            console.log(`[CAPABILITY] Registering progressive plugin for ${capability}`);
+            logger.info(`[CAPABILITY] Registering progressive plugin for ${capability}`);
+            await (runtime as any).registerProgressivePlugin(capability);
+          }
+          console.log(`[API] ${capability} capability ${enabled ? 'enabled' : 'disabled'}`);
           break;
         default:
           return sendError(res, 400, 'INVALID_CAPABILITY', `Unknown capability: ${capability}`);

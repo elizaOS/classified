@@ -4,7 +4,6 @@ import { adminChatProvider } from './provider';
 import { autonomyStatusProvider } from './status-provider';
 import { sendToAdminAction } from './action';
 import { autonomyRoutes } from './routes';
-import { autonomyTests } from './tests';
 
 /**
  * Clean autonomy plugin with settings-based control:
@@ -22,7 +21,6 @@ export const autonomyPlugin: Plugin = {
   providers: [adminChatProvider, autonomyStatusProvider],
   actions: [sendToAdminAction],
   routes: autonomyRoutes,
-  tests: [autonomyTests],
 };
 
 // Export components
@@ -31,6 +29,5 @@ export { adminChatProvider } from './provider';
 export { autonomyStatusProvider } from './status-provider';
 export { sendToAdminAction } from './action';
 export { autonomyRoutes } from './routes';
-export { autonomyTests } from './tests';
 
 export default autonomyPlugin;

@@ -95,6 +95,18 @@ export const pluginStateProvider: Provider = {
     // Check if user is asking about specific plugin permissions
     const messageText = message?.content?.text?.toLowerCase() || '';
 
+    // Add information about protected and original plugins
+    const protectedPlugins = pluginManager.getProtectedPlugins();
+    const originalPlugins = pluginManager.getOriginalPlugins();
+    
+    if (protectedPlugins.length > 0 || originalPlugins.length > 0) {
+      sections.push(
+        '**System Plugins:**\n' +
+        `- Protected: ${protectedPlugins.join(', ')}\n` +
+        `- Original (loaded at startup): ${originalPlugins.join(', ')}`
+      );
+    }
+
     const text =
       sections.length > 0 ? sections.join('\n\n') : 'No plugins registered in the Plugin Manager.';
 
@@ -107,6 +119,8 @@ export const pluginStateProvider: Provider = {
         readyCount: readyPlugins.length,
         buildingCount: buildingPlugins.length,
         missingEnvVars: Array.from(allMissingEnvVars),
+        protectedPlugins,
+        originalPlugins,
       },
       data: {
         plugins: plugins.map((p) => ({
@@ -118,6 +132,8 @@ export const pluginStateProvider: Provider = {
           createdAt: p.createdAt,
           loadedAt: p.loadedAt,
           unloadedAt: p.unloadedAt,
+          isProtected: protectedPlugins.includes(p.name),
+          isOriginal: originalPlugins.includes(p.name),
         })),
       },
     };

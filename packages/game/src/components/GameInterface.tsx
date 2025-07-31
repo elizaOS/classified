@@ -58,6 +58,15 @@ interface SecurityWarningState {
   onConfirm: () => void;
 }
 
+// Track individual warning acknowledgments and feature usage
+interface CapabilityUsageState {
+  [capability: string]: {
+    hasBeenUsed: boolean;
+    warningAcknowledged: boolean;
+    firstSeenAt?: Date;
+  };
+}
+
 interface MediaStreams {
   camera?: MediaStream;
   screen?: MediaStream;
@@ -72,11 +81,13 @@ interface StreamingState {
   speakers: boolean;
 }
 
-// Ultra simple buttons - each button triggers API calls and updates backend state
+// Enhanced capability buttons with progression support
 const UltraSimpleButtons: React.FC<{
   states: PluginToggleState;
   onToggle: (capability: string) => Promise<void>;
-}> = ({ states, onToggle }) => {
+  progressionStatus?: any;
+  capabilityUsage: CapabilityUsageState;
+}> = ({ states, onToggle, progressionStatus, capabilityUsage }) => {
   const [isTogglingState, setIsTogglingState] = useState({
     autonomy: false,
     camera: false,
@@ -87,14 +98,40 @@ const UltraSimpleButtons: React.FC<{
     browser: false,
   });
 
-  const buttonStyle = (isActive: boolean, isToggling: boolean) => ({
+  // Check if a capability is unlocked based on progression
+  const isCapabilityUnlocked = (capability: string): boolean => {
+    if (!progressionStatus?.unlockedCapabilities) {
+      // Fallback: if no progression data, allow all capabilities
+      return true;
+    }
+    
+    // Map UI capability names to progression capability names
+    const capabilityMap: Record<string, string[]> = {
+      'shell': ['shell', 'naming'],
+      'browser': ['browser', 'stagehand'],
+      'camera': ['camera', 'advanced_vision'],
+      'screen': ['vision', 'screen_capture'],
+      'microphone': ['microphone', 'sam', 'audio'],
+      'speakers': ['microphone', 'sam', 'audio'], // Speakers use same capabilities as microphone
+      'autonomy': ['autonomy'],
+      'goals': ['goals'],
+      'todo': ['todo'],
+    };
+    
+    const progressionCapabilities = capabilityMap[capability] || [capability];
+    return progressionCapabilities.some(cap => 
+      progressionStatus.unlockedCapabilities.includes(cap)
+    );
+  };
+
+  const buttonStyle = (isActive: boolean, isToggling: boolean, isUnlocked: boolean, isNew: boolean) => ({
     flex: '1 1 0',
     height: '40px',
-    backgroundColor: isActive ? '#00ff00' : '#1a1a1a',
-    color: isActive ? '#000000' : '#00ff00',
-    cursor: isToggling ? 'wait' : 'pointer',
+    backgroundColor: !isUnlocked ? '#333333' : isActive ? '#00ff00' : '#1a1a1a',
+    color: !isUnlocked ? '#666666' : isActive ? '#000000' : '#00ff00',
+    cursor: !isUnlocked ? 'not-allowed' : isToggling ? 'wait' : 'pointer',
     textAlign: 'center' as const,
-    border: `1px solid ${isActive ? '#00ff00' : '#333333'}`,
+    border: `1px solid ${!isUnlocked ? '#555555' : isActive ? '#00ff00' : '#333333'}`,
     fontSize: '9px',
     fontFamily: 'monospace',
     fontWeight: 'bold',
@@ -106,13 +143,22 @@ const UltraSimpleButtons: React.FC<{
     flexDirection: 'column' as const,
     gap: '2px',
     minWidth: 0,
-    opacity: isToggling ? 0.7 : 1,
+    opacity: !isUnlocked ? 0.5 : isToggling ? 0.7 : 1,
+    position: 'relative' as const,
+    animation: isNew && isUnlocked ? 'glow 2s ease-in-out infinite' : 'none',
+    boxShadow: isNew && isUnlocked ? '0 0 10px #00ff00' : 'none',
   });
 
   const handleClick = async (capability: string) => {
     if (isTogglingState[capability as keyof typeof isTogglingState]) {
       return;
     } // Prevent double clicks
+
+    // Check if capability is unlocked
+    if (!isCapabilityUnlocked(capability)) {
+      console.log(`Capability ${capability} is locked. Progression required.`);
+      return;
+    }
 
     setIsTogglingState((prev) => ({ ...prev, [capability]: true }));
     try {
@@ -124,10 +170,17 @@ const UltraSimpleButtons: React.FC<{
     }
   };
 
+
+
   return (
     <div style={{ display: 'flex', gap: '2px', width: '100%' }}>
       <div
-        style={buttonStyle(states.autonomy, isTogglingState.autonomy)}
+        style={buttonStyle(
+          states.autonomy, 
+          isTogglingState.autonomy, 
+          isCapabilityUnlocked('autonomy'),
+          isCapabilityUnlocked('autonomy') && !capabilityUsage['autonomy']?.hasBeenUsed
+        )}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -135,13 +188,21 @@ const UltraSimpleButtons: React.FC<{
           handleClick('autonomy');
         }}
         data-testid="autonomy-toggle"
+        title={!isCapabilityUnlocked('autonomy') ? '🔒 Locked - Complete progression to unlock' : 
+               (isCapabilityUnlocked('autonomy') && !capabilityUsage['autonomy']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
+               undefined}
       >
         <span data-testid="autonomy-toggle-status">{states.autonomy ? '●' : '○'}</span>
         <span>{isTogglingState.autonomy ? '...' : 'AUTO'}</span>
       </div>
 
       <div
-        style={buttonStyle(states.camera, isTogglingState.camera)}
+        style={buttonStyle(
+          states.camera, 
+          isTogglingState.camera, 
+          isCapabilityUnlocked('camera'),
+          isCapabilityUnlocked('camera') && !capabilityUsage['camera']?.hasBeenUsed
+        )}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -149,13 +210,21 @@ const UltraSimpleButtons: React.FC<{
           handleClick('camera');
         }}
         data-testid="camera-toggle"
+        title={!isCapabilityUnlocked('camera') ? '🔒 Locked - Complete progression to unlock' : 
+               (isCapabilityUnlocked('camera') && !capabilityUsage['camera']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
+               undefined}
       >
         <span data-testid="camera-toggle-status">{states.camera ? '●' : '○'}</span>
         <span>{isTogglingState.camera ? '...' : 'CAM'}</span>
       </div>
 
       <div
-        style={buttonStyle(states.screen, isTogglingState.screen)}
+        style={buttonStyle(
+          states.screen, 
+          isTogglingState.screen, 
+          isCapabilityUnlocked('screen'),
+          isCapabilityUnlocked('screen') && !capabilityUsage['screen']?.hasBeenUsed
+        )}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -163,13 +232,21 @@ const UltraSimpleButtons: React.FC<{
           handleClick('screen');
         }}
         data-testid="screen-toggle"
+        title={!isCapabilityUnlocked('screen') ? '🔒 Locked - Complete progression to unlock' : 
+               (isCapabilityUnlocked('screen') && !capabilityUsage['screen']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
+               undefined}
       >
         <span data-testid="screen-toggle-status">{states.screen ? '●' : '○'}</span>
         <span>{isTogglingState.screen ? '...' : 'SCR'}</span>
       </div>
 
       <div
-        style={buttonStyle(states.microphone, isTogglingState.microphone)}
+        style={buttonStyle(
+          states.microphone, 
+          isTogglingState.microphone, 
+          isCapabilityUnlocked('microphone'),
+          isCapabilityUnlocked('microphone') && !capabilityUsage['microphone']?.hasBeenUsed
+        )}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -177,13 +254,21 @@ const UltraSimpleButtons: React.FC<{
           handleClick('microphone');
         }}
         data-testid="microphone-toggle"
+        title={!isCapabilityUnlocked('microphone') ? '🔒 Locked - Complete progression to unlock' : 
+               (isCapabilityUnlocked('microphone') && !capabilityUsage['microphone']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
+               undefined}
       >
         <span data-testid="microphone-toggle-status">{states.microphone ? '●' : '○'}</span>
         <span>{isTogglingState.microphone ? '...' : 'MIC'}</span>
       </div>
 
       <div
-        style={buttonStyle(states.speakers, isTogglingState.speakers)}
+        style={buttonStyle(
+          states.speakers, 
+          isTogglingState.speakers, 
+          isCapabilityUnlocked('speakers'),
+          isCapabilityUnlocked('speakers') && !capabilityUsage['speakers']?.hasBeenUsed
+        )}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -191,13 +276,21 @@ const UltraSimpleButtons: React.FC<{
           handleClick('speakers');
         }}
         data-testid="speakers-toggle"
+        title={!isCapabilityUnlocked('speakers') ? '🔒 Locked - Complete progression to unlock' : 
+               (isCapabilityUnlocked('speakers') && !capabilityUsage['speakers']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
+               undefined}
       >
         <span data-testid="speakers-toggle-status">{states.speakers ? '●' : '○'}</span>
         <span>{isTogglingState.speakers ? '...' : 'SPK'}</span>
       </div>
 
       <div
-        style={buttonStyle(states.shell, isTogglingState.shell)}
+        style={buttonStyle(
+          states.shell, 
+          isTogglingState.shell, 
+          isCapabilityUnlocked('shell'),
+          isCapabilityUnlocked('shell') && !capabilityUsage['shell']?.hasBeenUsed
+        )}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -205,13 +298,21 @@ const UltraSimpleButtons: React.FC<{
           handleClick('shell');
         }}
         data-testid="shell-toggle"
+        title={!isCapabilityUnlocked('shell') ? '🔒 Locked - Complete progression to unlock' : 
+               (isCapabilityUnlocked('shell') && !capabilityUsage['shell']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
+               undefined}
       >
         <span data-testid="shell-toggle-status">{states.shell ? '●' : '○'}</span>
         <span>{isTogglingState.shell ? '...' : 'SH'}</span>
       </div>
 
       <div
-        style={buttonStyle(states.browser, isTogglingState.browser)}
+        style={buttonStyle(
+          states.browser, 
+          isTogglingState.browser, 
+          isCapabilityUnlocked('browser'),
+          isCapabilityUnlocked('browser') && !capabilityUsage['browser']?.hasBeenUsed
+        )}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -219,6 +320,9 @@ const UltraSimpleButtons: React.FC<{
           handleClick('browser');
         }}
         data-testid="browser-toggle"
+        title={!isCapabilityUnlocked('browser') ? '🔒 Locked - Complete progression to unlock' : 
+               (isCapabilityUnlocked('browser') && !capabilityUsage['browser']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
+               undefined}
       >
         <span data-testid="browser-toggle-status">{states.browser ? '●' : '○'}</span>
         <span>{isTogglingState.browser ? '...' : 'WWW'}</span>
@@ -257,6 +361,9 @@ export const GameInterface: React.FC = () => {
   // Game API readiness state
   const [gameApiReady, setGameApiReady] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
+  
+  // Progression state
+  const [progressionStatus, setProgressionStatus] = useState<any>(null);
 
   // Model readiness state
 
@@ -299,6 +406,29 @@ export const GameInterface: React.FC = () => {
     capability: '',
     onConfirm: () => {},
   });
+
+  // Track capability usage and individual warning states
+  const [capabilityUsage, setCapabilityUsage] = useState<CapabilityUsageState>(() => {
+    const stored = localStorage.getItem('capability-usage');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Convert date strings back to Date objects
+        Object.keys(parsed).forEach(key => {
+          if (parsed[key].firstSeenAt) {
+            parsed[key].firstSeenAt = new Date(parsed[key].firstSeenAt);
+          }
+        });
+        return parsed;
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  // Individual security warnings for each capability
+  const [individualWarnings, setIndividualWarnings] = useState<{[capability: string]: boolean}>({});
 
   const [_userId] = useState(() => {
     const stored = localStorage.getItem('terminal-user-id');
@@ -669,18 +799,31 @@ export const GameInterface: React.FC = () => {
 
     // If enabling a dangerous capability, show security warning first
     if (isDangerous && !currentState) {
-      const securityConfig =
-        SECURITY_CAPABILITIES[capability as keyof typeof SECURITY_CAPABILITIES];
-      if (securityConfig) {
-        setSecurityWarning({
-          isVisible: true,
-          capability,
-          onConfirm: () => {
-            setSecurityWarning({ isVisible: false, capability: '', onConfirm: () => {} });
-            performCapabilityToggle(capability);
-          },
-        });
-        return;
+      const usage = capabilityUsage[capability];
+      // Only show warning if not previously acknowledged or if it's the first time
+      if (!usage?.warningAcknowledged || !individualWarnings[capability]) {
+        const securityConfig =
+          SECURITY_CAPABILITIES[capability as keyof typeof SECURITY_CAPABILITIES];
+        if (securityConfig) {
+          setSecurityWarning({
+            isVisible: true,
+            capability,
+            onConfirm: () => {
+              // Mark warning as acknowledged
+              setCapabilityUsage(prev => ({
+                ...prev,
+                [capability]: {
+                  ...prev[capability],
+                  warningAcknowledged: true,
+                }
+              }));
+              setIndividualWarnings(prev => ({ ...prev, [capability]: true }));
+              setSecurityWarning({ isVisible: false, capability: '', onConfirm: () => {} });
+              performCapabilityToggle(capability);
+            },
+          });
+          return;
+        }
       }
     }
 
@@ -728,6 +871,15 @@ export const GameInterface: React.FC = () => {
           [capability]: newState,
         }));
         console.log(`[API_TOGGLE] Successfully toggled ${capability} to ${newState}`);
+
+        // Mark capability as used
+        setCapabilityUsage(prev => ({
+          ...prev,
+          [capability]: {
+            ...prev[capability],
+            hasBeenUsed: true,
+          }
+        }));
 
         // Log security events for dangerous capabilities
         if (['shell', 'browser'].includes(capability)) {
@@ -1350,6 +1502,45 @@ export const GameInterface: React.FC = () => {
     }
   }, [output]);
 
+  const fetchProgressionStatus = async () => {
+    console.log('[PROGRESSION] Fetching progression status...');
+    try {
+      const response = await TauriService.proxyApiRequest('GET', '/api/agents/default/progression');
+      if (response.success && response.data.progressionReady) {
+        setProgressionStatus(response.data);
+        console.log('[PROGRESSION] Status updated:', response.data);
+      } else {
+        console.log('[PROGRESSION] Not ready yet:', response.data.message);
+      }
+    } catch (error) {
+      console.error('[PROGRESSION] Error fetching progression status:', error);
+    }
+  };
+
+  // Persist capability usage to localStorage
+  useEffect(() => {
+    localStorage.setItem('capability-usage', JSON.stringify(capabilityUsage));
+  }, [capabilityUsage]);
+
+  // Track when capabilities are unlocked
+  useEffect(() => {
+    if (progressionStatus?.unlockedCapabilities) {
+      setCapabilityUsage(prev => {
+        const updated = { ...prev };
+        progressionStatus.unlockedCapabilities.forEach((cap: string) => {
+          if (!updated[cap]) {
+            updated[cap] = {
+              hasBeenUsed: false,
+              warningAcknowledged: false,
+              firstSeenAt: new Date(),
+            };
+          }
+        });
+        return updated;
+      });
+    }
+  }, [progressionStatus?.unlockedCapabilities]);
+
   // Initial state fetching for capabilities
   const fetchAllCapabilityStates = async () => {
     console.log('[FETCH] Fetching all capability states...');
@@ -1362,6 +1553,8 @@ export const GameInterface: React.FC = () => {
       await fetchShellSettings();
       // Fetch browser settings
       await fetchBrowserSettings();
+      // Fetch progression status
+      await fetchProgressionStatus();
     } catch (error) {
       console.error('[FETCH] Error fetching capability states:', error);
     }
@@ -1640,6 +1833,9 @@ export const GameInterface: React.FC = () => {
             </div>
           </div>
         );
+
+
+
 
       case 'monologue':
         return (
@@ -2318,6 +2514,18 @@ export const GameInterface: React.FC = () => {
           flex: 1;
           overflow: hidden;
         }
+        
+        @keyframes glow {
+          0% {
+            box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, 0 0 15px #00ff00;
+          }
+          50% {
+            box-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00;
+          }
+          100% {
+            box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, 0 0 15px #00ff00;
+          }
+        }
       `}</style>
       {/* Connection Status */}
       <div
@@ -2469,7 +2677,12 @@ export const GameInterface: React.FC = () => {
           {/* Plugin Controls - Ultra Simple */}
           <div className="controls-section">
             <div className="controls-header">◆ CAPABILITIES</div>
-            <UltraSimpleButtons states={plugins} onToggle={handleCapabilityToggle} />
+            <UltraSimpleButtons 
+              states={plugins} 
+              onToggle={handleCapabilityToggle} 
+              progressionStatus={progressionStatus}
+              capabilityUsage={capabilityUsage}
+            />
           </div>
 
           {/* Status Tabs */}

@@ -120,8 +120,9 @@ RUN if [ "${TARGETARCH}" = "arm64" ]; then mv ./server-arm64 ./server && rm -f .
 COPY packages/agentserver/scripts/health-check.sh ./health-check.sh
 COPY packages/agentserver/vnc-autostart.sh ./vnc-autostart.sh
 COPY packages/agentserver/verify-display.sh ./verify-display.sh
-RUN chmod +x ./server ./health-check.sh ./vnc-autostart.sh ./verify-display.sh && \
-    chown eliza:eliza ./server ./health-check.sh ./vnc-autostart.sh ./verify-display.sh
+COPY packages/agentserver/stagehand-wrapper.sh ./stagehand-wrapper.sh
+RUN chmod +x ./server ./health-check.sh ./vnc-autostart.sh ./verify-display.sh ./stagehand-wrapper.sh && \
+    chown eliza:eliza ./server ./health-check.sh ./vnc-autostart.sh ./verify-display.sh ./stagehand-wrapper.sh
 
 # Create directories with correct permissions
 RUN mkdir -p /app/data /app/logs /app/knowledge /home/eliza/.vnc && \
@@ -181,28 +182,45 @@ RUN --mount=type=bind,from=stagehand-builder,source=/stagehand,target=/tmp/stage
 # Make binary executable if it exists
 RUN if [ -f /usr/local/bin/stagehand-server-linux ]; then \
         chmod +x /usr/local/bin/stagehand-server-linux && \
-        ln -sf /usr/local/bin/stagehand-server-linux /usr/local/bin/stagehand-server; \
+        ln -sf /usr/local/bin/stagehand-server-linux /usr/local/bin/stagehand-server-orig; \
     else \
-        echo "#!/bin/bash" > /usr/local/bin/stagehand-server && \
-        echo "cd /app/stagehand-server && node dist/index.js" >> /usr/local/bin/stagehand-server && \
-        chmod +x /usr/local/bin/stagehand-server; \
+        echo "#!/bin/bash" > /usr/local/bin/stagehand-server-orig && \
+        echo "cd /app/stagehand-server && node dist/index.js" >> /usr/local/bin/stagehand-server-orig && \
+        chmod +x /usr/local/bin/stagehand-server-orig; \
     fi
+
+# Set up our wrapper script as the main stagehand-server
+RUN ln -sf /app/stagehand-wrapper.sh /usr/local/bin/stagehand-server && \
+    chmod +x /usr/local/bin/stagehand-server
 
 # Create the virtual display startup script
 RUN echo '#!/bin/bash\n\
-echo "[DISPLAY] Starting X virtual framebuffer..."\n\
-Xvfb :99 -screen 0 1280x720x24 -nolisten tcp &\n\
+echo "[DISPLAY] Checking if X virtual framebuffer is already running..."\n\
+if pgrep Xvfb > /dev/null; then\n\
+    echo "[DISPLAY] Xvfb is already running (PID: $(pgrep Xvfb))"\n\
+else\n\
+    echo "[DISPLAY] Starting X virtual framebuffer..."\n\
+    Xvfb :99 -screen 0 1280x720x24 -nolisten tcp &\n\
+    sleep 3\n\
+fi\n\
+\n\
 export DISPLAY=:99\n\
-echo "[DISPLAY] Waiting for Xvfb to start..."\n\
-sleep 3\n\
 \n\
-echo "[DISPLAY] Starting window manager..."\n\
-fluxbox &\n\
-sleep 2\n\
+if pgrep fluxbox > /dev/null; then\n\
+    echo "[DISPLAY] Window manager is already running (PID: $(pgrep fluxbox))"\n\
+else\n\
+    echo "[DISPLAY] Starting window manager..."\n\
+    fluxbox &\n\
+    sleep 2\n\
+fi\n\
 \n\
-echo "[DISPLAY] Starting VNC server on port 5900..."\n\
-x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -ncache 10 -forever -shared &\n\
-echo "[DISPLAY] VNC server started, accessible on port 5900"\n\
+if pgrep x11vnc > /dev/null; then\n\
+    echo "[DISPLAY] VNC server is already running (PID: $(pgrep x11vnc))"\n\
+else\n\
+    echo "[DISPLAY] Starting VNC server on port 5900..."\n\
+    x11vnc -display :99 -nopw -listen 0.0.0.0 -xkb -ncache 10 -forever -shared &\n\
+    echo "[DISPLAY] VNC server started, accessible on port 5900"\n\
+fi\n\
 \n\
 echo "[DISPLAY] Display services ready, starting main process..."\n\
 exec "$@"' > /app/start-with-display.sh && \

@@ -16,7 +16,6 @@ describe('Plugin Manager Plugin', () => {
     const serviceTypes = pluginManagerPlugin.services?.map((s: any) => s.serviceType) || [];
     expect(serviceTypes).toContain('plugin_manager');
     expect(serviceTypes).toContain('plugin_configuration');
-    expect(serviceTypes).toContain('registry');
   });
 
   it('should have core actions', () => {

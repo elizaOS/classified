@@ -1,4 +1,4 @@
-import { Service, elizaLogger, type IAgentRuntime } from '@elizaos/core';
+import { Service, elizaLogger, type IAgentRuntime, ServiceType, type ServiceTypeName } from '@elizaos/core';
 import { FormsService } from '@elizaos/plugin-forms';
 
 export interface ProjectPlan {
@@ -6,6 +6,18 @@ export interface ProjectPlan {
   name: string;
   description: string;
   type: 'plugin' | 'agent' | 'workflow' | 'mcp' | 'full-stack';
+  status?: 'planning' | 'generating' | 'testing' | 'completed' | 'failed';
+  formId?: string;
+  details?: {
+    projectName?: string;
+  };
+  error?: string;
+  artifacts?: {
+    files?: Array<{
+      path: string;
+      content: string;
+    }>;
+  };
   architecture: {
     components: ComponentSpec[];
     dependencies: DependencySpec[];
@@ -88,7 +100,7 @@ interface EffortEstimate {
 
 export class ProjectPlanningService extends Service {
   static serviceName: string = 'project-planning';
-  static serviceType = 'project-planning' as any;
+  static serviceType: ServiceTypeName = ServiceType.UNKNOWN;
 
   protected runtime: IAgentRuntime;
   private formsService?: FormsService;

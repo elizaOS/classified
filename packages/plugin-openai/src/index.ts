@@ -888,6 +888,58 @@ export const openaiPlugin: Plugin = {
     [ModelType.OBJECT_LARGE]: async (runtime: IAgentRuntime, params: ObjectGenerationParams) => {
       return generateObjectByModelType(runtime, params, ModelType.OBJECT_LARGE, getLargeModel);
     },
+    [ModelType.RESEARCH]: async (
+      runtime: IAgentRuntime,
+      {
+        prompt,
+        stopSequences = [],
+        maxTokens = 32768, // Larger token limit for research
+        temperature = 0.3, // Lower temperature for more focused research
+        frequencyPenalty = 0.5,
+        presencePenalty = 0.5,
+      }: GenerateTextParams
+    ) => {
+      const openai = createOpenAIClient(runtime);
+      // Use o1-preview or similar research model when available
+      const modelName = getSetting(runtime, 'OPENAI_RESEARCH_MODEL', 'o1-preview') || 'o1-preview';
+      const experimentalTelemetry = getExperimentalTelemetry(runtime);
+
+      logger.log(`[OpenAI] Using RESEARCH model: ${modelName}`);
+
+      try {
+        const { text: openaiResponse, usage } = await generateText({
+          model: openai.languageModel(modelName),
+          prompt: prompt,
+          system: runtime.character.system ?? undefined,
+          temperature: temperature,
+          maxTokens: maxTokens,
+          frequencyPenalty: frequencyPenalty,
+          presencePenalty: presencePenalty,
+          stopSequences: stopSequences,
+          experimental_telemetry: {
+            isEnabled: experimentalTelemetry,
+          },
+        });
+
+        if (usage) {
+          emitModelUsageEvent(runtime, 'RESEARCH' as ModelTypeName, prompt, usage);
+        }
+
+        return openaiResponse;
+      } catch (error) {
+        // Fallback to TEXT_LARGE if research model is not available
+        logger.warn(`[OpenAI] Research model ${modelName} not available, falling back to TEXT_LARGE`);
+        return runtime.useModel(ModelType.TEXT_LARGE, {
+          runtime,
+          prompt,
+          stopSequences,
+          maxTokens,
+          temperature,
+          frequencyPenalty,
+          presencePenalty,
+        });
+      }
+    },
   },
   tests: [
     {

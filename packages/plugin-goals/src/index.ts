@@ -17,7 +17,7 @@ import { goalsProvider } from './providers/goals';
 import { GoalService, GoalDataManager } from './services/goalService';
 
 // Import schema
-import * as goalSchema from './schema';
+import { goalSchemaExport } from './schema';
 
 // Note: Table schemas are defined in schema.ts and will be automatically migrated
 
@@ -41,7 +41,7 @@ export const GoalsPlugin: Plugin = {
     updateGoalAction,
     cancelGoalAction,
   ],
-  schema: goalSchema,
+  schema: goalSchemaExport,
   services: [GoalService],
   routes,
   tests: e2eTestSuites,

@@ -162,7 +162,7 @@ export class StagehandService extends Service {
     return this.client;
   }
 
-  private async waitForReady(maxAttempts = 30, delayMs = 2000): Promise<void> {
+  private async waitForReady(maxAttempts = 60, delayMs = 3000): Promise<void> {
     logger.info('Waiting for Stagehand server to be ready...');
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {

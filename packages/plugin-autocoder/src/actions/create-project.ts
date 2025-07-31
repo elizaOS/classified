@@ -10,6 +10,7 @@ import {
 } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
 import type { ProjectMetadata, ProjectType } from '../types/index';
+import { FormsService } from '@elizaos/plugin-forms';
 
 /**
  * Extract project name from user message
@@ -271,7 +272,7 @@ export const createProjectAction: Action = {
   ): Promise<ActionResult> => {
     elizaLogger.info('CREATE_PROJECT action triggered');
 
-    const formsService = runtime.getService('forms');
+    const formsService = runtime.getService('forms') as FormsService | null;
     if (!formsService) {
       elizaLogger.error('Forms service not available');
       if (callback) {
@@ -312,7 +313,7 @@ export const createProjectAction: Action = {
     };
 
     // Create the form
-    await (formsService as any).createForm(formData);
+              await formsService.createForm(formData);
 
     // Store project metadata
     const projectMetadata: ProjectMetadata = {

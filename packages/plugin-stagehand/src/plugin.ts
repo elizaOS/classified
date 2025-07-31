@@ -187,6 +187,13 @@ const browserNavigateAction: Action = {
       };
 
       await callback?.(responseContent);
+
+      // Track browser usage for progression
+      const progressionTracker = (runtime as any).progressionTracker;
+      if (progressionTracker) {
+        await progressionTracker.trackAction('browser_used');
+      }
+
       return {
         text: responseContent.text,
         success: true,
@@ -351,6 +358,20 @@ const browserClickAction: Action = {
       };
 
       await callback?.(responseContent);
+
+      // Track browser usage for progression
+      const progressionTracker = (runtime as any).progressionTracker;
+      if (progressionTracker) {
+        await progressionTracker.trackAction('browser_used');
+        
+        // Check if this is a form submission button
+        const lowerDesc = description.toLowerCase();
+        if (lowerDesc.includes('submit') || lowerDesc.includes('send') || 
+            lowerDesc.includes('post') || lowerDesc.includes('save')) {
+          await progressionTracker.trackAction('form_submitted');
+        }
+      }
+
       return {
         text: responseContent.text,
         success: true,
@@ -495,6 +516,18 @@ const browserTypeAction: Action = {
       };
 
       await callback?.(responseContent);
+
+      // Track browser usage for progression
+      const progressionTracker = (runtime as any).progressionTracker;
+      if (progressionTracker) {
+        await progressionTracker.trackAction('browser_used');
+        
+        // Check if this might be a form submission (typing in a form field)
+        if (field.toLowerCase().includes('form') || field.toLowerCase().includes('submit')) {
+          await progressionTracker.trackAction('form_submitted');
+        }
+      }
+
       return {
         text: responseContent.text,
         success: true,

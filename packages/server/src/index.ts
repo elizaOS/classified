@@ -35,6 +35,8 @@ import type {
 import { existsSync } from 'node:fs';
 import { resolveEnvFile } from './api/system/environment.js';
 import dotenv from 'dotenv';
+import { ServerDatabaseAdapter } from './db/ServerDatabaseAdapter.js';
+import { ServerMigrationService } from './db/ServerMigrationService.js';
 
 /**
  * Expands a file path starting with `~` to the project directory.
@@ -152,6 +154,7 @@ export class AgentServer {
   private clientPath?: string; // Optional path to client dist files
 
   public database!: DatabaseAdapter;
+  public serverDatabase!: any; // ServerDatabaseAdapter for messaging functionality
 
   public startAgent!: (character: Character) => Promise<IAgentRuntime>;
   public stopAgent!: (runtime: IAgentRuntime) => void;
@@ -233,6 +236,17 @@ export class AgentServer {
       // Add a small delay to ensure database is fully ready
       await new Promise((resolve) => setTimeout(resolve, 500));
 
+      // Initialize server-specific database adapter
+      logger.info('[INIT] Initializing server database adapter...');
+      const db = (this.database as any).getDatabase?.() || (this.database as any).db;
+      this.serverDatabase = new ServerDatabaseAdapter(db);
+      
+      // Run server-specific migrations
+      logger.info('[INIT] Running server-specific migrations...');
+      const serverMigrationService = new ServerMigrationService(db);
+      await serverMigrationService.runMigrations();
+      logger.success('[INIT] Server migrations completed successfully');
+
       // Ensure default server exists
       logger.info('[INIT] Ensuring default server exists...');
       await this.ensureDefaultServer();
@@ -252,7 +266,7 @@ export class AgentServer {
     try {
       // Check if the default server exists
       logger.info('[AgentServer] Checking for default server...');
-      const servers = await (this.database as any).getMessageServers();
+      const servers = await this.serverDatabase.getMessageServers();
       logger.debug(`[AgentServer] Found ${servers.length} existing servers`);
 
       // Log all existing servers for debugging
@@ -288,7 +302,7 @@ export class AgentServer {
 
           // Try creating with ORM as fallback
           try {
-            const server = await (this.database as any).createMessageServer({
+            const server = await this.serverDatabase.createMessageServer({
               id: '00000000-0000-0000-0000-000000000000' as UUID,
               name: 'Default Server',
               sourceType: 'eliza_default',
@@ -301,7 +315,7 @@ export class AgentServer {
         }
 
         // Verify it was created
-        const verifyServers = await (this.database as any).getMessageServers();
+        const verifyServers = await this.serverDatabase.getMessageServers();
         logger.debug(`[AgentServer] After creation attempt, found ${verifyServers.length} servers`);
         verifyServers.forEach((s: any) => {
           logger.debug(`[AgentServer] Server after creation: ID=${s.id}, Name=${s.name}`);
@@ -1109,19 +1123,19 @@ export class AgentServer {
   async createServer(
     data: Omit<MessageServer, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<MessageServer> {
-    return (this.database as any).createMessageServer(data);
+    return this.serverDatabase.createMessageServer(data);
   }
 
   async getServers(): Promise<MessageServer[]> {
-    return (this.database as any).getMessageServers();
+    return this.serverDatabase.getMessageServers();
   }
 
   async getServerById(serverId: UUID): Promise<MessageServer | null> {
-    return (this.database as any).getMessageServerById(serverId);
+    return this.serverDatabase.getMessageServerById(serverId);
   }
 
   async getServerBySourceType(sourceType: string): Promise<MessageServer | null> {
-    const servers = await (this.database as any).getMessageServers();
+    const servers = await this.serverDatabase.getMessageServers();
     const filtered = servers.filter((s: MessageServer) => s.sourceType === sourceType);
     return filtered.length > 0 ? filtered[0] : null;
   }
@@ -1130,45 +1144,58 @@ export class AgentServer {
     data: Omit<MessageChannel, 'id' | 'createdAt' | 'updatedAt'> & { id?: UUID },
     participantIds?: UUID[]
   ): Promise<MessageChannel> {
-    return (this.database as any).createChannel(data, participantIds);
+    // Create the channel first
+    const channel = await this.serverDatabase.createChannel(data);
+    
+    // Add participants if provided
+    if (participantIds && participantIds.length > 0) {
+      for (const participantId of participantIds) {
+        await this.serverDatabase.addParticipantToChannel(channel.id, participantId);
+      }
+    }
+    
+    return channel;
   }
 
   async addParticipantsToChannel(channelId: UUID, userIds: UUID[]): Promise<void> {
-    return (this.database as any).addChannelParticipants(channelId, userIds);
+    // Add participants one by one since the method expects a single userId
+    for (const userId of userIds) {
+      await this.serverDatabase.addParticipantToChannel(channelId, userId);
+    }
   }
 
   async getChannelsForServer(serverId: UUID): Promise<MessageChannel[]> {
-    return (this.database as any).getChannelsForServer(serverId);
+    return this.serverDatabase.getChannelsForServer(serverId);
   }
 
   async getChannelDetails(channelId: UUID): Promise<MessageChannel | null> {
-    return (this.database as any).getChannelDetails(channelId);
+    return this.serverDatabase.getChannelDetails(channelId);
   }
 
   async getChannelParticipants(channelId: UUID): Promise<UUID[]> {
-    return (this.database as any).getChannelParticipants(channelId);
+    return this.serverDatabase.getParticipantsForChannel(channelId);
   }
 
   async deleteMessage(messageId: UUID): Promise<void> {
-    return (this.database as any).deleteMessage(messageId);
+    return this.serverDatabase.deleteMessage(messageId);
   }
 
   async updateChannel(
     channelId: UUID,
     updates: { name?: string; participantCentralUserIds?: UUID[]; metadata?: any }
   ): Promise<MessageChannel> {
-    return (this.database as any).updateChannel(channelId, updates);
+    return this.serverDatabase.updateChannel(channelId, updates);
   }
 
   async deleteChannel(channelId: UUID): Promise<void> {
-    return (this.database as any).deleteChannel(channelId);
+    return this.serverDatabase.deleteChannel(channelId);
   }
 
   async clearChannelMessages(channelId: UUID): Promise<void> {
     // Get all messages for the channel and delete them one by one
-    const messages = await (this.database as any).getMessagesForChannel(channelId, 1000);
+    const messages = await this.serverDatabase.getMessagesForChannel(channelId, 1000);
     for (const message of messages) {
-      await (this.database as any).deleteMessage(message.id);
+      await this.serverDatabase.deleteMessage(message.id);
     }
     logger.info(`[AgentServer] Cleared all messages for central channel: ${channelId}`);
   }
@@ -1178,13 +1205,13 @@ export class AgentServer {
     user2Id: UUID,
     messageServerId: UUID
   ): Promise<MessageChannel> {
-    return (this.database as any).findOrCreateDmChannel(user1Id, user2Id, messageServerId);
+    return this.serverDatabase.findOrCreateDmChannel(messageServerId, user1Id, user2Id);
   }
 
   async createMessage(
     data: Omit<CentralRootMessage, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<CentralRootMessage> {
-    const createdMessage = await (this.database as any).createMessage(data);
+    const createdMessage = await this.serverDatabase.createMessage(data);
 
     // Get the channel details to find the server ID
     const channel = await this.getChannelDetails(createdMessage.channelId);
@@ -1214,9 +1241,11 @@ export class AgentServer {
   async getMessagesForChannel(
     channelId: UUID,
     limit: number = 50,
-    beforeTimestamp?: Date
+    _beforeTimestamp?: Date // unused for now
   ): Promise<CentralRootMessage[]> {
-    return (this.database as any).getMessagesForChannel(channelId, limit, beforeTimestamp);
+    // ServerDatabaseAdapter doesn't support beforeTimestamp, so we get all messages
+    // TODO: Add timestamp filtering if needed
+    return this.serverDatabase.getMessagesForChannel(channelId, limit);
   }
 
   // Optional: Method to remove a participant
@@ -1261,7 +1290,7 @@ export class AgentServer {
    * @returns {Promise<UUID[]>} Array of agent IDs
    */
   async getAgentsForServer(serverId: UUID): Promise<UUID[]> {
-    return (this.database as any).getAgentsForServer(serverId);
+    return this.serverDatabase.getAgentsForServer(serverId);
   }
 
   /**
@@ -1271,10 +1300,10 @@ export class AgentServer {
    */
   async getServersForAgent(agentId: UUID): Promise<UUID[]> {
     // This method isn't directly supported in the adapter, so we need to implement it differently
-    const servers = await (this.database as any).getMessageServers();
+    const servers = await this.serverDatabase.getMessageServers();
     const serverIds = [];
     for (const server of servers) {
-      const agents = await (this.database as any).getAgentsForServer(server.id);
+      const agents = await this.serverDatabase.getAgentsForServer(server.id);
       if (agents.includes(agentId)) {
         serverIds.push(server.id as never);
       }

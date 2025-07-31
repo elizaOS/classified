@@ -40,27 +40,27 @@ export const projectsProvider: Provider = {
     // Group projects by status
     const activeProjects = projects.filter(
       (p: ProjectPlan) =>
-        (p as any).status === 'planning' ||
-        (p as any).status === 'generating' ||
-        (p as any).status === 'testing'
+        p.status === 'planning' ||
+        p.status === 'generating' ||
+        p.status === 'testing'
     );
     const completedProjects = projects.filter(
-      (p: ProjectPlan) => (p as any).status === 'completed'
+      (p: ProjectPlan) => p.status === 'completed'
     );
-    const failedProjects = projects.filter((p: ProjectPlan) => (p as any).status === 'failed');
+    const failedProjects = projects.filter((p: ProjectPlan) => p.status === 'failed');
 
     if (activeProjects.length > 0) {
       contextText += '\nActive Projects:\n';
       activeProjects.forEach((project: ProjectPlan) => {
-        contextText += `- ${project.name} (${project.type}): ${(project as any).status}\n`;
-        if ((project as any).formId) {
-          contextText += `  Form ID: ${(project as any).formId}\n`;
+        contextText += `- ${project.name} (${project.type}): ${project.status}\n`;
+        if (project.formId) {
+          contextText += `  Form ID: ${project.formId}\n`;
         }
-        if ((project as any).details?.projectName) {
-          contextText += `  Project Name: ${(project as any).details.projectName}\n`;
+        if (project.details?.projectName) {
+          contextText += `  Project Name: ${project.details.projectName}\n`;
         }
-        if ((project as any).error) {
-          contextText += `  Error: ${(project as any).error}\n`;
+        if (project.error) {
+          contextText += `  Error: ${project.error}\n`;
         }
       });
     }
@@ -69,11 +69,11 @@ export const projectsProvider: Provider = {
       contextText += '\nCompleted Projects:\n';
       completedProjects.forEach((project: ProjectPlan) => {
         contextText += `- ${project.name} (${project.type})\n`;
-        if ((project as any).details?.projectName) {
-          contextText += `  Project Name: ${(project as any).details.projectName}\n`;
+        if (project.details?.projectName) {
+          contextText += `  Project Name: ${project.details.projectName}\n`;
         }
-        if ((project as any).artifacts?.files) {
-          contextText += `  Generated ${(project as any).artifacts.files.length} files\n`;
+        if (project.artifacts?.files) {
+          contextText += `  Generated ${project.artifacts.files.length} files\n`;
         }
       });
     }
@@ -82,8 +82,8 @@ export const projectsProvider: Provider = {
       contextText += '\nFailed Projects:\n';
       failedProjects.forEach((project: ProjectPlan) => {
         contextText += `- ${project.name} (${project.type})\n`;
-        if ((project as any).error) {
-          contextText += `  Error: ${(project as any).error}\n`;
+        if (project.error) {
+          contextText += `  Error: ${project.error}\n`;
         }
       });
     }

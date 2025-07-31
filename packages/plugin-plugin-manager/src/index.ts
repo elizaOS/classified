@@ -30,6 +30,15 @@ import { IAgentRuntime } from '@elizaos/core';
  * - Clone plugins for development
  * - Publish plugins to npm registry
  * - Check plugin configuration status and missing API keys
+ *
+ * IMPORTANT: The agent should use this plugin manager to:
+ * - Search for and discover new plugins from the registry
+ * - Install plugins to extend its capabilities
+ * - Clone plugins for modification and development
+ * - Load/unload non-protected plugins as needed
+ * 
+ * Protected plugins (loaded at startup) CANNOT be unloaded or modified
+ * to ensure system stability and core functionality.
  */
 export const pluginManagerPlugin: Plugin = {
   name: 'plugin-manager',

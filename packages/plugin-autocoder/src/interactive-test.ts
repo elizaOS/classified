@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { query } from '@anthropic-ai/claude-code';
 import { AgentRuntime, type IAgentRuntime, type UUID } from '@elizaos/core';
 import { createInterface } from 'readline';
 import { v4 as uuidv4 } from 'uuid';
@@ -255,34 +254,24 @@ class InteractiveClaudeCodeTester {
 
     const startTime = Date.now();
 
-    let fullResponse = '';
+    try {
+      // Use the runtime's model directly
+      const fullPrompt = `You are Claude Code, an expert code generation assistant.\n\nUser: ${prompt}`;
+      
+      const response = await this.session.runtime.useModel('text_large', {
+        prompt: fullPrompt,
+        temperature: 0.7,
+        max_tokens: 4000,
+      });
 
-    for await (const message of query({
-      prompt,
-      options: {
-        maxTurns: 1,
-        customSystemPrompt: 'You are Claude Code, an expert code generation assistant.',
-      },
-    })) {
-      if (message.type === 'assistant') {
-        const content = message.message?.content;
-        if (Array.isArray(content)) {
-          for (const item of content) {
-            if (item.type === 'text') {
-              fullResponse += item.text;
-            }
-          }
-        }
-      } else if ((message as any).type === 'tool_use') {
-        console.log(`🔧 Tool used: ${(message as any).name}`);
-      }
+      const duration = Date.now() - startTime;
+      console.log(`\n✅ Claude Code Response (${duration}ms):`);
+      console.log('─'.repeat(50));
+      console.log(response);
+      console.log('─'.repeat(50));
+    } catch (error) {
+      console.error('❌ Error calling Claude:', error);
     }
-
-    const duration = Date.now() - startTime;
-    console.log(`\n✅ Claude Code Response (${duration}ms):`);
-    console.log('─'.repeat(50));
-    console.log(fullResponse);
-    console.log('─'.repeat(50));
   }
 
   private async generateProject(description: string) {

@@ -8,6 +8,8 @@ import {
   elizaLogger,
 } from '@elizaos/core';
 import { CodeGenerationService } from '../services/CodeGenerationService';
+import type { ProjectType } from '../types/index';
+import { FormsService, type Form } from '@elizaos/plugin-forms';
 
 export const generateCodeAction: Action = {
   name: 'GENERATE_CODE',
@@ -27,7 +29,7 @@ export const generateCodeAction: Action = {
     const text = message.content.text?.toLowerCase() || '';
 
     // Check if this is a form submission
-    const data = message.content.data as any;
+    const data = message.content.data as { action?: string };
     if (data?.action === 'GENERATE_CODE') {
       return true;
     }
@@ -67,7 +69,7 @@ export const generateCodeAction: Action = {
       };
     }
 
-    const formsService = runtime.getService('forms');
+    const formsService = runtime.getService('forms') as FormsService | null;
 
     // Extract project type and data
     const projectType = await extractProjectType(runtime, message, state);
@@ -75,11 +77,11 @@ export const generateCodeAction: Action = {
 
     // Handle form flow
     if (formsService) {
-      // Check if we have active forms
-      const activeForms = await (formsService as any).getActiveForms(message.roomId);
-      const projectForm = activeForms.find((f: any) => f.id.startsWith('project-'));
+            // Check if we have active forms
+        const activeForms = await formsService.listForms('active');
+      const projectForm = activeForms.find((f: Form) => f.id.startsWith('project-'));
 
-      if (projectForm && !projectForm.completed) {
+      if (projectForm && projectForm.status !== 'completed') {
         // We have an incomplete form, prompt for next step
         const nextStepPrompt = getNextStepPrompt(projectForm, message.content.text || '');
 
@@ -99,8 +101,14 @@ export const generateCodeAction: Action = {
         };
       }
 
-      // Check if this is a form submission
-      const messageData = message.content.data as any;
+            // Check if this is a form submission
+              const messageData = message.content.data as {
+                formId?: string;
+                formData?: any;
+                action?: string;
+                projectId?: string;
+                projectType?: string;
+              };
       if (messageData?.formId && messageData?.formData) {
         // Process form submission
         const formData = messageData.formData;
@@ -208,7 +216,7 @@ export const generateCodeAction: Action = {
       description: message.content.text || '',
       requirements,
       apis: extractAPIs(message.content.text || ''),
-      targetType: projectType as any,
+                  targetType: projectType as ProjectType,
     });
 
     if (!result.success) {
@@ -294,7 +302,13 @@ async function extractProjectType(
   }
 
   // Check form data
-  const data = message.content.data as any;
+              const data = message.content.data as { 
+              action?: string; 
+              projectId?: string; 
+              projectType?: string;
+              formId?: string;
+              formData?: any;
+            };
   if (data?.projectType) {
     return data.projectType;
   }

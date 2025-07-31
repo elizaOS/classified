@@ -5,6 +5,7 @@ import { ProjectPlanningService } from './services/ProjectPlanningService';
 import { generateCodeAction } from './actions/generate-code';
 import { createProjectAction } from './actions/create-project';
 import { projectsProvider } from './providers/projects-provider';
+import { currentProjectProvider } from './providers/current-project-provider';
 import testSuites from './__tests__/e2e/index';
 
 // Export types
@@ -21,6 +22,7 @@ export { createProjectAction } from './actions/create-project';
 
 // Export providers
 export { projectsProvider } from './providers/projects-provider';
+export { currentProjectProvider } from './providers/current-project-provider';
 
 /**
  * AutoCoder Plugin for ElizaOS
@@ -40,14 +42,14 @@ export { projectsProvider } from './providers/projects-provider';
 export const autocoderPlugin: Plugin = {
   name: '@elizaos/plugin-autocoder',
   description:
-    'Advanced code generation plugin using Claude Code in sandboxed environments. Automates complete project creation with quality assurance.',
+    'Advanced code generation plugin that enables autonomous plugin development. Searches registry, generates PRDs, and creates working plugins with validation.',
 
   services: [CodeGenerationService, ProjectPlanningService, SecretsManagerService],
   actions: [generateCodeAction, createProjectAction],
-  providers: [projectsProvider],
+  providers: [projectsProvider, currentProjectProvider],
 
   // Dependencies - required for functionality
-  dependencies: ['@elizaos/plugin-forms'],
+  dependencies: ['@elizaos/plugin-forms', '@elizaos/plugin-plugin-manager'],
   testDependencies: ['@elizaos/plugin-forms'],
 
   // E2E Test Suites - Real runtime integration tests

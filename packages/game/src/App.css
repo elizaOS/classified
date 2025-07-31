@@ -562,3 +562,67 @@ body {
     min-width: unset;
   }
 }
+
+/* Progression Panel Styles */
+.progression-info {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.progression-item {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+.progression-item:last-child {
+  border-bottom: none;
+}
+
+.capability-tag {
+  display: inline-block;
+  background: rgba(0, 255, 0, 0.1);
+  color: var(--green);
+  padding: 2px 6px;
+  margin: 2px;
+  border: 1px solid var(--green);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.level-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.1);
+}
+
+.level-item:last-child {
+  border-bottom: none;
+}
+
+.level-status {
+  font-size: 12px;
+  width: 20px;
+}
+
+.level-name {
+  font-weight: bold;
+  color: var(--green);
+  min-width: 100px;
+}
+
+.level-capabilities {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.action-item {
+  padding: 2px 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}

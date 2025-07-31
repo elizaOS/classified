@@ -250,6 +250,22 @@ export class PluginManagerService extends Service implements PluginRegistry {
   // Component tracking
   private componentRegistry: Map<string, ComponentRegistration[]> = new Map();
 
+  // Protected plugins that cannot be registered, loaded, or unloaded by external code
+  // These match the actual plugin names as defined in their respective index.ts files
+  private readonly PROTECTED_PLUGINS = new Set<string>([
+    'plugin-manager',          // The plugin manager itself
+    '@elizaos/plugin-sql',     // SQL database plugin
+    'bootstrap',               // Bootstrap plugin
+    'game-api',               // Game API plugin
+    'inference',              // Inference engine
+    'autonomy',               // Autonomy plugin
+    'knowledge',              // Knowledge management
+    '@elizaos/plugin-personality', // Personality system
+    'experience',             // Experience tracking
+    'goals',                  // Goals tracking (can be removed once progression is working)
+    'todo',                   // Todo tracking (can be removed once progression is working)
+  ]);
+
   constructor(runtime: IAgentRuntime, config?: PluginManagerConfig) {
     super(runtime);
     this.pluginManagerConfig = {
@@ -387,6 +403,11 @@ export class PluginManagerService extends Service implements PluginRegistry {
       throw new Error(`Plugin ${pluginId} not found in registry`);
     }
 
+    // Don't allow force loading of protected plugins from external code
+    if (force && this.isProtectedPlugin(pluginState.name)) {
+      throw new Error(`Cannot force load protected plugin ${pluginState.name}`);
+    }
+
     if (pluginState.status === PluginStatus.LOADED && !force) {
       logger.info(`[PluginManagerService] Plugin ${pluginState.name} already loaded`);
       return;
@@ -444,6 +465,11 @@ export class PluginManagerService extends Service implements PluginRegistry {
       throw new Error(`Cannot unload original plugin ${pluginState.name}`);
     }
 
+    // Check if this is a protected plugin
+    if (this.isProtectedPlugin(pluginState.name)) {
+      throw new Error(`Cannot unload protected plugin ${pluginState.name}`);
+    }
+
     logger.info(`[PluginManagerService] Unloading plugin ${pluginState.name}...`);
 
     if (!pluginState.plugin) {
@@ -467,6 +493,17 @@ export class PluginManagerService extends Service implements PluginRegistry {
 
     if (this.plugins.has(pluginId)) {
       throw new Error(`Plugin ${plugin.name} already registered`);
+    }
+
+    // Check if trying to register a duplicate of an original plugin
+    const isOriginalName = this.originalPlugins.some((p) => p.name === plugin.name);
+    if (isOriginalName) {
+      throw new Error(`Cannot register a plugin with the same name as an original plugin: ${plugin.name}`);
+    }
+
+    // Check if this is an attempt to register a protected plugin
+    if (this.isProtectedPlugin(plugin.name)) {
+      throw new Error(`Cannot register protected plugin: ${plugin.name}`);
     }
 
     const state: PluginState = {
@@ -691,6 +728,73 @@ export class PluginManagerService extends Service implements PluginRegistry {
   async stop(): Promise<void> {
     logger.info('[PluginManagerService] Stopping...');
     // Clean up any resources
+  }
+
+  /**
+   * Checks if a plugin name is protected and cannot be modified
+   * Also checks for name variations (with/without @elizaos/ prefix)
+   */
+  private isProtectedPlugin(pluginName: string): boolean {
+    // Check exact match
+    if (this.PROTECTED_PLUGINS.has(pluginName)) {
+      return true;
+    }
+    
+    // Check without @elizaos/ prefix
+    const withoutPrefix = pluginName.replace(/^@elizaos\//, '');
+    if (this.PROTECTED_PLUGINS.has(withoutPrefix)) {
+      return true;
+    }
+    
+    // Check with @elizaos/ prefix added
+    if (!pluginName.startsWith('@elizaos/') && this.PROTECTED_PLUGINS.has(`@elizaos/${pluginName}`)) {
+      return true;
+    }
+    
+    // Also protect original plugins (loaded at startup)
+    return this.originalPlugins.some(p => p.name === pluginName);
+  }
+
+  /**
+   * Gets the list of protected plugin names
+   */
+  getProtectedPlugins(): string[] {
+    return Array.from(this.PROTECTED_PLUGINS);
+  }
+
+  /**
+   * Gets the list of original plugin names (loaded at startup)
+   */
+  getOriginalPlugins(): string[] {
+    return this.originalPlugins.map(p => p.name);
+  }
+
+  /**
+   * Checks if a plugin can be safely unloaded
+   * Returns true if the plugin can be unloaded, false if it's protected
+   */
+  canUnloadPlugin(pluginName: string): boolean {
+    return !this.isProtectedPlugin(pluginName);
+  }
+
+  /**
+   * Gets a human-readable reason why a plugin cannot be unloaded
+   */
+  getProtectionReason(pluginName: string): string | null {
+    if (this.PROTECTED_PLUGINS.has(pluginName)) {
+      return `${pluginName} is a core system plugin and cannot be unloaded`;
+    }
+    
+    const withoutPrefix = pluginName.replace(/^@elizaos\//, '');
+    if (this.PROTECTED_PLUGINS.has(withoutPrefix) || this.PROTECTED_PLUGINS.has(`@elizaos/${pluginName}`)) {
+      return `${pluginName} is a core system plugin and cannot be unloaded`;
+    }
+    
+    if (this.originalPlugins.some(p => p.name === pluginName)) {
+      return `${pluginName} was loaded at startup and is required for agent operation`;
+    }
+    
+    return null;
   }
 
   // Registry installation methods

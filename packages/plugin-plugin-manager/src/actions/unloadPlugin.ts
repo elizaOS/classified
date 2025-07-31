@@ -75,9 +75,10 @@ export const unloadPluginAction: Action = {
     const plugins = pluginManager.getAllPlugins();
     const loadedPlugins = plugins.filter((p) => p.status === 'loaded');
 
-    // We can't unload original plugins, so check if there are any non-original loaded plugins
-    // For now, we'll assume any plugin can potentially be unloaded (the service will check)
-    return loadedPlugins.length > 0;
+    // Filter out protected plugins that cannot be unloaded
+    const unloadablePlugins = loadedPlugins.filter((p) => pluginManager.canUnloadPlugin(p.name));
+    
+    return unloadablePlugins.length > 0;
   },
 
   async handler(
@@ -117,11 +118,12 @@ export const unloadPluginAction: Action = {
     // If no exact match, provide a list of loaded plugins
     if (!pluginToUnload) {
       const loadedPlugins = plugins.filter((p) => p.status === 'loaded');
+      const unloadablePlugins = loadedPlugins.filter((p) => pluginManager.canUnloadPlugin(p.name));
 
-      if (loadedPlugins.length === 0) {
+      if (unloadablePlugins.length === 0) {
         if (callback) {
           await callback({
-            text: 'No plugins are currently loaded that can be unloaded.',
+            text: 'No plugins are currently loaded that can be unloaded. All loaded plugins are protected system plugins.',
             actions: ['UNLOAD_PLUGIN'],
           });
         }
@@ -130,7 +132,19 @@ export const unloadPluginAction: Action = {
 
       if (callback) {
         await callback({
-          text: `Please specify which plugin to unload. Currently loaded plugins: ${loadedPlugins.map((p) => p.name).join(', ')}`,
+          text: `Please specify which plugin to unload. Available plugins that can be unloaded: ${unloadablePlugins.map((p) => p.name).join(', ')}`,
+          actions: ['UNLOAD_PLUGIN'],
+        });
+      }
+      return;
+    }
+
+    // Check if plugin can be unloaded
+    if (!pluginManager.canUnloadPlugin(pluginToUnload.name)) {
+      const reason = pluginManager.getProtectionReason(pluginToUnload.name);
+      if (callback) {
+        await callback({
+          text: `Cannot unload plugin: ${reason}`,
           actions: ['UNLOAD_PLUGIN'],
         });
       }
@@ -139,13 +153,23 @@ export const unloadPluginAction: Action = {
 
     logger.info(`[unloadPluginAction] Unloading plugin: ${pluginToUnload.name}`);
 
-    await pluginManager.unloadPlugin({ pluginId: pluginToUnload.id });
+    try {
+      await pluginManager.unloadPlugin({ pluginId: pluginToUnload.id });
 
-    if (callback) {
-      await callback({
-        text: `Successfully unloaded plugin: ${pluginToUnload.name}`,
-        actions: ['UNLOAD_PLUGIN'],
-      });
+      if (callback) {
+        await callback({
+          text: `Successfully unloaded plugin: ${pluginToUnload.name}`,
+          actions: ['UNLOAD_PLUGIN'],
+        });
+      }
+    } catch (error) {
+      logger.error(`[unloadPluginAction] Failed to unload plugin:`, error);
+      if (callback) {
+        await callback({
+          text: `Failed to unload plugin ${pluginToUnload.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          actions: ['UNLOAD_PLUGIN'],
+        });
+      }
     }
   },
 };

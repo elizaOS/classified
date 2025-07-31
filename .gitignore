@@ -205,3 +205,5 @@ deployment/linux-stores/flatpak/build-dir/
 deployment/linux-stores/flatpak/repo/
 deployment/linux-stores/flatpak/.flatpak-builder/
 deployment/linux-stores/flatpak/*.flatpak
+
+eliza-cloud

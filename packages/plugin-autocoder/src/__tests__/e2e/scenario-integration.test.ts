@@ -168,7 +168,7 @@ describe('AutoCoder Scenario Integration', () => {
         entityId: 'test-entity' as any,
         roomId: 'test-room' as any,
         content: {
-          text: 'Create a Discord bot that monitors RSS feeds for Tesla news and sends alerts',
+          text: 'Create a Discord plugin that monitors RSS feeds for Tesla news and sends alerts',
         },
         createdAt: Date.now(),
       };
@@ -194,7 +194,7 @@ describe('AutoCoder Scenario Integration', () => {
         entityId: 'test-entity' as any,
         roomId: 'test-room' as any,
         content: {
-          text: 'Build a global weather application that can query weather anywhere in the world',
+          text: 'Build a global weather agent that can query weather anywhere in the world',
         },
         createdAt: Date.now(),
       };

@@ -32,6 +32,7 @@ export const ModelType = {
   VIDEO: 'VIDEO',
   OBJECT_SMALL: 'OBJECT_SMALL',
   OBJECT_LARGE: 'OBJECT_LARGE',
+  RESEARCH: 'RESEARCH', // For o3-deep-research model
 } as const;
 
 /**
@@ -231,6 +232,7 @@ export interface ModelParamsMap {
   [ModelType.VIDEO]: VideoProcessingParams;
   [ModelType.OBJECT_SMALL]: ObjectGenerationParams;
   [ModelType.OBJECT_LARGE]: ObjectGenerationParams;
+  [ModelType.RESEARCH]: TextGenerationParams; // For o3-deep-research model
   // Allow string index for custom model types
   [key: string]: BaseModelParams | any;
 }
@@ -254,6 +256,7 @@ export interface ModelResultMap {
   [ModelType.VIDEO]: any; // Specific return type depends on processing type
   [ModelType.OBJECT_SMALL]: any;
   [ModelType.OBJECT_LARGE]: any;
+  [ModelType.RESEARCH]: string; // For o3-deep-research model
   // Allow string index for custom model types
   [key: string]: any;
 }

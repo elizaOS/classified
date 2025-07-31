@@ -73,3 +73,18 @@ export const goalTagRelations = relations(goalTagsTable, ({ one }) => ({
     references: [goalsTable.id],
   }),
 }));
+
+/**
+ * Export the complete schema for SQL plugin discovery
+ */
+export const goalSchemaExport = {
+  goalsTable,
+  goalTagsTable,
+  // Also include the original structure for compatibility
+  tables: {
+    goals: goalsTable,
+    goalTags: goalTagsTable,
+  },
+};
+
+export default goalSchemaExport;

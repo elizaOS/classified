@@ -24,6 +24,7 @@ import { elizaOSServicesPlugin } from '@elizaos/plugin-elizaos-services';
 import { groqPlugin } from '@elizaos/plugin-groq';
 // @ts-ignore - workspace dependency
 import { localEmbeddingPlugin } from '@elizaos/plugin-local-embedding';
+import { createClaudeHandler } from './claude-proxy';
 
 /**
  * Enum for supported inference providers
@@ -683,3 +684,6 @@ export const inferencePlugin: Plugin = {
 };
 
 export default inferencePlugin;
+
+// Export Claude handler for external use
+export { createClaudeHandler, ClaudeProxy } from './claude-proxy';

@@ -1,7 +1,30 @@
-import { elizaLogger, IAgentRuntime, ModelType, Service } from '@elizaos/core';
+import { elizaLogger, IAgentRuntime, ModelType, Service, ServiceType, ServiceTypeName } from '@elizaos/core';
 import { FormsService } from '@elizaos/plugin-forms';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { execSync, exec } from 'child_process';
+import { promisify } from 'util';
+// Plugin registry types - will be loaded dynamically
+type PluginSearchResult = {
+  id?: string;
+  name: string;
+  description: string;
+  score?: number;
+  tags?: string[];
+  features?: string[];
+  requiredConfig?: string[];
+  version?: string;
+  npmPackage?: string;
+  repository?: string;
+  relevantSection?: string;
+};
+
+// Dynamic imports for plugin registry functions
+let searchPluginsByContent: (query: string) => Promise<PluginSearchResult[]>;
 
 import type { ProjectType } from '../types/index';
+
+const execAsync = promisify(exec);
 
 // Define types that were imported before
 export interface CodeGenerationRequest {
@@ -83,17 +106,35 @@ interface ResearchResult {
   apis: APIResearch[];
   similarProjects: SimilarProject[];
   elizaContext: ElizaContext;
+  existingPlugins: PluginSearchResult[];
+}
+
+interface PRDDocument {
+  title: string;
+  overview: string;
+  objectives: string[];
+  requirements: {
+    functional: string[];
+    nonFunctional: string[];
+    technical: string[];
+  };
+  architecture: {
+    approach: 'clone-existing' | 'extend-existing' | 'new-plugin';
+    basePlugin?: string;
+    components: string[];
+    dependencies: string[];
+  };
+  apiKeys: string[];
+  testScenarios: string[];
+  successCriteria: string[];
 }
 
 export class CodeGenerationService extends Service {
   static serviceName: string = 'code-generation';
-  static serviceType = 'code-generation' as any;
+  static serviceType: ServiceTypeName = ServiceType.UNKNOWN;
   protected runtime: IAgentRuntime;
   private formsService: FormsService | null = null;
-  // Make these optional since we removed the imports
-  private e2bService: E2BService | null = null;
-  private githubService: any = null;
-  private sandboxId: string | null = null;
+  private projectsDir: string;
 
   /**
    * Static method to start the service
@@ -110,9 +151,9 @@ export class CodeGenerationService extends Service {
     this.runtime = runtime;
     this.formsService = formsService || null;
 
-    // Check for optional services - use null instead of undefined
-    this.e2bService = runtime.getService('e2b') as E2BService | null;
-    this.githubService = runtime.getService<any>('github') || null;
+    // Set up projects directory
+    const workspaceDir = process.cwd();
+    this.projectsDir = path.join(workspaceDir, 'generated-plugins');
 
     elizaLogger.info('CodeGenerationService started successfully');
   }
@@ -124,17 +165,6 @@ export class CodeGenerationService extends Service {
   async start(): Promise<void> {
     elizaLogger.info('Starting CodeGenerationService');
 
-    // Get required services - be more lenient during testing
-    const e2bService = this.runtime.getService('e2b') as E2BService | null;
-    if (!e2bService) {
-      elizaLogger.warn('E2B service not available - some features will be disabled');
-      // Don't throw in test environments
-      if (process.env.NODE_ENV !== 'test' && !process.env.ELIZA_TEST_MODE) {
-        throw new Error('E2B service is required for code generation');
-      }
-    }
-    this.e2bService = e2bService;
-
     const formsService = this.runtime.getService('forms') as FormsService | null;
     if (!formsService) {
       elizaLogger.warn('Forms service not available - some features will be disabled');
@@ -145,23 +175,23 @@ export class CodeGenerationService extends Service {
     }
     this.formsService = formsService;
 
-    this.githubService = this.runtime.getService<any>('github') || null;
-    // this.secretsManager =
-    //   this.runtime.getService<SecretsManagerService>('secrets-manager') || undefined;
+    // Try to dynamically load plugin registry functions
+    try {
+      // @ts-expect-error - Dynamic import
+      const registryModule = await import('../../plugin-plugin-manager/src/services/pluginRegistryService');
+      searchPluginsByContent = registryModule.searchPluginsByContent;
+      elizaLogger.info('Plugin registry functions loaded successfully');
+    } catch (_error) {
+      elizaLogger.warn('Plugin registry functions not available - registry search will be disabled');
+      // Provide stub functions
+      searchPluginsByContent = async () => [];
+    }
 
     elizaLogger.info('CodeGenerationService started successfully');
   }
 
   async stop(): Promise<void> {
     elizaLogger.info('Stopping CodeGenerationService');
-
-    if (this.sandboxId && this.e2bService) {
-      try {
-        await this.e2bService.killSandbox(this.sandboxId);
-      } catch (error) {
-        elizaLogger.error('Error stopping sandbox:', error);
-      }
-    }
   }
 
   /**
@@ -170,13 +200,37 @@ export class CodeGenerationService extends Service {
   private async performResearch(request: CodeGenerationRequest): Promise<ResearchResult> {
     elizaLogger.info('Performing research for project:', request.projectName);
 
-    // Use o3-research-preview for API research
+    // Search registry for existing plugins
+    elizaLogger.info('Searching plugin registry for existing solutions...');
+    const existingPlugins = await searchPluginsByContent(
+      `${request.description} ${request.requirements.join(' ')}`
+    );
+    
+    elizaLogger.info(`Found ${existingPlugins.length} potentially relevant plugins`);
+
+    // Use RESEARCH model for API research when available
     const apiResearch = await Promise.all(
       request.apis.map(async (api) => {
         const prompt = `Research the ${api} API for integration in an ElizaOS ${request.targetType}. 
           Provide documentation links, code examples, authentication methods, and best practices.`;
 
-        const response = await this.generateCodeWithTimeout(prompt, 2000, 60000); // 1 minute timeout for API research
+        // Try to use RESEARCH model if available
+        let response: string;
+        try {
+          // Use RESEARCH model type
+          response = await this.runtime.useModel('RESEARCH', {
+            runtime: this.runtime,
+            prompt,
+            modelType: 'RESEARCH',
+            maxTokens: 4000,
+            temperature: 0.3,
+          });
+          elizaLogger.info(`Used RESEARCH model for ${api} API research`);
+        } catch (_error) {
+          // Fallback to regular model
+          elizaLogger.info(`RESEARCH model not available, using standard model for ${api} API research`);
+          response = await this.generateCodeWithTimeout(prompt, 2000, 60000); // 1 minute timeout
+        }
 
         return {
           name: api,
@@ -197,6 +251,7 @@ export class CodeGenerationService extends Service {
       apis: apiResearch,
       similarProjects,
       elizaContext,
+      existingPlugins,
     };
   }
 
@@ -206,10 +261,10 @@ export class CodeGenerationService extends Service {
   private async generatePRD(
     request: CodeGenerationRequest,
     research: ResearchResult
-  ): Promise<string> {
+  ): Promise<PRDDocument> {
     elizaLogger.info('Generating PRD and implementation plan');
 
-    const prompt = `Generate a comprehensive Product Requirements Document (PRD) and implementation plan for:
+    const prompt = `Generate a comprehensive Product Requirements Document (PRD) for:
 
 Project: ${request.projectName}
 Type: ${request.targetType}
@@ -217,6 +272,11 @@ Description: ${request.description}
 
 Requirements:
 ${request.requirements.map((r) => `- ${r}`).join('\n')}
+
+Existing Plugins Found:
+${research.existingPlugins
+  .map((p) => `- ${p.name}: ${p.description} (score: ${p.score})`)
+  .join('\n')}
 
 API Research:
 ${research.apis
@@ -244,17 +304,63 @@ ElizaOS Context:
 - Patterns: ${research.elizaContext.patterns.join(', ')}
 - Conventions: ${research.elizaContext.conventions.join(', ')}
 
-Generate a detailed PRD following ElizaOS best practices including:
-1. User stories and scenarios
-2. Technical architecture
-3. File structure
-4. Implementation steps
-5. Testing strategy
-6. Security considerations`;
+Based on the existing plugins and research, generate a PRD that follows this exact JSON structure:
+{
+  "title": "Project title",
+  "overview": "Brief project overview",
+  "objectives": ["objective1", "objective2"],
+  "requirements": {
+    "functional": ["requirement1", "requirement2"],
+    "nonFunctional": ["performance", "security"],
+    "technical": ["typescript", "node.js"]
+  },
+  "architecture": {
+    "approach": "clone-existing" | "extend-existing" | "new-plugin",
+    "basePlugin": "plugin-name if using existing",
+    "components": ["component1", "component2"],
+    "dependencies": ["dependency1", "dependency2"]
+  },
+  "apiKeys": ["OPENAI_API_KEY", "OTHER_KEY"],
+  "testScenarios": ["test1", "test2"],
+  "successCriteria": ["criteria1", "criteria2"]
+}
+
+IMPORTANT: Analyze existing plugins to determine if we should:
+1. Clone an existing plugin (if one matches >80% of requirements)
+2. Extend an existing plugin (if one matches 50-80% of requirements)
+3. Create a new plugin (if no suitable match exists)
+
+Return ONLY valid JSON, no markdown formatting.`;
 
     const response = await this.generateCodeWithTimeout(prompt, 4000, 90000); // 1.5 minute timeout for PRD
 
-    return response;
+    // Parse the JSON response
+    try {
+      const prd = JSON.parse(response) as PRDDocument;
+      elizaLogger.info(`PRD generated with approach: ${prd.architecture.approach}`);
+      return prd;
+    } catch (error) {
+      elizaLogger.error('Failed to parse PRD JSON:', error);
+      // Fallback PRD if parsing fails
+      return {
+        title: request.projectName,
+        overview: request.description,
+        objectives: request.requirements,
+        requirements: {
+          functional: request.requirements,
+          nonFunctional: ['Performance', 'Security', 'Reliability'],
+          technical: ['TypeScript', 'Node.js', 'ElizaOS'],
+        },
+        architecture: {
+          approach: 'new-plugin',
+          components: ['Service', 'Actions', 'Providers'],
+          dependencies: ['@elizaos/core'],
+        },
+        apiKeys: request.apis.map(api => `${api.toUpperCase()}_API_KEY`),
+        testScenarios: request.testScenarios || [],
+        successCriteria: ['All tests pass', 'Plugin loads successfully'],
+      };
+    }
   }
 
   /**
@@ -274,13 +380,13 @@ Generate a detailed PRD following ElizaOS best practices including:
     };
 
     // Get E2B service for direct execution
-    const e2bService = this.runtime.getService('e2b');
+    const e2bService = this.runtime.getService('e2b') as E2BService;
     if (!e2bService) {
       throw new Error('E2B service not available for QA');
     }
 
     // Run lint
-    const lintResult = await (e2bService as any).executeCode(
+    const lintResult = await e2bService.executeCode(
       `
 import subprocess
 import os
@@ -322,7 +428,7 @@ except Exception as e:
     }
 
     // Run type check
-    const typeResult = await (e2bService as any).executeCode(
+    const typeResult = await e2bService.executeCode(
       `
 import subprocess
 import os
@@ -355,7 +461,7 @@ except Exception as e:
     }
 
     // Run build
-    const buildResult = await (e2bService as any).executeCode(
+    const buildResult = await e2bService.executeCode(
       `
 import subprocess
 import os
@@ -386,7 +492,7 @@ except Exception as e:
     }
 
     // Run tests
-    const testResult = await (e2bService as any).executeCode(
+    const testResult = await e2bService.executeCode(
       `
 import subprocess
 import os
@@ -456,186 +562,132 @@ except Exception as e:
   ): Promise<void> {
     elizaLogger.info('Setting up project with starter files...');
 
-    // Create project directory and initialize with starter files
-    await this.e2bService!.executeCode(
-      `
-import os
-import subprocess
-
-# Create project directory
-os.makedirs('${projectPath}', exist_ok=True)
-os.chdir('${projectPath}')
-
-# Initialize with starter files for ${request.targetType}
-print(f"Setting up ${request.targetType} project in: {os.getcwd()}")
-
-# Create basic project structure
-try:
-    if "${request.targetType}" == "plugin":
-        # Create plugin structure
-        os.makedirs("src", exist_ok=True)
-        os.makedirs("src/actions", exist_ok=True)
-        os.makedirs("src/providers", exist_ok=True)
-        os.makedirs("src/services", exist_ok=True)
-        os.makedirs("src/__tests__", exist_ok=True)
-        os.makedirs("src/__tests__/e2e", exist_ok=True)
-        
-        # Create package.json for plugin
-        package_json = {
-            "name": "${request.projectName}",
-            "version": "1.0.0",
-            "type": "module",
-            "main": "dist/index.js",
-            "scripts": {
-                "build": "tsup src/index.ts --format esm --dts --clean",
-                "test": "bun test",
-                "lint": "eslint src --ext .ts,.tsx --fix",
-                "typecheck": "tsc --noEmit"
-            },
-            "devDependencies": {
-                "@elizaos/core": "workspace:*",
-                "@types/bun": "latest",
-                "eslint": "^8.57.0",
-                "tsup": "^8.0.0",
-                "typescript": "^5.3.0"
-            }
+    // Create project directory structure
+    await fs.mkdir(projectPath, { recursive: true });
+    
+    if (request.targetType === 'plugin') {
+      // Create plugin directory structure
+      await fs.mkdir(path.join(projectPath, 'src'), { recursive: true });
+      await fs.mkdir(path.join(projectPath, 'src/actions'), { recursive: true });
+      await fs.mkdir(path.join(projectPath, 'src/providers'), { recursive: true });
+      await fs.mkdir(path.join(projectPath, 'src/services'), { recursive: true });
+      await fs.mkdir(path.join(projectPath, 'src/__tests__'), { recursive: true });
+      await fs.mkdir(path.join(projectPath, 'src/__tests__/e2e'), { recursive: true });
+      
+      // Create package.json
+      const packageJson = {
+        name: request.projectName,
+        version: '1.0.0',
+        type: 'module',
+        main: 'dist/index.js',
+        scripts: {
+          build: 'tsup src/index.ts --format esm --dts --clean',
+          test: 'bun test',
+          lint: 'eslint src --ext .ts,.tsx --fix',
+          typecheck: 'tsc --noEmit'
+        },
+        devDependencies: {
+          '@elizaos/core': 'workspace:*',
+          '@types/bun': 'latest',
+          'eslint': '^8.57.0',
+          'tsup': '^8.0.0',
+          'typescript': '^5.3.0'
         }
-        
-        with open("package.json", "w") as f:
-            import json
-            json.dump(package_json, f, indent=2)
-        
-        # Create tsconfig.json
-        tsconfig = {
-            "compilerOptions": {
-                "target": "ES2022",
-                "module": "ESNext",
-                "moduleResolution": "node",
-                "declaration": True,
-                "outDir": "./dist",
-                "rootDir": "./src",
-                "strict": True,
-                "esModuleInterop": True,
-                "skipLibCheck": True,
-                "forceConsistentCasingInFileNames": True,
-                "resolveJsonModule": True
-            },
-            "include": ["src/**/*"],
-            "exclude": ["node_modules", "dist"]
-        }
-        
-        with open("tsconfig.json", "w") as f:
-            import json
-            json.dump(tsconfig, f, indent=2)
-            
-        # Create .gitignore
-        gitignore = """node_modules/
+      };
+      
+      await fs.writeFile(
+        path.join(projectPath, 'package.json'),
+        JSON.stringify(packageJson, null, 2)
+      );
+      
+      // The rest of the setupProjectWithStarter logic will be converted similarly
+      elizaLogger.info('Project structure created successfully');
+    }
+    
+    // Create tsconfig.json
+    const tsconfig = {
+      compilerOptions: {
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'node',
+        declaration: true,
+        outDir: './dist',
+        rootDir: './src',
+        strict: true,
+        esModuleInterop: true,
+        skipLibCheck: true,
+        forceConsistentCasingInFileNames: true,
+        resolveJsonModule: true
+      },
+      include: ['src/**/*'],
+      exclude: ['node_modules', 'dist']
+    };
+    
+    await fs.writeFile(
+      path.join(projectPath, 'tsconfig.json'),
+      JSON.stringify(tsconfig, null, 2)
+    );
+    
+    // Create .gitignore
+    const gitignore = `node_modules/
 dist/
 .env
 *.log
 .DS_Store
-"""
-        with open(".gitignore", "w") as f:
-            f.write(gitignore)
-            
-        # Create eslintrc
-        eslintrc = {
-            "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
-            "parser": "@typescript-eslint/parser",
-            "plugins": ["@typescript-eslint"],
-            "root": True,
-            "env": {
-                "node": True,
-                "es2022": True
-            }
-        }
-        
-        with open(".eslintrc.json", "w") as f:
-            import json
-            json.dump(eslintrc, f, indent=2)
-            
-        print("✅ Plugin project structure created")
-        
-    elif "${request.targetType}" == "agent":
-        # Create agent structure
-        os.makedirs("src", exist_ok=True)
-        os.makedirs("src/plugins", exist_ok=True)
-        
-        # Agent package.json
-        package_json = {
-            "name": "${request.projectName}",
-            "version": "1.0.0",
-            "type": "module",
-            "main": "dist/index.js",
-            "scripts": {
-                "start": "elizaos start --character ./character.json",
-                "build": "tsc",
-                "test": "bun test",
-                "dev": "bun run --watch src/index.ts"
-            },
-            "dependencies": {
-                "@elizaos/core": "workspace:*",
-                "@elizaos/cli": "workspace:*"
-            },
-            "devDependencies": {
-                "@types/bun": "latest",
-                "typescript": "^5.3.0"
-            }
-        }
-        
-        with open("package.json", "w") as f:
-            import json
-            json.dump(package_json, f, indent=2)
-            
-        # Create character.json
-        character = {
-            "name": "${request.projectName}",
-            "bio": ["${request.description}"],
-            "system": "Generated agent character",
-            "modelProvider": "openai",
-            "model": "gpt-4",
-            "clients": ["discord", "telegram"],
-            "plugins": []
-        }
-        
-        with open("character.json", "w") as f:
-            import json
-            json.dump(character, f, indent=2)
-            
-        print("✅ Agent project structure created")
-        
-    print(f"Project structure created at: {os.getcwd()}")
+`;
+    await fs.writeFile(path.join(projectPath, '.gitignore'), gitignore);
     
-except Exception as e:
-    print(f"ERROR: Failed to create project structure: {str(e)}")
-    raise
-`,
-      'python'
+    // Create eslintrc
+    const eslintrc = {
+      extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
+      parser: '@typescript-eslint/parser',
+      plugins: ['@typescript-eslint'],
+      root: true,
+      env: {
+        node: true,
+        es2022: true
+      }
+    };
+    
+    await fs.writeFile(
+      path.join(projectPath, '.eslintrc.json'),
+      JSON.stringify(eslintrc, null, 2)
     );
   }
 
   /**
    * Create claude.md file in the project
    */
-  private async createClaudeMd(projectPath: string, request: CodeGenerationRequest): Promise<void> {
-    elizaLogger.info('Creating claude.md file...');
+  private async createProjectDocumentation(
+    projectPath: string, 
+    request: CodeGenerationRequest,
+    prd: PRDDocument
+  ): Promise<void> {
+    elizaLogger.info('Creating project documentation...');
 
-    const claudeMdContent = `# ${request.projectName}
+    const readmeContent = `# ${request.projectName}
+
+## Overview
+${prd.overview}
 
 ## Project Type
 ${request.targetType}
 
-## Description
-${request.description}
+## Architecture
+- Approach: ${prd.architecture.approach}
+${prd.architecture.basePlugin ? `- Base Plugin: ${prd.architecture.basePlugin}` : ''}
 
 ## Requirements
 ${request.requirements.map((r) => `- ${r}`).join('\n')}
 
-## APIs
-${request.apis.map((api) => `- ${api}`).join('\n')}
+## APIs Required
+${prd.apiKeys.map((key) => `- ${key}`).join('\n')}
 
 ## Test Scenarios
-${request.testScenarios?.map((scenario) => `- ${scenario}`).join('\n') || 'No specific test scenarios'}
+${prd.testScenarios.map((scenario) => `- ${scenario}`).join('\n')}
+
+## Success Criteria
+${prd.successCriteria.map((criteria) => `- ${criteria}`).join('\n')}
 
 ## Development Guidelines
 - Follow ElizaOS best practices
@@ -658,59 +710,361 @@ src/
 \`\`\`
 `;
 
-    await this.e2bService!.executeCode(
-      `
-with open('${projectPath}/claude.md', 'w') as f:
-    f.write('''${claudeMdContent}''')
-print("✅ claude.md file created")
-`,
-      'python'
+    await fs.writeFile(
+      path.join(projectPath, 'README.md'),
+      readmeContent
     );
+    
+    elizaLogger.info('Project documentation created');
   }
 
   /**
    * Use Claude Code API with iterative generation
    */
-  private async iterativeCodeGeneration(
+  private async generatePluginCode(
     projectPath: string,
-    request: CodeGenerationRequest
+    request: CodeGenerationRequest,
+    prd: PRDDocument
   ): Promise<void> {
-    elizaLogger.info('Starting iterative code generation with Claude Code...');
+    elizaLogger.info('Generating plugin code based on PRD...');
 
-    const maxIterations = 10;
-    let iteration = 0;
-    let allTestsPassed = false;
-
-    while (iteration < maxIterations && !allTestsPassed) {
-      iteration++;
-      elizaLogger.info(`Iteration ${iteration}/${maxIterations}`);
-
-      // Build prompt for this iteration
-      const prompt = this.buildIterativePrompt(request, iteration);
-
-      // Generate code with Claude Code in sandbox
-      const result = await this.runClaudeCodeInSandbox(prompt, projectPath, 1);
-
-      if (!result.success) {
-        elizaLogger.error(`Code generation failed in iteration ${iteration}`);
-        throw new Error('Code generation failed');
-      }
-
-      // Run validation after each iteration
-      const validationResult = await this.runValidationSuite(projectPath);
-
-      if (validationResult.passed) {
-        elizaLogger.info('All tests passed! Code generation complete.');
-        allTestsPassed = true;
+    // Based on the PRD approach, generate or clone code
+    switch (prd.architecture.approach) {
+      case 'clone-existing':
+        await this.cloneExistingPlugin(projectPath, prd);
         break;
-      }
-
-      // Prepare feedback for next iteration
-      await this.prepareFeedbackForNextIteration(projectPath, validationResult);
+      case 'extend-existing':
+        await this.extendExistingPlugin(projectPath, request, prd);
+        break;
+      case 'new-plugin':
+        await this.generateNewPlugin(projectPath, request, prd);
+        break;
     }
 
-    if (!allTestsPassed) {
-      elizaLogger.warn('Max iterations reached without all tests passing');
+    // Run validation
+    const validationResult = await this.runValidationSuite(projectPath);
+    if (!validationResult.passed) {
+      elizaLogger.warn('Initial validation failed, attempting fixes...');
+      await this.fixValidationIssues(projectPath, validationResult);
+    }
+  }
+
+  private async cloneExistingPlugin(projectPath: string, prd: PRDDocument): Promise<void> {
+    if (!prd.architecture.basePlugin) {
+      throw new Error('Base plugin not specified for clone approach');
+    }
+    
+    elizaLogger.info(`Cloning existing plugin: ${prd.architecture.basePlugin}`);
+    
+    // Clone the plugin from registry
+    let clonePlugin: any;
+    try {
+      // @ts-expect-error - Dynamic import
+      const registryModule = await import('../../plugin-plugin-manager/src/services/pluginRegistryService');
+      clonePlugin = registryModule.clonePlugin;
+    } catch (_error) {
+      throw new Error('Plugin registry not available for cloning');
+    }
+    const cloneResult = await clonePlugin(prd.architecture.basePlugin);
+    
+    if (!cloneResult.success || !cloneResult.localPath) {
+      throw new Error(`Failed to clone plugin: ${cloneResult.error}`);
+    }
+    
+    // Copy files from cloned plugin to project path
+    await this.copyDirectory(cloneResult.localPath, projectPath);
+    
+    // Update package.json with new name
+    const packageJsonPath = path.join(projectPath, 'package.json');
+    const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+    packageJson.name = prd.title.toLowerCase().replace(/\s+/g, '-');
+    await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+  }
+  
+  private async extendExistingPlugin(
+    projectPath: string, 
+    request: CodeGenerationRequest,
+    prd: PRDDocument
+  ): Promise<void> {
+    if (!prd.architecture.basePlugin) {
+      throw new Error('Base plugin not specified for extend approach');
+    }
+    
+    elizaLogger.info(`Extending existing plugin: ${prd.architecture.basePlugin}`);
+    
+    // Add base plugin as dependency
+    const packageJson = JSON.parse(
+      await fs.readFile(path.join(projectPath, 'package.json'), 'utf-8')
+    );
+    
+    packageJson.dependencies = packageJson.dependencies || {};
+    packageJson.dependencies[prd.architecture.basePlugin] = '*';
+    
+    await fs.writeFile(
+      path.join(projectPath, 'package.json'),
+      JSON.stringify(packageJson, null, 2)
+    );
+    
+    // Generate extension code
+    await this.generateExtensionCode(projectPath, request, prd);
+  }
+  
+  private async generateNewPlugin(
+    projectPath: string,
+    request: CodeGenerationRequest,
+    prd: PRDDocument
+  ): Promise<void> {
+    elizaLogger.info('Generating new plugin from scratch...');
+    
+    // Generate main index.ts
+    await this.generateIndexFile(projectPath, request, prd);
+    
+    // Generate actions if needed
+    if (prd.architecture.components.includes('actions')) {
+      await this.generateActions(projectPath, request, prd);
+    }
+    
+    // Generate services if needed
+    if (prd.architecture.components.includes('services')) {
+      await this.generateServices(projectPath, request, prd);
+    }
+    
+    // Generate providers if needed
+    if (prd.architecture.components.includes('providers')) {
+      await this.generateProviders(projectPath, request, prd);
+    }
+    
+    // Generate tests
+    await this.generateTests(projectPath, request, prd);
+  }
+  
+  private async validateApiKeys(requiredKeys: string[]): Promise<void> {
+    elizaLogger.info('Validating required API keys...');
+    
+    const missingKeys: string[] = [];
+    
+    for (const key of requiredKeys) {
+      const value = this.runtime.getSetting(key) || process.env[key];
+      if (!value) {
+        missingKeys.push(key);
+      }
+    }
+    
+    if (missingKeys.length > 0) {
+      throw new Error(
+        `Missing required API keys: ${missingKeys.join(', ')}. ` +
+        `Please set these environment variables before proceeding.`
+      );
+    }
+    
+    elizaLogger.info('All required API keys are available');
+  }
+  
+  private async copyDirectory(src: string, dest: string): Promise<void> {
+    await fs.mkdir(dest, { recursive: true });
+    const entries = await fs.readdir(src, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+      
+      if (entry.isDirectory()) {
+        await this.copyDirectory(srcPath, destPath);
+      } else {
+        await fs.copyFile(srcPath, destPath);
+      }
+    }
+  }
+  
+  private async generateExtensionCode(
+    projectPath: string,
+    request: CodeGenerationRequest,
+    prd: PRDDocument
+  ): Promise<void> {
+    const prompt = `Generate extension code for ${prd.architecture.basePlugin} that adds:
+${request.description}
+
+Requirements:
+${prd.requirements.functional.join('\n')}
+
+The code should extend the base plugin's functionality without modifying its core behavior.`;
+
+    const extensionCode = await this.generateCodeWithTimeout(prompt, 8000, 120000);
+    
+    await fs.writeFile(
+      path.join(projectPath, 'src/index.ts'),
+      extensionCode
+    );
+  }
+  
+  private async generateIndexFile(
+    projectPath: string,
+    request: CodeGenerationRequest,
+    prd: PRDDocument
+  ): Promise<void> {
+    const prompt = `Generate the main index.ts file for an ElizaOS plugin:
+
+Name: ${request.projectName}
+Description: ${request.description}
+Components: ${prd.architecture.components.join(', ')}
+
+The file should export a valid ElizaOS plugin with all required properties.`;
+
+    const indexCode = await this.generateCodeWithTimeout(prompt, 8000, 120000);
+    
+    await fs.writeFile(
+      path.join(projectPath, 'src/index.ts'),
+      indexCode
+    );
+  }
+  
+  private async generateActions(
+    projectPath: string,
+    request: CodeGenerationRequest,
+    prd: PRDDocument
+  ): Promise<void> {
+    const prompt = `Generate action implementations for:
+${request.description}
+
+Requirements:
+${prd.requirements.functional.join('\n')}
+
+Generate complete, working actions following ElizaOS patterns.`;
+
+    const actionsCode = await this.generateCodeWithTimeout(prompt, 10000, 120000);
+    
+    // Parse and save individual action files
+    const actions = this.parseGeneratedCode(actionsCode, {
+      projectName: request.projectName,
+      description: request.description,
+      targetType: request.targetType,
+    });
+    
+    for (const action of actions) {
+      await fs.writeFile(
+        path.join(projectPath, action.path),
+        action.content
+      );
+    }
+  }
+  
+  private async generateServices(
+    projectPath: string,
+    request: CodeGenerationRequest,
+    prd: PRDDocument
+  ): Promise<void> {
+    const prompt = `Generate service implementations for:
+${request.description}
+
+Requirements:
+${prd.requirements.functional.join('\n')}
+
+Generate complete ElizaOS services with proper lifecycle management.`;
+
+    const servicesCode = await this.generateCodeWithTimeout(prompt, 10000, 120000);
+    
+    const services = this.parseGeneratedCode(servicesCode, {
+      projectName: request.projectName,
+      description: request.description,
+      targetType: request.targetType,
+    });
+    
+    for (const service of services) {
+      await fs.writeFile(
+        path.join(projectPath, service.path),
+        service.content
+      );
+    }
+  }
+  
+  private async generateProviders(
+    projectPath: string,
+    request: CodeGenerationRequest,
+    prd: PRDDocument
+  ): Promise<void> {
+    const prompt = `Generate provider implementations for:
+${request.description}
+
+Requirements:
+${prd.requirements.functional.join('\n')}
+
+Generate ElizaOS providers that expose relevant context and data.`;
+
+    const providersCode = await this.generateCodeWithTimeout(prompt, 8000, 120000);
+    
+    const providers = this.parseGeneratedCode(providersCode, {
+      projectName: request.projectName,
+      description: request.description,
+      targetType: request.targetType,
+    });
+    
+    for (const provider of providers) {
+      await fs.writeFile(
+        path.join(projectPath, provider.path),
+        provider.content
+      );
+    }
+  }
+  
+  private async generateTests(
+    projectPath: string,
+    request: CodeGenerationRequest,
+    prd: PRDDocument
+  ): Promise<void> {
+    const prompt = `Generate comprehensive tests for:
+${request.projectName}
+
+Test scenarios:
+${prd.testScenarios.join('\n')}
+
+Generate both unit and e2e tests following ElizaOS testing patterns.`;
+
+    const testsCode = await this.generateCodeWithTimeout(prompt, 10000, 120000);
+    
+    const tests = this.parseGeneratedCode(testsCode, {
+      projectName: request.projectName,
+      description: request.description,
+      targetType: request.targetType,
+    });
+    
+    for (const test of tests) {
+      await fs.writeFile(
+        path.join(projectPath, test.path),
+        test.content
+      );
+    }
+  }
+  
+  private async fixValidationIssues(
+    projectPath: string,
+    validationResult: QualityResults
+  ): Promise<void> {
+    elizaLogger.info('Attempting to fix validation issues...');
+    
+    const prompt = `Fix the following issues in the project:
+
+${validationResult.details.join('\n')}
+
+Lint errors: ${validationResult.lintErrors}
+Type errors: ${validationResult.typeErrors}
+Test failures: ${validationResult.testsFailed}
+
+Provide fixes that resolve these issues while maintaining functionality.`;
+
+    const fixes = await this.generateCodeWithTimeout(prompt, 8000, 120000);
+    
+    // Apply fixes (this is simplified - in reality would need more sophisticated parsing)
+    const fixedFiles = this.parseGeneratedCode(fixes, {
+      projectName: path.basename(projectPath),
+      description: 'Validation fixes',
+      targetType: 'plugin',
+    });
+    
+    for (const file of fixedFiles) {
+      await fs.writeFile(
+        path.join(projectPath, file.path),
+        file.content
+      );
     }
   }
 
@@ -752,28 +1106,22 @@ Make the necessary changes to ensure all validation checks pass.`;
   private async installDependencies(projectPath: string): Promise<void> {
     elizaLogger.info('Installing dependencies...');
 
-    await this.e2bService!.executeCode(
-      `
-import subprocess
-import os
-
-os.chdir('${projectPath}')
-
-# Install dependencies using bun
-try:
-    result = subprocess.run(['bun', 'install'], 
-                          capture_output=True, text=True, timeout=120)
-    print("INSTALL_OUTPUT:", result.stdout)
-    if result.returncode != 0:
-        print("INSTALL_ERROR:", result.stderr)
-        raise Exception(f"Dependency installation failed: {result.stderr}")
-    print("✅ Dependencies installed successfully")
-except Exception as e:
-    print(f"ERROR: Failed to install dependencies: {str(e)}")
-    raise
-`,
-      'python'
-    );
+    try {
+      // Check if bun is available
+      try {
+        execSync('bun --version', { stdio: 'ignore' });
+        // Use bun if available
+        await execAsync('bun install', { cwd: projectPath });
+        elizaLogger.info('Dependencies installed with bun');
+      } catch {
+        // Fall back to npm if bun is not available
+        await execAsync('npm install', { cwd: projectPath });
+        elizaLogger.info('Dependencies installed with npm');
+      }
+    } catch (error) {
+      elizaLogger.error('Failed to install dependencies:', error);
+      throw new Error(`Dependency installation failed: ${error}`);
+    }
   }
 
   /**
@@ -797,99 +1145,64 @@ except Exception as e:
     };
 
     // Run tests
-    const testResult = await this.e2bService!.executeCode(
-      `
-import subprocess
-import os
-
-os.chdir('${projectPath}')
-
-result = subprocess.run(['bun', 'test'], 
-                      capture_output=True, text=True, timeout=120)
-print("TEST_OUTPUT:", result.stdout)
-print("TEST_ERRORS:", result.stderr)
-print("TEST_EXIT_CODE:", result.returncode)
-`,
-      'python'
-    );
-
-    const testOutput = testResult.text || '';
-    result.testsFailed = this.countErrors(testOutput, 'failed');
-    result.testsPassed = testOutput.includes('TEST_EXIT_CODE: 0');
-    if (!result.testsPassed) {
-      result.details.push('Tests failed');
+    try {
+      await execAsync('bun test', { 
+        cwd: projectPath,
+        timeout: 120000 
+      });
+      result.testsPassed = true;
+      elizaLogger.info('Tests passed');
+    } catch (error: any) {
+      result.testsPassed = false;
+      result.testsFailed = 1;
+      result.details.push(`Tests failed: ${error.message}`);
+      elizaLogger.error('Tests failed:', error);
     }
 
     // Run linting
-    const lintResult = await this.e2bService!.executeCode(
-      `
-import subprocess
-import os
-
-os.chdir('${projectPath}')
-
-result = subprocess.run(['bun', 'run', 'lint'], 
-                      capture_output=True, text=True, timeout=60)
-print("LINT_OUTPUT:", result.stdout)
-print("LINT_ERRORS:", result.stderr)
-print("LINT_EXIT_CODE:", result.returncode)
-`,
-      'python'
-    );
-
-    const lintOutput = lintResult.text || '';
-    result.lintErrors = this.countErrors(lintOutput, 'error');
-    result.lintPassed = lintOutput.includes('LINT_EXIT_CODE: 0');
-    if (!result.lintPassed) {
-      result.details.push('Linting failed');
+    try {
+      await execAsync('bun run lint', { 
+        cwd: projectPath,
+        timeout: 60000 
+      });
+      result.lintPassed = true;
+      elizaLogger.info('Linting passed');
+    } catch (error: any) {
+      result.lintPassed = false;
+      result.lintErrors = 1;
+      result.details.push(`Linting failed: ${error.message}`);
+      elizaLogger.error('Linting failed:', error);
     }
 
     // Run type checking
-    const typeResult = await this.e2bService!.executeCode(
-      `
-import subprocess
-import os
-
-os.chdir('${projectPath}')
-
-result = subprocess.run(['bun', 'run', 'typecheck'], 
-                      capture_output=True, text=True, timeout=60)
-print("TYPE_OUTPUT:", result.stdout)
-print("TYPE_ERRORS:", result.stderr)
-print("TYPE_EXIT_CODE:", result.returncode)
-`,
-      'python'
-    );
-
-    const typeOutput = typeResult.text || '';
-    result.typeErrors = this.countErrors(typeOutput, 'error');
-    result.typesPassed = typeOutput.includes('TYPE_EXIT_CODE: 0');
-    if (!result.typesPassed) {
-      result.details.push('Type checking failed');
+    try {
+      await execAsync('bun run typecheck', { 
+        cwd: projectPath,
+        timeout: 60000 
+      });
+      result.typesPassed = true;
+      elizaLogger.info('Type checking passed');
+    } catch (error: any) {
+      result.typesPassed = false;
+      result.typeErrors = 1;
+      result.details.push(`Type checking failed: ${error.message}`);
+      elizaLogger.error('Type checking failed:', error);
     }
 
     // Run build
-    const buildResult = await this.e2bService!.executeCode(
-      `
-import subprocess
-import os
-
-os.chdir('${projectPath}')
-
-result = subprocess.run(['bun', 'run', 'build'], 
-                      capture_output=True, text=True, timeout=120)
-print("BUILD_OUTPUT:", result.stdout)
-print("BUILD_ERRORS:", result.stderr)
-print("BUILD_EXIT_CODE:", result.returncode)
-`,
-      'python'
-    );
-
-    const buildOutput = buildResult.text || '';
-    result.buildSuccess = buildOutput.includes('BUILD_EXIT_CODE: 0');
-    result.buildPassed = result.buildSuccess;
-    if (!result.buildPassed) {
-      result.details.push('Build failed');
+    try {
+      await execAsync('bun run build', {
+        cwd: projectPath,
+        timeout: 120000
+      });
+      result.buildPassed = true;
+      result.buildSuccess = true;
+      elizaLogger.info('Build passed');
+    } catch (error: any) {
+      result.buildPassed = false;
+      result.buildSuccess = false;
+      result.details.push(`Build failed: ${error.message}`);
+      elizaLogger.error('Build failed:', error);
     }
 
     result.passed =
@@ -958,42 +1271,82 @@ print("BUILD_EXIT_CODE:", result.returncode)
     }
 
     // Write feedback to a file
-    await this.e2bService!.executeCode(
-      `
-with open('${projectPath}/validation-feedback.md', 'w') as f:
-    f.write('''${feedback}''')
-print("✅ Validation feedback prepared")
-`,
-      'python'
+    await fs.writeFile(
+      path.join(projectPath, 'validation-feedback.md'),
+      feedback
     );
+    elizaLogger.info('Validation feedback prepared');
   }
 
   /**
    * Main method to generate code
    */
   async generateCode(request: CodeGenerationRequest): Promise<GenerationResult> {
-    // Check if required services are available
-    if (!this.formsService) {
-      throw new Error('Forms service is required for code generation');
+    elizaLogger.info(`Starting code generation for ${request.projectName}`);
+
+    try {
+      // Create project directory
+      await fs.mkdir(this.projectsDir, { recursive: true });
+      const projectPath = path.join(this.projectsDir, request.projectName);
+      
+      // Store current project path for the provider
+      this.runtime.setSetting('CURRENT_PROJECT_PATH', projectPath);
+
+      // Step 1: Research phase (includes registry search)
+      const research = await this.performResearch(request);
+
+      // Step 2: Generate PRD
+      const prd = await this.generatePRD(request, research);
+      
+      // Save PRD for reference
+      await fs.mkdir(projectPath, { recursive: true });
+      await fs.writeFile(
+        path.join(projectPath, 'PRD.json'),
+        JSON.stringify(prd, null, 2)
+      );
+
+      // Step 3: Validate required API keys
+      await this.validateApiKeys(prd.apiKeys);
+
+      // Step 4: Setup project structure
+      await this.setupProjectWithStarter(projectPath, request);
+
+      // Step 5: Generate project documentation
+      await this.createProjectDocumentation(projectPath, request, prd);
+
+      // Step 6: Generate code based on PRD approach
+      await this.generatePluginCode(projectPath, request, prd);
+
+      // Step 7: Install dependencies
+      await this.installDependencies(projectPath);
+
+      // Step 8: Run validation
+      const validationResult = await this.runValidationSuite(projectPath);
+
+      // Step 9: Get generated files
+      const files = await this.getGeneratedFiles(projectPath);
+
+      return {
+        success: true,
+        projectPath,
+        files,
+        executionResults: {
+          testsPass: validationResult.testsPassed,
+          lintPass: validationResult.lintPassed,
+          typesPass: validationResult.typesPassed,
+          buildPass: validationResult.buildPassed,
+          buildSuccess: validationResult.buildSuccess,
+          securityPass: validationResult.securityIssues.length === 0,
+        },
+        warnings: validationResult.details,
+      };
+    } catch (error) {
+      elizaLogger.error('Code generation failed:', error);
+      return {
+        success: false,
+        errors: [error instanceof Error ? error.message : 'Unknown error'],
+      };
     }
-
-    // If E2B service is not available, use a simplified generation approach
-    if (!this.e2bService) {
-      elizaLogger.warn('E2B service not available - using simplified code generation');
-      return this.generateCodeWithoutSandbox(request);
-    }
-
-    // Use timeout configuration
-    const config = this.getTimeoutConfig();
-
-    const result = await Promise.race([
-      this.generateCodeInternal(request),
-      new Promise<GenerationResult>((_, reject) =>
-        setTimeout(() => reject(new Error('Generation timeout')), config.timeout)
-      ),
-    ]);
-
-    return result;
   }
 
   /**
@@ -1243,349 +1596,63 @@ export type PluginAction = {
     return await this.generateCodeWithTimeout(prompt, maxTokens, timeoutMs);
   }
 
-  /**
-   * Install Claude Code package in sandbox
-   */
-  private async installClaudeCodeInSandbox(): Promise<void> {
-    elizaLogger.info('Installing Claude Code in sandbox...');
+  // Removed E2B sandbox methods - no longer needed
 
-    const installCode = `
-import subprocess
-import sys
-import os
+  // Removed runClaudeCodeInSandbox - E2B method no longer needed
 
-print("Installing Claude Code package...")
+  // Removed generateWithClaudeCodeInSandbox - E2B method no longer needed
 
-try:
-    # Install @anthropic-ai/claude-code
-    result = subprocess.run([
-        sys.executable, "-m", "pip", "install", 
-        "@anthropic-ai/claude-code"
-    ], capture_output=True, text=True)
-    
-    if result.returncode != 0:
-        # Try with npm
-        npm_result = subprocess.run([
-            "npm", "install", "-g", "@anthropic-ai/claude-code"
-        ], capture_output=True, text=True)
-        
-        if npm_result.returncode != 0:
-            print(f"ERROR: Failed to install Claude Code")
-            print(f"pip error: {result.stderr}")
-            print(f"npm error: {npm_result.stderr}")
-            raise Exception("Failed to install Claude Code")
-    
-    print("✅ Claude Code installed successfully")
-    
-except Exception as e:
-    print(f"ERROR: {str(e)}")
-    raise
-`;
-
-    await this.e2bService!.executeCode(installCode, 'python');
-  }
-
-  /**
-   * Run Claude Code in sandbox with proper setup
-   */
-  private async runClaudeCodeInSandbox(
-    prompt: string,
-    projectPath: string,
-    maxIterations: number = 10
-  ): Promise<{ success: boolean; output: string; files?: any[] }> {
-    elizaLogger.info('Running Claude Code in sandbox...');
-
-    // First ensure Claude Code is installed
-    await this.installClaudeCodeInSandbox();
-
-    const claudeCodeScript = `
-import os
-import sys
-import json
-import asyncio
-from pathlib import Path
-
-# Change to project directory
-os.chdir('${projectPath}')
-print(f"Working directory: {os.getcwd()}")
-
-# Create a wrapper script to use Claude Code
-wrapper_code = '''
-import asyncio
-import os
-from anthropic_ai.claude_code import query
-
-async def generate_code():
-    prompt = """${prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"""
-    
-    print("Starting Claude Code generation...")
-    
-    try:
-        # Use Claude Code to generate the project
-        messages = []
-        async for message in query(
-            prompt=prompt,
-            options={
-                "maxTurns": ${maxIterations},
-                "customSystemPrompt": "You are Claude Code, an expert code generation assistant. Generate complete, working code following ElizaOS best practices."
-            }
-        ):
-            if hasattr(message, 'type'):
-                if message.type == 'assistant':
-                    # Extract text from the message
-                    if hasattr(message, 'message') and message.message:
-                        content = message.message.get('content', [])
-                        for item in content:
-                            if item.get('type') == 'text':
-                                print(f"Claude: {item.get('text', '')[:100]}...")
-                elif message.type == 'tool_use':
-                    print(f"Tool used: {getattr(message, 'name', 'unknown')}")
-        
-        print("✅ Code generation complete")
-        
-        # List generated files
-        for root, dirs, files in os.walk('.'):
-            # Skip node_modules and hidden directories
-            dirs[:] = [d for d in dirs if not d.startswith('.') and d != 'node_modules']
-            for file in files:
-                if not file.startswith('.'):
-                    file_path = os.path.join(root, file)
-                    print(f"Generated file: {file_path}")
-        
-        return True
-        
-    except Exception as e:
-        print(f"ERROR: Claude Code generation failed: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-# Run the async function
-result = asyncio.run(generate_code())
-print(f"Generation result: {result}")
-'''
-
-# Write the wrapper script
-with open('claude_code_wrapper.py', 'w') as f:
-    f.write(wrapper_code)
-
-# Execute the wrapper
-try:
-    import subprocess
-    
-    # Set up environment
-    env = os.environ.copy()
-    env['ANTHROPIC_API_KEY'] = os.environ.get('ANTHROPIC_API_KEY', '')
-    
-    # Run the wrapper script
-    result = subprocess.run(
-        [sys.executable, 'claude_code_wrapper.py'],
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=600  # 10 minute timeout
-    )
-    
-    print("STDOUT:", result.stdout)
-    if result.stderr:
-        print("STDERR:", result.stderr)
-    print("EXIT_CODE:", result.returncode)
-    
-    # Clean up
-    os.remove('claude_code_wrapper.py')
-    
-    # Check if successful
-    success = result.returncode == 0 and 'Generation result: True' in result.stdout
-    
-    # Get list of generated files
-    files_list = []
-    for line in result.stdout.split('\\n'):
-        if line.startswith('Generated file: '):
-            files_list.append(line.replace('Generated file: ', '').strip())
-    
-    print(f"SUCCESS: {success}")
-    print(f"FILES_COUNT: {len(files_list)}")
-    
-except Exception as e:
-    print(f"ERROR: Failed to run Claude Code: {str(e)}")
-    import traceback
-    traceback.print_exc()
-`;
-
-    const result = await this.e2bService!.executeCode(claudeCodeScript, 'python');
-
-    const output = result.text || '';
-    const success = output.includes('SUCCESS: True');
-
-    // Extract files count
-    const filesMatch = output.match(/FILES_COUNT: (\d+)/);
-    const filesCount = filesMatch ? parseInt(filesMatch[1], 10) : 0;
-
-    elizaLogger.info(`Claude Code generation completed. Success: ${success}, Files: ${filesCount}`);
-
-    return {
-      success,
-      output,
-      files: [], // We'll get the actual files in a separate step
-    };
-  }
-
-  /**
-   * Alternative: Generate code using Claude Code directly in sandbox
-   */
-  private async generateWithClaudeCodeInSandbox(
-    prompt: string,
-    projectPath: string
-  ): Promise<string> {
-    elizaLogger.info('Generating with Claude Code in sandbox...');
-
-    const result = await this.runClaudeCodeInSandbox(prompt, projectPath);
-
-    if (!result.success) {
-      throw new Error('Claude Code generation failed');
-    }
-
-    return result.output;
-  }
-
-  /**
-   * Internal method to generate code with all steps
-   */
-  private async generateCodeInternal(request: CodeGenerationRequest): Promise<GenerationResult> {
-    elizaLogger.info(`Starting code generation for ${request.projectName}`);
-
-    // Create sandbox
-    this.sandboxId = await this.e2bService!.createSandbox();
-    const projectPath = `/workspace/${request.projectName}`;
-
-    // Step 1: Setup project structure
-    await this.setupProjectWithStarter(projectPath, request);
-
-    // Step 2: Create claude.md
-    await this.createClaudeMd(projectPath, request);
-
-    // Step 3: Install dependencies
-    await this.installDependencies(projectPath);
-
-    // Step 4: Run iterative code generation
-    await this.iterativeCodeGeneration(projectPath, request);
-
-    // Step 5: Final validation
-    const finalValidation = await this.runValidationSuite(projectPath);
-
-    // Step 6: Create GitHub repo if requested
-    let githubUrl: string | undefined;
-    if (request.githubRepo && this.githubService) {
-      const repo = await this.githubService.createRepository({
-        name: request.githubRepo,
-        description: request.description || 'Generated by ElizaOS AutoCoder',
-        private: false, // Make repository public
-        auto_init: true,
-      });
-      githubUrl = repo.html_url;
-    }
-
-    // Step 7: Get generated files
-    const files = await this.getGeneratedFiles(projectPath);
-
-    return {
-      success: true,
-      projectPath,
-      githubUrl,
-      files,
-      executionResults: {
-        testsPass: finalValidation.passed,
-        lintPass: finalValidation.lintPassed,
-        typesPass: finalValidation.typesPassed,
-        buildPass: finalValidation.buildPassed,
-        buildSuccess: finalValidation.buildPassed,
-        securityPass: finalValidation.securityIssues.length === 0,
-      },
-      warnings: finalValidation.details,
-    };
-  }
+  // Removed generateCodeInternal - no longer using E2B sandbox
 
   /**
    * Get all generated files from the project
    */
   private async getGeneratedFiles(projectPath: string): Promise<GenerationFile[]> {
-    if (!this.e2bService || !this.sandboxId) {
-      elizaLogger.warn('E2B service or sandbox not available for file retrieval');
-      return [];
-    }
-
-    // List all files in the project directory
-    const listFilesScript = `
-import os
-import json
-
-def list_files_recursive(path):
-    files = []
+    elizaLogger.info(`Getting generated files from ${projectPath}`);
     
-    # Walk through all directories and files
-    for root, dirs, filenames in os.walk(path):
-        # Skip hidden directories and common ignored folders
-        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['node_modules', '__pycache__']]
+    const files: GenerationFile[] = [];
+    
+    async function scanDirectory(dir: string, baseDir: string = dir): Promise<void> {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const relativePath = path.relative(baseDir, fullPath);
         
-        for filename in filenames:
-            # Skip hidden files and common temp files
-            if filename.startswith('.') or filename.endswith('.pyc'):
-                continue
-                
-            file_path = os.path.join(root, filename)
-            relative_path = os.path.relpath(file_path, path)
-            
-            # Read file content
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    files.append({
-                        'path': relative_path,
-                        'content': content
-                    })
-            except Exception as e:
-                print(f"Warning: Could not read file {relative_path}: {e}")
+        // Skip common directories to ignore
+        if (entry.isDirectory()) {
+          if (['node_modules', '.git', 'dist', 'build', 'coverage'].includes(entry.name)) {
+            continue;
+          }
+          await scanDirectory(fullPath, baseDir);
+        } else if (entry.isFile()) {
+          // Skip hidden files except important ones
+          if (entry.name.startsWith('.') && 
+              !entry.name.match(/^\.(gitignore|eslintrc|prettierrc|env\.example)/)) {
+            continue;
+          }
+          
+          try {
+            const content = await fs.readFile(fullPath, 'utf-8');
+            files.push({
+              path: relativePath,
+              content,
+            });
+          } catch (error) {
+            elizaLogger.warn(`Could not read file ${relativePath}:`, error);
+          }
+        }
+      }
+    }
     
-    return files
-
-try:
-    project_path = "${projectPath}"
-    files = list_files_recursive(project_path)
-    
-    # Output as JSON for easy parsing
-    print(json.dumps({
-        'success': True,
-        'files': files,
-        'count': len(files)
-    }))
-except Exception as e:
-    print(json.dumps({
-        'success': False,
-        'error': str(e),
-        'files': []
-    }))
-      `;
-
-    const result = await this.e2bService.executeCode(listFilesScript, 'python');
-
-    if (result.error) {
-      elizaLogger.error('Failed to list files:', result.error);
+    try {
+      await scanDirectory(projectPath);
+      elizaLogger.info(`Retrieved ${files.length} files from ${projectPath}`);
+      return files;
+    } catch (error) {
+      elizaLogger.error('Failed to get generated files:', error);
       return [];
     }
-
-    // Parse the JSON output
-    const output = result.text || '{}';
-    const data = JSON.parse(output);
-
-    if (data.success && Array.isArray(data.files)) {
-      elizaLogger.info(`Retrieved ${data.files.length} files from ${projectPath}`);
-      return data.files.map((file: any) => ({
-        path: file.path,
-        content: file.content,
-      }));
-    }
-
-    return [];
   }
 
   /**

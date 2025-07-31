@@ -89,6 +89,9 @@ const createRealRuntime = async () => {
     getEntity: async (id: string) => ({ id }),
     // World methods
     updateWorld: async (world: any) => world,
+    // Participants methods
+    addParticipantsRoom: async (entityIds: string[], roomId: string) => true,
+    removeParticipantsRoom: async (entityIds: string[], roomId: string) => true,
   };
 
   // Register plugins in correct order

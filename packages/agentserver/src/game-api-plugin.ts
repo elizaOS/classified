@@ -5,7 +5,7 @@ import {
   setProviderPreferences,
   setSelectedProvider,
 } from '@elizaos/plugin-inference';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import crypto from 'crypto';
 import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
@@ -65,21 +65,60 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
   screenCaptureInterval = setInterval(async () => {
     try {
       // Use ffmpeg to capture a single frame from the virtual display
-      // Add error handling and timeout
-      const { stdout, stderr } = await execAsync(
-        `timeout 5 ffmpeg -f x11grab -video_size 1280x720 -i ${display} -vframes 1 -f mjpeg -q:v 2 -loglevel error -`
-      );
+      // Using spawn to properly handle binary data
+      const ffmpeg = spawn('ffmpeg', [
+        '-f', 'x11grab',
+        '-video_size', '1280x720',
+        '-i', display,
+        '-vframes', '1',
+        '-f', 'mjpeg',
+        '-q:v', '2',
+        '-loglevel', 'error',
+        '-'
+      ]);
 
-      if (stderr) {
-        logger.debug('[VirtualScreen] ffmpeg stderr:', stderr);
+      const chunks: Buffer[] = [];
+      let errorOutput = '';
+
+      ffmpeg.stdout.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
+
+      ffmpeg.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          ffmpeg.kill();
+          reject(new Error('FFmpeg timeout'));
+        }, 5000);
+
+        ffmpeg.on('close', (code) => {
+          clearTimeout(timeout);
+          if (code !== 0) {
+            reject(new Error(`FFmpeg exited with code ${code}: ${errorOutput}`));
+          } else {
+            resolve();
+          }
+        });
+
+        ffmpeg.on('error', (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+      });
+
+      if (errorOutput) {
+        logger.debug('[VirtualScreen] ffmpeg stderr:', errorOutput);
       }
 
-      if (!stdout || stdout.length === 0) {
+      if (chunks.length === 0) {
         logger.debug('[VirtualScreen] Empty frame captured, skipping');
         return;
       }
 
-      const frameData = Buffer.from(stdout, 'binary');
+      const frameData = Buffer.concat(chunks);
 
       // Validate frame data
       if (frameData.length < 1000) { // JPEG should be at least 1KB
@@ -2462,14 +2501,40 @@ const gameAPIRoutes: Route[] = [
 
       const latestFrame = buffer.videoFrames[buffer.videoFrames.length - 1];
 
+      // Convert Uint8Array to base64 for proper transmission
+      const frameBase64 = Buffer.from(latestFrame).toString('base64');
+      
       res.json(
         successResponse({
-          frame: Array.from(latestFrame),
+          frame: frameBase64,
+          frameArray: Array.from(latestFrame), // Keep array format for backward compatibility
           width: 1280,
           height: 720,
           timestamp: Date.now(),
+          encoding: 'base64',
         })
       );
+    },
+  },
+
+  {
+    type: 'GET',
+    path: '/api/agents/:agentId/screen/latest/image',
+    name: 'Get Latest Screen Frame as Image',
+    public: true,
+    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+      const buffer = mediaBuffers.get(runtime.agentId);
+
+      if (!buffer || buffer.videoFrames.length === 0) {
+        return res.status(404).json(errorResponse('NO_FRAMES', 'No screen frames available'));
+      }
+
+      const latestFrame = buffer.videoFrames[buffer.videoFrames.length - 1];
+
+      // Return raw JPEG image
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Content-Length', latestFrame.length);
+      res.send(Buffer.from(latestFrame));
     },
   },
 

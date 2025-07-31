@@ -18,6 +18,7 @@ import PersonalityPlugin from '@elizaos/plugin-personality';
 import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
 import { experiencePlugin } from '@elizaos/plugin-experience';
 import { stagehandPlugin } from '@elizaos/plugin-stagehand';
+import { visionPlugin } from '@elizaos/plugin-vision';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -25,6 +26,8 @@ import { fileURLToPath } from 'url';
 import { terminalCharacter } from './character';
 import { gameAPIPlugin } from './game-api-plugin';
 import { AgentServer } from './server';
+import { CapabilityProgressionService } from './services/capabilityProgressionService';
+import { ProgressionTracker } from './services/progressionTracker';
 
 /**
  * Agent ID Handling Strategy:
@@ -72,21 +75,40 @@ const embeddingProvider =
 const modelProvider =
   process.env.MODEL_PROVIDER || terminalCharacter.settings?.MODEL_PROVIDER || 'ollama';
 
-// Create plugin list with conditional loading based on providers
-const plugins: Plugin[] = [
-  sqlPlugin,
-  gameAPIPlugin,
-  inferencePlugin,
-  knowledgePlugin,
-  bootstrapPlugin,
-  autonomyPlugin,
-  GoalsPlugin,
-  TodoPlugin,
-  PersonalityPlugin,
-  experiencePlugin,
-  shellPlugin,
-  stagehandPlugin,
-].filter(Boolean);
+// Define all available plugins for progressive unlocking
+const allAvailablePlugins: Record<string, Plugin> = {
+  sql: sqlPlugin,
+  bootstrap: bootstrapPlugin,
+  autonomy: autonomyPlugin,
+  goals: GoalsPlugin,
+  todo: TodoPlugin,
+  vision: visionPlugin,
+  personality: PersonalityPlugin,
+  experience: experiencePlugin,
+  knowledge: knowledgePlugin,
+  shell: shellPlugin,
+  stagehand: stagehandPlugin,
+  gameAPI: gameAPIPlugin,
+  inference: inferencePlugin,
+};
+
+// Create initial plugin list with only basic capabilities
+function createInitialPlugins(): Plugin[] {
+  return [
+    sqlPlugin,          // Always needed for database
+    bootstrapPlugin,    // Always needed for basic runtime
+    gameAPIPlugin,      // Always needed for game API
+    inferencePlugin,    // Always needed for inference
+    autonomyPlugin,     // Start with autonomy enabled
+    knowledgePlugin,    // Always needed for memory
+    PersonalityPlugin,  // Always needed for character
+    experiencePlugin,   // Always needed for learning
+          GoalsPlugin,        // Goals tracking and management
+      TodoPlugin,         // Todo tracking and management
+    ].filter(Boolean);
+}
+
+const initialPlugins = createInitialPlugins();
 
 // Function to start an agent runtime - called by server.ts
 export async function startAgent(character: any): Promise<IAgentRuntime> {
@@ -99,7 +121,7 @@ export async function startAgent(character: any): Promise<IAgentRuntime> {
   console.log('[AGENT START] Using embedding provider:', embeddingProvider);
   console.log('[AGENT START] Using model provider:', modelProvider);
 
-  console.log('[AGENT START] Loaded plugins:', plugins.map((p) => p.name || 'unnamed').join(', '));
+  console.log('[AGENT START] Initial plugins:', initialPlugins.map((p) => p.name || 'unnamed').join(', '));
 
   // Ensure character has proper structure with UUID string
   const cleanCharacter = {
@@ -113,14 +135,58 @@ export async function startAgent(character: any): Promise<IAgentRuntime> {
     cleanCharacter.id = agentId;
   }
 
-  // Create the runtime using ElizaAgentRuntime
+  // Create the runtime using ElizaAgentRuntime with initial plugins only
   const runtime = new ElizaAgentRuntime({
     agentId,
     character: cleanCharacter,
-    plugins,
+    plugins: initialPlugins,
   });
 
-  console.log('[AGENT START] AgentRuntime created');
+  // Add progressive plugin support
+  (runtime as any).registerProgressivePlugin = async (capability: string) => {
+    console.log(`[PROGRESSION] Registering plugin for capability: ${capability}`);
+    logger.info(`[PROGRESSION] Registering plugin for capability: ${capability}`);
+    
+    const pluginMappings: Record<string, Plugin[]> = {
+      'browser': [stagehandPlugin], // Browser capability uses Stagehand for web automation
+      'stagehand': [stagehandPlugin], // Alias for backward compatibility
+      'vision': [], // Vision plugin would go here when available
+      'screen_capture': [], // Screen capture plugin would go here
+      'microphone': [], // SAM plugin would go here
+      'sam': [], // SAM plugin would go here  
+      'audio': [], // Audio plugin would go here
+      'camera': [], // Camera plugin would go here
+      'advanced_vision': [], // Advanced vision plugin would go here
+      'shell': [shellPlugin],
+      'goals': [GoalsPlugin],
+      'todo': [TodoPlugin],
+    };
+    
+    const pluginsToRegister = pluginMappings[capability] || [];
+    console.log(`[PROGRESSION] Found ${pluginsToRegister.length} plugins to register for ${capability}`);
+    logger.info(`[PROGRESSION] Found ${pluginsToRegister.length} plugins to register for ${capability}`);
+    
+    for (const plugin of pluginsToRegister) {
+      if (!runtime.plugins.find(p => p.name === plugin.name)) {
+        console.log(`[PROGRESSION] Registering plugin: ${plugin.name} for capability: ${capability}`);
+        logger.info(`[PROGRESSION] Registering plugin: ${plugin.name} for capability: ${capability}`);
+        
+        try {
+          await runtime.registerPlugin(plugin);
+          console.log(`[PROGRESSION] Successfully registered plugin: ${plugin.name}`);
+          logger.info(`[PROGRESSION] Successfully registered plugin: ${plugin.name}`);
+        } catch (error) {
+          console.error(`[PROGRESSION] Failed to register plugin ${plugin.name}:`, error);
+          logger.error(`[PROGRESSION] Failed to register plugin ${plugin.name}:`, error);
+        }
+      } else {
+        console.log(`[PROGRESSION] Plugin ${plugin.name} already registered`);
+        logger.info(`[PROGRESSION] Plugin ${plugin.name} already registered`);
+      }
+    }
+  };
+
+  console.log('[AGENT START] AgentRuntime created with initial capabilities and progressive plugin support');
 
   // Initialize runtime - this will set up database connection AND create the agent via ensureAgentExists
   await runtime.initialize();
@@ -128,8 +194,17 @@ export async function startAgent(character: any): Promise<IAgentRuntime> {
     '[AGENT START] Runtime initialized - agent creation handled by runtime.ensureAgentExists()'
   );
 
-  // Remove the duplicate agent creation code - the runtime.initialize() already handles this
-  // via the ensureAgentExists method which is called during initialization
+  // Initialize the capability progression service
+  const progressionService = new CapabilityProgressionService(runtime);
+  
+  // Initialize the progression tracker
+  const progressionTracker = new ProgressionTracker(runtime, progressionService);
+  
+  // Store the progression service and tracker on the runtime for later access
+  (runtime as any).progressionService = progressionService;
+  (runtime as any).progressionTracker = progressionTracker;
+
+  console.log('[AGENT START] Capability progression system initialized');
 
   return runtime;
 }
@@ -554,6 +629,60 @@ export async function startServer() {
   });
 
   // GET settings endpoint - supports both /api/agents/default/settings and /api/agents/:agentId/settings
+  // Progression status endpoint
+  server.app.get('/api/agents/:agentId/progression', async (req: any, res: any) => {
+    try {
+      let targetRuntime: IAgentRuntime | undefined;
+
+      // Handle "default" as a special case - get the first agent
+      if (req.params.agentId === 'default') {
+        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      } else {
+        // Try to get the specific agent by ID
+        targetRuntime = (server as any).agents?.get(req.params.agentId);
+      }
+
+      if (!targetRuntime) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            progressionReady: false,
+            message: req.params.agentId === 'default'
+              ? 'No agents available yet'
+              : `Agent ${req.params.agentId} not found`,
+          },
+        });
+      }
+
+      // Get progression status from the tracker
+      const progressionTracker = (targetRuntime as any).progressionTracker;
+      if (!progressionTracker) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            progressionReady: false,
+            message: 'Progression system not initialized',
+          },
+        });
+      }
+
+      const progressionStatus = progressionTracker.getProgressionStatus();
+
+      res.json({
+        success: true,
+        data: {
+          progressionReady: true,
+          agentId: targetRuntime.agentId,
+          agentName: targetRuntime.character?.name || 'Unknown Agent',
+          ...progressionStatus,
+        },
+      });
+    } catch (error) {
+      console.error('[API] Error retrieving progression status:', error);
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
+    }
+  });
+
   server.app.get('/api/agents/:agentId/settings', async (req: any, res: any) => {
     try {
       let targetRuntime: any | undefined;

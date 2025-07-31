@@ -81,6 +81,7 @@ describe('AutoCoder Runtime Integration', () => {
       getParticipantsByIds: async (ids: string[]) => ids.map((id) => ({ id })),
       getParticipantsForRoom: async (roomId: string) => [],
       addParticipantsToRoom: async (participantIds: string[], roomId: string) => true,
+      addParticipantsRoom: async (participantIds: string[], roomId: string) => true,
       createParticipant: async (participant: any) => participant,
       updateParticipant: async (id: string, updates: any) => ({ id, ...updates }),
       deleteParticipant: async (id: string) => {},
