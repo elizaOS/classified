@@ -313,7 +313,7 @@ export const createProjectAction: Action = {
     };
 
     // Create the form
-              await formsService.createForm(formData);
+    await formsService.createForm(formData);
 
     // Store project metadata
     const projectMetadata: ProjectMetadata = {

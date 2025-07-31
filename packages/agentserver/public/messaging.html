@@ -321,9 +321,10 @@
           // Use the current host instead of hardcoded localhost
           const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
           const host = window.location.hostname;
-          const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '7777');
+          const port =
+            window.location.port || (window.location.protocol === 'https:' ? '443' : '7777');
           const wsUrl = `${protocol}//${host}:${port}/ws`;
-          
+
           addMessage(`Connecting to ${wsUrl}...`, 'status');
           ws = new WebSocket(wsUrl);
 
@@ -375,15 +376,18 @@
           ws.onerror = (error) => {
             console.error('WebSocket error:', error);
             addMessage('WebSocket error occurred - check console for details', 'error');
-            addMessage('Common issues: CORS, SSL/TLS mismatch, or firewall blocking WebSocket', 'error');
+            addMessage(
+              'Common issues: CORS, SSL/TLS mismatch, or firewall blocking WebSocket',
+              'error'
+            );
             updateConnectionStatus(false);
           };
 
           ws.onclose = (event) => {
             let closeReason = 'Unknown reason';
-            
+
             // Provide more detailed close reasons
-            switch(event.code) {
+            switch (event.code) {
               case 1000:
                 closeReason = 'Normal closure';
                 break;
@@ -420,7 +424,7 @@
               default:
                 closeReason = `Code ${event.code}`;
             }
-            
+
             addMessage(`Disconnected: ${closeReason}`, 'status');
             if (event.reason) {
               addMessage(`Reason: ${event.reason}`, 'status');
@@ -711,9 +715,10 @@
           // Use relative URL or construct from current host
           const protocol = window.location.protocol;
           const host = window.location.hostname;
-          const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '7777');
+          const port =
+            window.location.port || (window.location.protocol === 'https:' ? '443' : '7777');
           const apiUrl = `${protocol}//${host}:${port}/api/agents/${agentId}/screen/start`;
-          
+
           // Send request to start agent screen capture
           const response = await fetch(apiUrl, {
             method: 'POST',
@@ -738,9 +743,10 @@
           // Use relative URL or construct from current host
           const protocol = window.location.protocol;
           const host = window.location.hostname;
-          const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '7777');
+          const port =
+            window.location.port || (window.location.protocol === 'https:' ? '443' : '7777');
           const apiUrl = `${protocol}//${host}:${port}/api/agents/${agentId}/screen/stop`;
-          
+
           const response = await fetch(apiUrl, {
             method: 'POST',
           });

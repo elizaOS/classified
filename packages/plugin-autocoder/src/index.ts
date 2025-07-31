@@ -2,6 +2,7 @@ import type { Plugin } from '@elizaos/core';
 import { CodeGenerationService } from './services/CodeGenerationService';
 import { SecretsManagerService } from './services/SecretsManagerService';
 import { ProjectPlanningService } from './services/ProjectPlanningService';
+import { ProjectStatusManager } from './services/ProjectStatusManager';
 import { generateCodeAction } from './actions/generate-code';
 import { createProjectAction } from './actions/create-project';
 import { projectsProvider } from './providers/projects-provider';
@@ -15,6 +16,7 @@ export * from './types/index';
 export { CodeGenerationService } from './services/CodeGenerationService';
 export { ProjectPlanningService } from './services/ProjectPlanningService';
 export { SecretsManagerService } from './services/SecretsManagerService';
+export { ProjectStatusManager } from './services/ProjectStatusManager';
 
 // Export actions
 export { generateCodeAction } from './actions/generate-code';
@@ -44,7 +46,12 @@ export const autocoderPlugin: Plugin = {
   description:
     'Advanced code generation plugin that enables autonomous plugin development. Searches registry, generates PRDs, and creates working plugins with validation.',
 
-  services: [CodeGenerationService, ProjectPlanningService, SecretsManagerService],
+  services: [
+    CodeGenerationService,
+    ProjectPlanningService,
+    SecretsManagerService,
+    ProjectStatusManager,
+  ],
   actions: [generateCodeAction, createProjectAction],
   providers: [projectsProvider, currentProjectProvider],
 

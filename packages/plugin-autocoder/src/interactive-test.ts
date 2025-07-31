@@ -257,7 +257,7 @@ class InteractiveClaudeCodeTester {
     try {
       // Use the runtime's model directly
       const fullPrompt = `You are Claude Code, an expert code generation assistant.\n\nUser: ${prompt}`;
-      
+
       const response = await this.session.runtime.useModel('text_large', {
         prompt: fullPrompt,
         temperature: 0.7,

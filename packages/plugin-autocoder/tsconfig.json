@@ -20,7 +20,8 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": "./src",
     "downlevelIteration": true,
-    "types": ["node", "bun"]
+    "types": ["node", "bun"],
+    "jsx": "react"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "build", "**/*.test.ts", "**/*.spec.ts"]

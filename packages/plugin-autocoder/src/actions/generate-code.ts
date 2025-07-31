@@ -77,8 +77,8 @@ export const generateCodeAction: Action = {
 
     // Handle form flow
     if (formsService) {
-            // Check if we have active forms
-        const activeForms = await formsService.listForms('active');
+      // Check if we have active forms
+      const activeForms = await formsService.listForms('active');
       const projectForm = activeForms.find((f: Form) => f.id.startsWith('project-'));
 
       if (projectForm && projectForm.status !== 'completed') {
@@ -101,14 +101,14 @@ export const generateCodeAction: Action = {
         };
       }
 
-            // Check if this is a form submission
-              const messageData = message.content.data as {
-                formId?: string;
-                formData?: any;
-                action?: string;
-                projectId?: string;
-                projectType?: string;
-              };
+      // Check if this is a form submission
+      const messageData = message.content.data as {
+        formId?: string;
+        formData?: any;
+        action?: string;
+        projectId?: string;
+        projectType?: string;
+      };
       if (messageData?.formId && messageData?.formData) {
         // Process form submission
         const formData = messageData.formData;
@@ -216,7 +216,7 @@ export const generateCodeAction: Action = {
       description: message.content.text || '',
       requirements,
       apis: extractAPIs(message.content.text || ''),
-                  targetType: projectType as ProjectType,
+      targetType: projectType as ProjectType,
     });
 
     if (!result.success) {
@@ -302,13 +302,13 @@ async function extractProjectType(
   }
 
   // Check form data
-              const data = message.content.data as { 
-              action?: string; 
-              projectId?: string; 
-              projectType?: string;
-              formId?: string;
-              formData?: any;
-            };
+  const data = message.content.data as {
+    action?: string;
+    projectId?: string;
+    projectType?: string;
+    formId?: string;
+    formData?: any;
+  };
   if (data?.projectType) {
     return data.projectType;
   }

@@ -1,11 +1,6 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import { AgentRuntime, type IAgentRuntime, type UUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
-import { autocoderPlugin } from '../index';
-import sqlPlugin from '@elizaos/plugin-sql';
-import formsPlugin from '@elizaos/plugin-forms';
-// @ts-ignore - workspace dependency
-import { openaiPlugin } from '@elizaos/plugin-openai';
 
 describe('Autocoder Agent Integration', () => {
   let runtime: IAgentRuntime;
@@ -21,20 +16,21 @@ describe('Autocoder Agent Integration', () => {
     runtime = new AgentRuntime({
       agentId: uuidv4() as UUID,
       character: {
+        plugins: [
+          '@elizaos/plugin-sql',
+          '@elizaos/plugin-forms',
+          '@elizaos/plugin-openai',
+          '@elizaos/plugin-autocoder',
+        ],
         name: 'Autocoder Agent',
         bio: ['An AI assistant specialized in generating code autonomously'],
-        system: 'You are an expert code generation assistant with access to the Autocoder plugin. Help users create plugins, agents, and other code projects.',
+        system:
+          'You are an expert code generation assistant with access to the Autocoder plugin. Help users create plugins, agents, and other code projects.',
         settings: {
           OPENAI_API_KEY: process.env.OPENAI_API_KEY,
           ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
         },
       },
-      plugins: [
-        sqlPlugin,
-        formsPlugin,
-        openaiPlugin,
-        autocoderPlugin,
-      ],
     });
 
     // Initialize the runtime
@@ -43,18 +39,21 @@ describe('Autocoder Agent Integration', () => {
 
   it('should have autocoder plugin loaded', () => {
     // Check that the plugin is loaded
-    const services = runtime.getServices();
-    
-    console.log('Available services:', services.map(s => s.constructor.name));
-    
+    const services = runtime.services;
+
+    console.log(
+      'Available services:',
+      Array.from(services.values()).map((s) => s.constructor.name)
+    );
+
     // Should have code generation service
     const codeGenService = runtime.getService('code-generation');
     expect(codeGenService).toBeDefined();
-    
+
     // Should have project planning service
     const planningService = runtime.getService('project-planning');
     expect(planningService).toBeDefined();
-    
+
     // Should have forms service (required dependency)
     const formsService = runtime.getService('forms');
     expect(formsService).toBeDefined();
@@ -62,37 +61,43 @@ describe('Autocoder Agent Integration', () => {
 
   it('should have autocoder actions available', () => {
     // Get all actions
-    const actions = runtime.getActions();
-    
-    console.log('Available actions:', actions.map(a => a.name));
-    
+    const actions = runtime.actions;
+
+    console.log(
+      'Available actions:',
+      actions.map((a) => a.name)
+    );
+
     // Should have code generation actions
-    const generateCodeAction = actions.find(a => a.name === 'GENERATE_CODE');
+    const generateCodeAction = actions.find((a) => a.name === 'GENERATE_CODE');
     expect(generateCodeAction).toBeDefined();
-    
-    const createProjectAction = actions.find(a => a.name === 'CREATE_PROJECT');
+
+    const createProjectAction = actions.find((a) => a.name === 'CREATE_PROJECT');
     expect(createProjectAction).toBeDefined();
-    
-    const setupEnvironmentAction = actions.find(a => a.name === 'SETUP_ENVIRONMENT');
+
+    const setupEnvironmentAction = actions.find((a) => a.name === 'SETUP_ENVIRONMENT');
     expect(setupEnvironmentAction).toBeDefined();
   });
 
   it('should have autocoder providers available', () => {
     // Get all providers
-    const providers = runtime.getProviders();
-    
-    console.log('Available providers:', providers.map(p => p.name));
-    
+    const providers = runtime.providers;
+
+    console.log(
+      'Available providers:',
+      providers.map((p) => p.name)
+    );
+
     // Should have autocoder providers
-    const projectsProvider = providers.find(p => p.name === 'projects');
+    const projectsProvider = providers.find((p) => p.name === 'projects');
     expect(projectsProvider).toBeDefined();
-    
-    const currentProjectProvider = providers.find(p => p.name === 'current-project');
+
+    const currentProjectProvider = providers.find((p) => p.name === 'current-project');
     expect(currentProjectProvider).toBeDefined();
   });
 
   it('should validate GENERATE_CODE action for valid requests', async () => {
-    const generateCodeAction = runtime.getActions().find(a => a.name === 'GENERATE_CODE');
+    const generateCodeAction = runtime.actions.find((a) => a.name === 'GENERATE_CODE');
     expect(generateCodeAction).toBeDefined();
 
     // Test valid code generation request
@@ -108,12 +113,12 @@ describe('Autocoder Agent Integration', () => {
       createdAt: Date.now(),
     };
 
-    const isValid = await generateCodeAction!.validate(runtime, validMessage, {});
+    const isValid = await generateCodeAction!.validate(runtime, validMessage);
     expect(isValid).toBe(true);
   });
 
   it('should not validate GENERATE_CODE for non-code requests', async () => {
-    const generateCodeAction = runtime.getActions().find(a => a.name === 'GENERATE_CODE');
+    const generateCodeAction = runtime.actions.find((a) => a.name === 'GENERATE_CODE');
     expect(generateCodeAction).toBeDefined();
 
     // Test invalid request (no code generation keywords)
@@ -129,25 +134,25 @@ describe('Autocoder Agent Integration', () => {
       createdAt: Date.now(),
     };
 
-    const isValid = await generateCodeAction!.validate(runtime, invalidMessage, {});
+    const isValid = await generateCodeAction!.validate(runtime, invalidMessage);
     expect(isValid).toBe(false);
   });
 
   it('should provide project context through providers', async () => {
-    const projectsProvider = runtime.getProviders().find(p => p.name === 'projects');
+    const projectsProvider = runtime.providers.find((p) => p.name === 'projects');
     expect(projectsProvider).toBeDefined();
 
     // Get projects context
-    const context = await projectsProvider!.provide(runtime, {} as any, {} as any);
-    
+    const context = await projectsProvider!.get(runtime, {} as any, {} as any);
+
     console.log('Projects context:', context);
-    
+
     expect(context).toHaveProperty('text');
     expect(context.text).toContain('[PROJECTS]');
   });
 
   it('should handle CREATE_PROJECT action', async () => {
-    const createProjectAction = runtime.getActions().find(a => a.name === 'CREATE_PROJECT');
+    const createProjectAction = runtime.actions.find((a) => a.name === 'CREATE_PROJECT');
     expect(createProjectAction).toBeDefined();
 
     // Test project creation request
@@ -163,7 +168,7 @@ describe('Autocoder Agent Integration', () => {
       createdAt: Date.now(),
     };
 
-    const isValid = await createProjectAction!.validate(runtime, createMessage, {});
+    const isValid = await createProjectAction!.validate(runtime, createMessage);
     expect(isValid).toBe(true);
   });
 
@@ -171,7 +176,7 @@ describe('Autocoder Agent Integration', () => {
     // Code generation service should be started
     const codeGenService = runtime.getService('code-generation');
     expect(codeGenService).toBeDefined();
-    
+
     // Check if it has the expected methods
     expect(typeof (codeGenService as any).generateCode).toBe('function');
     expect(typeof (codeGenService as any).start).toBe('function');
@@ -181,10 +186,10 @@ describe('Autocoder Agent Integration', () => {
   it('should support form-based code generation', async () => {
     const formsService = runtime.getService('forms');
     expect(formsService).toBeDefined();
-    
+
     // Forms service should be available for interactive code generation
-    const createProjectAction = runtime.getActions().find(a => a.name === 'CREATE_PROJECT');
-    
+    const createProjectAction = runtime.actions.find((a) => a.name === 'CREATE_PROJECT');
+
     // The action should create forms when handling requests
     const message = {
       id: uuidv4() as UUID,
@@ -199,7 +204,7 @@ describe('Autocoder Agent Integration', () => {
     };
 
     // Just validate that the action would handle this
-    const isValid = await createProjectAction!.validate(runtime, message, {});
+    const isValid = await createProjectAction!.validate(runtime, message);
     expect(isValid).toBe(true);
   });
 });

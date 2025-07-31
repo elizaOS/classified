@@ -106,7 +106,7 @@ async function main() {
 
   const runtime = await getContainerRuntime();
   console.log(`🐳 Using container runtime: ${runtime}`);
-  
+
   if (cleanCache) {
     console.log('💨 Cleaning cache...');
     await $`${runtime} image rm elizaos/agent-server:latest || true`;
@@ -166,7 +166,7 @@ async function main() {
   const noCache = process.env.NO_CACHE === 'true';
   const cacheFlag = noCache ? '--no-cache' : '';
   const cacheMsg = noCache ? ' (no cache)' : ' (with cache)';
-  
+
   // Check if we should use the format flag
   // Docker implicitly uses docker format, but Podman defaults to OCI format
   // The --format=docker flag ensures HEALTHCHECK and other Docker-specific instructions work properly
@@ -178,7 +178,9 @@ async function main() {
       formatFlag = '--format=docker';
       console.log('📋 Using Docker format for better compatibility');
     } catch {
-      console.log('⚠️  This version of Podman does not support --format flag, using default format');
+      console.log(
+        '⚠️  This version of Podman does not support --format flag, using default format'
+      );
       console.log('   Note: HEALTHCHECK instructions may not work as expected');
     }
   }

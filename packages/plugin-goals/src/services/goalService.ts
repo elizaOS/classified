@@ -76,98 +76,98 @@ export class GoalDataManager {
     isCompleted?: boolean;
     tags?: string[];
   }): Promise<GoalData[]> {
-      const db = this.runtime.db;
-      if (!db) {
-        throw new Error('Database not available');
-      }
+    const db = this.runtime.db;
+    if (!db) {
+      throw new Error('Database not available');
+    }
 
-      const conditions: SQL[] = [];
-      if (filters?.ownerType) {
-        conditions.push(eq(goalsTable.ownerType, filters.ownerType));
-      }
-      if (filters?.ownerId) {
-        conditions.push(eq(goalsTable.ownerId, filters.ownerId));
-      }
-      if (filters?.isCompleted !== undefined) {
-        conditions.push(eq(goalsTable.isCompleted, filters.isCompleted));
-      }
+    const conditions: SQL[] = [];
+    if (filters?.ownerType) {
+      conditions.push(eq(goalsTable.ownerType, filters.ownerType));
+    }
+    if (filters?.ownerId) {
+      conditions.push(eq(goalsTable.ownerId, filters.ownerId));
+    }
+    if (filters?.isCompleted !== undefined) {
+      conditions.push(eq(goalsTable.isCompleted, filters.isCompleted));
+    }
 
-      const goals = await db
-        .select()
-        .from(goalsTable)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(asc(goalsTable.createdAt));
+    const goals = await db
+      .select()
+      .from(goalsTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(goalsTable.createdAt));
 
-      // Get tags for all goals
-      const goalIds = goals.map((goal: any) => goal.id);
-      if (goalIds.length === 0) {
-        return [];
-      }
+    // Get tags for all goals
+    const goalIds = goals.map((goal: any) => goal.id);
+    if (goalIds.length === 0) {
+      return [];
+    }
 
-      const tags = await db
-        .select()
-        .from(goalTagsTable)
-        .where(
-          goalIds.length === 1
-            ? eq(goalTagsTable.goalId, goalIds[0])
-            : inArray(goalTagsTable.goalId, goalIds)
-        );
-
-      // Group tags by goal
-      const tagsByGoal = tags.reduce(
-        (acc: any, tag: any) => {
-          if (!acc[tag.goalId]) {
-            acc[tag.goalId] = [];
-          }
-          acc[tag.goalId].push(tag.tag);
-          return acc;
-        },
-        {} as Record<string, string[]>
+    const tags = await db
+      .select()
+      .from(goalTagsTable)
+      .where(
+        goalIds.length === 1
+          ? eq(goalTagsTable.goalId, goalIds[0])
+          : inArray(goalTagsTable.goalId, goalIds)
       );
 
-      // Filter by tags if specified
-      let filteredGoals = goals;
-      if (filters?.tags && filters.tags.length > 0) {
-        filteredGoals = goals.filter((goal: any) => {
-          const goalTags = tagsByGoal[goal.id] || [];
-          return filters.tags!.some((tag) => goalTags.includes(tag));
-        });
-      }
+    // Group tags by goal
+    const tagsByGoal = tags.reduce(
+      (acc: any, tag: any) => {
+        if (!acc[tag.goalId]) {
+          acc[tag.goalId] = [];
+        }
+        acc[tag.goalId].push(tag.tag);
+        return acc;
+      },
+      {} as Record<string, string[]>
+    );
 
-      return filteredGoals.map((goal: any) => ({
-        ...goal,
-        tags: tagsByGoal[goal.id] || [],
-        createdAt: new Date(goal.createdAt),
-        updatedAt: new Date(goal.updatedAt),
-        completedAt: goal.completedAt ? new Date(goal.completedAt) : null,
-      }));
+    // Filter by tags if specified
+    let filteredGoals = goals;
+    if (filters?.tags && filters.tags.length > 0) {
+      filteredGoals = goals.filter((goal: any) => {
+        const goalTags = tagsByGoal[goal.id] || [];
+        return filters.tags!.some((tag) => goalTags.includes(tag));
+      });
+    }
+
+    return filteredGoals.map((goal: any) => ({
+      ...goal,
+      tags: tagsByGoal[goal.id] || [],
+      createdAt: new Date(goal.createdAt),
+      updatedAt: new Date(goal.updatedAt),
+      completedAt: goal.completedAt ? new Date(goal.completedAt) : null,
+    }));
   }
 
   /**
    * Get a single goal by ID
    */
   async getGoal(goalId: UUID): Promise<GoalData | null> {
-      const db = this.runtime.db;
-      if (!db) {
-        throw new Error('Database not available');
-      }
+    const db = this.runtime.db;
+    if (!db) {
+      throw new Error('Database not available');
+    }
 
-      const [goal] = await db.select().from(goalsTable).where(eq(goalsTable.id, goalId));
+    const [goal] = await db.select().from(goalsTable).where(eq(goalsTable.id, goalId));
 
-      if (!goal) {
-        return null;
-      }
+    if (!goal) {
+      return null;
+    }
 
-      // Get tags
-      const tags = await db.select().from(goalTagsTable).where(eq(goalTagsTable.goalId, goalId));
+    // Get tags
+    const tags = await db.select().from(goalTagsTable).where(eq(goalTagsTable.goalId, goalId));
 
-      return {
-        ...goal,
-        tags: tags.map((t: any) => t.tag),
-        createdAt: new Date(goal.createdAt),
-        updatedAt: new Date(goal.updatedAt),
-        completedAt: goal.completedAt ? new Date(goal.completedAt) : null,
-      };
+    return {
+      ...goal,
+      tags: tags.map((t: any) => t.tag),
+      createdAt: new Date(goal.createdAt),
+      updatedAt: new Date(goal.updatedAt),
+      completedAt: goal.completedAt ? new Date(goal.completedAt) : null,
+    };
   }
 
   /**
@@ -184,97 +184,96 @@ export class GoalDataManager {
       tags?: string[];
     }
   ): Promise<boolean> {
-      const db = this.runtime.db;
-      if (!db) {
-        throw new Error('Database not available');
-      }
+    const db = this.runtime.db;
+    if (!db) {
+      throw new Error('Database not available');
+    }
 
-      // Update goal fields
-      const fieldsToUpdate: any = {
-        updatedAt: new Date(),
-      };
+    // Update goal fields
+    const fieldsToUpdate: any = {
+      updatedAt: new Date(),
+    };
 
-      if (updates.name !== undefined) {
-        fieldsToUpdate.name = updates.name;
-      }
-      if (updates.description !== undefined) {
-        fieldsToUpdate.description = updates.description;
-      }
-      if (updates.isCompleted !== undefined) {
-        fieldsToUpdate.isCompleted = updates.isCompleted;
-      }
-      if (updates.completedAt !== undefined) {
-        fieldsToUpdate.completedAt = updates.completedAt;
-      }
-      if (updates.metadata !== undefined) {
-        fieldsToUpdate.metadata = updates.metadata;
-      }
+    if (updates.name !== undefined) {
+      fieldsToUpdate.name = updates.name;
+    }
+    if (updates.description !== undefined) {
+      fieldsToUpdate.description = updates.description;
+    }
+    if (updates.isCompleted !== undefined) {
+      fieldsToUpdate.isCompleted = updates.isCompleted;
+    }
+    if (updates.completedAt !== undefined) {
+      fieldsToUpdate.completedAt = updates.completedAt;
+    }
+    if (updates.metadata !== undefined) {
+      fieldsToUpdate.metadata = updates.metadata;
+    }
 
-      await db.update(goalsTable).set(fieldsToUpdate).where(eq(goalsTable.id, goalId));
+    await db.update(goalsTable).set(fieldsToUpdate).where(eq(goalsTable.id, goalId));
 
-      // Update tags if provided
-      if (updates.tags !== undefined) {
-        // Delete existing tags
-        await db.delete(goalTagsTable).where(eq(goalTagsTable.goalId, goalId));
+    // Update tags if provided
+    if (updates.tags !== undefined) {
+      // Delete existing tags
+      await db.delete(goalTagsTable).where(eq(goalTagsTable.goalId, goalId));
 
-        // Insert new tags
-        if (updates.tags.length > 0) {
-          const tagInserts = updates.tags.map((tag) => ({
-            id: asUUID(uuidv4()),
-            goalId,
-            tag,
-          }));
+      // Insert new tags
+      if (updates.tags.length > 0) {
+        const tagInserts = updates.tags.map((tag) => ({
+          id: asUUID(uuidv4()),
+          goalId,
+          tag,
+        }));
 
-          await db.insert(goalTagsTable).values(tagInserts);
-        }
+        await db.insert(goalTagsTable).values(tagInserts);
       }
+    }
 
-      return true;
+    return true;
   }
 
   /**
    * Delete a goal
    */
   async deleteGoal(goalId: UUID): Promise<boolean> {
-      const db = this.runtime.db;
-      if (!db) {
-        throw new Error('Database not available');
-      }
+    const db = this.runtime.db;
+    if (!db) {
+      throw new Error('Database not available');
+    }
 
-      await db.delete(goalsTable).where(eq(goalsTable.id, goalId));
-      return true;
+    await db.delete(goalsTable).where(eq(goalsTable.id, goalId));
+    return true;
   }
 
   /**
    * Get uncompleted goals
    */
   async getUncompletedGoals(ownerType?: 'agent' | 'entity', ownerId?: UUID): Promise<GoalData[]> {
+    const conditions = [eq(goalsTable.isCompleted, false)];
 
-      const conditions = [eq(goalsTable.isCompleted, false)];
+    if (ownerType) {
+      conditions.push(eq(goalsTable.ownerType, ownerType));
+    }
+    if (ownerId) {
+      conditions.push(eq(goalsTable.ownerId, ownerId));
+    }
 
-      if (ownerType) {
-        conditions.push(eq(goalsTable.ownerType, ownerType));
-      }
-      if (ownerId) {
-        conditions.push(eq(goalsTable.ownerId, ownerId));
-      }
-
-      return this.getGoals({
-        isCompleted: false,
-        ownerType,
-        ownerId,
-      });
+    return this.getGoals({
+      isCompleted: false,
+      ownerType,
+      ownerId,
+    });
   }
 
   /**
    * Get completed goals
    */
   async getCompletedGoals(ownerType?: 'agent' | 'entity', ownerId?: UUID): Promise<GoalData[]> {
-      return this.getGoals({
-        isCompleted: true,
-        ownerType,
-        ownerId,
-      });
+    return this.getGoals({
+      isCompleted: true,
+      ownerType,
+      ownerId,
+    });
   }
 
   /**
@@ -285,12 +284,12 @@ export class GoalDataManager {
     ownerId: UUID,
     isCompleted?: boolean
   ): Promise<number> {
-      const goals = await this.getGoals({
-        ownerType,
-        ownerId,
-        isCompleted,
-      });
-      return goals.length;
+    const goals = await this.getGoals({
+      ownerType,
+      ownerId,
+      isCompleted,
+    });
+    return goals.length;
   }
 
   /**

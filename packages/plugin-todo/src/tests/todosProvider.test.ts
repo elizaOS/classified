@@ -11,12 +11,13 @@ describe('todosProvider', () => {
 
   const setupMocks = () => {
     mockRuntime = createMockRuntime({
-      getRoom: (_roomId: UUID) => Promise.resolve({
-        id: 'room-1' as UUID,
-        source: 'TEST',
-        type: ChannelType.DM,
-        worldId: 'world-1' as UUID
-      }),
+      getRoom: (_roomId: UUID) =>
+        Promise.resolve({
+          id: 'room-1' as UUID,
+          source: 'TEST',
+          type: ChannelType.DM,
+          worldId: 'world-1' as UUID,
+        }),
       db: null, // Will cause data service to handle gracefully
     });
 

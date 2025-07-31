@@ -57,5 +57,3 @@ export function setupLoggerSpies(mockFn?: typeof console.info) {
     console.debug = originalConsole.debug;
   };
 }
-
-

@@ -4,7 +4,7 @@ import type { Character } from '@elizaos/core';
 
 describe('Capability Progression System E2E Integration Tests', () => {
   let serverProcess: ChildProcess;
-  let serverUrl = 'http://localhost:7777';
+  const serverUrl = 'http://localhost:7777';
 
   beforeAll(async () => {
     console.log('🚀 Starting agent server for E2E tests...');
@@ -18,7 +18,7 @@ describe('Capability Progression System E2E Integration Tests', () => {
       cwd: '/workspace/packages/agentserver',
       env: {
         ...process.env,
-        PATH: process.env.PATH + ':/home/ubuntu/.bun/bin',
+        PATH: `${process.env.PATH  }:/home/ubuntu/.bun/bin`,
         DATABASE_URL: 'postgresql://eliza:eliza_secure_pass@localhost:5432/eliza_test',
         NODE_ENV: 'test',
       },
@@ -110,8 +110,8 @@ describe('Capability Progression System E2E Integration Tests', () => {
     console.log('📝 Testing progression tracking...');
     
     // Check initial state
-    let response = await fetch(`${serverUrl}/api/agents/default/progression`);
-    let data = await response.json();
+    const response = await fetch(`${serverUrl}/api/agents/default/progression`);
+    const data = await response.json();
     
     if (data.data.progressionReady) {
       const initialLevel = data.data.currentLevel;

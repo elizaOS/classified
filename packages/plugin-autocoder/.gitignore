@@ -88,6 +88,9 @@ AGENTS.md
 CLAUDE.md
 .cursorignore
 
+# TypeScript
+*.tsbuildinfo
+
 # E2B Templates
 e2b-templates/**/node_modules/
 e2b-templates/**/.e2b/

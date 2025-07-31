@@ -1,4 +1,10 @@
-import { Service, elizaLogger, type IAgentRuntime, ServiceType, type ServiceTypeName } from '@elizaos/core';
+import {
+  Service,
+  elizaLogger,
+  type IAgentRuntime,
+  ServiceType,
+  type ServiceTypeName,
+} from '@elizaos/core';
 
 export class SecretsManagerService extends Service {
   static serviceName: string = 'secrets-manager';

@@ -164,7 +164,7 @@ export class StagehandService extends Service {
 
   private async waitForReady(maxAttempts = 60, delayMs = 3000): Promise<void> {
     logger.info('Waiting for Stagehand server to be ready...');
-    
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         const isHealthy = await this.client.health();
@@ -175,13 +175,15 @@ export class StagehandService extends Service {
       } catch (error) {
         logger.debug(`Health check attempt ${attempt}/${maxAttempts} failed:`, error);
       }
-      
+
       if (attempt < maxAttempts) {
-        logger.info(`Server not ready yet, retrying in ${delayMs/1000}s... (attempt ${attempt}/${maxAttempts})`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        logger.info(
+          `Server not ready yet, retrying in ${delayMs / 1000}s... (attempt ${attempt}/${maxAttempts})`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
-    
+
     throw new Error(`Stagehand server did not become ready after ${maxAttempts} attempts`);
   }
 }

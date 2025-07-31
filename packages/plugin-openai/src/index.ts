@@ -928,7 +928,9 @@ export const openaiPlugin: Plugin = {
         return openaiResponse;
       } catch (error) {
         // Fallback to TEXT_LARGE if research model is not available
-        logger.warn(`[OpenAI] Research model ${modelName} not available, falling back to TEXT_LARGE`);
+        logger.warn(
+          `[OpenAI] Research model ${modelName} not available, falling back to TEXT_LARGE`
+        );
         return runtime.useModel(ModelType.TEXT_LARGE, {
           runtime,
           prompt,

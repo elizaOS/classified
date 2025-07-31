@@ -4,102 +4,78 @@ import { CapabilityProgressionService } from './capabilityProgressionService';
 export class ProgressionTracker {
   private runtime: IAgentRuntime;
   private progressionService: CapabilityProgressionService;
+  private trackingInterval: NodeJS.Timeout | null = null;
+  private namingInterval: NodeJS.Timeout | null = null;
 
   constructor(runtime: IAgentRuntime, progressionService: CapabilityProgressionService) {
     this.runtime = runtime;
     this.progressionService = progressionService;
-    this.setupActionHooks();
+    this.setupTracking();
   }
 
-  private setupActionHooks(): void {
-    logger.info('[PROGRESSION_TRACKER] Setting up action hooks for progression tracking');
-
-    // Override the runtime's executeAction method to track capability usage
-    const originalGetService = this.runtime.getService.bind(this.runtime);
-    
-    this.runtime.getService = (serviceName: string) => {
-      const service = originalGetService(serviceName);
-      
-      if (service) {
-        switch (serviceName) {
-          case 'SHELL':
-            this.wrapShellService(service);
-            break;
-          case 'goals':
-            this.wrapGoalsService(service);
-            break;
-          case 'TODO':
-            this.wrapTodoService(service);
-            break;
-        }
-      }
-      
-      return service;
-    };
+  private setupTracking(): void {
+    logger.info('[PROGRESSION_TRACKER] Setting up progression tracking');
 
     // Track when agents are named by monitoring character updates
     this.trackAgentNaming();
+    
+    // Set up periodic service usage checking
+    this.startServiceUsageTracking();
   }
 
-  private wrapShellService(shellService: any): void {
-    if (shellService.executeCommand && !shellService._progressionWrapped) {
-      const originalExecuteCommand = shellService.executeCommand.bind(shellService);
-      
-      shellService.executeCommand = async (...args: any[]) => {
-        const result = await originalExecuteCommand(...args);
-        
-        // Track shell usage after successful command execution (only in progression mode)
-        if (result && result.exitCode === 0 && !this.progressionService.isUnlockedModeEnabled()) {
-          logger.info('[PROGRESSION_TRACKER] Shell command executed successfully, recording capability usage');
-          await this.progressionService.recordCapabilityUsed('shell');
+  private startServiceUsageTracking(): void {
+    // Check service usage periodically rather than wrapping methods
+    this.trackingInterval = setInterval(async () => {
+      if (this.progressionService.isUnlockedModeEnabled()) {
+        return; // Skip tracking in unlocked mode
+      }
+
+      // Check shell service usage via history
+      try {
+        const shellService = this.runtime.getService('SHELL');
+        if (shellService && 'getHistory' in shellService) {
+          const history = (shellService as any).getHistory?.();
+          if (history && history.length > 0) {
+            // If we have command history, shell has been used
+            await this.progressionService.recordCapabilityUsed('shell');
+          }
         }
-        
-        return result;
-      };
-      
-      shellService._progressionWrapped = true;
-      logger.info('[PROGRESSION_TRACKER] Shell service wrapped for progression tracking');
+      } catch {
+        // Service might not be available yet
+      }
+    }, 10000); // Check every 10 seconds
+  }
+
+  // Method to track shell command execution - called from API endpoints
+  public async trackShellCommand(command: string, exitCode: number): Promise<void> {
+    if (this.progressionService.isUnlockedModeEnabled()) {
+      return;
+    }
+
+    if (exitCode === 0) {
+      logger.info('[PROGRESSION_TRACKER] Shell command executed successfully, recording capability usage');
+      await this.progressionService.recordCapabilityUsed('shell');
     }
   }
 
-  private wrapGoalsService(goalsService: any): void {
-    if (goalsService.createGoal && !goalsService._progressionWrapped) {
-      const originalCreateGoal = goalsService.createGoal.bind(goalsService);
-      
-      goalsService.createGoal = async (...args: any[]) => {
-        const result = await originalCreateGoal(...args);
-        
-        if (result && !this.progressionService.isUnlockedModeEnabled()) {
-          logger.info('[PROGRESSION_TRACKER] Goal created, recording capability usage');
-          await this.progressionService.recordCapabilityUsed('goals');
-        }
-        
-        return result;
-      };
-      
-      goalsService._progressionWrapped = true;
-      logger.info('[PROGRESSION_TRACKER] Goals service wrapped for progression tracking');
+  // Method to track goal creation - called from API endpoints
+  public async trackGoalCreation(_goalData: any): Promise<void> {
+    if (this.progressionService.isUnlockedModeEnabled()) {
+      return;
     }
+
+    logger.info('[PROGRESSION_TRACKER] Goal created, recording capability usage');
+    await this.progressionService.recordCapabilityUsed('goals');
   }
 
-  private wrapTodoService(todoService: any): void {
-    if (todoService.createTodo && !todoService._progressionWrapped) {
-      const originalCreateTodo = todoService.createTodo.bind(todoService);
-      
-      todoService.createTodo = async (...args: any[]) => {
-        const result = await originalCreateTodo(...args);
-        
-        if (result && !this.progressionService.isUnlockedModeEnabled()) {
-          logger.info('[PROGRESSION_TRACKER] Todo created, recording capability usage');
-          await this.progressionService.recordCapabilityUsed('todo');
-        }
-        
-        return result;
-      };
-      
-      todoService._progressionWrapped = true;
-      logger.info('[PROGRESSION_TRACKER] Todo service wrapped for progression tracking');
+  // Method to track todo creation - called from API endpoints
+  public async trackTodoCreation(_todoData: any): Promise<void> {
+    if (this.progressionService.isUnlockedModeEnabled()) {
+      return;
     }
+
+    logger.info('[PROGRESSION_TRACKER] Todo created, recording capability usage');
+    await this.progressionService.recordCapabilityUsed('todo');
   }
 
   private trackAgentNaming(): void {
@@ -120,7 +96,7 @@ export class ProgressionTracker {
     }
     
     // Set up periodic checking for name changes (simple approach)
-    setInterval(() => {
+    this.namingInterval = setInterval(() => {
       // Skip if now in unlocked mode
       if (this.progressionService.isUnlockedModeEnabled()) {
         return;
@@ -187,5 +163,18 @@ export class ProgressionTracker {
         capabilities: level.unlockedCapabilities,
       })),
     };
+  }
+
+  // Cleanup method to stop intervals
+  public cleanup(): void {
+    if (this.trackingInterval) {
+      clearInterval(this.trackingInterval);
+      this.trackingInterval = null;
+    }
+    if (this.namingInterval) {
+      clearInterval(this.namingInterval);
+      this.namingInterval = null;
+    }
+    logger.info('[PROGRESSION_TRACKER] Cleaned up tracking intervals');
   }
 }

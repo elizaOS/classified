@@ -23,7 +23,8 @@ interface ProjectInfo {
  */
 export const currentProjectProvider: Provider = {
   name: 'CURRENT_PROJECT_CONTEXT',
-  description: 'Provides context about the current project being worked on, including file structure and line counts',
+  description:
+    'Provides context about the current project being worked on, including file structure and line counts',
   dynamic: true,
 
   get: async (
@@ -53,21 +54,21 @@ export const currentProjectProvider: Provider = {
 
     try {
       const projectInfo = await getProjectInfo(currentProjectPath);
-      
+
       let contextText = `[CURRENT PROJECT]\n`;
       contextText += `Name: ${projectInfo.name}\n`;
       contextText += `Path: ${projectInfo.path}\n`;
       contextText += `Total Files: ${projectInfo.files.length}\n`;
       contextText += `Total Lines: ${projectInfo.totalLines.toLocaleString()}\n`;
       contextText += `Total Size: ${formatBytes(projectInfo.totalSize)}\n\n`;
-      
+
       contextText += `[FILE STRUCTURE]\n${projectInfo.structure}\n\n`;
-      
+
       contextText += `[FILE DETAILS]\n`;
       projectInfo.files
         .sort((a, b) => b.lines - a.lines)
         .slice(0, 20) // Show top 20 files by line count
-        .forEach(file => {
+        .forEach((file) => {
           contextText += `${file.path}: ${file.lines} lines (${formatBytes(file.size)})\n`;
         });
 
@@ -95,15 +96,15 @@ export const currentProjectProvider: Provider = {
 async function getProjectInfo(projectPath: string): Promise<ProjectInfo> {
   const projectName = path.basename(projectPath);
   const files: FileInfo[] = [];
-  
+
   // Get all files recursively
   async function scanDirectory(dir: string, baseDir: string = dir): Promise<void> {
     const entries = await fs.readdir(dir, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       const relativePath = path.relative(baseDir, fullPath);
-      
+
       // Skip common directories to ignore
       if (entry.isDirectory()) {
         if (['node_modules', '.git', 'dist', 'build', '.next', 'coverage'].includes(entry.name)) {
@@ -115,12 +116,12 @@ async function getProjectInfo(projectPath: string): Promise<ProjectInfo> {
         if (entry.name.startsWith('.') && !entry.name.match(/\.(ts|js|json|md)$/)) {
           continue;
         }
-        
+
         try {
           const stats = await fs.stat(fullPath);
           const content = await fs.readFile(fullPath, 'utf-8');
           const lines = content.split('\n').length;
-          
+
           files.push({
             path: relativePath,
             lines,
@@ -132,27 +133,26 @@ async function getProjectInfo(projectPath: string): Promise<ProjectInfo> {
       }
     }
   }
-  
+
   await scanDirectory(projectPath);
-  
+
   // Generate tree structure using the tree command if available
   let structure = '';
   try {
-    structure = execSync(
-      `tree -I 'node_modules|.git|dist|build|coverage' -L 3 "${projectPath}"`,
-      { encoding: 'utf-8' }
-    );
+    structure = execSync(`tree -I 'node_modules|.git|dist|build|coverage' -L 3 "${projectPath}"`, {
+      encoding: 'utf-8',
+    });
   } catch {
     // Fallback to simple listing if tree is not available
     structure = files
-      .map(f => f.path)
+      .map((f) => f.path)
       .sort()
       .join('\n');
   }
-  
+
   const totalLines = files.reduce((sum, file) => sum + file.lines, 0);
   const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-  
+
   return {
     name: projectName,
     path: projectPath,

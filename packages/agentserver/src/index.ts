@@ -19,6 +19,9 @@ import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
 import { experiencePlugin } from '@elizaos/plugin-experience';
 import { stagehandPlugin } from '@elizaos/plugin-stagehand';
 import { visionPlugin } from '@elizaos/plugin-vision';
+import autocoderPlugin from '@elizaos/plugin-autocoder';
+import { pluginManagerPlugin } from '@elizaos/plugin-plugin-manager';
+import samPlugin from '@elizaos/plugin-sam';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -90,6 +93,9 @@ const allAvailablePlugins: Record<string, Plugin> = {
   stagehand: stagehandPlugin,
   gameAPI: gameAPIPlugin,
   inference: inferencePlugin,
+  autocoder: autocoderPlugin,
+  pluginManager: pluginManagerPlugin,
+  sam: samPlugin,
 };
 
 // Create initial plugin list with only basic capabilities
@@ -103,9 +109,9 @@ function createInitialPlugins(): Plugin[] {
     knowledgePlugin,    // Always needed for memory
     PersonalityPlugin,  // Always needed for character
     experiencePlugin,   // Always needed for learning
-          GoalsPlugin,        // Goals tracking and management
-      TodoPlugin,         // Todo tracking and management
-    ].filter(Boolean);
+    shellPlugin,        // Shell is available from level 0
+    // Goals and Todo will be added via progression at level 2
+  ].filter(Boolean);
 }
 
 const initialPlugins = createInitialPlugins();
@@ -148,18 +154,35 @@ export async function startAgent(character: any): Promise<IAgentRuntime> {
     logger.info(`[PROGRESSION] Registering plugin for capability: ${capability}`);
     
     const pluginMappings: Record<string, Plugin[]> = {
-      'browser': [stagehandPlugin], // Browser capability uses Stagehand for web automation
-      'stagehand': [stagehandPlugin], // Alias for backward compatibility
-      'vision': [], // Vision plugin would go here when available
-      'screen_capture': [], // Screen capture plugin would go here
-      'microphone': [], // SAM plugin would go here
-      'sam': [], // SAM plugin would go here  
-      'audio': [], // Audio plugin would go here
-      'camera': [], // Camera plugin would go here
-      'advanced_vision': [], // Advanced vision plugin would go here
-      'shell': [shellPlugin],
-      'goals': [GoalsPlugin],
-      'todo': [TodoPlugin],
+      // Level 1 capabilities
+      'browser': [allAvailablePlugins.stagehand], // Browser capability uses Stagehand for web automation
+      'stagehand': [allAvailablePlugins.stagehand], // Alias for backward compatibility
+      
+      // Level 2 capabilities
+      'goals': [allAvailablePlugins.goals],
+      'todo': [allAvailablePlugins.todo],
+      
+      // Level 3 capabilities
+      'vision': [allAvailablePlugins.vision], // Vision plugin
+      'screen_capture': [allAvailablePlugins.vision], // Screen capture uses vision plugin
+      
+      // Level 4 capabilities
+      'microphone': [allAvailablePlugins.sam], // SAM plugin provides TTS/audio capabilities
+      'sam': [allAvailablePlugins.sam], // SAM plugin directly
+      'audio': [allAvailablePlugins.sam], // Audio capability uses SAM plugin
+      
+      // Level 5 capabilities
+      'camera': [], // Camera plugin not yet implemented
+      'advanced_vision': [allAvailablePlugins.vision], // Advanced vision uses vision plugin
+      
+      // Level 6 capabilities
+      'autocoder': [allAvailablePlugins.autocoder],
+      'code_generation': [allAvailablePlugins.autocoder],
+      'project_management': [allAvailablePlugins.autocoder],
+      'plugin-manager': [allAvailablePlugins.pluginManager],
+      
+      // Note: 'shell' is already in initial plugins, no need to register progressively
+      // Note: 'naming' is handled by ProgressionTracker, not a plugin capability
     };
     
     const pluginsToRegister = pluginMappings[capability] || [];
@@ -203,6 +226,9 @@ export async function startAgent(character: any): Promise<IAgentRuntime> {
   // Store the progression service and tracker on the runtime for later access
   (runtime as any).progressionService = progressionService;
   (runtime as any).progressionTracker = progressionTracker;
+
+  // Make progression tracker available globally for action tracking
+  (global as any).elizaProgressionTracker = progressionTracker;
 
   console.log('[AGENT START] Capability progression system initialized');
 
@@ -683,6 +709,75 @@ export async function startServer() {
     }
   });
 
+  // POST endpoint to switch progression mode
+  server.app.post('/api/agents/:agentId/progression/mode', async (req: any, res: any) => {
+    try {
+      let targetRuntime: IAgentRuntime | undefined;
+
+      // Handle "default" as a special case - get the first agent
+      if (req.params.agentId === 'default') {
+        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      } else {
+        // Try to get the specific agent by ID
+        targetRuntime = (server as any).agents?.get(req.params.agentId);
+      }
+
+      if (!targetRuntime) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            message: req.params.agentId === 'default'
+              ? 'No agents available'
+              : `Agent ${req.params.agentId} not found`,
+          },
+        });
+      }
+
+      // Get the mode from request body
+      const { mode } = req.body;
+      if (!mode || !['progression', 'unlocked'].includes(mode)) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Invalid mode. Must be either "progression" or "unlocked"',
+          },
+        });
+      }
+
+      // Get progression service from the runtime
+      const progressionService = (targetRuntime as any).progressionService;
+      if (!progressionService) {
+        return res.status(503).json({
+          success: false,
+          error: {
+            message: 'Progression service not available',
+          },
+        });
+      }
+
+      // Switch the mode
+      await progressionService.setProgressionMode(mode);
+
+      // Get updated status
+      const progressionTracker = (targetRuntime as any).progressionTracker;
+      const progressionStatus = progressionTracker ? progressionTracker.getProgressionStatus() : {};
+
+      res.json({
+        success: true,
+        data: {
+          mode,
+          message: `Progression mode switched to ${mode}`,
+          agentId: targetRuntime.agentId,
+          agentName: targetRuntime.character?.name || 'Unknown Agent',
+          ...progressionStatus,
+        },
+      });
+    } catch (error) {
+      console.error('[API] Error switching progression mode:', error);
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
+    }
+  });
+
   server.app.get('/api/agents/:agentId/settings', async (req: any, res: any) => {
     try {
       let targetRuntime: any | undefined;
@@ -746,6 +841,66 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error retrieving settings:', error);
+      res.status(500).json({ success: false, error: { message: (error as any).message } });
+    }
+  });
+
+  // POST endpoint to track action execution for progression
+  server.app.post('/api/agents/:agentId/track-action', async (req: any, res: any) => {
+    try {
+      let targetRuntime: IAgentRuntime | undefined;
+
+      // Handle "default" as a special case - get the first agent
+      if (req.params.agentId === 'default') {
+        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+      } else {
+        // Try to get the specific agent by ID
+        targetRuntime = (server as any).agents?.get(req.params.agentId);
+      }
+
+      if (!targetRuntime) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            message: req.params.agentId === 'default'
+              ? 'No agents available'
+              : `Agent ${req.params.agentId} not found`,
+          },
+        });
+      }
+
+      const { action, details } = req.body;
+      if (!action) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Action type is required',
+          },
+        });
+      }
+
+      // Get progression tracker from the runtime
+      const progressionTracker = (targetRuntime as any).progressionTracker;
+      if (!progressionTracker) {
+        return res.status(200).json({
+          success: true,
+          message: 'Progression tracking not available',
+        });
+      }
+
+      // Track the action
+      await progressionTracker.trackAction(action, details);
+
+      res.json({
+        success: true,
+        data: {
+          action,
+          tracked: true,
+          agentId: targetRuntime.agentId,
+        },
+      });
+    } catch (error) {
+      console.error('[API] Error tracking action:', error);
       res.status(500).json({ success: false, error: { message: (error as any).message } });
     }
   });

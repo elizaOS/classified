@@ -40,13 +40,9 @@ export const projectsProvider: Provider = {
     // Group projects by status
     const activeProjects = projects.filter(
       (p: ProjectPlan) =>
-        p.status === 'planning' ||
-        p.status === 'generating' ||
-        p.status === 'testing'
+        p.status === 'planning' || p.status === 'generating' || p.status === 'testing'
     );
-    const completedProjects = projects.filter(
-      (p: ProjectPlan) => p.status === 'completed'
-    );
+    const completedProjects = projects.filter((p: ProjectPlan) => p.status === 'completed');
     const failedProjects = projects.filter((p: ProjectPlan) => p.status === 'failed');
 
     if (activeProjects.length > 0) {

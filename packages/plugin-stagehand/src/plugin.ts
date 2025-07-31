@@ -363,11 +363,15 @@ const browserClickAction: Action = {
       const progressionTracker = (runtime as any).progressionTracker;
       if (progressionTracker) {
         await progressionTracker.trackAction('browser_used');
-        
+
         // Check if this is a form submission button
         const lowerDesc = description.toLowerCase();
-        if (lowerDesc.includes('submit') || lowerDesc.includes('send') || 
-            lowerDesc.includes('post') || lowerDesc.includes('save')) {
+        if (
+          lowerDesc.includes('submit') ||
+          lowerDesc.includes('send') ||
+          lowerDesc.includes('post') ||
+          lowerDesc.includes('save')
+        ) {
           await progressionTracker.trackAction('form_submitted');
         }
       }
@@ -521,7 +525,7 @@ const browserTypeAction: Action = {
       const progressionTracker = (runtime as any).progressionTracker;
       if (progressionTracker) {
         await progressionTracker.trackAction('browser_used');
-        
+
         // Check if this might be a form submission (typing in a form field)
         if (field.toLowerCase().includes('form') || field.toLowerCase().includes('submit')) {
           await progressionTracker.trackAction('form_submitted');

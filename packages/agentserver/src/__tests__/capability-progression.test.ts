@@ -31,6 +31,9 @@ describe('Capability Progression System E2E Tests', () => {
       plugins: [], // Start with no plugins
     });
 
+    // Mock setSetting for runtime
+    runtime.setSetting = () => {};
+
     // Initialize the progression service
     progressionService = new CapabilityProgressionService(runtime);
   });
@@ -57,7 +60,7 @@ describe('Capability Progression System E2E Tests', () => {
 
     // WHEN: Agent is named but shell not used
     await progressionService.recordAgentNamed('TestBot');
-    
+
     // THEN: Should not progress to level 1
     expect(progressionService.getCurrentLevel()).toBe(0);
     expect(progressionService.isCapabilityUnlocked('browser')).toBe(false);
@@ -66,7 +69,7 @@ describe('Capability Progression System E2E Tests', () => {
     // WHEN: Shell is used but agent not named (reset state first)
     progressionService = new CapabilityProgressionService(runtime);
     await progressionService.recordCapabilityUsed('shell');
-    
+
     // THEN: Should still not progress to level 1
     expect(progressionService.getCurrentLevel()).toBe(0);
     expect(progressionService.isCapabilityUnlocked('browser')).toBe(false);
@@ -78,7 +81,7 @@ describe('Capability Progression System E2E Tests', () => {
 
     // WHEN: Agent chooses a name
     await progressionService.recordAgentNamed('WebExplorer');
-    
+
     // AND: Agent uses shell capability
     await progressionService.recordCapabilityUsed('shell');
 
@@ -102,7 +105,7 @@ describe('Capability Progression System E2E Tests', () => {
 
     // WHEN: Agent uses browser but hasn't submitted form
     await progressionService.recordCapabilityUsed('browser');
-    
+
     // THEN: Should not progress to level 2 yet
     expect(progressionService.getCurrentLevel()).toBe(1);
     expect(progressionService.isCapabilityUnlocked('vision')).toBe(false);
@@ -114,7 +117,7 @@ describe('Capability Progression System E2E Tests', () => {
     expect(progressionService.getCurrentLevel()).toBe(2);
     expect(progressionService.isCapabilityUnlocked('vision')).toBe(true);
     expect(progressionService.isCapabilityUnlocked('screen_capture')).toBe(true);
-    
+
     // Should retain all previous capabilities
     expect(progressionService.isCapabilityUnlocked('browser')).toBe(true);
     expect(progressionService.isCapabilityUnlocked('shell')).toBe(true);
@@ -181,7 +184,7 @@ describe('Capability Progression System E2E Tests', () => {
     // WHEN: Progressing through all levels
     await progressionService.recordAgentNamed('FullProgressionAgent');
     await progressionService.recordCapabilityUsed('shell');
-    
+
     state = progressionService.getProgressionState();
     expect(state.currentLevel).toBe(1);
     expect(state.unlockedLevels).toContain('level_1_browser');
@@ -190,7 +193,7 @@ describe('Capability Progression System E2E Tests', () => {
 
     await progressionService.recordCapabilityUsed('browser');
     await progressionService.recordFormSubmitted();
-    
+
     state = progressionService.getProgressionState();
     expect(state.currentLevel).toBe(2);
     expect(state.unlockedLevels).toContain('level_2_vision');
@@ -198,13 +201,13 @@ describe('Capability Progression System E2E Tests', () => {
     expect(state.completedActions).toContain('form_submitted');
 
     await progressionService.recordCapabilityUsed('vision');
-    
+
     state = progressionService.getProgressionState();
     expect(state.currentLevel).toBe(3);
     expect(state.unlockedLevels).toContain('level_3_audio');
 
     await progressionService.recordCapabilityUsed('microphone');
-    
+
     state = progressionService.getProgressionState();
     expect(state.currentLevel).toBe(4);
     expect(state.unlockedLevels).toContain('level_4_camera');
@@ -236,9 +239,11 @@ describe('Capability Progression System E2E Tests', () => {
 
     // THEN: Should only progress once and not create duplicate entries
     expect(progressionService.getCurrentLevel()).toBe(1);
-    
+
     const state = progressionService.getProgressionState();
-    const shellActions = state.completedActions.filter(action => action === 'capability_used_shell');
+    const shellActions = state.completedActions.filter(
+      (action) => action === 'capability_used_shell'
+    );
     expect(shellActions.length).toBe(1); // Should not have duplicates
   });
 
@@ -248,27 +253,110 @@ describe('Capability Progression System E2E Tests', () => {
 
     // THEN: Should have all 5 levels defined
     expect(availableLevels.length).toBe(5);
-    
+
     // Level 0 should be unlocked by default
     expect(availableLevels[0].id).toBe('level_0_basic');
     expect(availableLevels[0].isUnlocked).toBe(true);
     expect(availableLevels[0].unlockedCapabilities).toEqual(['shell', 'naming']);
-    
+
     // Other levels should be locked initially
     expect(availableLevels[1].id).toBe('level_1_browser');
     expect(availableLevels[1].isUnlocked).toBe(false);
     expect(availableLevels[1].unlockedCapabilities).toEqual(['browser', 'stagehand']);
-    
+
     expect(availableLevels[2].id).toBe('level_2_vision');
     expect(availableLevels[2].isUnlocked).toBe(false);
     expect(availableLevels[2].unlockedCapabilities).toEqual(['vision', 'screen_capture']);
-    
+
     expect(availableLevels[3].id).toBe('level_3_audio');
     expect(availableLevels[3].isUnlocked).toBe(false);
     expect(availableLevels[3].unlockedCapabilities).toEqual(['microphone', 'sam', 'audio']);
-    
+
     expect(availableLevels[4].id).toBe('level_4_camera');
     expect(availableLevels[4].isUnlocked).toBe(false);
     expect(availableLevels[4].unlockedCapabilities).toEqual(['camera', 'advanced_vision']);
+  });
+
+  describe('Unlocked Mode Tests', () => {
+    it('should start with all capabilities unlocked when PROGRESSION_MODE is set to unlocked', async () => {
+      // GIVEN: Runtime with unlocked mode setting
+      runtime.getSetting = (key: string) => {
+        if (key === 'PROGRESSION_MODE') return 'unlocked';
+        return undefined;
+      };
+
+      // WHEN: Creating a new progression service
+      const unlockedService = new CapabilityProgressionService(runtime);
+
+      // THEN: All capabilities should be unlocked
+      expect(unlockedService.isUnlockedModeEnabled()).toBe(true);
+      expect(unlockedService.getCurrentLevel()).toBe(5); // Max level
+
+      const unlockedCapabilities = unlockedService.getUnlockedCapabilities();
+      expect(unlockedCapabilities).toContain('shell');
+      expect(unlockedCapabilities).toContain('browser');
+      expect(unlockedCapabilities).toContain('vision');
+      expect(unlockedCapabilities).toContain('microphone');
+      expect(unlockedCapabilities).toContain('camera');
+
+      const availableLevels = unlockedService.getAvailableLevels();
+      availableLevels.forEach((level) => {
+        expect(level.isUnlocked).toBe(true);
+      });
+    });
+
+    it('should not track progression in unlocked mode', async () => {
+      // GIVEN: Service in unlocked mode
+      runtime.getSetting = (key: string) => {
+        if (key === 'PROGRESSION_MODE') return 'unlocked';
+        return undefined;
+      };
+      const unlockedService = new CapabilityProgressionService(runtime);
+
+      // WHEN: Recording actions that would normally trigger progression
+      await unlockedService.recordCapabilityUsed('shell');
+      await unlockedService.recordAgentNamed('TestAgent');
+      await unlockedService.recordFormSubmitted();
+
+      // THEN: Actions should not be tracked
+      const state = unlockedService.getProgressionState();
+      expect(state.completedActions).toEqual([]);
+    });
+
+    it('should switch from progression to unlocked mode', async () => {
+      // GIVEN: Service in progression mode
+      expect(progressionService.isUnlockedModeEnabled()).toBe(false);
+      expect(progressionService.getCurrentLevel()).toBe(0);
+
+      // WHEN: Switching to unlocked mode
+      await progressionService.setProgressionMode('unlocked');
+
+      // THEN: All capabilities should be unlocked
+      expect(progressionService.isUnlockedModeEnabled()).toBe(true);
+      expect(progressionService.getCurrentLevel()).toBe(5);
+      expect(progressionService.getUnlockedCapabilities().length).toBeGreaterThan(10);
+    });
+
+    it('should switch from unlocked to progression mode and reset progress', async () => {
+      // GIVEN: Service in unlocked mode
+      runtime.getSetting = (key: string) => {
+        if (key === 'PROGRESSION_MODE') return 'unlocked';
+        return undefined;
+      };
+      const unlockedService = new CapabilityProgressionService(runtime);
+      expect(unlockedService.isUnlockedModeEnabled()).toBe(true);
+
+      // WHEN: Switching to progression mode
+      await unlockedService.setProgressionMode('progression');
+
+      // THEN: Should reset to initial state
+      expect(unlockedService.isUnlockedModeEnabled()).toBe(false);
+      expect(unlockedService.getCurrentLevel()).toBe(0);
+      expect(unlockedService.getUnlockedCapabilities()).toEqual(['shell', 'naming']);
+
+      const state = unlockedService.getProgressionState();
+      expect(state.completedActions).toEqual([]);
+      expect(state.agentNamed).toBe(false);
+    });
   });
 });

@@ -6,7 +6,6 @@ import {
   setSelectedProvider,
 } from '@elizaos/plugin-inference';
 import { exec, spawn } from 'child_process';
-import crypto from 'crypto';
 import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -45,7 +44,7 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
   // Test ffmpeg availability first
   try {
     await execAsync('which ffmpeg');
-  } catch (error) {
+  } catch {
     logger.error('[VirtualScreen] ffmpeg not found. Installing would be required for screen capture.');
     throw new Error('ffmpeg not available for screen capture');
   }
@@ -53,7 +52,7 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
   // Test X11 display availability
   try {
     await execAsync(`xdpyinfo -display ${display}`);
-  } catch (error) {
+  } catch {
     logger.warn('[VirtualScreen] X11 display not ready, waiting...');
     // Wait a bit for display to be ready
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -2755,9 +2754,9 @@ const gameAPIRoutes: Route[] = [
         // Get memories using the runtime's getMemories method
         const memories = await runtime.getMemories({
           roomId: roomId as UUID,
-          count: parseInt(limit as string),
+          count: parseInt(limit as string, 10),
           tableName: tableName as string,
-          start: offset ? Date.now() - (parseInt(offset as string) * 86400000) : undefined, // offset in days
+          start: offset ? Date.now() - (parseInt(offset as string, 10) * 86400000) : undefined, // offset in days
         });
 
         res.json({

@@ -1,9 +1,18 @@
-import { elizaLogger, IAgentRuntime, ModelType, Service, ServiceType, ServiceTypeName } from '@elizaos/core';
+import {
+  elizaLogger,
+  IAgentRuntime,
+  ModelType,
+  Service,
+  ServiceType,
+  ServiceTypeName,
+} from '@elizaos/core';
 import { FormsService } from '@elizaos/plugin-forms';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { execSync, exec } from 'child_process';
 import { promisify } from 'util';
+import type { ProjectStatusManager } from './ProjectStatusManager';
+
 // Plugin registry types - will be loaded dynamically
 type PluginSearchResult = {
   id?: string;
@@ -74,6 +83,9 @@ export interface QualityResults {
   lintPassed?: boolean;
   typesPassed?: boolean;
   buildPassed?: boolean;
+  // Properties for status manager validation reporting
+  testErrors?: string[];
+  buildErrors?: string[];
 }
 
 interface E2BService extends Service {
@@ -177,12 +189,22 @@ export class CodeGenerationService extends Service {
 
     // Try to dynamically load plugin registry functions
     try {
-      // @ts-expect-error - Dynamic import
-      const registryModule = await import('../../plugin-plugin-manager/src/services/pluginRegistryService');
-      searchPluginsByContent = registryModule.searchPluginsByContent;
-      elizaLogger.info('Plugin registry functions loaded successfully');
+      // Use eval to avoid TypeScript module resolution errors
+      const dynamicImport = eval('import');
+      const registryModule = await dynamicImport(
+        '../../plugin-plugin-manager/src/services/pluginRegistryService'
+      ).catch(() => null);
+
+      if (registryModule && registryModule.searchPluginsByContent) {
+        searchPluginsByContent = registryModule.searchPluginsByContent;
+        elizaLogger.info('Plugin registry functions loaded successfully');
+      } else {
+        throw new Error('Registry module not found');
+      }
     } catch (_error) {
-      elizaLogger.warn('Plugin registry functions not available - registry search will be disabled');
+      elizaLogger.warn(
+        'Plugin registry functions not available - registry search will be disabled'
+      );
       // Provide stub functions
       searchPluginsByContent = async () => [];
     }
@@ -205,7 +227,7 @@ export class CodeGenerationService extends Service {
     const existingPlugins = await searchPluginsByContent(
       `${request.description} ${request.requirements.join(' ')}`
     );
-    
+
     elizaLogger.info(`Found ${existingPlugins.length} potentially relevant plugins`);
 
     // Use RESEARCH model for API research when available
@@ -228,7 +250,9 @@ export class CodeGenerationService extends Service {
           elizaLogger.info(`Used RESEARCH model for ${api} API research`);
         } catch (_error) {
           // Fallback to regular model
-          elizaLogger.info(`RESEARCH model not available, using standard model for ${api} API research`);
+          elizaLogger.info(
+            `RESEARCH model not available, using standard model for ${api} API research`
+          );
           response = await this.generateCodeWithTimeout(prompt, 2000, 60000); // 1 minute timeout
         }
 
@@ -356,7 +380,7 @@ Return ONLY valid JSON, no markdown formatting.`;
           components: ['Service', 'Actions', 'Providers'],
           dependencies: ['@elizaos/core'],
         },
-        apiKeys: request.apis.map(api => `${api.toUpperCase()}_API_KEY`),
+        apiKeys: request.apis.map((api) => `${api.toUpperCase()}_API_KEY`),
         testScenarios: request.testScenarios || [],
         successCriteria: ['All tests pass', 'Plugin loads successfully'],
       };
@@ -564,7 +588,7 @@ except Exception as e:
 
     // Create project directory structure
     await fs.mkdir(projectPath, { recursive: true });
-    
+
     if (request.targetType === 'plugin') {
       // Create plugin directory structure
       await fs.mkdir(path.join(projectPath, 'src'), { recursive: true });
@@ -573,7 +597,7 @@ except Exception as e:
       await fs.mkdir(path.join(projectPath, 'src/services'), { recursive: true });
       await fs.mkdir(path.join(projectPath, 'src/__tests__'), { recursive: true });
       await fs.mkdir(path.join(projectPath, 'src/__tests__/e2e'), { recursive: true });
-      
+
       // Create package.json
       const packageJson = {
         name: request.projectName,
@@ -584,26 +608,26 @@ except Exception as e:
           build: 'tsup src/index.ts --format esm --dts --clean',
           test: 'bun test',
           lint: 'eslint src --ext .ts,.tsx --fix',
-          typecheck: 'tsc --noEmit'
+          typecheck: 'tsc --noEmit',
         },
         devDependencies: {
           '@elizaos/core': 'workspace:*',
           '@types/bun': 'latest',
-          'eslint': '^8.57.0',
-          'tsup': '^8.0.0',
-          'typescript': '^5.3.0'
-        }
+          eslint: '^8.57.0',
+          tsup: '^8.0.0',
+          typescript: '^5.3.0',
+        },
       };
-      
+
       await fs.writeFile(
         path.join(projectPath, 'package.json'),
         JSON.stringify(packageJson, null, 2)
       );
-      
+
       // The rest of the setupProjectWithStarter logic will be converted similarly
       elizaLogger.info('Project structure created successfully');
     }
-    
+
     // Create tsconfig.json
     const tsconfig = {
       compilerOptions: {
@@ -617,17 +641,14 @@ except Exception as e:
         esModuleInterop: true,
         skipLibCheck: true,
         forceConsistentCasingInFileNames: true,
-        resolveJsonModule: true
+        resolveJsonModule: true,
       },
       include: ['src/**/*'],
-      exclude: ['node_modules', 'dist']
+      exclude: ['node_modules', 'dist'],
     };
-    
-    await fs.writeFile(
-      path.join(projectPath, 'tsconfig.json'),
-      JSON.stringify(tsconfig, null, 2)
-    );
-    
+
+    await fs.writeFile(path.join(projectPath, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2));
+
     // Create .gitignore
     const gitignore = `node_modules/
 dist/
@@ -636,7 +657,7 @@ dist/
 .DS_Store
 `;
     await fs.writeFile(path.join(projectPath, '.gitignore'), gitignore);
-    
+
     // Create eslintrc
     const eslintrc = {
       extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
@@ -645,21 +666,18 @@ dist/
       root: true,
       env: {
         node: true,
-        es2022: true
-      }
+        es2022: true,
+      },
     };
-    
-    await fs.writeFile(
-      path.join(projectPath, '.eslintrc.json'),
-      JSON.stringify(eslintrc, null, 2)
-    );
+
+    await fs.writeFile(path.join(projectPath, '.eslintrc.json'), JSON.stringify(eslintrc, null, 2));
   }
 
   /**
    * Create claude.md file in the project
    */
   private async createProjectDocumentation(
-    projectPath: string, 
+    projectPath: string,
     request: CodeGenerationRequest,
     prd: PRDDocument
   ): Promise<void> {
@@ -710,11 +728,8 @@ src/
 \`\`\`
 `;
 
-    await fs.writeFile(
-      path.join(projectPath, 'README.md'),
-      readmeContent
-    );
-    
+    await fs.writeFile(path.join(projectPath, 'README.md'), readmeContent);
+
     elizaLogger.info('Project documentation created');
   }
 
@@ -753,121 +768,120 @@ src/
     if (!prd.architecture.basePlugin) {
       throw new Error('Base plugin not specified for clone approach');
     }
-    
+
     elizaLogger.info(`Cloning existing plugin: ${prd.architecture.basePlugin}`);
-    
+
     // Clone the plugin from registry
     let clonePlugin: any;
     try {
-      // @ts-expect-error - Dynamic import
-      const registryModule = await import('../../plugin-plugin-manager/src/services/pluginRegistryService');
-      clonePlugin = registryModule.clonePlugin;
+      const pluginRegistryService = this.runtime.getService('plugin-registry') as any;
+      clonePlugin = pluginRegistryService.clonePlugin;
     } catch (_error) {
       throw new Error('Plugin registry not available for cloning');
     }
     const cloneResult = await clonePlugin(prd.architecture.basePlugin);
-    
+
     if (!cloneResult.success || !cloneResult.localPath) {
       throw new Error(`Failed to clone plugin: ${cloneResult.error}`);
     }
-    
+
     // Copy files from cloned plugin to project path
     await this.copyDirectory(cloneResult.localPath, projectPath);
-    
+
     // Update package.json with new name
     const packageJsonPath = path.join(projectPath, 'package.json');
     const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
     packageJson.name = prd.title.toLowerCase().replace(/\s+/g, '-');
     await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
   }
-  
+
   private async extendExistingPlugin(
-    projectPath: string, 
+    projectPath: string,
     request: CodeGenerationRequest,
     prd: PRDDocument
   ): Promise<void> {
     if (!prd.architecture.basePlugin) {
       throw new Error('Base plugin not specified for extend approach');
     }
-    
+
     elizaLogger.info(`Extending existing plugin: ${prd.architecture.basePlugin}`);
-    
+
     // Add base plugin as dependency
     const packageJson = JSON.parse(
       await fs.readFile(path.join(projectPath, 'package.json'), 'utf-8')
     );
-    
+
     packageJson.dependencies = packageJson.dependencies || {};
     packageJson.dependencies[prd.architecture.basePlugin] = '*';
-    
+
     await fs.writeFile(
       path.join(projectPath, 'package.json'),
       JSON.stringify(packageJson, null, 2)
     );
-    
+
     // Generate extension code
     await this.generateExtensionCode(projectPath, request, prd);
   }
-  
+
   private async generateNewPlugin(
     projectPath: string,
     request: CodeGenerationRequest,
     prd: PRDDocument
   ): Promise<void> {
     elizaLogger.info('Generating new plugin from scratch...');
-    
+
     // Generate main index.ts
     await this.generateIndexFile(projectPath, request, prd);
-    
+
     // Generate actions if needed
     if (prd.architecture.components.includes('actions')) {
       await this.generateActions(projectPath, request, prd);
     }
-    
+
     // Generate services if needed
     if (prd.architecture.components.includes('services')) {
       await this.generateServices(projectPath, request, prd);
     }
-    
+
     // Generate providers if needed
     if (prd.architecture.components.includes('providers')) {
       await this.generateProviders(projectPath, request, prd);
     }
-    
+
     // Generate tests
     await this.generateTests(projectPath, request, prd);
   }
-  
+
   private async validateApiKeys(requiredKeys: string[]): Promise<void> {
     elizaLogger.info('Validating required API keys...');
-    
+
     const missingKeys: string[] = [];
-    
+
     for (const key of requiredKeys) {
       const value = this.runtime.getSetting(key) || process.env[key];
       if (!value) {
         missingKeys.push(key);
       }
     }
-    
+
     if (missingKeys.length > 0) {
       throw new Error(
         `Missing required API keys: ${missingKeys.join(', ')}. ` +
-        `Please set these environment variables before proceeding.`
+          `Please set these environment variables before proceeding.`
       );
     }
-    
+
     elizaLogger.info('All required API keys are available');
   }
-  
+
   private async copyDirectory(src: string, dest: string): Promise<void> {
     await fs.mkdir(dest, { recursive: true });
     const entries = await fs.readdir(src, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       const srcPath = path.join(src, entry.name);
       const destPath = path.join(dest, entry.name);
-      
+
       if (entry.isDirectory()) {
         await this.copyDirectory(srcPath, destPath);
       } else {
@@ -875,7 +889,7 @@ src/
       }
     }
   }
-  
+
   private async generateExtensionCode(
     projectPath: string,
     request: CodeGenerationRequest,
@@ -890,13 +904,10 @@ ${prd.requirements.functional.join('\n')}
 The code should extend the base plugin's functionality without modifying its core behavior.`;
 
     const extensionCode = await this.generateCodeWithTimeout(prompt, 8000, 120000);
-    
-    await fs.writeFile(
-      path.join(projectPath, 'src/index.ts'),
-      extensionCode
-    );
+
+    await fs.writeFile(path.join(projectPath, 'src/index.ts'), extensionCode);
   }
-  
+
   private async generateIndexFile(
     projectPath: string,
     request: CodeGenerationRequest,
@@ -911,13 +922,10 @@ Components: ${prd.architecture.components.join(', ')}
 The file should export a valid ElizaOS plugin with all required properties.`;
 
     const indexCode = await this.generateCodeWithTimeout(prompt, 8000, 120000);
-    
-    await fs.writeFile(
-      path.join(projectPath, 'src/index.ts'),
-      indexCode
-    );
+
+    await fs.writeFile(path.join(projectPath, 'src/index.ts'), indexCode);
   }
-  
+
   private async generateActions(
     projectPath: string,
     request: CodeGenerationRequest,
@@ -932,22 +940,19 @@ ${prd.requirements.functional.join('\n')}
 Generate complete, working actions following ElizaOS patterns.`;
 
     const actionsCode = await this.generateCodeWithTimeout(prompt, 10000, 120000);
-    
+
     // Parse and save individual action files
     const actions = this.parseGeneratedCode(actionsCode, {
       projectName: request.projectName,
       description: request.description,
       targetType: request.targetType,
     });
-    
+
     for (const action of actions) {
-      await fs.writeFile(
-        path.join(projectPath, action.path),
-        action.content
-      );
+      await fs.writeFile(path.join(projectPath, action.path), action.content);
     }
   }
-  
+
   private async generateServices(
     projectPath: string,
     request: CodeGenerationRequest,
@@ -962,21 +967,18 @@ ${prd.requirements.functional.join('\n')}
 Generate complete ElizaOS services with proper lifecycle management.`;
 
     const servicesCode = await this.generateCodeWithTimeout(prompt, 10000, 120000);
-    
+
     const services = this.parseGeneratedCode(servicesCode, {
       projectName: request.projectName,
       description: request.description,
       targetType: request.targetType,
     });
-    
+
     for (const service of services) {
-      await fs.writeFile(
-        path.join(projectPath, service.path),
-        service.content
-      );
+      await fs.writeFile(path.join(projectPath, service.path), service.content);
     }
   }
-  
+
   private async generateProviders(
     projectPath: string,
     request: CodeGenerationRequest,
@@ -991,21 +993,18 @@ ${prd.requirements.functional.join('\n')}
 Generate ElizaOS providers that expose relevant context and data.`;
 
     const providersCode = await this.generateCodeWithTimeout(prompt, 8000, 120000);
-    
+
     const providers = this.parseGeneratedCode(providersCode, {
       projectName: request.projectName,
       description: request.description,
       targetType: request.targetType,
     });
-    
+
     for (const provider of providers) {
-      await fs.writeFile(
-        path.join(projectPath, provider.path),
-        provider.content
-      );
+      await fs.writeFile(path.join(projectPath, provider.path), provider.content);
     }
   }
-  
+
   private async generateTests(
     projectPath: string,
     request: CodeGenerationRequest,
@@ -1020,27 +1019,24 @@ ${prd.testScenarios.join('\n')}
 Generate both unit and e2e tests following ElizaOS testing patterns.`;
 
     const testsCode = await this.generateCodeWithTimeout(prompt, 10000, 120000);
-    
+
     const tests = this.parseGeneratedCode(testsCode, {
       projectName: request.projectName,
       description: request.description,
       targetType: request.targetType,
     });
-    
+
     for (const test of tests) {
-      await fs.writeFile(
-        path.join(projectPath, test.path),
-        test.content
-      );
+      await fs.writeFile(path.join(projectPath, test.path), test.content);
     }
   }
-  
+
   private async fixValidationIssues(
     projectPath: string,
     validationResult: QualityResults
   ): Promise<void> {
     elizaLogger.info('Attempting to fix validation issues...');
-    
+
     const prompt = `Fix the following issues in the project:
 
 ${validationResult.details.join('\n')}
@@ -1052,19 +1048,16 @@ Test failures: ${validationResult.testsFailed}
 Provide fixes that resolve these issues while maintaining functionality.`;
 
     const fixes = await this.generateCodeWithTimeout(prompt, 8000, 120000);
-    
+
     // Apply fixes (this is simplified - in reality would need more sophisticated parsing)
     const fixedFiles = this.parseGeneratedCode(fixes, {
       projectName: path.basename(projectPath),
       description: 'Validation fixes',
       targetType: 'plugin',
     });
-    
+
     for (const file of fixedFiles) {
-      await fs.writeFile(
-        path.join(projectPath, file.path),
-        file.content
-      );
+      await fs.writeFile(path.join(projectPath, file.path), file.content);
     }
   }
 
@@ -1146,24 +1139,25 @@ Make the necessary changes to ensure all validation checks pass.`;
 
     // Run tests
     try {
-      await execAsync('bun test', { 
+      await execAsync('bun test', {
         cwd: projectPath,
-        timeout: 120000 
+        timeout: 120000,
       });
       result.testsPassed = true;
       elizaLogger.info('Tests passed');
     } catch (error: any) {
       result.testsPassed = false;
       result.testsFailed = 1;
+      result.testErrors = [error.message];
       result.details.push(`Tests failed: ${error.message}`);
       elizaLogger.error('Tests failed:', error);
     }
 
     // Run linting
     try {
-      await execAsync('bun run lint', { 
+      await execAsync('bun run lint', {
         cwd: projectPath,
-        timeout: 60000 
+        timeout: 60000,
       });
       result.lintPassed = true;
       elizaLogger.info('Linting passed');
@@ -1176,9 +1170,9 @@ Make the necessary changes to ensure all validation checks pass.`;
 
     // Run type checking
     try {
-      await execAsync('bun run typecheck', { 
+      await execAsync('bun run typecheck', {
         cwd: projectPath,
-        timeout: 60000 
+        timeout: 60000,
       });
       result.typesPassed = true;
       elizaLogger.info('Type checking passed');
@@ -1193,7 +1187,7 @@ Make the necessary changes to ensure all validation checks pass.`;
     try {
       await execAsync('bun run build', {
         cwd: projectPath,
-        timeout: 120000
+        timeout: 120000,
       });
       result.buildPassed = true;
       result.buildSuccess = true;
@@ -1201,6 +1195,7 @@ Make the necessary changes to ensure all validation checks pass.`;
     } catch (error: any) {
       result.buildPassed = false;
       result.buildSuccess = false;
+      result.buildErrors = [error.message];
       result.details.push(`Build failed: ${error.message}`);
       elizaLogger.error('Build failed:', error);
     }
@@ -1271,10 +1266,7 @@ Make the necessary changes to ensure all validation checks pass.`;
     }
 
     // Write feedback to a file
-    await fs.writeFile(
-      path.join(projectPath, 'validation-feedback.md'),
-      feedback
-    );
+    await fs.writeFile(path.join(projectPath, 'validation-feedback.md'), feedback);
     elizaLogger.info('Validation feedback prepared');
   }
 
@@ -1284,47 +1276,111 @@ Make the necessary changes to ensure all validation checks pass.`;
   async generateCode(request: CodeGenerationRequest): Promise<GenerationResult> {
     elizaLogger.info(`Starting code generation for ${request.projectName}`);
 
+    // Get status manager
+    const statusManager = this.runtime.getService(
+      'project-status-manager'
+    ) as ProjectStatusManager | null;
+    const projectId = statusManager?.createProject(request.projectName, request.targetType);
+
     try {
       // Create project directory
       await fs.mkdir(this.projectsDir, { recursive: true });
       const projectPath = path.join(this.projectsDir, request.projectName);
-      
+
       // Store current project path for the provider
       this.runtime.setSetting('CURRENT_PROJECT_PATH', projectPath);
+      this.runtime.setSetting('CURRENT_PROJECT_ID', projectId);
 
       // Step 1: Research phase (includes registry search)
+      statusManager?.updateStep(
+        projectId!,
+        'Research',
+        'Searching registry and researching best practices...'
+      );
       const research = await this.performResearch(request);
 
       // Step 2: Generate PRD
+      statusManager?.updateStep(
+        projectId!,
+        'PRD Generation',
+        'Creating Product Requirements Document...'
+      );
+      statusManager?.updateStatus(projectId!, { progress: 20 });
       const prd = await this.generatePRD(request, research);
-      
+
       // Save PRD for reference
       await fs.mkdir(projectPath, { recursive: true });
-      await fs.writeFile(
-        path.join(projectPath, 'PRD.json'),
-        JSON.stringify(prd, null, 2)
-      );
+      await fs.writeFile(path.join(projectPath, 'PRD.json'), JSON.stringify(prd, null, 2));
 
       // Step 3: Validate required API keys
+      statusManager?.updateStep(projectId!, 'API Validation', 'Checking required API keys...');
       await this.validateApiKeys(prd.apiKeys);
 
       // Step 4: Setup project structure
+      statusManager?.updateStep(projectId!, 'Project Setup', 'Creating project structure...');
+      statusManager?.updateStatus(projectId!, { status: 'generating', progress: 30 });
       await this.setupProjectWithStarter(projectPath, request);
 
       // Step 5: Generate project documentation
+      statusManager?.updateStep(projectId!, 'Documentation', 'Generating project documentation...');
       await this.createProjectDocumentation(projectPath, request, prd);
 
       // Step 6: Generate code based on PRD approach
+      statusManager?.updateStep(projectId!, 'Code Generation', 'Generating code files...');
+      statusManager?.updateStatus(projectId!, { progress: 40 });
       await this.generatePluginCode(projectPath, request, prd);
 
       // Step 7: Install dependencies
+      statusManager?.updateStep(projectId!, 'Dependencies', 'Installing project dependencies...');
+      statusManager?.updateStatus(projectId!, { progress: 60 });
       await this.installDependencies(projectPath);
 
       // Step 8: Run validation
+      statusManager?.updateStep(projectId!, 'Validation', 'Running quality checks...');
+      statusManager?.updateStatus(projectId!, { status: 'testing', progress: 70 });
       const validationResult = await this.runValidationSuite(projectPath);
 
+      // Update validation results
+      statusManager?.updateValidation(
+        projectId!,
+        'lint',
+        validationResult.lintPassed || false,
+        validationResult.lintErrors ? [`${validationResult.lintErrors} lint errors`] : undefined
+      );
+      statusManager?.updateValidation(
+        projectId!,
+        'typeCheck',
+        validationResult.typesPassed || false,
+        validationResult.typeErrors ? [`${validationResult.typeErrors} type errors`] : undefined
+      );
+      statusManager?.updateValidation(
+        projectId!,
+        'tests',
+        validationResult.testsPassed || false,
+        validationResult.testErrors ||
+          (validationResult.testsFailed
+            ? [`${validationResult.testsFailed} tests failed`]
+            : undefined)
+      );
+      statusManager?.updateValidation(
+        projectId!,
+        'build',
+        validationResult.buildPassed || false,
+        validationResult.buildErrors ||
+          (!validationResult.buildSuccess ? ['Build failed'] : undefined)
+      );
+
       // Step 9: Get generated files
+      statusManager?.updateStep(projectId!, 'Finalizing', 'Preparing generated files...');
       const files = await this.getGeneratedFiles(projectPath);
+
+      // Mark as completed
+      statusManager?.updateStatus(projectId!, {
+        status: 'completed',
+        progress: 100,
+        message: `Successfully generated ${files.length} files`,
+        completedAt: Date.now(),
+      });
 
       return {
         success: true,
@@ -1342,6 +1398,14 @@ Make the necessary changes to ensure all validation checks pass.`;
       };
     } catch (error) {
       elizaLogger.error('Code generation failed:', error);
+
+      // Mark as failed
+      statusManager?.updateStatus(projectId!, {
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        completedAt: Date.now(),
+      });
+
       return {
         success: false,
         errors: [error instanceof Error ? error.message : 'Unknown error'],
@@ -1609,16 +1673,16 @@ export type PluginAction = {
    */
   private async getGeneratedFiles(projectPath: string): Promise<GenerationFile[]> {
     elizaLogger.info(`Getting generated files from ${projectPath}`);
-    
+
     const files: GenerationFile[] = [];
-    
+
     async function scanDirectory(dir: string, baseDir: string = dir): Promise<void> {
       const entries = await fs.readdir(dir, { withFileTypes: true });
-      
+
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
         const relativePath = path.relative(baseDir, fullPath);
-        
+
         // Skip common directories to ignore
         if (entry.isDirectory()) {
           if (['node_modules', '.git', 'dist', 'build', 'coverage'].includes(entry.name)) {
@@ -1627,11 +1691,13 @@ export type PluginAction = {
           await scanDirectory(fullPath, baseDir);
         } else if (entry.isFile()) {
           // Skip hidden files except important ones
-          if (entry.name.startsWith('.') && 
-              !entry.name.match(/^\.(gitignore|eslintrc|prettierrc|env\.example)/)) {
+          if (
+            entry.name.startsWith('.') &&
+            !entry.name.match(/^\.(gitignore|eslintrc|prettierrc|env\.example)/)
+          ) {
             continue;
           }
-          
+
           try {
             const content = await fs.readFile(fullPath, 'utf-8');
             files.push({
@@ -1644,7 +1710,7 @@ export type PluginAction = {
         }
       }
     }
-    
+
     try {
       await scanDirectory(projectPath);
       elizaLogger.info(`Retrieved ${files.length} files from ${projectPath}`);

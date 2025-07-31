@@ -1,4 +1,10 @@
-import { Service, elizaLogger, type IAgentRuntime, ServiceType, type ServiceTypeName } from '@elizaos/core';
+import {
+  Service,
+  elizaLogger,
+  type IAgentRuntime,
+  ServiceType,
+  type ServiceTypeName,
+} from '@elizaos/core';
 import { FormsService } from '@elizaos/plugin-forms';
 
 export interface ProjectPlan {

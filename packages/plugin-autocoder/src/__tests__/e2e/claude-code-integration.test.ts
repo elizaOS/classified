@@ -13,55 +13,61 @@ export class ClaudeCodeIntegrationTestSuite implements TestSuite {
 
   tests = [
     {
-      name: 'should verify Claude Code SDK is properly configured',
+      name: 'should verify Code Generation Service is properly configured',
       fn: async (runtime: IAgentRuntime) => {
-        console.log('🧪 Testing Claude Code SDK configuration...');
+        console.log('🧪 Testing Code Generation Service configuration...');
 
-        // Claude Code runs inside E2B sandbox, verify service is available
         const codeGenService = runtime.getService<CodeGenerationService>('code-generation');
         if (!codeGenService) {
           throw new Error('CodeGenerationService not available');
         }
 
-        const e2bKey = runtime.getSetting('E2B_API_KEY');
-        if (!e2bKey) {
-          console.log('⚠️ E2B_API_KEY not configured - Claude Code requires E2B sandbox');
+        const anthropicKey = runtime.getSetting('ANTHROPIC_API_KEY');
+        const openaiKey = runtime.getSetting('OPENAI_API_KEY');
+
+        if (!anthropicKey && !openaiKey) {
+          console.log('⚠️ No API keys configured - at least one LLM key required');
           return;
         }
 
-        console.log('✅ Claude Code service properly configured for E2B sandbox execution');
+        console.log('✅ Code Generation Service properly configured for local execution');
       },
     },
 
     {
-      name: 'should run basic Claude Code generation',
+      name: 'should run basic code generation',
       fn: async (runtime: IAgentRuntime) => {
-        console.log('🤖 Testing basic Claude Code generation...');
+        console.log('🤖 Testing basic code generation...');
 
         const anthropicKey = runtime.getSetting('ANTHROPIC_API_KEY');
-        if (!anthropicKey) {
-          console.log('⏭️ Skipping basic generation test - no ANTHROPIC_API_KEY');
+        const openaiKey = runtime.getSetting('OPENAI_API_KEY');
+
+        if (!anthropicKey && !openaiKey) {
+          console.log('⏭️ Skipping basic generation test - no API keys available');
           return;
         }
 
-        const e2bKey = runtime.getSetting('E2B_API_KEY');
-        if (!e2bKey) {
-          console.log(
-            '⏭️ Skipping basic generation test - no E2B_API_KEY (Claude Code runs in sandbox)'
-          );
-          return;
-        }
-
-        // Claude Code runs in sandbox, so we test through the service
         const codeGenService = runtime.getService<CodeGenerationService>('code-generation');
         if (!codeGenService) {
           throw new Error('CodeGenerationService not available');
         }
 
         try {
-          console.log(
-            '✅ Basic generation test setup successful (actual generation happens in sandbox)'
-          );
+          // Test basic generation
+          const result = await codeGenService.generateCode({
+            projectName: 'test-basic-plugin',
+            description: 'A simple test plugin',
+            targetType: 'plugin',
+            requirements: ['Create a hello world action'],
+            apis: [],
+          });
+
+          if (!result.success) {
+            throw new Error(`Generation failed: ${result.errors?.join(', ')}`);
+          }
+
+          console.log('✅ Basic generation test successful');
+          console.log(`   Generated ${result.files?.length || 0} files`);
         } catch (error) {
           console.error('❌ Basic generation test failed:', error);
           throw error;
@@ -75,12 +81,10 @@ export class ClaudeCodeIntegrationTestSuite implements TestSuite {
         console.log('⚙️ Testing ElizaOS plugin structure generation...');
 
         const anthropicKey = runtime.getSetting('ANTHROPIC_API_KEY');
-        const e2bKey = runtime.getSetting('E2B_API_KEY');
+        const openaiKey = runtime.getSetting('OPENAI_API_KEY');
 
-        if (!anthropicKey || !e2bKey) {
-          console.log(
-            '⏭️ Skipping plugin structure test - missing API keys (Claude Code runs in sandbox)'
-          );
+        if (!anthropicKey && !openaiKey) {
+          console.log('⏭️ Skipping plugin structure test - no API keys available');
           return;
         }
 
@@ -89,9 +93,36 @@ export class ClaudeCodeIntegrationTestSuite implements TestSuite {
           throw new Error('CodeGenerationService not available');
         }
 
-        console.log(
-          '✅ Plugin structure test setup successful (actual generation happens in sandbox)'
-        );
+        try {
+          const result = await codeGenService.generateCode({
+            projectName: 'test-typescript-plugin',
+            description: 'A TypeScript plugin with proper ElizaOS structure',
+            targetType: 'plugin',
+            requirements: [
+              'Use TypeScript with strict mode',
+              'Include proper type definitions',
+              'Follow ElizaOS plugin conventions',
+            ],
+            apis: [],
+          });
+
+          if (!result.success) {
+            throw new Error(`Plugin generation failed: ${result.errors?.join(', ')}`);
+          }
+
+          // Verify TypeScript structure
+          const hasTypeScript = result.files?.some((f) => f.path.endsWith('.ts'));
+          const hasTsConfig = result.files?.some((f) => f.path === 'tsconfig.json');
+
+          if (!hasTypeScript || !hasTsConfig) {
+            throw new Error('Missing TypeScript files or configuration');
+          }
+
+          console.log('✅ Plugin structure test successful');
+        } catch (error) {
+          console.error('❌ Plugin structure test failed:', error);
+          throw error;
+        }
       },
     },
 
@@ -376,15 +407,15 @@ Make it a production-ready, enterprise-grade plugin.`;
     },
 
     {
-      name: 'should verify Claude Code runs in E2B sandbox',
+      name: 'should verify code generation with local file system',
       fn: async (runtime: IAgentRuntime) => {
-        console.log('🏗️ Testing Claude Code execution in E2B sandbox...');
+        console.log('🏗️ Testing code generation with local file system...');
 
         const anthropicKey = runtime.getSetting('ANTHROPIC_API_KEY');
-        const e2bKey = runtime.getSetting('E2B_API_KEY');
+        const openaiKey = runtime.getSetting('OPENAI_API_KEY');
 
-        if (!anthropicKey || !e2bKey) {
-          console.log('⏭️ Skipping E2B sandbox test - missing API keys');
+        if (!anthropicKey && !openaiKey) {
+          console.log('⏭️ Skipping local file system test - no API keys available');
           return;
         }
 
@@ -394,36 +425,43 @@ Make it a production-ready, enterprise-grade plugin.`;
         }
 
         try {
-          // Test generating a simple project through the service
-          // This will run Claude Code inside the E2B sandbox
+          // Test generating a simple project
           const result = await codeGenService.generateCode({
-            projectName: 'e2b-sandbox-test',
-            description: 'Simple test to verify Claude Code runs in E2B sandbox',
+            projectName: 'local-fs-test',
+            description: 'Simple test to verify code generation with local file system',
             targetType: 'plugin',
             requirements: ['Create a basic plugin with a simple action'],
             apis: [],
           });
 
           if (!result.success) {
-            throw new Error(`Claude Code in sandbox failed: ${result.errors?.join(', ')}`);
+            throw new Error(`Code generation failed: ${result.errors?.join(', ')}`);
           }
 
           // Verify we got files back
           if (!result.files || result.files.length === 0) {
-            throw new Error('No files generated in E2B sandbox');
+            throw new Error('No files generated');
           }
 
-          console.log('✅ Claude Code successfully ran in E2B sandbox');
+          // Verify project path exists
+          if (!result.projectPath) {
+            throw new Error('No project path returned');
+          }
+
+          console.log('✅ Code generation with local file system successful');
           console.log(`   Generated ${result.files.length} files`);
+          console.log(`   Project path: ${result.projectPath}`);
 
           // Check for execution results
           if (result.executionResults) {
-            console.log('📊 Sandbox execution results:');
+            console.log('📊 Validation results:');
+            console.log(`   Lint: ${result.executionResults.lintPass ? '✅' : '❌'}`);
+            console.log(`   Types: ${result.executionResults.typesPass ? '✅' : '❌'}`);
             console.log(`   Tests: ${result.executionResults.testsPass ? '✅' : '❌'}`);
             console.log(`   Build: ${result.executionResults.buildPass ? '✅' : '❌'}`);
           }
         } catch (error) {
-          console.error('❌ E2B sandbox test failed:', error);
+          console.error('❌ Local file system test failed:', error);
           throw error;
         }
       },

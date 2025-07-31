@@ -1,29 +1,27 @@
 import { TestSuite, type IAgentRuntime } from '@elizaos/core';
 import { CodeGenerationService } from '../../services/CodeGenerationService';
-// Note: Claude Code should only be used through the CodeGenerationService
-// which runs it inside the E2B sandbox, not directly on the host
 
 /**
- * Claude Code Stress Test Suite
+ * Code Generation Stress Test Suite
  *
- * Tests Claude Code under various stress conditions and complex scenarios
+ * Tests code generation under various stress conditions and complex scenarios
  * to ensure robustness and reliability.
  */
 export class ClaudeCodeStressTestSuite implements TestSuite {
-  name = 'claude-code-stress-test';
-  description = 'Stress tests for Claude Code SDK under various conditions';
+  name = 'code-generation-stress-test';
+  description = 'Stress tests for code generation under various conditions';
 
   tests = [
     {
-      name: 'should handle multiple concurrent Claude Code requests',
+      name: 'should handle multiple concurrent code generation requests',
       fn: async (runtime: IAgentRuntime) => {
-        console.log('🚀 Testing concurrent Claude Code requests...');
+        console.log('🚀 Testing concurrent code generation requests...');
 
         const anthropicKey = runtime.getSetting('ANTHROPIC_API_KEY');
-        const e2bKey = runtime.getSetting('E2B_API_KEY');
+        const openaiKey = runtime.getSetting('OPENAI_API_KEY');
 
-        if (!anthropicKey || !e2bKey) {
-          console.log('⏭️ Skipping concurrent test - missing API keys');
+        if (!anthropicKey && !openaiKey) {
+          console.log('⏭️ Skipping concurrent test - no API keys available');
           return;
         }
 
@@ -99,10 +97,10 @@ export class ClaudeCodeStressTestSuite implements TestSuite {
         console.log('📚 Testing large context prompt handling...');
 
         const anthropicKey = runtime.getSetting('ANTHROPIC_API_KEY');
-        const e2bKey = runtime.getSetting('E2B_API_KEY');
+        const openaiKey = runtime.getSetting('OPENAI_API_KEY');
 
-        if (!anthropicKey || !e2bKey) {
-          console.log('⏭️ Skipping large context test - missing API keys');
+        if (!anthropicKey && !openaiKey) {
+          console.log('⏭️ Skipping large context test - no API keys available');
           return;
         }
 
@@ -171,10 +169,10 @@ export class ClaudeCodeStressTestSuite implements TestSuite {
         console.log('⚡ Testing rapid sequential Claude Code requests...');
 
         const anthropicKey = runtime.getSetting('ANTHROPIC_API_KEY');
-        const e2bKey = runtime.getSetting('E2B_API_KEY');
+        const openaiKey = runtime.getSetting('OPENAI_API_KEY');
 
-        if (!anthropicKey || !e2bKey) {
-          console.log('⏭️ Skipping rapid sequential test - missing API keys');
+        if (!anthropicKey && !openaiKey) {
+          console.log('⏭️ Skipping rapid sequential test - no API keys available');
           return;
         }
 
@@ -240,10 +238,10 @@ export class ClaudeCodeStressTestSuite implements TestSuite {
         console.log('🏗️ Testing complex multi-file project generation...');
 
         const anthropicKey = runtime.getSetting('ANTHROPIC_API_KEY');
-        const e2bKey = runtime.getSetting('E2B_API_KEY');
+        const openaiKey = runtime.getSetting('OPENAI_API_KEY');
 
-        if (!anthropicKey || !e2bKey) {
-          console.log('⏭️ Skipping complex project test - missing API keys');
+        if (!anthropicKey && !openaiKey) {
+          console.log('⏭️ Skipping complex project test - no API keys available');
           return;
         }
 
@@ -514,8 +512,7 @@ export class ClaudeCodeStressTestSuite implements TestSuite {
           const requestStartTime = Date.now();
 
           try {
-            // Note: Direct query usage is not supported - should use CodeGenerationService
-            // This test is using the service which runs Claude Code inside E2B sandbox
+            // Use CodeGenerationService for code generation
             const codeGenService = runtime.getService<CodeGenerationService>('code-generation');
             if (!codeGenService) {
               throw new Error('CodeGenerationService not available');

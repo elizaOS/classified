@@ -1,5 +1,4 @@
 import { IAgentRuntime, logger } from '@elizaos/core';
-import type { Plugin } from '@elizaos/core';
 
 export interface ProgressionLevel {
   id: string;
@@ -40,7 +39,7 @@ export class CapabilityProgressionService {
                          this.runtime.getSetting('DISABLE_PROGRESSION') === 'true';
     
     this.progressionState = {
-      currentLevel: this.isUnlockedMode ? 5 : 0, // Max level if unlocked mode
+      currentLevel: this.isUnlockedMode ? 6 : 0, // Max level if unlocked mode (0-6 = 7 levels)
       unlockedLevels: [],
       completedActions: [],
       agentNamed: this.isUnlockedMode,
@@ -62,8 +61,8 @@ export class CapabilityProgressionService {
       {
         id: 'level_0_basic',
         name: 'Basic Existence',
-        description: 'Agent has basic autonomy, naming and shell capabilities',
-        unlockedCapabilities: ['autonomy', 'shell', 'naming'],
+        description: 'Agent has basic shell and naming capabilities',
+        unlockedCapabilities: ['shell', 'naming'],
         unlockConditions: [],
         isUnlocked: true, // Always unlocked at start
       },
@@ -141,6 +140,30 @@ export class CapabilityProgressionService {
             type: 'capability_used',
             capability: 'microphone',
             description: 'Agent must use microphone capabilities',
+          },
+        ],
+        isUnlocked: false,
+      },
+      {
+        id: 'level_6_autocoder',
+        name: 'Autonomous Code Generation',
+        description: 'Agent gains the ability to autonomously create and modify code projects and manage plugins',
+        unlockedCapabilities: ['autocoder', 'code_generation', 'project_management', 'plugin-manager'],
+        unlockConditions: [
+          {
+            type: 'capability_used',
+            capability: 'goals',
+            description: 'Agent must have used goal management',
+          },
+          {
+            type: 'capability_used',
+            capability: 'shell',
+            description: 'Agent must be proficient with shell commands',
+          },
+          {
+            type: 'capability_used',
+            capability: 'browser',
+            description: 'Agent must have used browser automation',
           },
         ],
         isUnlocked: false,

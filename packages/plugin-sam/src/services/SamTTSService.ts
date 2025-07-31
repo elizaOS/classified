@@ -103,7 +103,9 @@ export class SamTTSService extends Service {
     ) as unknown as HardwareBridgeService | null;
 
     if (!hardwareBridge) {
-      logger.warn('[SAM-TTS] Hardware bridge service not available - audio cannot be sent to speakers');
+      logger.warn(
+        '[SAM-TTS] Hardware bridge service not available - audio cannot be sent to speakers'
+      );
       return audioBuffer; // Return the buffer anyway for testing/other uses
     }
 

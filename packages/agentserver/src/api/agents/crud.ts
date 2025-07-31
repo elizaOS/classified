@@ -3,7 +3,6 @@ import {
   validateUuid,
   logger,
   stringToUuid,
-  getSalt,
   // encryptObjectValues,
   // encryptStringValue,
 } from '@elizaos/core';

@@ -240,7 +240,7 @@ export class AgentServer {
       logger.info('[INIT] Initializing server database adapter...');
       const db = (this.database as any).getDatabase?.() || (this.database as any).db;
       this.serverDatabase = new ServerDatabaseAdapter(db);
-      
+
       // Run server-specific migrations
       logger.info('[INIT] Running server-specific migrations...');
       const serverMigrationService = new ServerMigrationService(db);
@@ -1146,14 +1146,14 @@ export class AgentServer {
   ): Promise<MessageChannel> {
     // Create the channel first
     const channel = await this.serverDatabase.createChannel(data);
-    
+
     // Add participants if provided
     if (participantIds && participantIds.length > 0) {
       for (const participantId of participantIds) {
         await this.serverDatabase.addParticipantToChannel(channel.id, participantId);
       }
     }
-    
+
     return channel;
   }
 

@@ -41,7 +41,7 @@ services:
       - ollama
     ports:
       - '7777:7777'
-      - '5901:5900' # VNC port for agent desktop viewing (mapped to 5901 to avoid conflict)
+      - '5900:5900' # VNC port for agent desktop viewing (mapped to 5900 to avoid conflict)
     environment:
       - NODE_ENV=production
       - PORT=7777

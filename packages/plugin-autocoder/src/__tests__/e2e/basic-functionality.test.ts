@@ -1,6 +1,5 @@
 import { TestSuite, type IAgentRuntime, type Memory, type UUID } from '@elizaos/core';
 import { v4 as uuidv4 } from 'uuid';
-// Note: E2B and Forms services are available through workspace dependencies
 
 export class BasicFunctionalityTestSuite implements TestSuite {
   name = 'basic-functionality';
@@ -14,15 +13,25 @@ export class BasicFunctionalityTestSuite implements TestSuite {
 
         // Check if core services are available
         const codeGenService = runtime.getService('code-generation');
-        const e2bService = runtime.getService('e2b');
+        const projectPlanningService = runtime.getService('project-planning');
+        const secretsManagerService = runtime.getService('secrets-manager');
+        const projectStatusManager = runtime.getService('project-status-manager');
         const formsService = runtime.getService('forms');
 
         if (!codeGenService) {
           throw new Error('Code generation service not available');
         }
 
-        if (!e2bService) {
-          throw new Error('E2B service not available');
+        if (!projectPlanningService) {
+          throw new Error('Project planning service not available');
+        }
+
+        if (!secretsManagerService) {
+          throw new Error('Secrets manager service not available');
+        }
+
+        if (!projectStatusManager) {
+          throw new Error('Project status manager service not available');
         }
 
         if (!formsService) {
@@ -116,39 +125,44 @@ export class BasicFunctionalityTestSuite implements TestSuite {
     },
 
     {
-      name: 'should handle mock service functionality',
+      name: 'should handle project status tracking',
       fn: async (runtime: IAgentRuntime) => {
-        console.log('Testing mock service functionality...');
+        console.log('Testing project status tracking...');
 
-        const e2bService = runtime.getService('e2b') as any;
-        if (!e2bService) {
-          throw new Error('E2B service not available');
+        const statusManager = runtime.getService('project-status-manager') as any;
+        if (!statusManager) {
+          throw new Error('Project status manager not available');
         }
 
-        // Test sandbox creation
-        const sandboxId = await e2bService.createSandbox({
-          template: 'node-js',
-          metadata: { test: 'true' },
+        // Test project creation
+        const projectId = statusManager.createProject('test-project', 'plugin');
+        if (!projectId) {
+          throw new Error('Failed to create project');
+        }
+
+        console.log(`✅ Created project: ${projectId}`);
+
+        // Test status updates
+        statusManager.updateStatus(projectId, {
+          status: 'generating',
+          progress: 50,
+          message: 'Generating code...',
         });
 
-        if (!sandboxId) {
-          throw new Error('Failed to create sandbox');
+        // Test step updates
+        statusManager.updateStep(projectId, 'Code Generation', 'Creating plugin structure...');
+
+        // Test validation updates
+        statusManager.updateValidation(projectId, 'lint', true);
+        statusManager.updateValidation(projectId, 'typeCheck', true);
+
+        // Get project status
+        const project = statusManager.getProject(projectId);
+        if (!project) {
+          throw new Error('Failed to retrieve project');
         }
 
-        console.log(`✅ Created sandbox: ${sandboxId}`);
-
-        // Test code execution
-        const result = await e2bService.executeCode('print("Hello World")', 'python');
-
-        if (result.error) {
-          throw new Error('Code execution failed');
-        }
-
-        console.log('✅ Code execution successful');
-
-        // Test sandbox cleanup
-        await e2bService.killSandbox(sandboxId);
-        console.log('✅ Sandbox cleanup completed');
+        console.log('✅ Project status tracking successful');
       },
     },
 
@@ -214,7 +228,12 @@ export class BasicFunctionalityTestSuite implements TestSuite {
         console.log('✅ Plugin found in runtime');
 
         // Test that services are properly initialized
-        const services = ['code-generation', 'github', 'secrets-manager'];
+        const services = [
+          'code-generation',
+          'project-planning',
+          'secrets-manager',
+          'project-status-manager',
+        ];
         for (const serviceName of services) {
           const service = runtime.getService(serviceName);
           if (!service) {

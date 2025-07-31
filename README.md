@@ -329,6 +329,118 @@ All potentially dangerous operations are sandboxed and require explicit permissi
 - Code execution in isolated environment
 - Resource limits enforced
 
+# Capability Progression Modes
+
+The ElizaOS agent server supports two modes for capability management:
+
+1. **Progression Mode** (default) - Capabilities are unlocked progressively as the agent completes specific tasks
+2. **Unlocked Mode** - All capabilities are immediately available for testing and development
+
+## Using Unlocked Mode
+
+### Via Environment Variable
+
+Set one of these environment variables before starting the agent:
+
+```bash
+# Option 1: Set progression mode directly
+PROGRESSION_MODE=unlocked bun run start
+
+# Option 2: Use unlocked mode flag
+UNLOCKED_MODE=true bun run start
+
+# Option 3: Disable progression
+DISABLE_PROGRESSION=true bun run start
+```
+
+### Via UI Toggle
+
+When the agent is running, you can switch modes using the UI:
+
+1. In the game interface, look for the "Mode: progression" indicator in the capabilities section
+2. Click the "Unlock All" button to switch to unlocked mode
+3. Click "Switch to Progression" to return to progression mode
+
+### Via API
+
+You can also switch modes programmatically:
+
+```bash
+# Switch to unlocked mode
+curl -X POST http://localhost:7777/api/agents/default/progression/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "unlocked"}'
+
+# Switch back to progression mode
+curl -X POST http://localhost:7777/api/agents/default/progression/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "progression"}'
+```
+
+## Progression Mode Details
+
+In progression mode, capabilities are unlocked through the following levels:
+
+### Level 0: Basic Existence
+- **Available**: Shell, Naming
+- **Always unlocked at start**
+
+### Level 1: Web Explorer
+- **Unlocks**: Browser, Stagehand
+- **Requirements**: 
+  - Agent must choose a name
+  - Agent must use shell commands
+
+### Level 2: Organizational Skills
+- **Unlocks**: Goals, Todo
+- **Requirements**: 
+  - Agent must use browser capabilities
+
+### Level 3: Visual Perception
+- **Unlocks**: Vision, Screen Capture
+- **Requirements**:
+  - Agent must use goal management
+  - Agent must submit a web form
+
+### Level 4: Audio Communication
+- **Unlocks**: Microphone, SAM, Audio
+- **Requirements**:
+  - Agent must use vision capabilities
+
+### Level 5: Visual Recording
+- **Unlocks**: Camera, Advanced Vision
+- **Requirements**:
+  - Agent must use microphone capabilities
+
+## Testing Considerations
+
+### When to Use Unlocked Mode
+- Development and testing of capabilities
+- Debugging specific features
+- Running automated tests
+- Demonstrating full agent capabilities
+
+### When to Use Progression Mode
+- Testing the progression system itself
+- Creating a gamified experience
+- Gradual onboarding of new users
+- Production deployments where controlled access is desired
+
+## Implementation Details
+
+The progression system tracks agent actions and automatically unlocks new capabilities when requirements are met. In unlocked mode:
+
+- All tracking is disabled
+- All capabilities are immediately available
+- No progression messages are shown
+- The agent starts at the maximum level
+
+Switching between modes:
+- **Unlocked → Progression**: Resets all progress, returns to level 0
+- **Progression → Unlocked**: Instantly unlocks all capabilities
+
+The mode is stored in the agent's settings and persists across restarts if using a database.
+
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.

@@ -11,7 +11,7 @@ import formsPlugin from '@elizaos/plugin-forms';
 describe('File Generation Runtime Tests', () => {
   let runtime: IAgentRuntime;
   let testProjectsDir: string;
-  
+
   // Skip tests if no API key is available
   const hasApiKey = !!(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
   const describeOrSkip = hasApiKey ? describe : describe.skip;
@@ -43,12 +43,12 @@ describe('File Generation Runtime Tests', () => {
     // Register required plugins first
     await runtime.registerPlugin(sqlPlugin);
     await runtime.registerPlugin(formsPlugin);
-    
+
     // Now register the autocoder plugin
     await runtime.registerPlugin(autocoderPlugin);
-    
-    // Mark runtime as initialized
-    (runtime as any).isInitialized = true;
+
+    // Initialize the runtime
+    await runtime.initialize();
   });
 
   afterAll(async () => {
@@ -66,7 +66,7 @@ describe('File Generation Runtime Tests', () => {
       console.log('Skipping test - no API key available');
       return;
     }
-    
+
     const codeGenService = runtime.getService('code-generation');
     expect(codeGenService).toBeDefined();
 
@@ -85,12 +85,15 @@ describe('File Generation Runtime Tests', () => {
 
     // Verify project structure
     const projectPath = result.projectPath;
-    
+
     // Check package.json exists and has correct content
     const packageJsonPath = path.join(projectPath, 'package.json');
-    const packageJsonExists = await fs.access(packageJsonPath).then(() => true).catch(() => false);
+    const packageJsonExists = await fs
+      .access(packageJsonPath)
+      .then(() => true)
+      .catch(() => false);
     expect(packageJsonExists).toBe(true);
-    
+
     const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
     expect(packageJson.name).toBe('test-hello-world-plugin');
     expect(packageJson.type).toBe('module');
@@ -98,17 +101,26 @@ describe('File Generation Runtime Tests', () => {
 
     // Check src directory structure
     const srcPath = path.join(projectPath, 'src');
-    const srcExists = await fs.access(srcPath).then(() => true).catch(() => false);
+    const srcExists = await fs
+      .access(srcPath)
+      .then(() => true)
+      .catch(() => false);
     expect(srcExists).toBe(true);
 
     // Check index.ts exists
     const indexPath = path.join(srcPath, 'index.ts');
-    const indexExists = await fs.access(indexPath).then(() => true).catch(() => false);
+    const indexExists = await fs
+      .access(indexPath)
+      .then(() => true)
+      .catch(() => false);
     expect(indexExists).toBe(true);
 
     // Check README.md exists
     const readmePath = path.join(projectPath, 'README.md');
-    const readmeExists = await fs.access(readmePath).then(() => true).catch(() => false);
+    const readmeExists = await fs
+      .access(readmePath)
+      .then(() => true)
+      .catch(() => false);
     expect(readmeExists).toBe(true);
 
     const readmeContent = await fs.readFile(readmePath, 'utf-8');
@@ -122,9 +134,9 @@ describe('File Generation Runtime Tests', () => {
       console.log('Skipping test - no API key available');
       return;
     }
-    
+
     const codeGenService = runtime.getService('code-generation');
-    
+
     // First generate the plugin
     const request = {
       projectName: 'test-foo-bar-plugin',
@@ -139,14 +151,14 @@ describe('File Generation Runtime Tests', () => {
     expect(result.success).toBe(true);
 
     const projectPath = result.projectPath;
-    
+
     // Check if the generated code contains "foo bar" instead of "hello world"
     const indexPath = path.join(projectPath, 'src', 'index.ts');
     const indexContent = await fs.readFile(indexPath, 'utf-8');
-    
+
     // The content should reference foo bar in some way
-    const hasFooBar = indexContent.toLowerCase().includes('foo') || 
-                      indexContent.toLowerCase().includes('bar');
+    const hasFooBar =
+      indexContent.toLowerCase().includes('foo') || indexContent.toLowerCase().includes('bar');
     expect(hasFooBar).toBe(true);
   });
 
@@ -156,9 +168,9 @@ describe('File Generation Runtime Tests', () => {
       console.log('Skipping test - no API key available');
       return;
     }
-    
+
     const codeGenService = runtime.getService('code-generation');
-    
+
     const request = {
       projectName: 'test-weather-plugin',
       description: 'A plugin that fetches weather data from OpenWeatherMap API',
@@ -166,12 +178,12 @@ describe('File Generation Runtime Tests', () => {
       requirements: [
         'Fetch weather for a given city',
         'Parse temperature and conditions',
-        'Handle API errors gracefully'
+        'Handle API errors gracefully',
       ],
       apis: ['OpenWeatherMap'],
       testScenarios: [
         'Should fetch weather for valid city',
-        'Should handle invalid city gracefully'
+        'Should handle invalid city gracefully',
       ],
     };
 
@@ -179,15 +191,18 @@ describe('File Generation Runtime Tests', () => {
     expect(result.success).toBe(true);
 
     const projectPath = result.projectPath;
-    
+
     // Verify actions directory exists
     const actionsPath = path.join(projectPath, 'src', 'actions');
-    const actionsExists = await fs.access(actionsPath).then(() => true).catch(() => false);
+    const actionsExists = await fs
+      .access(actionsPath)
+      .then(() => true)
+      .catch(() => false);
     expect(actionsExists).toBe(true);
 
     // Check for weather-related files
     const files = await fs.readdir(actionsPath);
-    const hasWeatherAction = files.some(f => f.includes('weather') || f.includes('Weather'));
+    const hasWeatherAction = files.some((f) => f.includes('weather') || f.includes('Weather'));
     expect(hasWeatherAction).toBe(true);
 
     // Check package.json has proper dependencies
@@ -202,9 +217,9 @@ describe('File Generation Runtime Tests', () => {
       console.log('Skipping test - no API key available');
       return;
     }
-    
+
     const codeGenService = runtime.getService('code-generation');
-    
+
     // Step 1: Create basic calculator plugin
     const request1 = {
       projectName: 'test-calculator-plugin',
@@ -217,9 +232,9 @@ describe('File Generation Runtime Tests', () => {
 
     const result1 = await (codeGenService as any).generateCode(request1);
     expect(result1.success).toBe(true);
-    
+
     const projectPath = result1.projectPath;
-    
+
     // Verify initial structure
     const actionsPath = path.join(projectPath, 'src', 'actions');
     const initialFiles = await fs.readdir(actionsPath);
@@ -228,18 +243,21 @@ describe('File Generation Runtime Tests', () => {
     // Step 2: Add more operations (simulating progressive enhancement)
     // Note: In a real scenario, this would involve modifying existing files
     // For this test, we verify the structure supports extensibility
-    
+
     // Check if the plugin structure supports adding new actions
     const indexPath = path.join(projectPath, 'src', 'index.ts');
     const indexContent = await fs.readFile(indexPath, 'utf-8');
-    
+
     // Should have proper plugin structure
     expect(indexContent).toContain('actions:');
     expect(indexContent).toContain('export');
-    
+
     // Check if tests directory exists for adding new tests
     const testsPath = path.join(projectPath, 'src', '__tests__');
-    const testsExists = await fs.access(testsPath).then(() => true).catch(() => false);
+    const testsExists = await fs
+      .access(testsPath)
+      .then(() => true)
+      .catch(() => false);
     expect(testsExists).toBe(true);
   });
 
@@ -249,9 +267,9 @@ describe('File Generation Runtime Tests', () => {
       console.log('Skipping test - no API key available');
       return;
     }
-    
+
     const codeGenService = runtime.getService('code-generation');
-    
+
     const request = {
       projectName: 'test-lint-valid-plugin',
       description: 'A plugin that should pass linting checks',
@@ -263,7 +281,7 @@ describe('File Generation Runtime Tests', () => {
 
     const result = await (codeGenService as any).generateCode(request);
     expect(result.success).toBe(true);
-    
+
     // Check execution results if available
     if (result.executionResults) {
       // If linting was run, it should pass
@@ -274,7 +292,10 @@ describe('File Generation Runtime Tests', () => {
 
     // Verify TypeScript config exists
     const tsconfigPath = path.join(result.projectPath, 'tsconfig.json');
-    const tsconfigExists = await fs.access(tsconfigPath).then(() => true).catch(() => false);
+    const tsconfigExists = await fs
+      .access(tsconfigPath)
+      .then(() => true)
+      .catch(() => false);
     expect(tsconfigExists).toBe(true);
 
     const tsconfig = JSON.parse(await fs.readFile(tsconfigPath, 'utf-8'));

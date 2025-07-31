@@ -2677,6 +2677,73 @@ export const GameInterface: React.FC = () => {
           {/* Plugin Controls - Ultra Simple */}
           <div className="controls-section">
             <div className="controls-header">◆ CAPABILITIES</div>
+            
+            {/* Progression Mode Toggle */}
+            {progressionStatus && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 0',
+                marginBottom: '10px',
+                borderBottom: '1px solid rgba(0, 255, 170, 0.2)',
+              }}>
+                <span style={{ 
+                  color: '#00FF88', 
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
+                  textTransform: 'uppercase'
+                }}>
+                  Mode: {progressionStatus.mode || 'progression'}
+                </span>
+                <button
+                  onClick={async () => {
+                    const newMode = progressionStatus.mode === 'unlocked' ? 'progression' : 'unlocked';
+                    try {
+                      const response = await fetch('/api/agents/default/progression/mode', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ mode: newMode }),
+                      });
+                      if (response.ok) {
+                        const data = await response.json();
+                        setProgressionStatus(data.data);
+                        const message = `Switched to ${newMode} mode`;
+                        setOutput(prev => [...prev, {
+                          type: 'system',
+                          content: `> ${message}`,
+                          timestamp: new Date(),
+                        }]);
+                      }
+                    } catch (error) {
+                      console.error('Failed to switch progression mode:', error);
+                    }
+                  }}
+                  style={{
+                    background: 'rgba(0, 255, 136, 0.1)',
+                    border: '1px solid #00FF88',
+                    color: '#00FF88',
+                    padding: '4px 12px',
+                    fontSize: '11px',
+                    fontFamily: 'monospace',
+                    cursor: 'pointer',
+                    textTransform: 'uppercase',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(0, 255, 136, 0.2)';
+                    e.currentTarget.style.boxShadow = '0 0 10px rgba(0, 255, 136, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(0, 255, 136, 0.1)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  {progressionStatus.mode === 'unlocked' ? 'Switch to Progression' : 'Unlock All'}
+                </button>
+              </div>
+            )}
+            
             <UltraSimpleButtons 
               states={plugins} 
               onToggle={handleCapabilityToggle} 
