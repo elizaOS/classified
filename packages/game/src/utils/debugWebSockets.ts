@@ -8,7 +8,7 @@ export function debugWebSockets() {
   const OriginalWebSocket = window.WebSocket;
 
   // Create a wrapper
-  (window as TauriWindow & Record<string, unknown>).WebSocket = function (
+  (window as unknown as TauriWindow & Record<string, unknown>).WebSocket = function (
     url: string,
     protocols?: string | string[]
   ) {
