@@ -1,6 +1,6 @@
 use app_lib::{
-    BackendError, BackendResult, ContainerManager, ContainerRuntimeType,
-    POSTGRES_CONTAINER, OLLAMA_CONTAINER,
+    BackendError, BackendResult, ContainerManager, ContainerRuntimeType, OLLAMA_CONTAINER,
+    POSTGRES_CONTAINER,
 };
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ async fn test_concurrent_container_starts() -> BackendResult<()> {
             return Ok(());
         }
     };
-    
+
     println!("✅ Container manager created, starting concurrent operations...");
 
     // Start containers concurrently using the simplified public API
@@ -83,7 +83,10 @@ async fn test_concurrent_container_starts() -> BackendResult<()> {
     // Verify results
     if success_count > 0 {
         println!("\n✅ Concurrent container start test PASSED!");
-        println!("{} containers started successfully without race conditions.", success_count);
+        println!(
+            "{} containers started successfully without race conditions.",
+            success_count
+        );
         Ok(())
     } else {
         println!("\n❌ Concurrent container start test FAILED!");
@@ -111,14 +114,16 @@ async fn test_podman_machine_restart_mutex() -> BackendResult<()> {
 
     // Simulate multiple concurrent container operations
     let mut tasks = vec![];
-    
+
     for i in 0..3 {
         let manager_clone = manager.clone();
         let task = tokio::spawn(async move {
             println!("Task {} attempting container operation...", i);
             let start = std::time::Instant::now();
             // Try to get container status which may trigger internal Podman checks
-            let result = manager_clone.get_container_status(&format!("test-concurrent-{}", i)).await;
+            let result = manager_clone
+                .get_container_status(&format!("test-concurrent-{}", i))
+                .await;
             let duration = start.elapsed();
             println!("Task {} completed in {:?}", i, duration);
             (i, result)
@@ -156,4 +161,4 @@ async fn test_podman_machine_restart_mutex() -> BackendResult<()> {
             "Some concurrent operations failed due to race conditions".to_string(),
         ))
     }
-} 
+}

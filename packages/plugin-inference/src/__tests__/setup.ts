@@ -1,12 +1,17 @@
 import { vi } from 'vitest';
-import { ModelType } from '@elizaos/core';
+import { ModelType, IAgentRuntime } from '@elizaos/core';
+
+// Define a mock runtime interface for tests
+interface MockRuntime {
+  getSetting: (key: string) => string | undefined;
+}
 
 // Mock the OpenAI plugin
 vi.mock('@elizaos/plugin-openai', () => ({
   openaiPlugin: {
     name: 'openai',
     description: 'OpenAI plugin',
-    async isValid(runtime: any) {
+    async isValid(runtime: MockRuntime) {
       return !!runtime.getSetting('OPENAI_API_KEY');
     },
     async init() {
@@ -25,7 +30,7 @@ vi.mock('@elizaos/plugin-anthropic', () => ({
   anthropicPlugin: {
     name: 'anthropic',
     description: 'Anthropic plugin',
-    async isValid(runtime: any) {
+    async isValid(runtime: MockRuntime) {
       return !!runtime.getSetting('ANTHROPIC_API_KEY');
     },
     async init() {
@@ -43,7 +48,7 @@ vi.mock('@elizaos/plugin-groq', () => ({
   groqPlugin: {
     name: 'groq',
     description: 'Groq plugin',
-    async isValid(runtime: any) {
+    async isValid(runtime: MockRuntime) {
       return !!runtime.getSetting('GROQ_API_KEY');
     },
     async init() {
@@ -60,7 +65,7 @@ vi.mock('@elizaos/plugin-ollama', () => ({
   ollamaPlugin: {
     name: 'ollama',
     description: 'Ollama plugin',
-    async isValid(runtime: any) {
+    async isValid(runtime: MockRuntime) {
       // Check OLLAMA_AVAILABLE flag first
       const available = runtime.getSetting('OLLAMA_AVAILABLE');
 
@@ -81,21 +86,21 @@ vi.mock('@elizaos/plugin-ollama', () => ({
       // Mock init
     },
     models: {
-      [ModelType.TEXT_SMALL]: vi.fn().mockImplementation(async (runtime: any) => {
+      [ModelType.TEXT_SMALL]: vi.fn().mockImplementation(async (runtime: MockRuntime) => {
         const available = runtime.getSetting('OLLAMA_AVAILABLE');
         if (available === 'false') {
           throw new Error('Ollama is not available');
         }
         return 'Ollama response';
       }),
-      [ModelType.TEXT_LARGE]: vi.fn().mockImplementation(async (runtime: any) => {
+      [ModelType.TEXT_LARGE]: vi.fn().mockImplementation(async (runtime: MockRuntime) => {
         const available = runtime.getSetting('OLLAMA_AVAILABLE');
         if (available === 'false') {
           throw new Error('Ollama is not available');
         }
         return 'Ollama response';
       }),
-      [ModelType.TEXT_EMBEDDING]: vi.fn().mockImplementation(async (runtime: any) => {
+      [ModelType.TEXT_EMBEDDING]: vi.fn().mockImplementation(async (runtime: MockRuntime) => {
         const available = runtime.getSetting('OLLAMA_AVAILABLE');
         if (available === 'false') {
           throw new Error('Ollama is not available');
@@ -111,10 +116,10 @@ vi.mock('@elizaos/plugin-elizaos-services', () => ({
   elizaOSServicesPlugin: {
     name: 'elizaos',
     description: 'ElizaOS Services plugin',
-    async isValid(runtime: any) {
+    async isValid(runtime: MockRuntime) {
       return !!runtime.getSetting('ELIZAOS_API_KEY');
     },
-    async init(config: any, runtime: any) {
+    async init(config: Record<string, unknown>, runtime: MockRuntime) {
       // Only throw if no API key
       if (!runtime.getSetting('ELIZAOS_API_KEY')) {
         throw new Error('Mock initialization failure');
@@ -150,4 +155,4 @@ global.fetch = vi.fn().mockImplementation(() =>
     ok: false,
     json: () => Promise.resolve({}),
   })
-) as any;
+) as unknown as typeof fetch;

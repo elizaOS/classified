@@ -36,7 +36,7 @@ import { IAgentRuntime } from '@elizaos/core';
  * - Install plugins to extend its capabilities
  * - Clone plugins for modification and development
  * - Load/unload non-protected plugins as needed
- * 
+ *
  * Protected plugins (loaded at startup) CANNOT be unloaded or modified
  * to ensure system stability and core functionality.
  */

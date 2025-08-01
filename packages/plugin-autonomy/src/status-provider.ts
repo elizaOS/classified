@@ -42,8 +42,7 @@ export const autonomyStatusProvider: Provider = {
     }
 
     const intervalText = Math.round(interval / 1000);
-    const intervalUnit =
-      intervalText < 60 ? 'seconds' : `${Math.round(intervalText / 60)} minutes`;
+    const intervalUnit = intervalText < 60 ? 'seconds' : `${Math.round(intervalText / 60)} minutes`;
 
     return {
       text: `[AUTONOMY_STATUS]\nCurrent status: ${statusIcon} ${status}\nThinking interval: ${intervalText < 60 ? `${intervalText} seconds` : intervalUnit}\n[/AUTONOMY_STATUS]`,

@@ -1,18 +1,8 @@
-import type { IAgentRuntime, UUID } from '@elizaos/core';
+import type { IAgentRuntime, UUID, KnowledgeItem, IKnowledgeService } from '@elizaos/core';
 import { logger, validateUuid } from '@elizaos/core';
 import express from 'express';
 import type { AgentServer } from '../../server';
 import { sendError, sendSuccess } from '../shared/response-utils';
-
-interface KnowledgeFile {
-  id: string;
-  name: string;
-  path: string;
-  size: number;
-  type: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 /**
  * Agent knowledge files management
@@ -33,27 +23,32 @@ export function createAgentKnowledgeRouter(
         return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
       }
 
-      // Return example knowledge files for now
-      const knowledgeFiles: KnowledgeFile[] = [
-        {
-          id: '1',
-          name: 'agent-instructions.md',
-          path: 'knowledge/agent-instructions.md',
-          size: 2048,
-          type: 'markdown',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          name: 'conversation-examples.md',
-          path: 'knowledge/conversation-examples.md',
-          size: 1536,
-          type: 'markdown',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ];
+      const knowledgeService = runtime.getService('knowledge') as IKnowledgeService | null;
+      if (!knowledgeService) {
+        return sendSuccess(res, { knowledgeFiles: [] });
+      }
+
+      // Get documents from the knowledge service
+      const documents = await knowledgeService.getMemories({
+        tableName: 'documents',
+        count: 100,
+        agentId: runtime.agentId,
+      });
+
+      // Format documents as knowledge files for consistent API response
+      const knowledgeFiles = documents.map((doc: KnowledgeItem) => ({
+        id: doc.id,
+        name: doc.metadata?.originalFilename || doc.metadata?.title || 'Untitled',
+        title: doc.metadata?.title || doc.metadata?.originalFilename || 'Untitled',
+        originalFilename: doc.metadata?.originalFilename || 'unknown',
+        path: doc.metadata?.path || '',
+        size: doc.metadata?.size || doc.metadata?.fileSize || 0,
+        type: doc.metadata?.contentType || doc.metadata?.fileType || 'unknown',
+        contentType: doc.metadata?.contentType || doc.metadata?.fileType || 'unknown',
+        createdAt: new Date(doc.createdAt || doc.metadata?.timestamp || Date.now()).toISOString(),
+        updatedAt: new Date(doc.createdAt || doc.metadata?.timestamp || Date.now()).toISOString(),
+        fragmentCount: doc.metadata?.fragmentCount || 0,
+      }));
 
       sendSuccess(res, { knowledgeFiles });
     } catch (error) {
@@ -78,6 +73,18 @@ export function createAgentKnowledgeRouter(
       if (!runtime) {
         return sendError(res, 404, 'NOT_FOUND', 'Agent not found or not running');
       }
+
+      const knowledgeService = runtime.getService('knowledge') as IKnowledgeService | null;
+      if (!knowledgeService) {
+        return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'Knowledge service not available');
+      }
+
+      if (!knowledgeService.deleteMemory) {
+        return sendError(res, 501, 'NOT_IMPLEMENTED', 'Delete operation not supported');
+      }
+
+      // Delete the knowledge document using the service
+      await knowledgeService.deleteMemory(fileId);
 
       logger.info(
         `[KNOWLEDGE API] Deleted knowledge file ${fileId} for agent ${runtime.character.name}`

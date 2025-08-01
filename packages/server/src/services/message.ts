@@ -21,12 +21,12 @@ export interface MessageServiceMessage {
   author_id: UUID; // UUID of a central user identity
   author_display_name?: string; // Display name from central user identity
   content: string;
-  raw_message?: any;
+  raw_message?: unknown;
   source_id?: string; // original platform message ID
   source_type?: string;
   in_reply_to_message_id?: UUID;
   created_at: number;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export class MessageBusService extends Service {

@@ -50,6 +50,7 @@ export class ServiceBuilder<TService extends Service = Service> {
     const stopFn = this.stopFn;
 
     // Create a dynamic class with the configured properties
+    // Using type assertion here is necessary for dynamic class construction
     return class extends (Service as any) {
       static serviceType = serviceType;
       capabilityDescription = description;

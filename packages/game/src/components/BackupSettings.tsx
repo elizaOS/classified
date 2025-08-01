@@ -54,6 +54,16 @@ export const BackupSettings: React.FC = () => {
   });
   const [backupNotes, setBackupNotes] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   useEffect(() => {
     fetchBackups();
@@ -87,7 +97,7 @@ export const BackupSettings: React.FC = () => {
       setBackupNotes('');
     } catch (error) {
       console.error('Failed to create backup:', error);
-      alert(`Failed to create backup: ${error}`);
+      setNotification({ type: 'error', message: `Failed to create backup: ${error}` });
     } finally {
       setIsLoading(false);
     }
@@ -96,48 +106,61 @@ export const BackupSettings: React.FC = () => {
   const handleRestore = async () => {
     if (!selectedBackup) return;
 
-    const confirmed = window.confirm(
-      `⚠️ WARNING: This will restore your agent to the state from ${new Date(
+    setConfirmDialog({
+      open: true,
+      title: '⚠️ Restore Backup Warning',
+      message: `This will restore your agent to the state from ${new Date(
         selectedBackup.timestamp
-      ).toLocaleString()}.\n\nThis operation is DESTRUCTIVE and will overwrite current data.\n\nAre you sure you want to continue?`
-    );
-
-    if (!confirmed) return;
-
-    setIsLoading(true);
-    try {
-      await TauriService.restoreBackup(selectedBackup.id, restoreOptions);
-      alert('Backup restored successfully! The application will restart.');
-      await TauriService.restartApplication();
-    } catch (error) {
-      console.error('Failed to restore backup:', error);
-      alert(`Failed to restore backup: ${error}`);
-    } finally {
-      setIsLoading(false);
-      setShowRestoreDialog(false);
-    }
+      ).toLocaleString()}. This operation is DESTRUCTIVE and will overwrite current data. Are you sure you want to continue?`,
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        setIsLoading(true);
+        try {
+          await TauriService.restoreBackup(selectedBackup.id, restoreOptions);
+          setNotification({
+            type: 'success',
+            message: 'Backup restored successfully! The application will restart.',
+          });
+          await TauriService.restartApplication();
+        } catch (error) {
+          console.error('Failed to restore backup:', error);
+          setNotification({ type: 'error', message: `Failed to restore backup: ${error}` });
+        } finally {
+          setIsLoading(false);
+          setShowRestoreDialog(false);
+        }
+      },
+    });
   };
 
   const handleDeleteBackup = async (backupId: string) => {
-    const confirmed = window.confirm('Are you sure you want to delete this backup?');
-    if (!confirmed) return;
-
-    try {
-      await TauriService.deleteBackup(backupId);
-      await fetchBackups();
-    } catch (error) {
-      console.error('Failed to delete backup:', error);
-      alert(`Failed to delete backup: ${error}`);
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Delete Backup',
+      message: 'Are you sure you want to delete this backup?',
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        try {
+          await TauriService.deleteBackup(backupId);
+          await fetchBackups();
+        } catch (error) {
+          console.error('Failed to delete backup:', error);
+          setNotification({ type: 'error', message: `Failed to delete backup: ${error}` });
+        }
+      },
+    });
   };
 
   const handleExportBackup = async (backup: Backup) => {
     try {
       const exportPath = await TauriService.exportBackup(backup.id);
-      alert(`Backup exported successfully to: ${exportPath}`);
+      setNotification({
+        type: 'success',
+        message: `Backup exported successfully to: ${exportPath}`,
+      });
     } catch (error) {
       console.error('Failed to export backup:', error);
-      alert(`Failed to export backup: ${error}`);
+      setNotification({ type: 'error', message: `Failed to export backup: ${error}` });
     }
   };
 
@@ -146,16 +169,16 @@ export const BackupSettings: React.FC = () => {
       const importPath = await TauriService.selectFile({
         filters: [{ name: 'Backup Files', extensions: ['zip'] }],
       });
-      
+
       if (importPath) {
         setIsLoading(true);
         await TauriService.importBackup(importPath);
         await fetchBackups();
-        alert('Backup imported successfully!');
+        setNotification({ type: 'success', message: 'Backup imported successfully!' });
       }
     } catch (error) {
       console.error('Failed to import backup:', error);
-      alert(`Failed to import backup: ${error}`);
+      setNotification({ type: 'error', message: `Failed to import backup: ${error}` });
     } finally {
       setIsLoading(false);
     }
@@ -164,10 +187,10 @@ export const BackupSettings: React.FC = () => {
   const handleConfigUpdate = async () => {
     try {
       await TauriService.updateBackupConfig(config);
-      alert('Backup configuration updated successfully!');
+      setNotification({ type: 'success', message: 'Backup configuration updated successfully!' });
     } catch (error) {
       console.error('Failed to update config:', error);
-      alert(`Failed to update configuration: ${error}`);
+      setNotification({ type: 'error', message: `Failed to update configuration: ${error}` });
     }
   };
 
@@ -197,11 +220,7 @@ export const BackupSettings: React.FC = () => {
       <div className="backup-header">
         <h3>◎ BACKUP & RESTORE</h3>
         <div className="backup-actions">
-          <button
-            className="backup-btn import"
-            onClick={handleImportBackup}
-            disabled={isLoading}
-          >
+          <button className="backup-btn import" onClick={handleImportBackup} disabled={isLoading}>
             📥 Import
           </button>
           <button
@@ -235,7 +254,10 @@ export const BackupSettings: React.FC = () => {
             max="24"
             value={config.auto_backup_interval_hours}
             onChange={(e) =>
-              setConfig({ ...config, auto_backup_interval_hours: parseInt(e.target.value) || 4 })
+              setConfig({
+                ...config,
+                auto_backup_interval_hours: parseInt(e.target.value, 10) || 4,
+              })
             }
           />
         </div>
@@ -247,7 +269,7 @@ export const BackupSettings: React.FC = () => {
             max="20"
             value={config.max_backups_to_keep}
             onChange={(e) =>
-              setConfig({ ...config, max_backups_to_keep: parseInt(e.target.value) || 5 })
+              setConfig({ ...config, max_backups_to_keep: parseInt(e.target.value, 10) || 5 })
             }
           />
           <span> backups</span>
@@ -268,7 +290,9 @@ export const BackupSettings: React.FC = () => {
               <div key={backup.id} className="backup-item">
                 <div className="backup-info">
                   <div className="backup-main">
-                    <span className="backup-type-icon">{getBackupTypeIcon(backup.backup_type)}</span>
+                    <span className="backup-type-icon">
+                      {getBackupTypeIcon(backup.backup_type)}
+                    </span>
                     <span className="backup-name">{backup.metadata.agent_name}</span>
                     <span className="backup-type">{backup.backup_type}</span>
                   </div>
@@ -353,7 +377,7 @@ export const BackupSettings: React.FC = () => {
               <p className="warning-text">
                 <strong>This operation is DESTRUCTIVE and cannot be undone!</strong>
               </p>
-              
+
               <div className="restore-options">
                 <h4>Select components to restore:</h4>
                 <label>
@@ -371,7 +395,10 @@ export const BackupSettings: React.FC = () => {
                     type="checkbox"
                     checked={restoreOptions.restore_agent_state}
                     onChange={(e) =>
-                      setRestoreOptions({ ...restoreOptions, restore_agent_state: e.target.checked })
+                      setRestoreOptions({
+                        ...restoreOptions,
+                        restore_agent_state: e.target.checked,
+                      })
                     }
                   />
                   Agent State (memory, context)
@@ -402,12 +429,32 @@ export const BackupSettings: React.FC = () => {
               <button onClick={() => setShowRestoreDialog(false)} disabled={isLoading}>
                 Cancel
               </button>
-              <button
-                onClick={handleRestore}
-                disabled={isLoading}
-                className="danger"
-              >
+              <button onClick={handleRestore} disabled={isLoading} className="danger">
                 {isLoading ? 'Restoring...' : 'Restore Backup'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification */}
+      {notification && (
+        <div className={`notification ${notification.type}`}>
+          <span>{notification.message}</span>
+          <button onClick={() => setNotification(null)}>×</button>
+        </div>
+      )}
+
+      {/* Confirm Dialog */}
+      {confirmDialog && confirmDialog.open && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>{confirmDialog.title}</h2>
+            <p>{confirmDialog.message}</p>
+            <div className="modal-actions">
+              <button onClick={() => setConfirmDialog(null)}>Cancel</button>
+              <button onClick={confirmDialog.onConfirm} className="danger">
+                Confirm
               </button>
             </div>
           </div>

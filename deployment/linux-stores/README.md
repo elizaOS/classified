@@ -5,11 +5,13 @@ This directory contains configurations for deploying ElizaOS to various Linux ap
 ## Supported Platforms
 
 ### 1. Snap Store (Ubuntu)
+
 - **Directory**: `snap/`
 - **File**: `snapcraft.yaml`
 - **Documentation**: [Snapcraft Docs](https://snapcraft.io/docs)
 
 ### 2. Flathub (Flatpak)
+
 - **Directory**: `flatpak/`
 - **File**: `com.elizaos.Game.yml`
 - **Documentation**: [Flatpak Docs](https://docs.flatpak.org)
@@ -55,6 +57,7 @@ flatpak build-bundle repo elizaos.flatpak com.elizaos.Game
 ## Publishing Process
 
 ### Snap Store
+
 1. Create Ubuntu One account at https://snapcraft.io
 2. Register snap name: `snapcraft register elizaos`
 3. Build and test snap locally
@@ -62,6 +65,7 @@ flatpak build-bundle repo elizaos.flatpak com.elizaos.Game
 5. View in store: https://snapcraft.io/elizaos
 
 ### Flathub
+
 1. Fork https://github.com/flathub/flathub
 2. Create new branch: `new-app-com.elizaos.Game`
 3. Add manifest and required files
@@ -72,6 +76,7 @@ flatpak build-bundle repo elizaos.flatpak com.elizaos.Game
 ## Desktop Integration
 
 Both platforms require:
+
 - `.desktop` file for application launcher
 - Icon in multiple sizes
 - AppStream metadata (`.metainfo.xml`)
@@ -84,12 +89,15 @@ Both platforms require:
 ## Confinement/Sandboxing
 
 ### Snap Confinement Levels
+
 - `strict`: Full sandboxing (recommended)
 - `classic`: No sandboxing (requires manual review)
 - `devmode`: For development only
 
 ### Flatpak Permissions
+
 Configured in `finish-args`:
+
 - Network access
 - Home directory access
 - Graphics/audio access
@@ -98,6 +106,7 @@ Configured in `finish-args`:
 ## Debugging
 
 ### Snap
+
 ```bash
 # Run with debugging
 snap run --shell elizaos
@@ -108,6 +117,7 @@ journalctl -u snap.elizaos.*
 ```
 
 ### Flatpak
+
 ```bash
 # Run with debugging
 flatpak run --command=sh com.elizaos.Game

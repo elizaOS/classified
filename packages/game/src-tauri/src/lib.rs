@@ -1,9 +1,9 @@
 // ElizaOS Game - Rust Backend Implementation
 // This replaces the Node.js backend with a high-performance Rust backend
 
-use std::sync::Arc;
 use std::path::PathBuf;
-use tauri::{Manager, State, Emitter};
+use std::sync::Arc;
+use tauri::{Emitter, Manager, State};
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
@@ -18,13 +18,15 @@ mod startup;
 mod tests;
 
 // Re-export common constants and utilities for tests
-pub use common::{AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER, is_port_available};
+pub use common::{
+    is_port_available, AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER,
+};
 // Export types for external use (tests, etc.)
 pub use backend::{
     AgentConfig, BackendConfig, BackendError, BackendResult, ContainerConfig, ContainerRuntimeType,
     ContainerState, ContainerStatus, HealthStatus, PortMapping, SetupProgress, VolumeMount,
 };
-pub use container::{ContainerManager, HealthMonitor, RuntimeDetectionStatus, PortConfig};
+pub use container::{ContainerManager, HealthMonitor, PortConfig, RuntimeDetectionStatus};
 pub use ipc::commands::*;
 pub use server::{HttpServer, WebSocketHub};
 pub use startup::{AiProvider, StartupManager, StartupStage, StartupStatus, UserConfig};
@@ -93,8 +95,6 @@ async fn start_callback_server_on_port(port: u16) -> Result<(), Box<dyn std::err
     Ok(())
 }
 
-
-
 async fn route_message_to_agent(
     message: &str,
     container_manager: Option<Arc<ContainerManager>>,
@@ -112,19 +112,25 @@ async fn route_message_to_agent(
     // Use the autonomous thoughts room which exists in the agent
     let room_id = "ce5f41b4-fe24-4c01-9971-aecfed20a6bd"; // Autonomous thoughts room
     let _agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f"; // Agent ID
-    
+
     // First attempt with recovery support
     let attempt_request = || async {
         // First, ensure the room/channel exists in the messaging system
         // Create a proper channel entry if needed
-        let channel_url = format!("http://localhost:{}/api/messaging/central-channels/{}", agent_port, room_id);
+        let channel_url = format!(
+            "http://localhost:{}/api/messaging/central-channels/{}",
+            agent_port, room_id
+        );
         let channel_check = client.get(&channel_url).send().await;
-        
+
         if channel_check.is_err() || !channel_check.unwrap().status().is_success() {
             info!("Channel doesn't exist in messaging system, creating it...");
-            
+
             // Try to create the channel
-            let create_channel_url = format!("http://localhost:{}/api/messaging/central-channels", agent_port);
+            let create_channel_url = format!(
+                "http://localhost:{}/api/messaging/central-channels",
+                agent_port
+            );
             let _ = client
                 .post(&create_channel_url)
                 .json(&serde_json::json!({
@@ -139,10 +145,13 @@ async fn route_message_to_agent(
                 .send()
                 .await;
         }
-        
+
         // Use the ingest-external endpoint which works properly
-        let message_url = format!("http://localhost:{}/api/messaging/ingest-external", agent_port);
-        
+        let message_url = format!(
+            "http://localhost:{}/api/messaging/ingest-external",
+            agent_port
+        );
+
         let response = client
             .post(&message_url)
             .json(&serde_json::json!({
@@ -171,14 +180,16 @@ async fn route_message_to_agent(
             let _response_data: serde_json::Value = response.json().await?;
 
             // For now, return a confirmation that the message was ingested
-            Ok(format!("Message sent to agent: {}", message)) as Result<String, Box<dyn std::error::Error + Send + Sync>>
+            Ok(format!("Message sent to agent: {}", message))
+                as Result<String, Box<dyn std::error::Error + Send + Sync>>
         } else {
             let status = response.status();
             let error_text = response
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            Err(format!("Agent responded with status: {} - {}", status, error_text).into()) as Result<String, Box<dyn std::error::Error + Send + Sync>>
+            Err(format!("Agent responded with status: {} - {}", status, error_text).into())
+                as Result<String, Box<dyn std::error::Error + Send + Sync>>
         }
     };
 
@@ -187,26 +198,29 @@ async fn route_message_to_agent(
         Ok(result) => Ok(result),
         Err(e) => {
             let error_str = e.to_string();
-            
+
             // Check if it's a connection error
-            if error_str.contains("Connection refused") || 
-               error_str.contains("tcp connect error") ||
-               error_str.contains("connection closed") {
-                
-                warn!("Agent server appears to be down while routing message: {}", error_str);
-                
+            if error_str.contains("Connection refused")
+                || error_str.contains("tcp connect error")
+                || error_str.contains("connection closed")
+            {
+                warn!(
+                    "Agent server appears to be down while routing message: {}",
+                    error_str
+                );
+
                 // If we have a container manager, try to recover
                 if let Some(manager) = container_manager {
                     warn!("Attempting to recover agent container...");
-                    
+
                     // Try to restart the agent container
                     match manager.restart_container(common::AGENT_CONTAINER).await {
                         Ok(_) => {
                             info!("Agent container restarted, waiting for it to be ready...");
-                            
+
                             // Wait a bit for the container to start up
                             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                            
+
                             // Retry the message after recovery
                             return attempt_request().await;
                         }
@@ -216,7 +230,7 @@ async fn route_message_to_agent(
                     }
                 }
             }
-            
+
             // Return the original error if we couldn't recover
             Err(e)
         }
@@ -295,23 +309,30 @@ async fn send_message_to_agent(
         Ok(response) => Ok(response),
         Err(e) => {
             error!("Failed to route message via HTTP: {}", e);
-            
+
             // If it's a connection error, try to recover and retry once more
             let error_str = e.to_string();
-            if error_str.contains("Connection refused") || 
-               error_str.contains("tcp connect error") {
+            if error_str.contains("Connection refused") || error_str.contains("tcp connect error") {
                 warn!("Detected connection error, attempting container recovery...");
-                
+
                 // Try to restart the agent container
-                match container_manager.restart_container(common::AGENT_CONTAINER).await {
+                match container_manager
+                    .restart_container(common::AGENT_CONTAINER)
+                    .await
+                {
                     Ok(_) => {
                         info!("Agent container restarted, waiting for it to be ready...");
-                        
+
                         // Wait a bit for the container to start up
                         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                        
+
                         // One more try after recovery
-                        match route_message_to_agent(&message, Some(container_manager.inner().clone())).await {
+                        match route_message_to_agent(
+                            &message,
+                            Some(container_manager.inner().clone()),
+                        )
+                        .await
+                        {
                             Ok(response) => return Ok(response),
                             Err(retry_err) => {
                                 error!("Message still failed after recovery: {}", retry_err);
@@ -323,7 +344,7 @@ async fn send_message_to_agent(
                     }
                 }
             }
-            
+
             Err(format!(
                 "Both WebSocket and HTTP communication failed: {}",
                 e
@@ -596,7 +617,7 @@ async fn run_startup_hello_world_test(
     // Get dynamic port configuration
     let port_config = container_manager.get_port_config().await;
     let agent_port = port_config.agent_port;
-    
+
     if agent_port != 7777 {
         test_results.push(format!("ℹ️ Using alternative agent port: {}", agent_port));
     }
@@ -657,7 +678,10 @@ async fn run_startup_hello_world_test(
     }
 
     // Step 5: Test HTTP message ingestion (fallback method)
-    let message_url = format!("http://localhost:{}/api/messaging/ingest-external", agent_port);
+    let message_url = format!(
+        "http://localhost:{}/api/messaging/ingest-external",
+        agent_port
+    );
     let channel_id = "e292bdf2-0baa-4677-a3a6-9426672ce6d8";
     let author_id = "00000000-0000-0000-0000-000000000001";
 
@@ -731,8 +755,12 @@ async fn wait_for_agent_server_ready(agent_port: u16) -> bool {
     let client = reqwest::Client::new();
     let url = format!("http://localhost:{}/api/server/health", agent_port); // Health check endpoint
 
-    for attempt in 0..20 { // Retry up to 20 times
-        info!("⏳ Waiting for agent server health check (attempt {}/20)...", attempt + 1);
+    for attempt in 0..20 {
+        // Retry up to 20 times
+        info!(
+            "⏳ Waiting for agent server health check (attempt {}/20)...",
+            attempt + 1
+        );
         let response = client
             .get(&url)
             .timeout(std::time::Duration::from_secs(5))
@@ -742,23 +770,29 @@ async fn wait_for_agent_server_ready(agent_port: u16) -> bool {
         if let Ok(response) = response {
             if response.status().is_success() {
                 info!("✅ Agent server health check successful");
-                
+
                 // Now check if the game API plugin routes are ready
                 info!("🔍 Checking if game API plugin routes are ready...");
                 let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
-                let settings_url = format!("http://localhost:{}/api/agents/{}/settings", agent_port, agent_id);
+                let settings_url = format!(
+                    "http://localhost:{}/api/agents/{}/settings",
+                    agent_port, agent_id
+                );
                 let settings_response = client
                     .get(&settings_url)
                     .timeout(std::time::Duration::from_secs(5))
                     .send()
                     .await;
-                
+
                 if let Ok(settings_resp) = settings_response {
                     if settings_resp.status().is_success() {
                         info!("✅ Game API plugin routes are ready");
                         return true;
                     } else {
-                        warn!("⚠️ Game API plugin routes not ready yet (status: {})", settings_resp.status());
+                        warn!(
+                            "⚠️ Game API plugin routes not ready yet (status: {})",
+                            settings_resp.status()
+                        );
                     }
                 } else {
                     warn!("⚠️ Failed to check game API plugin routes");
@@ -776,10 +810,14 @@ async fn wait_for_agent_server_ready(agent_port: u16) -> bool {
             }
         } else {
             let e = response.unwrap_err();
-            warn!("❌ Failed to send health check request to agent server: {}", e);
+            warn!(
+                "❌ Failed to send health check request to agent server: {}",
+                e
+            );
         }
 
-        if attempt < 19 { // Don't sleep on the last attempt
+        if attempt < 19 {
+            // Don't sleep on the last attempt
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await; // Wait 5 seconds between retries
         }
     }
@@ -797,6 +835,7 @@ pub fn run() {
     info!("Starting ElizaOS Game with Rust backend");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
@@ -884,7 +923,6 @@ pub fn run() {
             ipc::backup::update_backup_config,
             ipc::backup::export_backup,
             ipc::backup::import_backup,
-
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");
@@ -905,9 +943,11 @@ pub fn run() {
             // If crash file exists, we crashed last time
             if crash_file.exists() {
                 warn!("🚨 Detected previous crash, running recovery...");
-                
+
                 // Store container manager reference for recovery
-                let recovery_container_manager = match ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Podman) {
+                let recovery_container_manager = match ContainerManager::new_with_runtime_type(
+                    crate::backend::ContainerRuntimeType::Podman,
+                ) {
                     Ok(manager) => Some(Arc::new(manager)),
                     Err(e) => {
                         warn!("Failed to create container manager for recovery: {}", e);
@@ -920,14 +960,14 @@ pub fn run() {
                     tauri::async_runtime::block_on(async {
                         // Stop all containers
                         let _ = manager.stop_containers().await;
-                        
+
                         // Clean up orphaned containers
                         let _ = manager.cleanup_containers_by_pattern("eliza-").await;
-                        
+
                         info!("✅ Crash recovery completed");
                     });
                 }
-                
+
                 // Remove crash file
                 let _ = std::fs::remove_file(&crash_file);
             }
@@ -936,7 +976,7 @@ pub fn run() {
             if let Err(e) = std::fs::write(&crash_file, "crashed") {
                 warn!("Failed to create crash recovery file: {}", e);
             }
-            
+
             // Store crash file path for cleanup on shutdown
             app.manage(CrashFile(crash_file));
 
@@ -963,24 +1003,23 @@ pub fn run() {
             let runtime_status = Arc::new(std::sync::Mutex::new(RuntimeDetectionStatus::default()));
             app.manage(runtime_status.clone());
 
-    
-
             // Initialize container manager for Tauri commands
             // Note: This will be replaced by startup manager's instance once initialized
-            let initial_container_manager =
-                match ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Podman) {
-                    Ok(manager) => Arc::new(manager),
-                    Err(e) => {
-                        error!("Failed to create initial container manager: {}", e);
-                        // Create a dummy manager to prevent panics
-                        Arc::new(
-                            ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Docker)
-                                .unwrap_or_else(|_| {
-                                    panic!("Failed to create any container manager")
-                                }),
+            let initial_container_manager = match ContainerManager::new_with_runtime_type(
+                crate::backend::ContainerRuntimeType::Podman,
+            ) {
+                Ok(manager) => Arc::new(manager),
+                Err(e) => {
+                    error!("Failed to create initial container manager: {}", e);
+                    // Create a dummy manager to prevent panics
+                    Arc::new(
+                        ContainerManager::new_with_runtime_type(
+                            crate::backend::ContainerRuntimeType::Docker,
                         )
-                    }
-                };
+                        .unwrap_or_else(|_| panic!("Failed to create any container manager")),
+                    )
+                }
+            };
             app.manage(initial_container_manager.clone());
 
             // Initialize operation lock manager
@@ -996,12 +1035,15 @@ pub fn run() {
 
             // Initialize backup system
             let backup_manager = Arc::new(tokio::sync::RwLock::new(
-                backup::manager::BackupManager::new(initial_container_manager.clone(), app.handle().clone())
+                backup::manager::BackupManager::new(
+                    initial_container_manager.clone(),
+                    app.handle().clone(),
+                ),
             ));
             let backup_scheduler = Arc::new(tokio::sync::RwLock::new(
-                backup::scheduler::BackupScheduler::new(backup_manager.clone())
+                backup::scheduler::BackupScheduler::new(backup_manager.clone()),
             ));
-            
+
             // Create global app state
             let global_state = backend::state::GlobalAppState::new(
                 initial_container_manager.clone(),
@@ -1010,7 +1052,7 @@ pub fn run() {
                 backup_scheduler.clone(),
             );
             app.manage(global_state);
-            
+
             // Start the backup scheduler
             let scheduler_clone = backup_scheduler.clone();
             tauri::async_runtime::spawn(async move {
@@ -1069,33 +1111,37 @@ pub fn run() {
                     error!("❌ Startup initialization failed: {}", e);
                 } else {
                     info!("✅ Startup initialization completed successfully");
-                    
+
                     // Wait for agent server to be fully ready before running tests
                     info!("⏳ Waiting for agent server to be fully ready...");
-                    
+
                     // Get the dynamic agent port from container manager
-                    let container_manager: Arc<ContainerManager> = app_handle_clone.state::<Arc<ContainerManager>>().inner().clone();
+                    let container_manager: Arc<ContainerManager> = app_handle_clone
+                        .state::<Arc<ContainerManager>>()
+                        .inner()
+                        .clone();
                     let port_config = container_manager.get_port_config().await;
                     let agent_port = port_config.agent_port;
-                    
+
                     let agent_ready = wait_for_agent_server_ready(agent_port).await;
-                    
+
                     if !agent_ready {
                         error!("❌ Agent server failed to become ready after waiting");
                         std::process::exit(1);
                     }
-                    
+
                     info!("✅ Agent server is ready, running tests...");
-                    
+
                     // Run comprehensive runtime tests only if explicitly requested
                     drop(manager); // Release the lock before running tests
-                    
+
                     if std::env::var("RUN_TAURI_TESTS").unwrap_or_default() == "true" {
                         info!("🧪 RUN_TAURI_TESTS=true detected, running runtime tests...");
-                        
+
                         // NOTE: run_all_tests will call std::process::exit(1) on test failure
                         // This ensures the app doesn't start with failing tests
-                        if let Err(e) = crate::tests::run_all_tests(app_handle_clone.clone()).await {
+                        if let Err(e) = crate::tests::run_all_tests(app_handle_clone.clone()).await
+                        {
                             // This code is unreachable if tests fail (app exits), but handles other errors
                             error!("❌ Runtime tests error: {}", e);
                             std::process::exit(1);
@@ -1115,13 +1161,17 @@ pub fn run() {
                     max_attempts: u32,
                 ) -> Result<(), Box<dyn std::error::Error>> {
                     use tokio::time::{sleep, Duration};
-                    
+
                     let mut attempts = 0;
                     let mut delay = Duration::from_millis(500);
-                    
+
                     while attempts < max_attempts {
-                        info!("🔌 WebSocket connection attempt {} of {}", attempts + 1, max_attempts);
-                        
+                        info!(
+                            "🔌 WebSocket connection attempt {} of {}",
+                            attempts + 1,
+                            max_attempts
+                        );
+
                         match ws_client.connect(url).await {
                             Ok(_) => {
                                 info!("✅ WebSocket connected successfully");
@@ -1132,16 +1182,19 @@ pub fn run() {
                                 if attempts >= max_attempts {
                                     return Err(e);
                                 }
-                                
-                                warn!("WebSocket connection failed: {}. Retrying in {:?}...", e, delay);
+
+                                warn!(
+                                    "WebSocket connection failed: {}. Retrying in {:?}...",
+                                    e, delay
+                                );
                                 sleep(delay).await;
-                                
+
                                 // Exponential backoff with max delay of 5 seconds
                                 delay = std::cmp::min(delay * 2, Duration::from_secs(5));
                             }
                         }
                     }
-                    
+
                     Err("Max connection attempts reached".into())
                 }
 
@@ -1149,14 +1202,20 @@ pub fn run() {
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
                 // Try to connect with retries
-                let container_manager: Arc<ContainerManager> = app_handle_clone.state::<Arc<ContainerManager>>().inner().clone();
+                let container_manager: Arc<ContainerManager> = app_handle_clone
+                    .state::<Arc<ContainerManager>>()
+                    .inner()
+                    .clone();
                 let port_config = container_manager.get_port_config().await;
                 let ws_url = format!("ws://localhost:{}/ws", port_config.agent_port);
-                
+
                 if port_config.agent_port != 7777 {
-                    info!("🔌 Using alternative agent port {} for WebSocket connection", port_config.agent_port);
+                    info!(
+                        "🔌 Using alternative agent port {} for WebSocket connection",
+                        port_config.agent_port
+                    );
                 }
-                
+
                 if let Err(e) = connect_with_retry(native_ws_clone, &ws_url, 5).await {
                     error!("Failed to connect WebSocket after retries: {}", e);
                     info!("💡 Agent server may not be running - messages will fallback to HTTP");
@@ -1173,10 +1232,10 @@ pub fn run() {
                     main_window.on_window_event(move |event| {
                         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                             info!("Close requested - initiating graceful shutdown");
-                            
+
                             // Prevent the default close behavior
                             api.prevent_close();
-                            
+
                             // Emit an event to trigger the shutdown process
                             let _ = app_handle.emit("request-shutdown", ());
                         }

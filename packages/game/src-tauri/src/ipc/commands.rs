@@ -4,7 +4,7 @@ use crate::container::*;
 use crate::SetupProgress;
 use serde_json;
 use std::sync::Arc;
-use tauri::{Manager, State, Emitter};
+use tauri::{Emitter, Manager, State};
 use tracing::{error, info, warn};
 
 // Container management commands
@@ -43,7 +43,7 @@ pub async fn start_postgres_container(
             warn!("Operation already in progress: {}", e.message);
             e.message.clone()
         })?;
-    
+
     match state.start_postgres().await {
         Ok(status) => {
             info!("PostgreSQL container started successfully");
@@ -68,7 +68,7 @@ pub async fn start_ollama_container(
             warn!("Operation already in progress: {}", e.message);
             e.message.clone()
         })?;
-    
+
     match state.start_ollama().await {
         Ok(status) => {
             info!("Ollama container started successfully");
@@ -93,7 +93,7 @@ pub async fn start_agent_container(
             warn!("Operation already in progress: {}", e.message);
             e.message.clone()
         })?;
-    
+
     match state.start_agent().await {
         Ok(status) => {
             info!("ElizaOS Agent container started successfully");
@@ -212,7 +212,10 @@ pub async fn get_autonomy_status() -> Result<serde_json::Value, String> {
 pub async fn toggle_capability(capability: String) -> Result<serde_json::Value, String> {
     // Use the actual agent ID that's hardcoded in the game
     let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
-    let endpoint = format!("/api/agents/{}/capabilities/{}/toggle", agent_id, capability);
+    let endpoint = format!(
+        "/api/agents/{}/capabilities/{}/toggle",
+        agent_id, capability
+    );
     let body = serde_json::json!({ "enabled": true }); // Add the required body
     match make_agent_server_request("POST", &endpoint, Some(body)).await {
         Ok(response) => Ok(response),
@@ -226,7 +229,10 @@ pub async fn get_capability_status(capability: String) -> Result<serde_json::Val
     let endpoint = format!("/api/agents/{}/capabilities/{}", agent_id, capability);
     match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
-        Err(e) => Err(format!("Failed to get {} capability status: {}", capability, e)),
+        Err(e) => Err(format!(
+            "Failed to get {} capability status: {}",
+            capability, e
+        )),
     }
 }
 
@@ -294,15 +300,13 @@ async fn make_agent_server_request_with_timeout(
     agent_server_request(method, endpoint, body, Some(timeout_secs)).await
 }
 
-
-
 // Data fetching commands
 #[tauri::command]
 pub async fn fetch_goals() -> Result<serde_json::Value, String> {
     // Include agent ID as query param to ensure plugin route is used
     let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
     let endpoint = format!("/api/goals?agentId={}", agent_id);
-    
+
     match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to fetch goals: {}", e)),
@@ -314,7 +318,7 @@ pub async fn fetch_todos() -> Result<serde_json::Value, String> {
     // Include agent ID as query param to ensure plugin route is used
     let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
     let endpoint = format!("/api/todos?agentId={}", agent_id);
-    
+
     match make_agent_server_request("GET", &endpoint, None).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to fetch todos: {}", e)),
@@ -398,7 +402,7 @@ pub async fn fetch_autonomy_status() -> Result<serde_json::Value, String> {
 pub async fn fetch_memories(params: serde_json::Value) -> Result<serde_json::Value, String> {
     // Use the hardcoded agent ID
     let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
-    
+
     // Convert the params object to query string parameters
     let mut query_params = vec![];
 
@@ -453,7 +457,7 @@ pub async fn upload_knowledge_file(
     content: String,
     mime_type: String,
 ) -> Result<serde_json::Value, String> {
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
 
     // Decode base64 content
     let decoded_content = general_purpose::STANDARD
@@ -494,7 +498,7 @@ pub async fn create_goal(
     // Include agent ID as query param to ensure plugin route is used
     let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
     let endpoint = format!("/api/goals?agentId={}", agent_id);
-    
+
     match make_agent_server_request("POST", &endpoint, Some(payload)).await {
         Ok(response) => Ok(response),
         Err(e) => Err(format!("Failed to create goal: {}", e)),
@@ -535,7 +539,7 @@ pub async fn fetch_logs(
     limit: Option<i32>,
 ) -> Result<serde_json::Value, String> {
     let mut query_params = vec![];
-    
+
     if let Some(t) = log_type {
         query_params.push(format!("type={}", t));
     }
@@ -576,13 +580,23 @@ pub async fn stream_media_frame(
     frame_data: Vec<u8>,
     timestamp: u64,
 ) -> Result<(), String> {
-    info!("📹 Received {} frame: {} bytes", stream_type, frame_data.len());
+    info!(
+        "📹 Received {} frame: {} bytes",
+        stream_type,
+        frame_data.len()
+    );
 
     // Forward to agent server via WebSocket with optimized method
     if native_ws_client.is_connected().await {
-        match native_ws_client.send_media_frame(frame_data.clone(), &stream_type).await {
+        match native_ws_client
+            .send_media_frame(frame_data.clone(), &stream_type)
+            .await
+        {
             Ok(_) => {
-                info!("✅ Forwarded {} frame to agent server via WebSocket", stream_type);
+                info!(
+                    "✅ Forwarded {} frame to agent server via WebSocket",
+                    stream_type
+                );
                 return Ok(());
             }
             Err(e) => {
@@ -597,13 +611,15 @@ pub async fn stream_media_frame(
         Some(&stream_type),
         frame_data,
         timestamp,
-        "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f" // Default agent ID
-    ).await {
+        "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f", // Default agent ID
+    )
+    .await
+    {
         Ok(_) => {
             info!("✅ Forwarded {} frame via HTTP API", stream_type);
             Ok(())
         }
-        Err(e) => Err(format!("Failed to send via HTTP: {}", e))
+        Err(e) => Err(format!("Failed to send via HTTP: {}", e)),
     }
 }
 
@@ -635,13 +651,15 @@ pub async fn stream_media_audio(
         None,
         audio_data,
         timestamp,
-        "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f" // Default agent ID
-    ).await {
+        "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f", // Default agent ID
+    )
+    .await
+    {
         Ok(_) => {
             info!("✅ Forwarded audio chunk via HTTP API");
             Ok(())
         }
-        Err(e) => Err(format!("Failed to send via HTTP: {}", e))
+        Err(e) => Err(format!("Failed to send via HTTP: {}", e)),
     }
 }
 
@@ -649,11 +667,11 @@ pub async fn stream_media_audio(
 #[tauri::command]
 pub async fn start_agent_screen_capture() -> Result<(), String> {
     info!("🖥️ Starting agent screen capture");
-    
+
     // Call agent server endpoint to start screen capture
     let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
     let endpoint = format!("/api/agents/{}/screen/start", agent_id);
-    
+
     match make_agent_server_request("POST", &endpoint, None).await {
         Ok(_) => {
             info!("✅ Agent screen capture started");
@@ -667,14 +685,14 @@ pub async fn start_agent_screen_capture() -> Result<(), String> {
 }
 
 /// Stops agent screen capture
-#[tauri::command] 
+#[tauri::command]
 pub async fn stop_agent_screen_capture() -> Result<(), String> {
     info!("🛑 Stopping agent screen capture");
-    
+
     // Call agent server endpoint to stop screen capture
     let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
     let endpoint = format!("/api/agents/{}/screen/stop", agent_id);
-    
+
     match make_agent_server_request("POST", &endpoint, None).await {
         Ok(_) => {
             info!("✅ Agent screen capture stopped");
@@ -692,36 +710,51 @@ pub async fn recover_agent_container(
     container_manager: State<'_, Arc<ContainerManager>>,
 ) -> Result<String, String> {
     info!("🚨 Starting agent container recovery...");
-    
+
     // Check agent container status
-    match container_manager.get_runtime_container_status(AGENT_CONTAINER).await {
+    match container_manager
+        .get_runtime_container_status(AGENT_CONTAINER)
+        .await
+    {
         Ok(status) => {
             info!("Agent container status: {:?}", status.state);
-            
+
             match status.state {
                 ContainerState::Stopped => {
                     // Container exists but stopped, restart it
                     info!("Agent container is stopped, attempting to restart...");
-                    
+
                     match container_manager.restart_container(AGENT_CONTAINER).await {
                         Ok(_) => {
                             info!("Agent container restarted successfully");
-                            
+
                             // Wait for it to become healthy
-                            if let Err(e) = container_manager.wait_for_container_health(AGENT_CONTAINER, std::time::Duration::from_secs(30)).await {
+                            if let Err(e) = container_manager
+                                .wait_for_container_health(
+                                    AGENT_CONTAINER,
+                                    std::time::Duration::from_secs(30),
+                                )
+                                .await
+                            {
                                 error!("Agent container failed health check after restart: {}", e);
-                                
+
                                 // Get logs for debugging
-                                if let Ok(logs) = container_manager.get_container_logs(AGENT_CONTAINER, Some(100)).await {
+                                if let Ok(logs) = container_manager
+                                    .get_container_logs(AGENT_CONTAINER, Some(100))
+                                    .await
+                                {
                                     error!("Recent agent container logs:");
                                     for line in logs.lines().take(50) {
                                         error!("  {}", line);
                                     }
                                 }
-                                
-                                return Err(format!("Agent container unhealthy after restart: {}", e));
+
+                                return Err(format!(
+                                    "Agent container unhealthy after restart: {}",
+                                    e
+                                ));
                             }
-                            
+
                             Ok("Agent container recovered successfully".to_string())
                         }
                         Err(e) => {
@@ -733,26 +766,37 @@ pub async fn recover_agent_container(
                 ContainerState::Running => {
                     // Container is running but agent process may have crashed
                     info!("Container is running but agent process may have crashed");
-                    
+
                     // Get logs to see what happened
-                    if let Ok(logs) = container_manager.get_container_logs(AGENT_CONTAINER, Some(100)).await {
+                    if let Ok(logs) = container_manager
+                        .get_container_logs(AGENT_CONTAINER, Some(100))
+                        .await
+                    {
                         error!("Recent agent container logs:");
                         for line in logs.lines().take(50) {
                             error!("  {}", line);
                         }
                     }
-                    
+
                     // Restart the container to recover
                     info!("Restarting agent container to recover from crash...");
                     match container_manager.restart_container(AGENT_CONTAINER).await {
                         Ok(_) => {
                             info!("Agent container restarted after crash");
-                            
+
                             // Wait for health
-                            if container_manager.wait_for_container_health(AGENT_CONTAINER, std::time::Duration::from_secs(30)).await.is_ok() {
+                            if container_manager
+                                .wait_for_container_health(
+                                    AGENT_CONTAINER,
+                                    std::time::Duration::from_secs(30),
+                                )
+                                .await
+                                .is_ok()
+                            {
                                 Ok("Agent container recovered from crash".to_string())
                             } else {
-                                Err("Agent container failed to become healthy after recovery".to_string())
+                                Err("Agent container failed to become healthy after recovery"
+                                    .to_string())
                             }
                         }
                         Err(e) => {
@@ -763,21 +807,31 @@ pub async fn recover_agent_container(
                 }
                 _ => {
                     warn!("Agent container in unexpected state: {:?}", status.state);
-                    Err(format!("Agent container in unexpected state: {:?}", status.state))
+                    Err(format!(
+                        "Agent container in unexpected state: {:?}",
+                        status.state
+                    ))
                 }
             }
         }
         Err(e) => {
             warn!("Agent container not found: {}", e);
-            
+
             // Container doesn't exist, try to start it
             info!("Attempting to start agent container...");
             match container_manager.start_agent().await {
                 Ok(_) => {
                     info!("Agent container started successfully");
-                    
+
                     // Wait for health
-                    if container_manager.wait_for_container_health(AGENT_CONTAINER, std::time::Duration::from_secs(60)).await.is_ok() {
+                    if container_manager
+                        .wait_for_container_health(
+                            AGENT_CONTAINER,
+                            std::time::Duration::from_secs(60),
+                        )
+                        .await
+                        .is_ok()
+                    {
                         Ok("Agent container started successfully".to_string())
                     } else {
                         Err("Agent container failed to become healthy".to_string())
@@ -792,7 +846,6 @@ pub async fn recover_agent_container(
     }
 }
 
-
 /// Gracefully shuts down the application by stopping all containers first
 #[tauri::command]
 pub async fn shutdown_application(
@@ -802,59 +855,67 @@ pub async fn shutdown_application(
     global_state: State<'_, crate::backend::state::GlobalAppState>,
 ) -> Result<(), String> {
     info!("🔄 Starting application shutdown sequence...");
-    
+
     // Hide the main window during shutdown
     if let Some(main_window) = app.get_webview_window("main") {
         let _ = main_window.hide();
     }
-    
+
     // Create shutdown backup
-    app.emit("shutdown-progress", "Creating shutdown backup...").unwrap();
+    app.emit("shutdown-progress", "Creating shutdown backup...")
+        .unwrap();
     info!("💾 Creating shutdown backup...");
-    
+
     let backup_manager = global_state.backup_manager.read().await;
     match backup_manager.create_shutdown_backup().await {
         Ok(()) => {
             info!("✅ Shutdown backup created successfully");
-            app.emit("shutdown-progress", "Backup created successfully").unwrap();
+            app.emit("shutdown-progress", "Backup created successfully")
+                .unwrap();
         }
         Err(e) => {
             error!("❌ Failed to create shutdown backup: {}", e);
             // Continue with shutdown even if backup fails
         }
     }
-    
+
     // Emit shutdown progress event
-    app.emit("shutdown-progress", "Stopping containers...").unwrap();
-    
+    app.emit("shutdown-progress", "Stopping containers...")
+        .unwrap();
+
     // Stop all containers
     info!("📦 Stopping all containers...");
     match container_manager.stop_containers().await {
         Ok(()) => {
             info!("✅ All containers stopped successfully");
-            app.emit("shutdown-progress", "Containers stopped successfully").unwrap();
+            app.emit("shutdown-progress", "Containers stopped successfully")
+                .unwrap();
         }
         Err(e) => {
             error!("❌ Failed to stop containers: {}", e);
-            app.emit("shutdown-progress", &format!("Error stopping containers: {}", e)).unwrap();
+            app.emit(
+                "shutdown-progress",
+                &format!("Error stopping containers: {}", e),
+            )
+            .unwrap();
             // Continue with shutdown even if container stop fails
         }
     }
-    
+
     // Remove crash recovery file on clean shutdown
     if let Err(e) = std::fs::remove_file(&crash_file.0) {
         warn!("Failed to remove crash recovery file: {}", e);
     } else {
         info!("✅ Removed crash recovery file");
     }
-    
+
     // Give a moment for the UI to update
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-    
+
     // Exit the application
     info!("👋 Exiting application...");
     app.exit(0);
-    
+
     Ok(())
 }
 
@@ -862,26 +923,42 @@ pub async fn shutdown_application(
 #[tauri::command]
 pub async fn get_ollama_recommendations() -> Result<serde_json::Value, String> {
     use crate::startup::MemoryConfig;
-    
+
     info!("Getting Ollama model recommendations based on system specs");
-    
+
     // Get system memory info
     let memory_config = MemoryConfig::calculate();
     let total_memory_gb = memory_config.total_system_memory_mb as f64 / 1024.0;
-    
+
     // Define model recommendations based on memory
     let mut recommended_models = vec![];
     let mut available_models = vec![];
-    
+
     // Define model requirements (model_name, min_memory_gb, description)
     let model_specs = vec![
-        ("llama3.2:1b", 2.0, "Smallest Llama 3.2 model, fast responses"),
-        ("llama3.2:3b", 4.0, "Default model, good balance of speed and quality"),
-        ("llama3.1:8b", 8.0, "Latest Llama 3.1 with improved performance"),
-        ("mixtral:8x7b", 32.0, "Mixture of experts model, very capable"),
+        (
+            "llama3.2:1b",
+            2.0,
+            "Smallest Llama 3.2 model, fast responses",
+        ),
+        (
+            "llama3.2:3b",
+            4.0,
+            "Default model, good balance of speed and quality",
+        ),
+        (
+            "llama3.1:8b",
+            8.0,
+            "Latest Llama 3.1 with improved performance",
+        ),
+        (
+            "mixtral:8x7b",
+            32.0,
+            "Mixture of experts model, very capable",
+        ),
         ("llama3.1:70b", 40.0, "Large model for high-end systems"),
     ];
-    
+
     // Try to get actual Ollama models if available
     let ollama_models = match get_ollama_models_list().await {
         Ok(models) => models,
@@ -890,7 +967,7 @@ pub async fn get_ollama_recommendations() -> Result<serde_json::Value, String> {
             vec![]
         }
     };
-    
+
     // Categorize models based on system memory
     for (model, min_memory, description) in &model_specs {
         let model_info = serde_json::json!({
@@ -900,20 +977,22 @@ pub async fn get_ollama_recommendations() -> Result<serde_json::Value, String> {
             "recommended": total_memory_gb >= *min_memory,
             "installed": ollama_models.contains(&model.to_string()),
         });
-        
+
         if total_memory_gb >= *min_memory {
             recommended_models.push(model_info.clone());
         }
         available_models.push(model_info);
     }
-    
+
     // Sort recommended models by memory requirement (ascending)
     recommended_models.sort_by(|a, b| {
         let a_mem = a["min_memory_gb"].as_f64().unwrap_or(0.0);
         let b_mem = b["min_memory_gb"].as_f64().unwrap_or(0.0);
-        a_mem.partial_cmp(&b_mem).unwrap_or(std::cmp::Ordering::Equal)
+        a_mem
+            .partial_cmp(&b_mem)
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
-    
+
     Ok(serde_json::json!({
         "success": true,
         "system_info": {
@@ -932,7 +1011,7 @@ pub async fn get_ollama_recommendations() -> Result<serde_json::Value, String> {
 // Helper function to get list of installed Ollama models
 async fn get_ollama_models_list() -> Result<Vec<String>, String> {
     use tokio::process::Command;
-    
+
     // Try to get models from containerized Ollama
     let output = match Command::new("podman")
         .args(["exec", "eliza-ollama", "ollama", "list"])
@@ -949,11 +1028,11 @@ async fn get_ollama_models_list() -> Result<Vec<String>, String> {
                 .map_err(|e| format!("Failed to list Ollama models: {}", e))?
         }
     };
-    
+
     if !output.status.success() {
         return Err("Failed to execute ollama list command".to_string());
     }
-    
+
     let output_str = String::from_utf8_lossy(&output.stdout);
     let models: Vec<String> = output_str
         .lines()
@@ -967,8 +1046,6 @@ async fn get_ollama_models_list() -> Result<Vec<String>, String> {
             }
         })
         .collect();
-    
+
     Ok(models)
 }
-
-

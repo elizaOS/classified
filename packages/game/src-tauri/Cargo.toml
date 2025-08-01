@@ -76,3 +76,4 @@ flate2 = "1.0"
 sha2 = "0.10"
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
 async-trait = "0.1"
+tauri-plugin-dialog = "2"

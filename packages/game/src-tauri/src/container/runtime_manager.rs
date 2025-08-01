@@ -63,7 +63,10 @@ impl RuntimeManager {
         // Try Docker only if Podman is not available
         if let Some(docker_path) = self.find_system_executable("docker").await {
             if self.verify_runtime(&docker_path).await.is_ok() {
-                info!("✅ Using system Docker (Podman not available): {:?}", docker_path);
+                info!(
+                    "✅ Using system Docker (Podman not available): {:?}",
+                    docker_path
+                );
                 self.system_runtime_path = Some(docker_path.clone());
                 return Ok(RuntimeType::System(docker_path));
             }

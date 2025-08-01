@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod shutdown_tests {
     use crate::backend::ContainerRuntimeType;
-    use crate::container::ContainerManager;
     use crate::backend::ContainerState;
+    use crate::container::ContainerManager;
     use std::sync::Arc;
     use tracing::info;
 
@@ -10,7 +10,7 @@ mod shutdown_tests {
     async fn test_shutdown_command_stops_containers() {
         // Initialize logging for tests
         let _ = tracing_subscriber::fmt::try_init();
-        
+
         info!("🧪 Testing shutdown command");
 
         // Create a test container manager
@@ -79,4 +79,4 @@ mod shutdown_tests {
 
         info!("✅ Shutdown test passed - all containers stopped");
     }
-} 
+}

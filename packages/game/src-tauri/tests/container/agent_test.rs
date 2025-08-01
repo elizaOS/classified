@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod agent_container_tests {
     use app_lib::{ContainerManager, ContainerRuntimeType};
-    
 
     #[tokio::test]
     async fn test_agent_container_config() {
@@ -20,14 +19,14 @@ mod agent_container_tests {
         match result {
             Ok(status) => {
                 assert_eq!(status.name, "eliza-agent");
-                
+
                 // Ports may not be populated immediately
                 if !status.ports.is_empty() {
                     assert_eq!(status.ports.len(), 1);
                     assert_eq!(status.ports[0].host_port, 7777);
                     assert_eq!(status.ports[0].container_port, 7777);
                 }
-                
+
                 println!("✅ ElizaOS Agent container configuration test passed");
 
                 // Clean up - stop the container
@@ -76,7 +75,7 @@ mod agent_container_tests {
 
                 // Verify basic container properties
                 assert_eq!(status.name, "eliza-agent");
-                
+
                 if !status.ports.is_empty() {
                     assert_eq!(status.ports[0].host_port, 7777);
                 }
@@ -176,7 +175,7 @@ mod agent_container_tests {
 
                 // Verify the container name and ports
                 assert_eq!(status.name, "eliza-agent");
-                
+
                 if !status.ports.is_empty() {
                     assert_eq!(status.ports[0].container_port, 7777);
                 }

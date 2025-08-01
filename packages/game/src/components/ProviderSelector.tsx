@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 
 interface Provider {
   name: string;
-  displayName: string;
+  display_name: string;
+  enabled: boolean;
+  requires_api_key: boolean;
   status: 'available' | 'not_configured' | 'error';
   message: string;
 }
@@ -12,6 +14,11 @@ interface ProviderStatus {
   active: string;
   selected: string | null;
   preferences: string[];
+}
+
+interface ProviderResponse {
+  success: boolean;
+  data: ProviderStatus;
 }
 
 interface ProviderSelectorProps {
@@ -42,11 +49,11 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({ onProviderCh
   // Fetch provider status
   const fetchProviders = async () => {
     if (!isTauri) return;
-    
+
     try {
       setLoading(true);
       const { invoke } = await import('@tauri-apps/api/core');
-      const response = await invoke<any>('get_available_providers');
+      const response = await invoke<ProviderResponse>('get_available_providers');
       if (response.success && response.data) {
         setProviderStatus(response.data);
       } else {
@@ -62,10 +69,10 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({ onProviderCh
   // Set selected provider
   const handleProviderChange = async (provider: string | null) => {
     if (!isTauri) return;
-    
+
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      const response = await invoke<any>('set_selected_provider', {
+      const response = await invoke<{ success: boolean }>('set_selected_provider', {
         provider,
       });
       if (response.success) {

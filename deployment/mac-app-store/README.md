@@ -5,10 +5,12 @@ This directory contains all Mac App Store-specific deployment files and scripts.
 ## Prerequisites
 
 1. **Apple Developer Account** ($99/year):
+
    - Enroll at https://developer.apple.com
    - Access to App Store Connect
 
 2. **Certificates & Provisioning**:
+
    - Mac App Distribution certificate
    - Mac Installer Distribution certificate
    - App Store provisioning profile
@@ -21,6 +23,7 @@ This directory contains all Mac App Store-specific deployment files and scripts.
 ## Setup Instructions
 
 1. **Configure Signing**:
+
    ```bash
    # Set your Apple Developer credentials
    export APPLE_ID="your@email.com"
@@ -29,11 +32,13 @@ This directory contains all Mac App Store-specific deployment files and scripts.
    ```
 
 2. **Build for App Store**:
+
    ```bash
    ./scripts/build_mas.sh
    ```
 
 3. **Validate Package**:
+
    ```bash
    ./scripts/validate_mas.sh
    ```
@@ -75,11 +80,11 @@ The Mac App Store requires specific entitlements for sandboxed apps:
 
 ## App Store Assets
 
-| Asset | Requirements |
-|-------|--------------|
-| App Icon | 1024x1024 PNG without alpha |
-| Screenshots | 2880x1800 (5K), 2560x1600, 1440x900 |
-| Preview Video | Optional, up to 30 seconds |
+| Asset         | Requirements                        |
+| ------------- | ----------------------------------- |
+| App Icon      | 1024x1024 PNG without alpha         |
+| Screenshots   | 2880x1800 (5K), 2560x1600, 1440x900 |
+| Preview Video | Optional, up to 30 seconds          |
 
 ## Submission Checklist
 
@@ -97,10 +102,12 @@ The Mac App Store requires specific entitlements for sandboxed apps:
 ## Common Issues
 
 1. **Sandbox Violations**:
+
    - Remove any file system access outside sandbox
    - Use security-scoped bookmarks for user files
 
 2. **Private API Usage**:
+
    - Tauri's updater must be disabled for App Store
    - No JIT compilation or dynamic code loading
 
@@ -111,12 +118,14 @@ The Mac App Store requires specific entitlements for sandboxed apps:
 ## Testing
 
 1. **Local Testing**:
+
    ```bash
    # Install and run the .app bundle
    open "build/ELIZA.app"
    ```
 
 2. **TestFlight**:
+
    - Upload to App Store Connect
    - Distribute via TestFlight for beta testing
 

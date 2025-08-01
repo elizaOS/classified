@@ -1,8 +1,8 @@
+use crate::container::user_error::{ErrorCode, UserError};
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use crate::container::user_error::{UserError, ErrorCode};
 
 /// Manages exclusive locks for operations to prevent double-clicks and concurrent execution
 pub struct OperationLock {
@@ -24,9 +24,13 @@ impl OperationLock {
             active: Arc::new(DashMap::new()),
         }
     }
-    
+
     /// Try to acquire a lock for an operation
-    pub fn try_lock(&self, operation: &str, description: &str) -> Result<OperationGuard, Box<UserError>> {
+    pub fn try_lock(
+        &self,
+        operation: &str,
+        description: &str,
+    ) -> Result<OperationGuard, Box<UserError>> {
         let id = Uuid::new_v4().to_string();
         let info = OperationInfo {
             id: id.clone(),
@@ -34,24 +38,22 @@ impl OperationLock {
             description: description.to_string(),
             started_at: chrono::Utc::now(),
         };
-        
+
         // Try to insert - if key already exists, operation is in progress
         match self.active.entry(operation.to_string()) {
-            dashmap::mapref::entry::Entry::Occupied(_) => {
-                Err(Box::new(UserError {
-                    code: ErrorCode::OperationInProgress,
-                    title: "Operation Already Running".to_string(),
-                    message: format!("{} is already in progress", description),
-                    technical_details: None,
-                    suggestions: vec![
-                        "Please wait for the current operation to complete".to_string(),
-                        "This prevents system conflicts and ensures stability".to_string(),
-                    ],
-                    actions: vec![],
-                    can_retry: false,
-                    estimated_fix_time: Some("10-30 seconds".to_string()),
-                }))
-            }
+            dashmap::mapref::entry::Entry::Occupied(_) => Err(Box::new(UserError {
+                code: ErrorCode::OperationInProgress,
+                title: "Operation Already Running".to_string(),
+                message: format!("{} is already in progress", description),
+                technical_details: None,
+                suggestions: vec![
+                    "Please wait for the current operation to complete".to_string(),
+                    "This prevents system conflicts and ensures stability".to_string(),
+                ],
+                actions: vec![],
+                can_retry: false,
+                estimated_fix_time: Some("10-30 seconds".to_string()),
+            })),
             dashmap::mapref::entry::Entry::Vacant(entry) => {
                 entry.insert(info);
                 Ok(OperationGuard {
@@ -63,19 +65,22 @@ impl OperationLock {
             }
         }
     }
-    
+
     /// Check if an operation is currently locked
     #[allow(dead_code)]
     pub fn is_locked(&self, operation: &str) -> bool {
         self.active.contains_key(operation)
     }
-    
+
     /// Get all active operations
     #[allow(dead_code)]
     pub fn get_active_operations(&self) -> Vec<OperationInfo> {
-        self.active.iter().map(|entry| entry.value().clone()).collect()
+        self.active
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect()
     }
-    
+
     /// Force unlock an operation (use with caution)
     #[allow(dead_code)]
     pub fn force_unlock(&self, operation: &str) {
@@ -116,36 +121,36 @@ macro_rules! with_operation_lock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_operation_lock() {
         let lock = OperationLock::new();
-        
+
         // First lock should succeed
         let guard1 = lock.try_lock("test_op", "Test operation");
         assert!(guard1.is_ok());
-        
+
         // Second lock should fail
         let guard2 = lock.try_lock("test_op", "Test operation");
         assert!(guard2.is_err());
-        
+
         // Drop first guard
         drop(guard1);
-        
+
         // Now lock should succeed again
         let guard3 = lock.try_lock("test_op", "Test operation");
         assert!(guard3.is_ok());
     }
-    
+
     #[test]
     fn test_different_operations() {
         let lock = OperationLock::new();
-        
+
         // Lock different operations should both succeed
         let guard1 = lock.try_lock("op1", "Operation 1");
         let guard2 = lock.try_lock("op2", "Operation 2");
-        
+
         assert!(guard1.is_ok());
         assert!(guard2.is_ok());
     }
-} 
+}

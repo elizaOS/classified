@@ -10,11 +10,13 @@ import {
   identifyPersonAction,
   trackEntityAction,
 } from './action';
+import { transcribeAudioAction, toggleStreamingAudioAction } from './action-audio';
 import { testSuites } from './tests/e2e';
 
 export const visionPlugin: Plugin = {
   name: 'vision',
-  description: 'Provides visual perception through camera integration and scene analysis',
+  description:
+    'Provides visual perception through camera integration, scene analysis, and audio capture',
   services: [VisionService],
   providers: [visionProvider],
   actions: [
@@ -30,6 +32,9 @@ export const visionPlugin: Plugin = {
     identifyPersonAction,
     // Entity tracking disabled by default (privacy-sensitive)
     trackEntityAction,
+    // Audio transcription actions
+    transcribeAudioAction,
+    toggleStreamingAudioAction,
   ],
   tests: testSuites,
   init: async (_config, _runtime) => {
@@ -40,3 +45,6 @@ export const visionPlugin: Plugin = {
 };
 
 export default visionPlugin;
+
+// Export service for external use
+export { VisionService } from './service';

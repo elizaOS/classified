@@ -52,7 +52,7 @@ export const ReminderDeliveryE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         logger.info('🧪 Testing daily task reminder scheduling...');
 
-        const dataService = await import('../../services/todoDataService');
+        const dataService = await import('../../services/todoService');
         const todoService = dataService.createTodoDataService(runtime);
 
         // Create test data
@@ -115,7 +115,7 @@ export const ReminderDeliveryE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         logger.info('🧪 Testing reminder spam prevention...');
 
-        const dataService = await import('../../services/todoDataService');
+        const dataService = await import('../../services/todoService');
         const todoService = dataService.createTodoDataService(runtime);
 
         // Create an overdue task
@@ -171,7 +171,7 @@ export const ReminderDeliveryE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         logger.info('🧪 Testing reminder priority levels...');
 
-        const dataService = await import('../../services/todoDataService');
+        const dataService = await import('../../services/todoService');
         const todoService = dataService.createTodoDataService(runtime);
 
         const testUserId = 'priority-test-user' as UUID;

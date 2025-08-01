@@ -9,12 +9,14 @@ This document provides comprehensive information about deploying ElizaOS to vari
 ## Current Status
 
 ### ✅ Implemented
+
 - **GitHub Releases**: Automated builds for Windows, macOS, and Linux
 - **macOS Notarization**: Apple notarization for direct distribution
 - **Container Distribution**: Docker images via GitHub Container Registry
 - **Direct Downloads**: Installers available from GitHub Releases
 
 ### ⚠️ Not Yet Implemented
+
 - Steam
 - Mac App Store
 - Microsoft Store
@@ -25,25 +27,28 @@ This document provides comprehensive information about deploying ElizaOS to vari
 ### 1. Steam (Steamworks)
 
 **Prerequisites:**
+
 - Steam Developer Account ($100 one-time fee)
 - App ID from Steamworks
 - Steamworks SDK integration
 - Steam Cloud saves support (optional)
 
 **Technical Requirements:**
+
 ```yaml
 Steam Build Requirements:
   - Binary Format: Executable with Steam API integration
   - Architecture: x86_64 (32-bit optional)
   - Steam Features:
-    - Achievements API
-    - Cloud Saves
-    - Workshop Support (for user content)
-    - Rich Presence
-    - Steam Input API
+      - Achievements API
+      - Cloud Saves
+      - Workshop Support (for user content)
+      - Rich Presence
+      - Steam Input API
 ```
 
 **Implementation Steps:**
+
 1. Create `steam_appid.txt` with your App ID
 2. Integrate Steamworks SDK in Rust backend
 3. Create depot build scripts
@@ -51,6 +56,7 @@ Steam Build Requirements:
 5. Configure store page assets
 
 **Required Files:**
+
 ```
 steam/
 ├── steam_appid.txt
@@ -70,24 +76,27 @@ steam/
 ### 2. Mac App Store
 
 **Prerequisites:**
+
 - Apple Developer Account ($99/year)
 - Valid Developer ID certificates
 - App Store Connect access
 - macOS-specific entitlements
 
 **Technical Requirements:**
+
 ```yaml
 Mac App Store Requirements:
   - Code Signing: Developer ID Application certificate
   - Notarization: Required for macOS 10.15+
   - Sandboxing: Full App Sandbox compliance
   - Entitlements:
-    - com.apple.security.app-sandbox: true
-    - com.apple.security.network.client: true
-    - com.apple.security.files.user-selected.read-write: true
+      - com.apple.security.app-sandbox: true
+      - com.apple.security.network.client: true
+      - com.apple.security.files.user-selected.read-write: true
 ```
 
 **Implementation Steps:**
+
 1. Configure Info.plist with proper metadata
 2. Enable App Sandbox in entitlements
 3. Remove prohibited APIs (JIT compilation, dynamic code loading)
@@ -95,6 +104,7 @@ Mac App Store Requirements:
 5. Submit for review
 
 **Required Modifications to `tauri.conf.json`:**
+
 ```json
 {
   "macOS": {
@@ -110,12 +120,14 @@ Mac App Store Requirements:
 ### 3. Microsoft Store
 
 **Prerequisites:**
+
 - Microsoft Partner Center account
 - Windows Developer account ($19 individual/$99 company)
 - MSIX packaging
 - Age rating certificate
 
 **Technical Requirements:**
+
 ```yaml
 Microsoft Store Requirements:
   - Package Format: MSIX or APPX
@@ -126,6 +138,7 @@ Microsoft Store Requirements:
 ```
 
 **Implementation Steps:**
+
 1. Convert Tauri output to MSIX package
 2. Create AppxManifest.xml
 3. Generate required assets (logos, tiles)
@@ -133,9 +146,10 @@ Microsoft Store Requirements:
 5. Submit via Partner Center
 
 **MSIX Configuration:**
+
 ```xml
 <Package>
-  <Identity Name="ElizaOS.Game" 
+  <Identity Name="ElizaOS.Game"
             Publisher="CN=ElizaOS Team"
             Version="2.0.0.0" />
   <Properties>
@@ -154,11 +168,13 @@ Microsoft Store Requirements:
 #### Snap Store (Snapcraft)
 
 **Prerequisites:**
+
 - Ubuntu One account
 - Snapcraft CLI tools
 - snapcraft.yaml configuration
 
 **Implementation:**
+
 ```yaml
 # snapcraft.yaml
 name: elizaos
@@ -193,11 +209,13 @@ parts:
 #### Flathub (Flatpak)
 
 **Prerequisites:**
+
 - Flathub account
 - Flatpak manifest
 - Runtime dependencies
 
 **Implementation:**
+
 ```yaml
 # com.elizaos.Game.yml
 app-id: com.elizaos.Game
@@ -254,13 +272,13 @@ graph TD
     C --> D[Windows Build]
     C --> E[macOS Build]
     C --> F[Linux Build]
-    
+
     D --> G[Microsoft Store]
     D --> H[Steam]
-    
+
     E --> I[Mac App Store]
     E --> J[Direct Download]
-    
+
     F --> K[Snap Store]
     F --> L[Flathub]
     F --> M[AppImage]
@@ -270,20 +288,20 @@ graph TD
 
 ### Common Assets Needed
 
-| Asset Type | Dimensions | Format | Platforms |
-|------------|------------|--------|-----------|
-| App Icon | 512x512 | PNG | All |
-| Hero Image | 1920x1080 | JPG/PNG | Steam, MS Store |
-| Capsule Image | 616x353 | PNG | Steam |
-| Store Icon | 300x300 | PNG | Mac App Store |
-| Screenshots | 1920x1080 | PNG | All |
-| Trailer Video | 1920x1080 | MP4 | Steam, MS Store |
+| Asset Type    | Dimensions | Format  | Platforms       |
+| ------------- | ---------- | ------- | --------------- |
+| App Icon      | 512x512    | PNG     | All             |
+| Hero Image    | 1920x1080  | JPG/PNG | Steam, MS Store |
+| Capsule Image | 616x353    | PNG     | Steam           |
+| Store Icon    | 300x300    | PNG     | Mac App Store   |
+| Screenshots   | 1920x1080  | PNG     | All             |
+| Trailer Video | 1920x1080  | MP4     | Steam, MS Store |
 
 ### Metadata Requirements
 
 ```yaml
 Store Metadata:
-  - App Name: "ELIZA"
+  - App Name: 'ELIZA'
   - Short Description: (30 chars)
   - Long Description: (4000 chars)
   - Keywords/Tags: AI, Simulation, Sandbox, Agent
@@ -298,11 +316,11 @@ Store Metadata:
 
 ### Code Signing Certificates
 
-| Platform | Certificate Type | Cost | Validity |
-|----------|-----------------|------|----------|
-| Windows | EV Code Signing | $300-500/year | 1-3 years |
-| macOS | Developer ID | $99/year (included) | 1 year |
-| Linux | GPG Key | Free | Indefinite |
+| Platform | Certificate Type | Cost                | Validity   |
+| -------- | ---------------- | ------------------- | ---------- |
+| Windows  | EV Code Signing  | $300-500/year       | 1-3 years  |
+| macOS    | Developer ID     | $99/year (included) | 1 year     |
+| Linux    | GPG Key          | Free                | Indefinite |
 
 ### Privacy & Data Handling
 
@@ -315,13 +333,13 @@ Store Metadata:
 
 ### Platform Fees
 
-| Store | Revenue Share | Payment Terms |
-|-------|---------------|---------------|
-| Steam | 70/30 (Valve/Dev) | Monthly |
-| Mac App Store | 70/30 or 85/15 | Monthly |
-| Microsoft Store | 70/30 or 85/15 | Monthly |
-| Snap Store | 0% (Free) | N/A |
-| Flathub | 0% (Donations) | Direct |
+| Store           | Revenue Share     | Payment Terms |
+| --------------- | ----------------- | ------------- |
+| Steam           | 70/30 (Valve/Dev) | Monthly       |
+| Mac App Store   | 70/30 or 85/15    | Monthly       |
+| Microsoft Store | 70/30 or 85/15    | Monthly       |
+| Snap Store      | 0% (Free)         | N/A           |
+| Flathub         | 0% (Donations)    | Direct        |
 
 ### Analytics Integration
 
@@ -331,31 +349,35 @@ const analytics = {
   steam: 'Steamworks Stats API',
   apple: 'App Store Connect Analytics',
   microsoft: 'Partner Center Insights',
-  linux: 'Custom implementation'
+  linux: 'Custom implementation',
 };
 ```
 
 ## Implementation Timeline
 
 ### Phase 1: Foundation (2-4 weeks)
+
 - [ ] Set up developer accounts
 - [ ] Obtain code signing certificates
 - [ ] Create store assets
 - [ ] Write store descriptions
 
 ### Phase 2: Platform Integration (4-6 weeks)
+
 - [ ] Steam SDK integration
 - [ ] MSIX packaging setup
 - [ ] Mac App Store compliance
 - [ ] Linux package configurations
 
 ### Phase 3: Automation (2-3 weeks)
+
 - [ ] GitHub Actions workflows
 - [ ] Build scripts per platform
 - [ ] Release automation
 - [ ] Version synchronization
 
 ### Phase 4: Submission & Review (2-4 weeks)
+
 - [ ] Platform-specific testing
 - [ ] Certification compliance
 - [ ] Store submissions
@@ -421,21 +443,21 @@ Linux: Semantic Versioning (2.1.0)
 
 ### Initial Setup Costs
 
-| Item | Cost | Frequency |
-|------|------|-----------|
-| Steam Direct | $100 | One-time |
-| Apple Developer | $99 | Annual |
-| Microsoft Developer | $19-99 | One-time |
-| Code Signing (EV) | $300-500 | Annual |
-| **Total First Year** | **$518-798** | |
+| Item                 | Cost         | Frequency |
+| -------------------- | ------------ | --------- |
+| Steam Direct         | $100         | One-time  |
+| Apple Developer      | $99          | Annual    |
+| Microsoft Developer  | $19-99       | One-time  |
+| Code Signing (EV)    | $300-500     | Annual    |
+| **Total First Year** | **$518-798** |           |
 
 ### Ongoing Costs
 
-| Item | Cost | Frequency |
-|------|------|-----------|
-| Apple Developer | $99 | Annual |
-| Code Signing | $300-500 | Annual |
-| **Total Annual** | **$399-599** | |
+| Item             | Cost         | Frequency |
+| ---------------- | ------------ | --------- |
+| Apple Developer  | $99          | Annual    |
+| Code Signing     | $300-500     | Annual    |
+| **Total Annual** | **$399-599** |           |
 
 ## Next Steps
 

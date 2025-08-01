@@ -10,7 +10,7 @@ import {
   parseKeyValueXml,
   type State,
 } from '@elizaos/core';
-import type { TodoDataService, TodoData } from '../services/todoDataService';
+import type { TodoService, TodoData } from '../services/todoService';
 import type { TodoMetadata } from '../types';
 
 // Interface for task selection properties
@@ -257,7 +257,7 @@ async function extractTaskUpdate(
  * Applies updates to a task
  */
 async function applyTaskUpdate(
-  dataService: TodoDataService,
+  dataService: TodoService,
   task: TodoData,
   update: TaskUpdate
 ): Promise<TodoData> {
@@ -321,7 +321,7 @@ export const updateTodoAction: Action = {
       if (!message.roomId) {
         return false;
       }
-      const dataService = runtime.getService('todo') as TodoDataService;
+      const dataService = runtime.getService('todo') as TodoService;
       const todos = await dataService.getTodos({
         roomId: message.roomId,
         isCompleted: false,
@@ -361,7 +361,7 @@ export const updateTodoAction: Action = {
         }
         return;
       }
-      const dataService = runtime.getService('todo') as TodoDataService;
+      const dataService = runtime.getService('todo') as TodoService;
 
       // Get all active todos for this room
       const availableTasks = await dataService.getTodos({

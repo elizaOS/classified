@@ -68,8 +68,8 @@ export class SecurityUtils {
   /**
    * Validate API response structure
    */
-  static validateApiResponse(response: any): boolean {
-    return response && typeof response === 'object' && !Array.isArray(response);
+  static validateApiResponse(response: unknown): boolean {
+    return Boolean(response && typeof response === 'object' && !Array.isArray(response));
   }
 
   /**
@@ -243,8 +243,8 @@ export class InputValidator {
    */
   static validateConfigValue(
     key: string,
-    value: any
-  ): { valid: boolean; error?: string; sanitizedValue?: any } {
+    value: unknown
+  ): { valid: boolean; error?: string; sanitizedValue?: unknown } {
     if (!key || typeof key !== 'string') {
       return { valid: false, error: 'Configuration key must be a string' };
     }
@@ -340,13 +340,13 @@ export class SecurityLogger {
     timestamp: number;
     level: 'info' | 'warn' | 'error';
     message: string;
-    details?: any;
+    details?: unknown;
   }> = [];
 
   /**
    * Log security-related information
    */
-  static info(message: string, details?: any) {
+  static info(message: string, details?: unknown) {
     this.addLog('info', message, details);
     console.info(`[SECURITY] ${message}`, details);
   }
@@ -354,7 +354,7 @@ export class SecurityLogger {
   /**
    * Log security warnings
    */
-  static warn(message: string, details?: any) {
+  static warn(message: string, details?: unknown) {
     this.addLog('warn', message, details);
     console.warn(`[SECURITY] ${message}`, details);
   }
@@ -362,7 +362,7 @@ export class SecurityLogger {
   /**
    * Log security errors
    */
-  static error(message: string, details?: any) {
+  static error(message: string, details?: unknown) {
     this.addLog('error', message, details);
     console.error(`[SECURITY] ${message}`, details);
   }
@@ -374,7 +374,7 @@ export class SecurityLogger {
     timestamp: number;
     level: string;
     message: string;
-    details?: any;
+    details?: unknown;
   }> {
     return this.logs.slice(-limit);
   }
@@ -416,7 +416,7 @@ export class SecurityLogger {
     }
   }
 
-  private static addLog(level: 'info' | 'warn' | 'error', message: string, details?: any) {
+  private static addLog(level: 'info' | 'warn' | 'error', message: string, details?: unknown) {
     this.logs.push({
       timestamp: Date.now(),
       level,

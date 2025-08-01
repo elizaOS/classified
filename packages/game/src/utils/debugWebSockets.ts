@@ -1,3 +1,5 @@
+import { TauriWindow } from '../types/shared';
+
 // WebSocket debugging utility
 export function debugWebSockets() {
   console.log('🔍 Starting WebSocket debugging...');
@@ -6,14 +8,17 @@ export function debugWebSockets() {
   const OriginalWebSocket = window.WebSocket;
 
   // Create a wrapper
-  (window as any).WebSocket = function (url: string, protocols?: string | string[]) {
+  (window as TauriWindow & Record<string, unknown>).WebSocket = function (
+    url: string,
+    protocols?: string | string[]
+  ) {
     console.log('🔌 New WebSocket connection:', url);
 
     const ws = new OriginalWebSocket(url, protocols);
 
     // Intercept send
     const originalSend = ws.send.bind(ws);
-    ws.send = function (data: any) {
+    ws.send = function (data: string | ArrayBufferLike | Blob | ArrayBufferView) {
       console.log('📤 WebSocket send:', data);
 
       // Check if this is the problematic message
@@ -29,8 +34,10 @@ export function debugWebSockets() {
     // Log events
     ws.addEventListener('open', () => console.log('✅ WebSocket opened:', url));
     ws.addEventListener('close', () => console.log('❌ WebSocket closed:', url));
-    ws.addEventListener('message', (e) => console.log('📥 WebSocket received:', e.data));
-    ws.addEventListener('error', (e) => console.error('⚠️ WebSocket error:', e));
+    ws.addEventListener('message', (e: MessageEvent) =>
+      console.log('📥 WebSocket received:', e.data)
+    );
+    ws.addEventListener('error', (e: Event) => console.error('⚠️ WebSocket error:', e));
 
     return ws;
   };

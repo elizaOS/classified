@@ -54,17 +54,8 @@ impl WebSocketHub {
         }
     }
 
-    pub fn add_client(
-        &self,
-        client_id: Uuid,
-        sender: mpsc::UnboundedSender<Message>,
-    ) {
-        self.clients.insert(
-            client_id,
-            Client {
-                sender,
-            },
-        );
+    pub fn add_client(&self, client_id: Uuid, sender: mpsc::UnboundedSender<Message>) {
+        self.clients.insert(client_id, Client { sender });
         info!("Client {} connected", client_id);
     }
 
@@ -123,11 +114,11 @@ pub async fn handle_client(socket: WebSocket, hub: Arc<WebSocketHub>) {
         "message": "Connected to ElizaOS WebSocket server"
     });
 
-    if let Err(e) = ws_sender
-        .send(Message::Text(welcome_msg.to_string()))
-        .await
-    {
-        error!("Failed to send welcome message to client {}: {}", client_id, e);
+    if let Err(e) = ws_sender.send(Message::Text(welcome_msg.to_string())).await {
+        error!(
+            "Failed to send welcome message to client {}: {}",
+            client_id, e
+        );
         return;
     }
 
@@ -336,12 +327,13 @@ impl WebSocketClient {
         // Add retry logic
         let mut retry_count = 0;
         let max_retries = 3;
-        
+
         loop {
             match connect_async(ws_url.as_str()).await {
                 Ok((ws_stream, _)) => {
                     info!("✅ WebSocket connection established");
-                    *self.connection_state.write().await = ConnectionState::Connected(ws_url.clone());
+                    *self.connection_state.write().await =
+                        ConnectionState::Connected(ws_url.clone());
                     *self.reconnect_attempts.lock().await = 0;
 
                     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
@@ -363,9 +355,15 @@ impl WebSocketClient {
                     });
 
                     info!("Sending initial connection message...");
-                    if let Err(e) = ws_sender.send(TungsteniteMessage::Text(connect_msg.to_string())).await {
+                    if let Err(e) = ws_sender
+                        .send(TungsteniteMessage::Text(connect_msg.to_string()))
+                        .await
+                    {
                         error!("Failed to send connect message: {}", e);
-                        *self.connection_state.write().await = ConnectionState::Failed(format!("Failed to send initial message: {}", e));
+                        *self.connection_state.write().await = ConnectionState::Failed(format!(
+                            "Failed to send initial message: {}",
+                            e
+                        ));
                         return Err(Box::new(e));
                     }
 
@@ -388,14 +386,16 @@ impl WebSocketClient {
                     let app_handle = self.app_handle.clone();
                     let connection_state = self.connection_state.clone();
                     let channel_id = self.channel_id.clone();
-                    
+
                     let receiver_task = tokio::spawn(async move {
                         while let Some(msg) = ws_receiver.next().await {
                             match msg {
                                 Ok(TungsteniteMessage::Text(text)) => {
                                     debug!("📨 Received WebSocket message: {}", text);
 
-                                    if let Ok(parsed_msg) = serde_json::from_str::<serde_json::Value>(&text) {
+                                    if let Ok(parsed_msg) =
+                                        serde_json::from_str::<serde_json::Value>(&text)
+                                    {
                                         let msg_type = parsed_msg
                                             .get("type")
                                             .and_then(|t| t.as_str())
@@ -404,32 +404,46 @@ impl WebSocketClient {
                                         match msg_type {
                                             "connection_ack" => {
                                                 info!("✅ Connection acknowledged by agent server");
-                                                if let Err(e) = app_handle.emit("websocket-connected", &parsed_msg) {
-                                                    error!("Failed to emit connection status: {}", e);
+                                                if let Err(e) = app_handle
+                                                    .emit("websocket-connected", &parsed_msg)
+                                                {
+                                                    error!(
+                                                        "Failed to emit connection status: {}",
+                                                        e
+                                                    );
                                                 }
                                             }
                                             "message_ack" => {
                                                 info!("✅ Message acknowledged by server");
-                                                if let Err(e) = app_handle.emit("message-acknowledged", &parsed_msg) {
-                                                    error!("Failed to emit message acknowledgment: {}", e);
+                                                if let Err(e) = app_handle
+                                                    .emit("message-acknowledged", &parsed_msg)
+                                                {
+                                                    error!(
+                                                        "Failed to emit message acknowledgment: {}",
+                                                        e
+                                                    );
                                                 }
                                             }
                                             "agent_message" | "agent_response" => {
                                                 // Extract the actual agent response
                                                 let agent_msg = AgentMessage {
-                                                    id: parsed_msg.get("id")
+                                                    id: parsed_msg
+                                                        .get("id")
                                                         .and_then(|i| i.as_str())
                                                         .unwrap_or("unknown")
                                                         .to_string(),
-                                                    content: parsed_msg.get("content")
+                                                    content: parsed_msg
+                                                        .get("content")
                                                         .and_then(|c| c.as_str())
                                                         .unwrap_or("")
                                                         .to_string(),
-                                                    author: parsed_msg.get("author")
+                                                    author: parsed_msg
+                                                        .get("author")
                                                         .and_then(|a| a.as_str())
                                                         .unwrap_or("ELIZA")
                                                         .to_string(),
-                                                    timestamp: parsed_msg.get("timestamp")
+                                                    timestamp: parsed_msg
+                                                        .get("timestamp")
                                                         .and_then(|t| t.as_u64())
                                                         .unwrap_or(0),
                                                     channel_id: Some(channel_id.clone()),
@@ -439,29 +453,41 @@ impl WebSocketClient {
                                                 info!("🤖 Agent response: {}", agent_msg.content);
 
                                                 // Emit to frontend
-                                                if let Err(e) = app_handle.emit("agent-message", &agent_msg) {
+                                                if let Err(e) =
+                                                    app_handle.emit("agent-message", &agent_msg)
+                                                {
                                                     error!("Failed to emit agent message: {}", e);
                                                 }
                                             }
                                             "agent_screen_frame" => {
                                                 info!("🖥️ Received agent screen frame");
-                                                
+
                                                 // Emit to frontend for display
-                                                if let Err(e) = app_handle.emit("agent-screen-frame", &parsed_msg) {
-                                                    error!("Failed to emit agent screen frame: {}", e);
+                                                if let Err(e) = app_handle
+                                                    .emit("agent-screen-frame", &parsed_msg)
+                                                {
+                                                    error!(
+                                                        "Failed to emit agent screen frame: {}",
+                                                        e
+                                                    );
                                                 }
                                             }
                                             "error" => {
-                                                let error_msg = parsed_msg.get("message")
+                                                let error_msg = parsed_msg
+                                                    .get("message")
                                                     .and_then(|m| m.as_str())
                                                     .unwrap_or("Unknown error");
                                                 error!("❌ Server error: {}", error_msg);
-                                                
+
                                                 // Don't immediately disconnect on all errors
                                                 // Some errors might be recoverable
-                                                if error_msg.contains("connection closed") || 
-                                                   error_msg.contains("WebSocket") {
-                                                    *connection_state.write().await = ConnectionState::Failed(error_msg.to_string());
+                                                if error_msg.contains("connection closed")
+                                                    || error_msg.contains("WebSocket")
+                                                {
+                                                    *connection_state.write().await =
+                                                        ConnectionState::Failed(
+                                                            error_msg.to_string(),
+                                                        );
                                                     break;
                                                 }
                                             }
@@ -478,7 +504,8 @@ impl WebSocketClient {
                                 }
                                 Err(e) => {
                                     error!("❌ WebSocket error: {}", e);
-                                    *connection_state.write().await = ConnectionState::Failed(e.to_string());
+                                    *connection_state.write().await =
+                                        ConnectionState::Failed(e.to_string());
                                     break;
                                 }
                                 _ => {}
@@ -495,12 +522,19 @@ impl WebSocketClient {
                 Err(e) => {
                     retry_count += 1;
                     if retry_count >= max_retries {
-                        error!("❌ Failed to connect WebSocket after {} retries: {}", max_retries, e);
-                        *self.connection_state.write().await = ConnectionState::Failed(e.to_string());
+                        error!(
+                            "❌ Failed to connect WebSocket after {} retries: {}",
+                            max_retries, e
+                        );
+                        *self.connection_state.write().await =
+                            ConnectionState::Failed(e.to_string());
                         return Err(Box::new(e));
                     }
-                    
-                    warn!("⚠️ WebSocket connection attempt {} failed: {}. Retrying...", retry_count, e);
+
+                    warn!(
+                        "⚠️ WebSocket connection attempt {} failed: {}. Retrying...",
+                        retry_count, e
+                    );
                     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                 }
             }
@@ -520,7 +554,10 @@ impl WebSocketClient {
         *attempts += 1;
         *self.connection_state.write().await = ConnectionState::Reconnecting;
 
-        info!("🔄 Reconnection attempt {} of {}", *attempts, self.max_reconnect_attempts);
+        info!(
+            "🔄 Reconnection attempt {} of {}",
+            *attempts, self.max_reconnect_attempts
+        );
 
         // Exponential backoff
         let delay = Duration::from_secs(2_u64.pow(*attempts));
@@ -584,10 +621,10 @@ impl WebSocketClient {
                 "timestamp": chrono::Utc::now().timestamp_millis(),
                 "size": data.len()
             });
-            
+
             let metadata_bytes = metadata.to_string().as_bytes().to_vec();
             let metadata_len = metadata_bytes.len() as u32;
-            
+
             // Build complete binary message
             let mut binary_message = Vec::new();
             binary_message.push(0x01); // Binary media stream type

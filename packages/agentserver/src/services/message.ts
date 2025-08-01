@@ -1,12 +1,14 @@
 import {
   ChannelType,
   EventType,
+  MemoryType,
   Service,
   createUniqueUuid,
   logger,
   validateUuid,
   type Content,
   type IAgentRuntime,
+  type Media,
   type Memory,
   type Plugin,
   type UUID,
@@ -22,12 +24,12 @@ export interface MessageServiceMessage {
   authorId: UUID; // UUID of a central user identity
   authorDisplayName?: string; // Display name from central user identity
   content: string;
-  rawMessage?: any;
+  rawMessage?: unknown;
   sourceId?: string; // original platform message ID
   sourceType?: string;
   inReplyToMessageId?: UUID;
   createdAt: number;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export class MessageBusService extends Service {
@@ -37,10 +39,10 @@ export class MessageBusService extends Service {
   capabilityDescription = 'Manages connection and message synchronization with the message server.';
   private static instances: Map<string, MessageBusService> = new Map();
 
-  private boundHandleIncomingMessage: (data: any) => void;
-  private boundHandleServerAgentUpdate: (data: any) => void;
-  private boundHandleMessageDeleted: (data: any) => void;
-  private boundHandleChannelCleared: (data: any) => void;
+  private boundHandleIncomingMessage: (data: unknown) => void;
+  private boundHandleServerAgentUpdate: (data: unknown) => void;
+  private boundHandleMessageDeleted: (data: unknown) => void;
+  private boundHandleChannelCleared: (data: unknown) => void;
   private subscribedServers: Set<UUID> = new Set();
   private processedMessages: Set<string> = new Set();
 
@@ -139,16 +141,17 @@ export class MessageBusService extends Service {
             headers: this.getAuthHeaders(),
           });
           if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.data?.channels && Array.isArray(data.data.channels)) {
+            const data = (await response.json()) as Record<string, unknown>;
+            const responseData = data.data as Record<string, unknown>;
+            if (data.success && responseData?.channels && Array.isArray(responseData.channels)) {
               // Add channel IDs to the set
-              data.data.channels.forEach((channel: any) => {
+              responseData.channels.forEach((channel: Record<string, unknown>) => {
                 if (channel.id && validateUuid(channel.id)) {
                   this.validChannelIds.add(channel.id as UUID);
                 }
               });
               logger.info(
-                `[${this.runtime.character.name}] MessageBusService: Fetched ${data.data.channels.length} channels from server ${serverId}`
+                `[${this.runtime.character.name}] MessageBusService: Fetched ${responseData.channels.length} channels from server ${serverId}`
               );
             }
           } else {
@@ -223,9 +226,9 @@ export class MessageBusService extends Service {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as Record<string, unknown>;
         if (data.success && data.data) {
-          return data.data;
+          return data.data as string[];
         }
       }
       return [];
@@ -251,9 +254,10 @@ export class MessageBusService extends Service {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data?.servers) {
-          this.subscribedServers = new Set(data.data.servers);
+        const data = (await response.json()) as Record<string, unknown>;
+        const responseData = data.data as Record<string, unknown>;
+        if (data.success && responseData?.servers) {
+          this.subscribedServers = new Set(responseData.servers as UUID[]);
           // Always include the default server
           const DEFAULT_SERVER_ID = '00000000-0000-0000-0000-000000000000' as UUID;
           this.subscribedServers.add(DEFAULT_SERVER_ID);
@@ -283,22 +287,23 @@ export class MessageBusService extends Service {
     }
   }
 
-  private async handleServerAgentUpdate(data: any) {
-    if (data.agentId !== this.runtime.agentId) {
+  private async handleServerAgentUpdate(data: unknown) {
+    const typedData = data as Record<string, unknown>;
+    if (typedData.agentId !== this.runtime.agentId) {
       return; // Not for this agent
     }
 
-    if (data.type === 'agent_added_to_server') {
-      this.subscribedServers.add(data.serverId);
+    if (typedData.type === 'agent_added_to_server') {
+      this.subscribedServers.add(typedData.serverId as UUID);
       logger.info(
-        `[${this.runtime.character.name}] MessageBusService: Agent added to server ${data.serverId}`
+        `[${this.runtime.character.name}] MessageBusService: Agent added to server ${typedData.serverId}`
       );
       // Refresh channel IDs to include channels from the new server
       await this.fetchValidChannelIds();
-    } else if (data.type === 'agent_removed_from_server') {
-      this.subscribedServers.delete(data.serverId);
+    } else if (typedData.type === 'agent_removed_from_server') {
+      this.subscribedServers.delete(typedData.serverId as UUID);
       logger.info(
-        `[${this.runtime.character.name}] MessageBusService: Agent removed from server ${data.serverId}`
+        `[${this.runtime.character.name}] MessageBusService: Agent removed from server ${typedData.serverId}`
       );
       // Refresh channel IDs to remove channels from the removed server
       await this.fetchValidChannelIds();
@@ -343,15 +348,17 @@ export class MessageBusService extends Service {
     try {
       await this.runtime.ensureWorldExists({
         id: agentWorldId,
-        name: message.metadata?.serverName || `Server ${serverId.substring(0, 8)}`,
+        name:
+          ((message.metadata as Record<string, unknown>)?.serverName as string) ||
+          `Server ${serverId.substring(0, 8)}`,
         agentId: this.runtime.agentId,
         serverId,
         metadata: {
           ...(message.metadata?.serverMetadata || {}),
         },
       });
-    } catch (error: any) {
-      if (error.message && error.message.includes('worlds_pkey')) {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message && error.message.includes('worlds_pkey')) {
         logger.debug(
           `[${this.runtime.character.name}] MessageBusService: World ${agentWorldId} already exists, continuing with message processing`
         );
@@ -363,19 +370,26 @@ export class MessageBusService extends Service {
     try {
       await this.runtime.ensureRoomExists({
         id: agentRoomId,
-        name: message.metadata?.channelName || `Channel ${channelId.substring(0, 8)}`,
+        name:
+          ((message.metadata as Record<string, unknown>)?.channelName as string) ||
+          `Channel ${channelId.substring(0, 8)}`,
         agentId: this.runtime.agentId,
         worldId: agentWorldId,
         channelId,
         serverId,
         source: message.sourceType || 'central-bus',
-        type: message.metadata?.channelType || ChannelType.GROUP,
+        type:
+          ((message.metadata as Record<string, unknown>)?.channelType as ChannelType) ||
+          ChannelType.GROUP,
         metadata: {
-          ...(message.metadata?.channelMetadata || {}),
+          ...(((message.metadata as Record<string, unknown>)?.channelMetadata as Record<
+            string,
+            unknown
+          >) || {}),
         },
       });
-    } catch (error: any) {
-      if (error.message && error.message.includes('rooms_pkey')) {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message && error.message.includes('rooms_pkey')) {
         logger.debug(
           `[${this.runtime.character.name}] MessageBusService: Room ${agentRoomId} already exists, continuing with message processing`
         );
@@ -426,7 +440,9 @@ export class MessageBusService extends Service {
     const messageContent: Content = {
       text: message.content,
       source: sourceType || 'central-bus',
-      attachments: message.metadata?.attachments,
+      attachments: (message.metadata as Record<string, unknown>)?.attachments as
+        | Media[]
+        | undefined,
       inReplyTo: inReplyToMessageId
         ? createUniqueUuid(this.runtime, inReplyToMessageId)
         : undefined,
@@ -441,7 +457,7 @@ export class MessageBusService extends Service {
       content: messageContent,
       createdAt,
       metadata: {
-        type: 'message',
+        type: MemoryType.CUSTOM,
         source: sourceType || 'central-bus',
         sourceId: message.id,
         raw: {
@@ -453,7 +469,8 @@ export class MessageBusService extends Service {
     };
   }
 
-  public async handleIncomingMessage(message: MessageServiceMessage) {
+  public async handleIncomingMessage(messageData: unknown) {
+    const message = messageData as MessageServiceMessage;
     logger.info(
       `[${this.runtime.character.name}] MessageBusService: Received message from central bus`,
       { messageId: message.id }
@@ -539,9 +556,10 @@ export class MessageBusService extends Service {
 
       const callbackForCentralBus = async (responseContent: Content): Promise<Memory[]> => {
         // Check if this is just a processing notification, not an actual response
+        const responseMetadata = (responseContent.metadata as Record<string, unknown>) || {};
         if (
-          responseContent.metadata?.type === 'processing-notification' ||
-          responseContent.metadata?.isProcessing === true
+          responseMetadata.type === 'processing-notification' ||
+          responseMetadata.isProcessing === true
         ) {
           logger.debug(
             `[${this.runtime.character.name}] Skipping processing notification, not sending to bus`
@@ -599,14 +617,15 @@ export class MessageBusService extends Service {
     }
   }
 
-  private async handleMessageDeleted(data: any) {
+  private async handleMessageDeleted(data: unknown) {
     try {
+      const typedData = data as Record<string, unknown>;
       logger.info(
-        `[${this.runtime.character.name}] MessageBusService: Received message_deleted event for message ${data.messageId}`
+        `[${this.runtime.character.name}] MessageBusService: Received message_deleted event for message ${typedData.messageId}`
       );
 
       // Convert the central message ID to the agent's unique memory ID
-      const agentMemoryId = createUniqueUuid(this.runtime, data.messageId);
+      const agentMemoryId = createUniqueUuid(this.runtime, typedData.messageId as string);
 
       // Try to find and delete the existing memory
       const existingMemory = await this.runtime.getMemoryById(agentMemoryId);
@@ -620,11 +639,11 @@ export class MessageBusService extends Service {
         });
 
         logger.debug(
-          `[${this.runtime.character.name}] MessageBusService: Successfully processed message deletion for ${data.messageId}`
+          `[${this.runtime.character.name}] MessageBusService: Successfully processed message deletion for ${typedData.messageId}`
         );
       } else {
         logger.warn(
-          `[${this.runtime.character.name}] MessageBusService: No memory found for deleted message ${data.messageId}`
+          `[${this.runtime.character.name}] MessageBusService: No memory found for deleted message ${typedData.messageId}`
         );
       }
     } catch (error) {
@@ -635,14 +654,15 @@ export class MessageBusService extends Service {
     }
   }
 
-  private async handleChannelCleared(data: any) {
+  private async handleChannelCleared(data: unknown) {
     try {
+      const typedData = data as Record<string, unknown>;
       logger.info(
-        `[${this.runtime.character.name}] MessageBusService: Received channel_cleared event for channel ${data.channelId}`
+        `[${this.runtime.character.name}] MessageBusService: Received channel_cleared event for channel ${typedData.channelId}`
       );
 
       // Convert the central channel ID to the agent's unique room ID
-      const agentRoomId = createUniqueUuid(this.runtime, data.channelId);
+      const agentRoomId = createUniqueUuid(this.runtime, typedData.channelId as string);
 
       // Get all memories for this room and emit deletion events for each
       const memories = await this.runtime.getMemoriesByRoomIds({
@@ -651,7 +671,7 @@ export class MessageBusService extends Service {
       });
 
       logger.info(
-        `[${this.runtime.character.name}] MessageBusService: Found ${memories.length} memories to delete for channel ${data.channelId}`
+        `[${this.runtime.character.name}] MessageBusService: Found ${memories.length} memories to delete for channel ${typedData.channelId}`
       );
 
       // Emit CHANNEL_CLEARED event to bootstrap which will handle bulk deletion
@@ -659,12 +679,12 @@ export class MessageBusService extends Service {
         runtime: this.runtime,
         source: 'message-bus-service',
         roomId: agentRoomId,
-        channelId: data.channelId,
+        channelId: typedData.channelId,
         memoryCount: memories.length,
       });
 
       logger.info(
-        `[${this.runtime.character.name}] MessageBusService: Successfully processed channel clear for ${data.channelId} -> room ${agentRoomId}`
+        `[${this.runtime.character.name}] MessageBusService: Successfully processed channel clear for ${typedData.channelId} -> room ${agentRoomId}`
       );
     } catch (error) {
       logger.error(

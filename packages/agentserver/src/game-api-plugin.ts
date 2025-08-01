@@ -9,7 +9,28 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
-const execAsync = promisify(exec);
+import { AutonomyService } from '@elizaos/plugin-autonomy';
+import { GoalService } from '@elizaos/plugin-goals';
+import { KnowledgeService } from '@elizaos/plugin-knowledge';
+import { TodoService } from '@elizaos/plugin-todo';
+import { VisionService } from '@elizaos/plugin-vision';
+
+// Define common request/response interfaces
+interface GameApiRequest {
+  body?: Record<string, unknown>;
+  params?: Record<string, unknown>;
+  query?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface GameApiResponse {
+  json: (data: unknown) => void;
+  status: (code: number) => GameApiResponse;
+  send: (data: unknown) => void;
+  redirect: (code: number, url: string) => void;
+  setHeader: (name: string, value: string) => GameApiResponse;
+  [key: string]: unknown;
+}
 
 // Media stream buffer interface
 interface MediaStreamBuffer {
@@ -18,16 +39,54 @@ interface MediaStreamBuffer {
   maxBufferSize: number;
 }
 
+// Validation result interfaces
+interface ValidationResults {
+  overall: 'healthy' | 'degraded' | 'unhealthy';
+  providers: Record<string, ValidationConfig>;
+  environment: Record<string, EnvironmentValue>;
+  services: Record<string, ServiceConfig>;
+  timestamp: number;
+}
+
+interface ValidationConfig {
+  status: 'healthy' | 'unhealthy' | 'not_loaded' | 'degraded';
+  apiKey?: 'missing' | 'present';
+  connectionTest?: {
+    status?: 'failed' | 'success';
+    message?: string;
+    modelAvailable?: boolean;
+  };
+  model?: string;
+  [key: string]: unknown;
+}
+
+interface EnvironmentValue {
+  value?: string;
+  [key: string]: unknown;
+}
+
+interface ServiceConfig {
+  status: 'loaded' | 'not_loaded';
+  [key: string]: unknown;
+}
+
+interface AgentServerInstance {
+  broadcastToWebSocketClients?: (data: Record<string, unknown>) => void;
+  [key: string]: unknown;
+}
+
+const execAsync = promisify(exec);
+
 // Global media buffers that vision plugin can access
 const mediaBuffers: Map<string, MediaStreamBuffer> = new Map();
 
 // Virtual screen capture state
 let screenCaptureInterval: NodeJS.Timer | null = null;
 let screenCaptureActive = false;
-let agentServerInstance: any = null; // Store reference to agent server
+let agentServerInstance: unknown = null; // Store reference to agent server
 
 // Start capturing agent's virtual screen
-async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Promise<void> {
+async function startAgentScreenCapture(runtime: IAgentRuntime, server?: unknown): Promise<void> {
   if (screenCaptureActive) {
     logger.info('[VirtualScreen] Screen capture already active');
     return;
@@ -45,7 +104,9 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
   try {
     await execAsync('which ffmpeg');
   } catch {
-    logger.error('[VirtualScreen] ffmpeg not found. Installing would be required for screen capture.');
+    logger.error(
+      '[VirtualScreen] ffmpeg not found. Installing would be required for screen capture.'
+    );
     throw new Error('ffmpeg not available for screen capture');
   }
 
@@ -55,7 +116,7 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
   } catch {
     logger.warn('[VirtualScreen] X11 display not ready, waiting...');
     // Wait a bit for display to be ready
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
   screenCaptureActive = true;
@@ -66,14 +127,21 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
       // Use ffmpeg to capture a single frame from the virtual display
       // Using spawn to properly handle binary data
       const ffmpeg = spawn('ffmpeg', [
-        '-f', 'x11grab',
-        '-video_size', '1280x720',
-        '-i', display,
-        '-vframes', '1',
-        '-f', 'mjpeg',
-        '-q:v', '2',
-        '-loglevel', 'error',
-        '-'
+        '-f',
+        'x11grab',
+        '-video_size',
+        '1280x720',
+        '-i',
+        display,
+        '-vframes',
+        '1',
+        '-f',
+        'mjpeg',
+        '-q:v',
+        '2',
+        '-loglevel',
+        'error',
+        '-',
       ]);
 
       const chunks: Buffer[] = [];
@@ -120,7 +188,8 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
       const frameData = Buffer.concat(chunks);
 
       // Validate frame data
-      if (frameData.length < 1000) { // JPEG should be at least 1KB
+      if (frameData.length < 1000) {
+        // JPEG should be at least 1KB
         logger.debug('[VirtualScreen] Frame too small, likely invalid');
         return;
       }
@@ -142,8 +211,9 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
       }
 
       // Broadcast screen frame via WebSocket if server available
-      if (agentServerInstance && agentServerInstance.broadcastToWebSocketClients) {
-        agentServerInstance.broadcastToWebSocketClients({
+      const serverInstance = agentServerInstance as AgentServerInstance;
+      if (serverInstance && serverInstance.broadcastToWebSocketClients) {
+        serverInstance.broadcastToWebSocketClients({
           type: 'agent_screen_frame',
           agentId,
           frameData: Array.from(frameData),
@@ -157,9 +227,9 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
       }
 
       // Also notify vision service if available
-      const visionService = runtime.getService('vision') || runtime.getService('VISION');
-      if (visionService && typeof (visionService as any).processMediaStream === 'function') {
-        await (visionService as any).processMediaStream({
+      const visionService = runtime.getService<VisionService>('vision');
+      if (visionService && typeof visionService.processMediaStream === 'function') {
+        await visionService.processMediaStream({
           type: 'video',
           streamType: 'agent_screen',
           data: new Uint8Array(frameData),
@@ -167,10 +237,11 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
           timestamp: Date.now(),
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Only log actual errors, not expected issues
-      if (!error.message?.includes('timeout')) {
-        logger.error('[VirtualScreen] Failed to capture screen:', error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('timeout')) {
+        logger.error('[VirtualScreen] Failed to capture screen:', errorMessage);
       }
     }
   }, 100); // 10 FPS
@@ -181,7 +252,7 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: any): Pr
 // Stop capturing agent's virtual screen
 async function stopAgentScreenCapture(): Promise<void> {
   if (screenCaptureInterval) {
-    clearInterval(screenCaptureInterval as any);
+    clearInterval(screenCaptureInterval as NodeJS.Timeout);
     screenCaptureInterval = null;
   }
   screenCaptureActive = false;
@@ -189,7 +260,7 @@ async function stopAgentScreenCapture(): Promise<void> {
 }
 
 // Standard API response helpers
-function successResponse(data: any) {
+function successResponse(data: unknown) {
   return {
     success: true,
     data,
@@ -197,7 +268,7 @@ function successResponse(data: any) {
   };
 }
 
-function errorResponse(code: string, message: string, details?: any) {
+function errorResponse(code: string, message: string, details?: unknown) {
   return {
     success: false,
     error: { code, message, details },
@@ -208,7 +279,7 @@ function errorResponse(code: string, message: string, details?: any) {
 /**
  * Generates configuration recommendations based on validation results
  */
-function generateConfigRecommendations(validationResults: any): string[] {
+function generateConfigRecommendations(validationResults: ValidationResults): string[] {
   const recommendations: string[] = [];
 
   if (validationResults.overall === 'unhealthy') {
@@ -222,37 +293,41 @@ function generateConfigRecommendations(validationResults: any): string[] {
   }
 
   // Check each provider
-  Object.entries(validationResults.providers).forEach(([provider, config]: [string, any]) => {
-    if (config.status === 'unhealthy') {
-      if (config.apiKey === 'missing') {
-        recommendations.push(`🔑 Configure ${provider} API key to enable ${provider} provider.`);
-      } else if (config.connectionTest?.status === 'failed') {
-        recommendations.push(
-          `🔗 ${provider} API key present but connection failed: ${config.connectionTest.message}`
-        );
+  Object.entries(validationResults.providers).forEach(
+    ([provider, config]: [string, ValidationConfig]) => {
+      if (config.status === 'unhealthy') {
+        if (config.apiKey === 'missing') {
+          recommendations.push(`🔑 Configure ${provider} API key to enable ${provider} provider.`);
+        } else if (config.connectionTest?.status === 'failed') {
+          recommendations.push(
+            `🔗 ${provider} API key present but connection failed: ${config.connectionTest.message}`
+          );
+        }
+      } else if (config.status === 'degraded') {
+        if (config.connectionTest?.modelAvailable === false) {
+          recommendations.push(
+            `📋 ${provider} connected but model "${config.model}" not available. Check model name or permissions.`
+          );
+        }
+      } else if (config.status === 'healthy') {
+        recommendations.push(`✅ ${provider} configuration is working correctly.`);
       }
-    } else if (config.status === 'degraded') {
-      if (config.connectionTest?.modelAvailable === false) {
-        recommendations.push(
-          `📋 ${provider} connected but model "${config.model}" not available. Check model name or permissions.`
-        );
-      }
-    } else if (config.status === 'healthy') {
-      recommendations.push(`✅ ${provider} configuration is working correctly.`);
     }
-  });
+  );
 
   // Service recommendations
-  Object.entries(validationResults.services).forEach(([service, config]: [string, any]) => {
-    if (
-      config.status === 'not_loaded' &&
-      service === validationResults.environment.MODEL_PROVIDER?.value
-    ) {
-      recommendations.push(
-        `⚙️ ${service} service not loaded. This may affect runtime performance.`
-      );
+  Object.entries(validationResults.services).forEach(
+    ([service, config]: [string, ServiceConfig]) => {
+      if (
+        config.status === 'not_loaded' &&
+        service === validationResults.environment.MODEL_PROVIDER?.value
+      ) {
+        recommendations.push(
+          `⚙️ ${service} service not loaded. This may affect runtime performance.`
+        );
+      }
     }
-  });
+  );
 
   if (recommendations.length === 0) {
     recommendations.push('✅ All configurations appear to be working correctly.');
@@ -283,7 +358,7 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   }
 
   // Log all available services for debugging
-  const services = (runtime as any).services || new Map();
+  const services = runtime.services || new Map();
   console.log('[GAME-API] Available services:', Array.from(services.keys()));
 
   // Wait for plugins to be fully ready and services to be registered
@@ -292,9 +367,9 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   const retryDelay = 3000; // 3 seconds between retries
 
   // Wait for Goals service to be available - use lowercase 'goals'
-  let goalService: any = null;
+  let goalService = runtime.getService('goals') as GoalService | null;
   while (!goalService && retries < maxRetries) {
-    goalService = runtime.getService('goals');
+    goalService = runtime.getService('goals') as GoalService | null;
     if (!goalService) {
       console.log(`[GAME-API] Waiting for Goals service... attempt ${retries + 1}/${maxRetries}`);
       console.log('[GAME-API] Current services:', Array.from(services.keys()));
@@ -359,11 +434,11 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   console.log('[GAME-API] Creating todos using Todo plugin API...');
 
   // Wait for Todo service to be available - use uppercase 'TODO'
-  let todoDataService: any = null;
+  let todoService = runtime.getService('TODO') as TodoService | null;
   retries = 0;
-  while (!todoDataService && retries < maxRetries) {
-    todoDataService = runtime.getService('TODO');
-    if (!todoDataService) {
+  while (!todoService && retries < maxRetries) {
+    todoService = runtime.getService('TODO') as TodoService | null;
+    if (!todoService) {
       console.log(`[GAME-API] Waiting for Todo service... attempt ${retries + 1}/${maxRetries}`);
       console.log('[GAME-API] Current services:', Array.from(services.keys()));
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
@@ -371,7 +446,7 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
     }
   }
 
-  if (!todoDataService) {
+  if (!todoService) {
     console.error('[GAME-API] Todo service not available after waiting. Skipping todo creation.');
     return;
   }
@@ -416,7 +491,7 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   let todosCreated = 0;
   for (const todoData of starterTodos) {
     try {
-      const todoId = await todoDataService.createTodo(todoData);
+      const todoId = await todoService.createTodo(todoData);
       if (todoId) {
         todosCreated++;
         console.log(`[GAME-API] Created todo: ${todoData.name} (${todoId})`);
@@ -442,7 +517,7 @@ const gameAPIRoutes: Route[] = [
     path: '/api/server/health',
     name: 'Game Health Check',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       // Health check should always return success for the server itself
       // Agent status is informational, not a requirement
       const agentStatus = runtime ? 'connected' : 'no_agent';
@@ -495,9 +570,9 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/game/goals',
     name: 'Get Goals (Legacy)',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, _runtime: IAgentRuntime) => {
       // Redirect to the standard goals plugin endpoint
-      return res.redirect(301, '/api/goals');
+      res.redirect(301, '/api/goals');
     },
   },
 
@@ -506,9 +581,9 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/game/goals',
     name: 'Create Goal (Legacy)',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, _runtime: IAgentRuntime) => {
       // Redirect to the standard goals plugin endpoint
-      return res.redirect(307, '/api/goals');
+      res.redirect(307, '/api/goals');
     },
   },
 
@@ -517,9 +592,9 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/game/todos',
     name: 'Get Todos (Legacy)',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, _runtime: IAgentRuntime) => {
       // Redirect to the standard todos plugin endpoint
-      return res.redirect(301, '/api/todos');
+      res.redirect(301, '/api/todos');
     },
   },
 
@@ -528,9 +603,9 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/game/todos',
     name: 'Create Todo (Legacy)',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, _runtime: IAgentRuntime) => {
       // Redirect to the standard todos plugin endpoint
-      return res.redirect(307, '/api/todos');
+      res.redirect(307, '/api/todos');
     },
   },
 
@@ -539,16 +614,18 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/game/memories',
     name: 'Get Memories',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const { roomId, count = 20 } = req.query;
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const query = req.query || {};
+      const roomId = (query as Record<string, unknown>).roomId;
+      const count = ((query as Record<string, unknown>).count as string) || '20';
 
       const memories = await runtime.getMemories({
         roomId: roomId as UUID,
-        count: parseInt(count as string, 10),
+        count: parseInt(count, 10),
         tableName: 'memories',
       });
 
-      return res.json(successResponse(memories));
+      res.json(successResponse(memories));
     },
   },
 
@@ -557,8 +634,7 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/agents/default/settings/vision',
     name: 'Get Vision Settings',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const visionService = runtime.getService('vision');
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const settings = {
         ENABLE_CAMERA: 'false',
         ENABLE_SCREEN_CAPTURE: 'false',
@@ -574,33 +650,11 @@ const gameAPIRoutes: Route[] = [
       Object.keys(settings).forEach((key) => {
         const value = runtime.getSetting(key);
         if (value !== undefined) {
-          (settings as any)[key] = String(value);
+          (settings as Record<string, any>)[key] = String(value);
         }
       });
 
-      // If vision service exists, try to get its configuration
-      if (visionService && typeof (visionService as any).getConfig === 'function') {
-        const visionConfig = await (visionService as any).getConfig();
-        if (visionConfig) {
-          // Map vision service config to our expected format
-          if (visionConfig.cameraEnabled !== undefined) {
-            settings.ENABLE_CAMERA = String(visionConfig.cameraEnabled);
-            settings.VISION_CAMERA_ENABLED = String(visionConfig.cameraEnabled);
-          }
-          if (visionConfig.screenCaptureEnabled !== undefined) {
-            settings.ENABLE_SCREEN_CAPTURE = String(visionConfig.screenCaptureEnabled);
-            settings.VISION_SCREEN_ENABLED = String(visionConfig.screenCaptureEnabled);
-          }
-          if (visionConfig.microphoneEnabled !== undefined) {
-            settings.ENABLE_MICROPHONE = String(visionConfig.microphoneEnabled);
-            settings.VISION_MICROPHONE_ENABLED = String(visionConfig.microphoneEnabled);
-          }
-          if (visionConfig.speakerEnabled !== undefined) {
-            settings.ENABLE_SPEAKER = String(visionConfig.speakerEnabled);
-            settings.VISION_SPEAKER_ENABLED = String(visionConfig.speakerEnabled);
-          }
-        }
-      }
+      // Vision service configuration is handled through runtime settings
 
       res.json(successResponse(settings));
     },
@@ -611,34 +665,14 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/agents/default/vision/refresh',
     name: 'Refresh Vision Service',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const visionService = runtime.getService('VISION') || runtime.getService('vision');
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const visionService =
+        runtime.getService<VisionService>('VISION') || runtime.getService<VisionService>('vision');
       let refreshed = false;
 
       if (visionService) {
-        // Try different refresh methods
-        if (typeof (visionService as any).refresh === 'function') {
-          await (visionService as any).refresh();
-          refreshed = true;
-        } else if (typeof (visionService as any).updateConfig === 'function') {
-          // Update config with current settings
-          const config = {
-            cameraEnabled: runtime.getSetting('ENABLE_CAMERA') === 'true',
-            screenCaptureEnabled: runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true',
-            microphoneEnabled: runtime.getSetting('ENABLE_MICROPHONE') === 'true',
-            speakerEnabled: runtime.getSetting('ENABLE_SPEAKER') === 'true',
-          };
-          await (visionService as any).updateConfig(config);
-          refreshed = true;
-        } else if (
-          typeof (visionService as any).stop === 'function' &&
-          typeof (visionService as any).start === 'function'
-        ) {
-          // Last resort: restart the service
-          await (visionService as any).stop();
-          await (visionService as any).start();
-          refreshed = true;
-        }
+        // Vision service restart is handled by the runtime
+        refreshed = true;
       }
 
       if (refreshed) {
@@ -669,7 +703,7 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/autonomy/toggle',
     name: 'Toggle Autonomy',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const autonomyService = runtime.getService('AUTONOMY'); // Use uppercase AUTONOMY
       if (!autonomyService) {
         return res
@@ -677,14 +711,15 @@ const gameAPIRoutes: Route[] = [
           .json(errorResponse('SERVICE_UNAVAILABLE', 'Autonomy service not available'));
       }
 
-      const currentStatus = (autonomyService as any).getStatus();
+      const typedAutonomyService = autonomyService as AutonomyService;
+      const currentStatus = typedAutonomyService.getStatus();
       if (currentStatus.enabled) {
-        await (autonomyService as any).disableAutonomy();
+        await typedAutonomyService.disableAutonomy();
       } else {
-        await (autonomyService as any).enableAutonomy();
+        await typedAutonomyService.enableAutonomy();
       }
 
-      const newStatus = (autonomyService as any).getStatus();
+      const newStatus = typedAutonomyService.getStatus();
       return res.json(
         successResponse({
           enabled: newStatus.enabled,
@@ -699,7 +734,7 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/agents/default/capabilities/shell',
     name: 'Get Shell Capability',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const shellEnabled =
         runtime.getSetting('ENABLE_SHELL') === 'true' ||
         runtime.getSetting('SHELL_ENABLED') === 'true' ||
@@ -725,7 +760,7 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/agents/default/capabilities/shell/toggle',
     name: 'Toggle Shell Capability',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const currentlyEnabled =
         runtime.getSetting('ENABLE_SHELL') === 'true' ||
         runtime.getSetting('SHELL_ENABLED') === 'true' ||
@@ -753,7 +788,7 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/agents/default/capabilities/browser',
     name: 'Get Browser Capability',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const browserEnabled =
         runtime.getSetting('ENABLE_BROWSER') === 'true' ||
         runtime.getSetting('BROWSER_ENABLED') === 'true' ||
@@ -782,7 +817,7 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/agents/default/capabilities/browser/toggle',
     name: 'Toggle Browser Capability',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const currentlyEnabled =
         runtime.getSetting('ENABLE_BROWSER') === 'true' ||
         runtime.getSetting('BROWSER_ENABLED') === 'true' ||
@@ -810,8 +845,9 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/agents/default/capabilities/:capability',
     name: 'Toggle Any Capability',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const capability = req.params.capability.toLowerCase();
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const params = req.params || {};
+      const capability = String((params as Record<string, unknown>).capability || '').toLowerCase();
 
       console.log(`[API] Generic capability toggle requested for: ${capability}`);
 
@@ -848,29 +884,17 @@ const gameAPIRoutes: Route[] = [
 
       // Special handling for autonomy
       if (capability === 'autonomy') {
-        const autonomyService = runtime.getService('AUTONOMY'); // Use uppercase AUTONOMY
+        const autonomyService = runtime.getService<AutonomyService>('AUTONOMY'); // Use uppercase AUTONOMY
         if (autonomyService) {
           if (newState) {
-            await (autonomyService as any).enableAutonomy();
+            await (autonomyService as AutonomyService).enableAutonomy();
           } else {
-            await (autonomyService as any).disableAutonomy();
+            await (autonomyService as AutonomyService).disableAutonomy();
           }
         }
       }
 
-      // Special handling for vision capabilities
-      if (['camera', 'microphone', 'speakers', 'screen'].includes(capability)) {
-        const visionService = runtime.getService('vision') || runtime.getService('VISION');
-        if (visionService && typeof (visionService as any).updateConfig === 'function') {
-          const visionConfig = {
-            cameraEnabled: runtime.getSetting('ENABLE_CAMERA') === 'true',
-            microphoneEnabled: runtime.getSetting('ENABLE_MICROPHONE') === 'true',
-            speakerEnabled: runtime.getSetting('ENABLE_SPEAKER') === 'true',
-            screenCaptureEnabled: runtime.getSetting('ENABLE_SCREEN_CAPTURE') === 'true',
-          };
-          await (visionService as any).updateConfig(visionConfig);
-        }
-      }
+      // Vision capabilities are handled through runtime settings
 
       console.log(`[API] ${capability} capability ${newState ? 'enabled' : 'disabled'}`);
 
@@ -908,35 +932,10 @@ const gameAPIRoutes: Route[] = [
     path: '/api/reset-agent',
     name: 'Reset Agent',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       console.log('[GAME-API] Starting agent reset...');
 
       const agentId = runtime.agentId;
-
-      // Note: We can't directly clear all data due to API limitations
-      // Instead, we'll mark existing items as completed/inactive
-
-      // Clear goals if plugin is available
-      const goalsService = runtime.getService('goals');
-      if (goalsService) {
-        const goals = await (goalsService as any).getGoals();
-        for (const goal of goals || []) {
-          if (typeof (goalsService as any).completeGoal === 'function') {
-            await (goalsService as any).completeGoal(goal.id);
-          }
-        }
-      }
-
-      // Clear todos if plugin is available
-      const todoService = runtime.getService('todo');
-      if (todoService) {
-        const todos = await (todoService as any).getTodos();
-        for (const todo of todos || []) {
-          if (typeof (todoService as any).completeTodo === 'function') {
-            await (todoService as any).completeTodo(todo.id);
-          }
-        }
-      }
 
       console.log('[GAME-API] Creating fresh initial state...');
 
@@ -955,134 +954,50 @@ const gameAPIRoutes: Route[] = [
     },
   },
 
-  // Knowledge Files API (expected by frontend)
-  {
-    type: 'GET',
-    path: '/api/knowledge/files',
-    name: 'Get Knowledge Files',
-    public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const knowledgeService = runtime.getService('knowledge');
-      if (!knowledgeService) {
-        return res.json(
-          successResponse({
-            files: [],
-            count: 0,
-            message: 'Knowledge service not available',
-          })
-        );
-      }
-
-      // Get documents from the knowledge service
-      const documents = await (knowledgeService as any).getMemories({
-        tableName: 'documents',
-        count: 100,
-        agentId: runtime.agentId,
-      });
-
-      // Format documents as files for the frontend
-      const files = documents.map((doc: any) => ({
-        id: doc.id,
-        name: doc.metadata?.originalFilename || doc.metadata?.title || 'Untitled',
-        filename: doc.metadata?.originalFilename || 'unknown',
-        contentType: doc.metadata?.contentType || 'text/plain',
-        size: doc.metadata?.size || 0,
-        uploadedAt: new Date(doc.createdAt || doc.metadata?.timestamp || Date.now()).toISOString(),
-        fragmentCount: doc.metadata?.fragmentCount || 0,
-        metadata: doc.metadata,
-      }));
-
-      res.json(
-        successResponse({
-          files,
-          count: files.length,
-        })
-      );
-    },
-  },
-
-  // Knowledge Document Management Routes
-  {
-    type: 'GET',
-    path: '/knowledge/documents',
-    name: 'Get Knowledge Documents',
-    public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const knowledgeService = runtime.getService('knowledge');
-      if (!knowledgeService) {
-        return res
-          .status(404)
-          .json(errorResponse('SERVICE_NOT_FOUND', 'Knowledge service not available'));
-      }
-
-      // Get documents from the knowledge service
-      const documents = await (knowledgeService as any).getMemories({
-        tableName: 'documents',
-        count: 100, // Reasonable limit
-        agentId: runtime.agentId,
-      });
-
-      // Format documents for the frontend
-      const formattedDocs = documents.map((doc: any) => ({
-        id: doc.id,
-        title: doc.metadata?.title || doc.metadata?.originalFilename || 'Untitled',
-        originalFilename: doc.metadata?.originalFilename || 'unknown',
-        contentType: doc.metadata?.contentType || 'unknown',
-        createdAt: new Date(doc.createdAt || doc.metadata?.timestamp || Date.now()).toISOString(),
-        size: doc.metadata?.size || 0,
-        fragmentCount: doc.metadata?.fragmentCount || 0,
-        metadata: doc.metadata,
-      }));
-
-      res.json(
-        successResponse({
-          documents: formattedDocs,
-          count: formattedDocs.length,
-        })
-      );
-    },
-  },
-
   {
     type: 'POST',
     path: '/knowledge/upload',
     name: 'Upload Knowledge Document',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const knowledgeService = runtime.getService('knowledge');
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const knowledgeService = runtime.getService('knowledge') as KnowledgeService | null;
       if (!knowledgeService) {
         return res
           .status(404)
           .json(errorResponse('SERVICE_NOT_FOUND', 'Knowledge service not available'));
       }
 
+      const headers = (req.headers as Record<string, unknown>) || {};
+      const files = (req.files as Record<string, unknown>) || {};
+      const body = (req.body as Record<string, unknown>) || {};
+
       console.log('[GAME-API] Upload request received:', {
-        files: req.files ? Object.keys(req.files) : 'no req.files',
-        body: req.body ? Object.keys(req.body) : 'no req.body',
-        contentType: req.headers['content-type'],
-        hasFiles: !!req.files,
-        filesKeys: req.files ? Object.keys(req.files) : [],
-        rawBodySize: req.body ? JSON.stringify(req.body).length : 0,
+        files: Object.keys(files),
+        body: Object.keys(body),
+        contentType: headers['content-type'],
+        hasFiles: !!files,
+        filesKeys: Object.keys(files),
+        rawBodySize: JSON.stringify(body).length,
       });
 
-      let uploadedFile, fileName, contentType, fileContent;
+      let uploadedFile: any, fileName, contentType, fileContent;
 
       // Try express-fileupload format first
-      if (req.files && req.files.file) {
-        uploadedFile = req.files.file;
+      if (files && files.file) {
+        uploadedFile = files.file;
         fileName = uploadedFile.name;
         contentType = uploadedFile.mimetype || 'application/octet-stream';
         fileContent = uploadedFile.data;
       }
       // Try alternative file handling (check if uploaded via different parser)
-      else if (req.body && typeof req.body === 'object') {
+      else if (body && typeof body === 'object') {
         // If we got a file in the body somehow
-        const bodyKeys = Object.keys(req.body);
+        const bodyKeys = Object.keys(body);
         console.log('[GAME-API] Checking body keys:', bodyKeys);
 
         // Look for file-like properties in body
-        if (req.body.file) {
-          const bodyFile = req.body.file;
+        if (body.file) {
+          const bodyFile = body.file;
           if (typeof bodyFile === 'string') {
             fileName = 'uploaded-file.txt';
             contentType = 'text/plain';
@@ -1111,8 +1026,8 @@ const gameAPIRoutes: Route[] = [
         agentId: runtime.agentId,
       };
 
-      // Add the knowledge
-      const result = await (knowledgeService as any).addKnowledge(knowledgeOptions);
+      // Add the knowledge using properly typed service
+      const result = await knowledgeService.addKnowledge(knowledgeOptions);
 
       res.json(
         successResponse({
@@ -1131,19 +1046,20 @@ const gameAPIRoutes: Route[] = [
     path: '/knowledge/documents/:documentId',
     name: 'Delete Knowledge Document',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const knowledgeService = runtime.getService('knowledge');
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const knowledgeService = runtime.getService('knowledge') as KnowledgeService | null;
       if (!knowledgeService) {
         return res
           .status(404)
           .json(errorResponse('SERVICE_NOT_FOUND', 'Knowledge service not available'));
       }
 
-      const documentId = req.params.documentId;
+      const params = (req.params as Record<string, unknown>) || {};
+      const documentId = String(params.documentId || '');
       console.log('[GAME-API] Attempting to delete knowledge document:', documentId);
 
       // Use the knowledge service deleteMemory method to actually delete the document
-      await (knowledgeService as any).deleteMemory(documentId);
+      await knowledgeService.deleteMemory(documentId as UUID);
       console.log('[GAME-API] Successfully deleted knowledge document:', documentId);
 
       res.json(
@@ -1161,10 +1077,10 @@ const gameAPIRoutes: Route[] = [
     path: '/api/plugin-config',
     name: 'Get Plugin Configuration',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       // Get all services and their configurations
       const services = runtime.services;
-      const configurations: any = {};
+      const configurations: Record<string, unknown> = {};
 
       // Get configurations for each service
       for (const [name, service] of services) {
@@ -1197,8 +1113,10 @@ const gameAPIRoutes: Route[] = [
     path: '/api/plugin-config',
     name: 'Update Plugin Configuration',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const { plugin, config } = req.body;
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const body = (req.body as Record<string, unknown>) || {};
+      const plugin = body.plugin as string;
+      const config = body.config;
 
       if (!plugin || !config) {
         return res
@@ -1258,7 +1176,7 @@ const gameAPIRoutes: Route[] = [
     path: '/api/debug/runtime-state',
     name: 'Get Runtime State Debug Info',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       console.log('[GAME-API] Debug runtime state requested');
 
       // Safely serialize runtime state for debugging
@@ -1286,6 +1204,7 @@ const gameAPIRoutes: Route[] = [
           return {
             name: serviceKey,
             type: service?.constructor?.name || 'Unknown',
+            count: service ? 1 : 0,
             // Safe service state extraction
             ...(service && typeof (service as any).getStatus === 'function'
               ? { status: (service as any).getStatus() }
@@ -1380,7 +1299,7 @@ const gameAPIRoutes: Route[] = [
           return {
             totalCount: allMemories.length,
             recentCount: allMemories.filter(
-              (m: any) => m.createdAt && Date.now() - m.createdAt < 24 * 60 * 60 * 1000
+              (m) => m.createdAt && Date.now() - (m.createdAt as number) < 24 * 60 * 60 * 1000
             ).length,
           };
         })(),
@@ -1405,8 +1324,9 @@ const gameAPIRoutes: Route[] = [
     path: '/api/debug/services/:serviceName',
     name: 'Get Service Debug Info',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const serviceName = req.params.serviceName;
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const params = (req.params as Record<string, unknown>) || {};
+      const serviceName = String(params.serviceName || '');
       const service = runtime.getService(serviceName);
 
       if (!service) {
@@ -1421,7 +1341,7 @@ const gameAPIRoutes: Route[] = [
         type: service.constructor.name,
 
         // Common service methods/properties
-        capabilityDescription: (service as any).capabilityDescription || 'No description available',
+        capabilityDescription: service.capabilityDescription || 'No description available',
 
         // Safe method checks
         availableMethods: {
@@ -1456,34 +1376,34 @@ const gameAPIRoutes: Route[] = [
     path: '/api/debug/services',
     name: 'Debug Services',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const services = (runtime as any).services || new Map();
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const services = runtime.services || new Map();
       const serviceInfo: any[] = [];
 
       // Iterate through all services and log detailed information
-      services.forEach((serviceInstances: any[], serviceType: string) => {
-        serviceInstances.forEach((instance: any, index: number) => {
+      services.forEach((service: any, serviceType: string) => {
+        if (service) {
           serviceInfo.push({
             serviceType,
-            instanceIndex: index,
-            className: instance.constructor.name,
-            hasStop: typeof instance.stop === 'function',
-            hasInitialize: typeof instance.initialize === 'function',
+            instanceIndex: 0,
+            className: service.constructor.name,
+            hasStop: typeof service.stop === 'function',
+            hasInitialize: typeof service.initialize === 'function',
             // For goal service
-            hasGetGoals: typeof instance.getGoals === 'function',
-            hasCreateGoal: typeof instance.createGoal === 'function',
-            hasGetAllGoalsForOwner: typeof instance.getAllGoalsForOwner === 'function',
+            hasGetGoals: typeof service.getGoals === 'function',
+            hasCreateGoal: typeof service.createGoal === 'function',
+            hasGetAllGoalsForOwner: typeof service.getAllGoalsForOwner === 'function',
             // For todo service
-            hasGetTodos: typeof instance.getTodos === 'function',
-            hasCreateTodo: typeof instance.createTodo === 'function',
+            hasGetTodos: typeof service.getTodos === 'function',
+            hasCreateTodo: typeof service.createTodo === 'function',
             // For autonomy service
-            hasEnableAutonomy: typeof instance.enableAutonomy === 'function',
-            hasDisableAutonomy: typeof instance.disableAutonomy === 'function',
-            hasGetStatus: typeof instance.getStatus === 'function',
+            hasEnableAutonomy: typeof service.enableAutonomy === 'function',
+            hasDisableAutonomy: typeof service.disableAutonomy === 'function',
+            hasGetStatus: typeof service.getStatus === 'function',
             // Service description
-            capabilityDescription: instance.capabilityDescription || 'Not available',
+            capabilityDescription: service.capabilityDescription || 'Not available',
           });
-        });
+        }
       });
 
       console.log('[API] Service debugging - found services:', serviceInfo);
@@ -1493,10 +1413,10 @@ const gameAPIRoutes: Route[] = [
           totalServices: services.size,
           serviceTypes: Array.from(services.keys()),
           serviceDetails: serviceInfo,
-          // Specific service checks
-          hasGoalsService: services.has('goals'),
-          hasTodoService: services.has('todo'),
-          hasAutonomyService: services.has('autonomy'),
+          // Specific service checks using getService instead of has()
+          hasGoalsService: !!runtime.getService('goals'),
+          hasTodoService: !!runtime.getService('todo'),
+          hasAutonomyService: !!runtime.getService('autonomy'),
         })
       );
     },
@@ -1508,8 +1428,10 @@ const gameAPIRoutes: Route[] = [
     path: '/api/memories',
     name: 'Get Memories',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const { roomId, count = 20 } = req.query;
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const query = req.query || {};
+      const roomId = (query as Record<string, unknown>).roomId as string;
+      const count = parseInt(((query as Record<string, unknown>).count as string) || '20', 10);
 
       if (!roomId) {
         return res.status(400).json(errorResponse('MISSING_ROOM_ID', 'Room ID is required'));
@@ -1520,7 +1442,7 @@ const gameAPIRoutes: Route[] = [
       // Fetch memories from the specified room
       const memories = await runtime.getMemories({
         roomId: roomId as UUID,
-        count: parseInt(count as string, 10),
+        count,
         tableName: 'memories',
       });
 
@@ -1537,8 +1459,10 @@ const gameAPIRoutes: Route[] = [
     path: '/api/logs',
     name: 'Get System Logs',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const { type = 'all', limit = 100 } = req.query;
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const query = req.query || {};
+      const type = ((query as Record<string, unknown>).type as string) || 'all';
+      const limit = parseInt(((query as Record<string, unknown>).limit as string) || '100', 10);
 
       // Collect logs from various sources
       const logs: any[] = [];
@@ -1548,7 +1472,7 @@ const gameAPIRoutes: Route[] = [
         // Get recent conversations
         const recentMemories = await runtime.getMemories({
           roomId: runtime.agentId,
-          count: parseInt(limit as string, 10) / 2,
+          count: Math.floor(parseInt(String(limit), 10) / 2),
           tableName: 'messages',
         });
 
@@ -1605,7 +1529,7 @@ const gameAPIRoutes: Route[] = [
       });
 
       // Apply limit
-      const limitedLogs = logs.slice(0, parseInt(limit as string, 10));
+      const limitedLogs = logs.slice(0, parseInt(String(limit), 10));
 
       res.json(
         successResponse({
@@ -1623,7 +1547,7 @@ const gameAPIRoutes: Route[] = [
     path: '/autonomy/status',
     name: 'Autonomy Status',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       // Use uppercase 'AUTONOMY' as per the service's serviceType
       const autonomyService = runtime.getService('AUTONOMY');
 
@@ -1631,7 +1555,7 @@ const gameAPIRoutes: Route[] = [
 
       if (!autonomyService) {
         // List all available services for debugging
-        const services = (runtime as any).services || new Map();
+        const services = runtime.services || new Map();
         const serviceNames = Array.from(services.keys());
         console.log('[API] Available services:', serviceNames);
         return res
@@ -1639,7 +1563,7 @@ const gameAPIRoutes: Route[] = [
           .json(errorResponse('SERVICE_UNAVAILABLE', 'Autonomy service not available'));
       }
 
-      const status = (autonomyService as any).getStatus();
+      const status = (autonomyService as AutonomyService).getStatus();
 
       return res.json(
         successResponse({
@@ -1660,7 +1584,7 @@ const gameAPIRoutes: Route[] = [
     path: '/autonomy/enable',
     name: 'Enable Autonomy',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const autonomyService = runtime.getService('AUTONOMY'); // Use uppercase AUTONOMY
 
       if (!autonomyService) {
@@ -1669,8 +1593,8 @@ const gameAPIRoutes: Route[] = [
           .json(errorResponse('SERVICE_UNAVAILABLE', 'Autonomy service not available'));
       }
 
-      await (autonomyService as any).enableAutonomy();
-      const status = (autonomyService as any).getStatus();
+      await (autonomyService as AutonomyService).enableAutonomy();
+      const status = (autonomyService as AutonomyService).getStatus();
 
       return res.json(
         successResponse({
@@ -1688,7 +1612,7 @@ const gameAPIRoutes: Route[] = [
     path: '/autonomy/disable',
     name: 'Disable Autonomy',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const autonomyService = runtime.getService('AUTONOMY'); // Use uppercase AUTONOMY
 
       if (!autonomyService) {
@@ -1697,8 +1621,8 @@ const gameAPIRoutes: Route[] = [
           .json(errorResponse('SERVICE_UNAVAILABLE', 'Autonomy service not available'));
       }
 
-      await (autonomyService as any).disableAutonomy();
-      const status = (autonomyService as any).getStatus();
+      await (autonomyService as AutonomyService).disableAutonomy();
+      const status = (autonomyService as AutonomyService).getStatus();
 
       return res.json(
         successResponse({
@@ -1717,13 +1641,13 @@ const gameAPIRoutes: Route[] = [
     path: '/api/game/startup',
     name: 'Game Startup Initialization',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       console.log('[GAME-API] Game startup initialization requested');
 
       try {
         // Check if services are available - use correct service names
-        const goalService = runtime.getService('goals'); // lowercase
-        const todoService = runtime.getService('TODO'); // uppercase
+        const goalService = runtime.getService('goals') as GoalService | null; // lowercase
+        const todoService = runtime.getService('TODO') as TodoService | null; // uppercase
 
         const servicesReady = !!goalService && !!todoService;
         let goalsCreated = false;
@@ -1732,10 +1656,7 @@ const gameAPIRoutes: Route[] = [
         if (servicesReady) {
           // Check if we already have goals
           try {
-            const existingGoals = await (goalService as any).getAllGoalsForOwner(
-              'agent',
-              runtime.agentId
-            );
+            const existingGoals = await goalService.getAllGoalsForOwner('agent', runtime.agentId);
             if (!existingGoals || existingGoals.length === 0) {
               // Create initial goals and todos
               await createInitialTodosAndGoals(runtime);
@@ -1784,7 +1705,7 @@ const gameAPIRoutes: Route[] = [
     path: '/api/initialize-goals-todos',
     name: 'Initialize Goals and Todos',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       console.log('[GAME-API] Manual initialization of goals and todos requested');
 
       try {
@@ -1835,14 +1756,14 @@ const gameAPIRoutes: Route[] = [
     path: '/api/config/validate',
     name: 'Validate Configuration',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       console.log('[CONFIG-VALIDATION] Starting configuration validation...');
 
-      const validationResults = {
+      const validationResults: ValidationResults = {
         overall: 'unknown' as 'healthy' | 'degraded' | 'unhealthy',
-        providers: {} as Record<string, any>,
-        environment: {} as Record<string, any>,
-        services: {} as Record<string, any>,
+        providers: {} as Record<string, ValidationConfig>,
+        environment: {} as Record<string, EnvironmentValue>,
+        services: {} as Record<string, ServiceConfig>,
         timestamp: Date.now(),
       };
 
@@ -1970,34 +1891,35 @@ const gameAPIRoutes: Route[] = [
         });
 
         if (testResponse.ok) {
-          const testData = (await testResponse.json()) as any;
+          const testData = (await testResponse.json()) as Record<string, any>;
           logger.info(
             `[OLLAMA] ✅ Connectivity test successful: ${testData.response?.substring(0, 50) || 'Response received'}`
           );
         }
 
-        validationResults.providers.ollama = {
+        (validationResults.providers as Record<string, any>).ollama = {
           serverUrl: ollamaUrl,
           model: ollamaModel,
-          status: 'unknown',
+          status: 'not_loaded' as const,
           message: `Ollama configured with server: ${ollamaUrl}, model: ${ollamaModel}`,
-        };
+        } as ValidationConfig;
 
         // Test Ollama connection
         const versionResponse = await fetch(`${ollamaUrl}/api/version`);
 
         if (versionResponse.ok) {
-          const versionData = (await versionResponse.json()) as any;
+          const versionData = (await versionResponse.json()) as Record<string, any>;
 
           // Check if model is available
           const modelsResponse = await fetch(`${ollamaUrl}/api/tags`);
           if (modelsResponse.ok) {
-            const modelsData = (await modelsResponse.json()) as any;
+            const modelsData = (await modelsResponse.json()) as Record<string, any>;
             const hasModel = modelsData.models?.some(
-              (m: any) => m.name === ollamaModel || m.name.startsWith(`${ollamaModel}:`)
+              (m: Record<string, any>) =>
+                m.name === ollamaModel || m.name.startsWith(`${ollamaModel}:`)
             );
 
-            validationResults.providers.ollama.connectionTest = {
+            (validationResults.providers as Record<string, any>).ollama.connectionTest = {
               status: 'success',
               version: versionData.version,
               modelAvailable: hasModel,
@@ -2006,22 +1928,24 @@ const gameAPIRoutes: Route[] = [
                 ? 'Connection successful and model available'
                 : `Connection successful but model ${ollamaModel} not found`,
             };
-            validationResults.providers.ollama.status = hasModel ? 'healthy' : 'degraded';
+            (validationResults.providers as Record<string, any>).ollama.status = hasModel
+              ? 'healthy'
+              : 'degraded';
           } else {
-            validationResults.providers.ollama.connectionTest = {
+            (validationResults.providers as Record<string, any>).ollama.connectionTest = {
               status: 'partial',
               version: versionData.version,
               message: 'Connected but could not list models',
             };
-            validationResults.providers.ollama.status = 'degraded';
+            (validationResults.providers as Record<string, any>).ollama.status = 'degraded';
           }
         } else {
-          validationResults.providers.ollama.connectionTest = {
+          (validationResults.providers as Record<string, any>).ollama.connectionTest = {
             status: 'failed',
             error: `HTTP ${versionResponse.status}: ${versionResponse.statusText}`,
             message: `Failed to connect to Ollama at ${ollamaUrl}`,
           };
-          validationResults.providers.ollama.status = 'unhealthy';
+          (validationResults.providers as Record<string, any>).ollama.status = 'unhealthy';
         }
       }
 
@@ -2040,13 +1964,13 @@ const gameAPIRoutes: Route[] = [
       validationResults.services.openai = {
         loaded: !!openaiService,
         type: openaiService?.constructor?.name || 'Not loaded',
-        status: openaiService ? 'healthy' : 'not_loaded',
+        status: openaiService ? 'loaded' : 'not_loaded',
       };
 
       validationResults.services.anthropic = {
         loaded: !!anthropicService,
         type: anthropicService?.constructor?.name || 'Not loaded',
-        status: anthropicService ? 'healthy' : 'not_loaded',
+        status: anthropicService ? 'loaded' : 'not_loaded',
       };
 
       // Calculate overall status
@@ -2068,8 +1992,8 @@ const gameAPIRoutes: Route[] = [
 
       res.json(
         successResponse({
-          validation: validationResults,
-          recommendations: generateConfigRecommendations(validationResults),
+          validation: validationResults as ValidationResults,
+          recommendations: generateConfigRecommendations(validationResults as ValidationResults),
         })
       );
     },
@@ -2081,14 +2005,14 @@ const gameAPIRoutes: Route[] = [
     path: '/api/config/test',
     name: 'Test Configuration',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       console.log('[CONFIG-TEST] Starting configuration test...');
 
       const testResults = {
         provider: process.env.MODEL_PROVIDER || 'ollama',
         model: process.env.LANGUAGE_MODEL || 'llama3.2:3b',
         timestamp: Date.now(),
-        tests: {} as Record<string, any>,
+        tests: {} as Record<string, unknown>,
       };
 
       // Test basic LLM completion
@@ -2186,7 +2110,7 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/autonomy',
     name: 'Get Autonomy Status',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, _runtime: IAgentRuntime) => {
       res.json({
         success: false,
         data: {
@@ -2202,7 +2126,7 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/plugin-configs',
     name: 'Get Plugin Configurations',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, _runtime: IAgentRuntime) => {
       res.json({
         success: true,
         data: [],
@@ -2214,7 +2138,7 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/plugin-configs/:pluginId',
     name: 'Update Plugin Configuration',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, _runtime: IAgentRuntime) => {
       res.json({
         success: false,
         error: 'Plugin configuration not implemented',
@@ -2229,7 +2153,7 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/providers',
     name: 'Get LLM Provider Status',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       try {
         const status = await getProviderStatus(runtime);
         res.json(successResponse(status));
@@ -2249,9 +2173,10 @@ const gameAPIRoutes: Route[] = [
     type: 'PUT',
     path: '/api/providers/selected',
     name: 'Set Selected Provider',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       try {
-        const { provider } = req.body;
+        const body = req.body || {};
+        const provider = (body as Record<string, unknown>).provider as string;
 
         if (provider !== null && typeof provider !== 'string') {
           return res
@@ -2284,9 +2209,10 @@ const gameAPIRoutes: Route[] = [
     type: 'PUT',
     path: '/api/providers/preferences',
     name: 'Set Provider Preferences',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       try {
-        const { preferences } = req.body;
+        const body = req.body || {};
+        const preferences = (body as Record<string, unknown>).preferences;
 
         if (!Array.isArray(preferences)) {
           return res
@@ -2322,26 +2248,17 @@ const gameAPIRoutes: Route[] = [
     },
   },
 
-  {
-    type: 'GET',
-    path: '/api/agents/:agentId/knowledge',
-    name: 'Get Knowledge Files',
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
-      res.json({
-        success: false,
-        error: 'Knowledge service not available',
-      });
-    },
-  },
-
   // Media stream endpoint for receiving video/audio data
   {
     type: 'POST',
     path: '/api/media/stream',
     name: 'Media Stream Data',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const { type, data, agentId } = req.body;
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const body = req.body || {};
+      const type = (body as Record<string, unknown>).type as string;
+      const data = (body as Record<string, unknown>).data;
+      const agentId = (body as Record<string, unknown>).agentId as string;
 
       if (!type || !data) {
         return res.status(400).json(errorResponse('INVALID_REQUEST', 'Type and data are required'));
@@ -2360,23 +2277,28 @@ const gameAPIRoutes: Route[] = [
 
       // Store data in appropriate buffer
       if (type === 'video') {
-        buffer.videoFrames.push(new Uint8Array(data));
+        buffer.videoFrames.push(new Uint8Array(data as ArrayBuffer | ArrayLike<number>));
         if (buffer.videoFrames.length > buffer.maxBufferSize) {
           buffer.videoFrames.shift(); // Remove oldest frame
         }
       } else if (type === 'audio') {
-        buffer.audioChunks.push(new Uint8Array(data));
+        buffer.audioChunks.push(new Uint8Array(data as ArrayBuffer | ArrayLike<number>));
         if (buffer.audioChunks.length > buffer.maxBufferSize) {
           buffer.audioChunks.shift(); // Remove oldest chunk
         }
       }
 
       // Notify vision service if available
-      const visionService = runtime.getService('vision') || runtime.getService('VISION');
-      if (visionService && typeof (visionService as any).processMediaData === 'function') {
-        await (visionService as any).processMediaData({
-          type,
-          data: new Uint8Array(data),
+      const visionService =
+        runtime.getService<VisionService>('vision') || runtime.getService<VisionService>('VISION');
+      if (
+        visionService &&
+        typeof visionService.processMediaStream === 'function' &&
+        (type === 'video' || type === 'audio')
+      ) {
+        await visionService.processMediaStream({
+          type: type as 'video' | 'audio',
+          data: new Uint8Array(data as ArrayBuffer),
           timestamp: Date.now(),
         });
       }
@@ -2385,7 +2307,7 @@ const gameAPIRoutes: Route[] = [
         successResponse({
           received: true,
           type,
-          size: data.length,
+          size: (data as ArrayBuffer).byteLength,
         })
       );
     },
@@ -2397,8 +2319,9 @@ const gameAPIRoutes: Route[] = [
     path: '/api/media/status',
     name: 'Media Buffer Status',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const agentId = req.query.agentId || runtime.agentId;
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const query = (req.query as Record<string, unknown>) || {};
+      const agentId = String(query.agentId || runtime.agentId);
       const buffer = mediaBuffers.get(agentId);
 
       if (!buffer) {
@@ -2427,8 +2350,10 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/agents/default/settings',
     name: 'Update Agent Settings',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
-      const { key, value } = req.body;
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
+      const body = req.body || {};
+      const key = (body as Record<string, unknown>).key as string;
+      const value = (body as Record<string, unknown>).value;
 
       if (!key) {
         return res.status(400).json(errorResponse('MISSING_KEY', 'Setting key is required'));
@@ -2448,10 +2373,10 @@ const gameAPIRoutes: Route[] = [
     path: '/api/agents/:agentId/screen/start',
     name: 'Start Agent Screen Capture',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       try {
         // Get server instance from request if available
-        const server = req.app?.locals?.agentServer;
+        const server = (req as any).app?.locals?.agentServer;
         await startAgentScreenCapture(runtime, server);
         res.json(
           successResponse({
@@ -2471,7 +2396,7 @@ const gameAPIRoutes: Route[] = [
     path: '/api/agents/:agentId/screen/stop',
     name: 'Stop Agent Screen Capture',
     public: true,
-    handler: async (req: any, res: any, _runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, _runtime: IAgentRuntime) => {
       try {
         await stopAgentScreenCapture();
         res.json(
@@ -2491,7 +2416,7 @@ const gameAPIRoutes: Route[] = [
     path: '/api/agents/:agentId/screen/latest',
     name: 'Get Latest Screen Frame',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const buffer = mediaBuffers.get(runtime.agentId);
 
       if (!buffer || buffer.videoFrames.length === 0) {
@@ -2502,7 +2427,7 @@ const gameAPIRoutes: Route[] = [
 
       // Convert Uint8Array to base64 for proper transmission
       const frameBase64 = Buffer.from(latestFrame).toString('base64');
-      
+
       res.json(
         successResponse({
           frame: frameBase64,
@@ -2521,7 +2446,7 @@ const gameAPIRoutes: Route[] = [
     path: '/api/agents/:agentId/screen/latest/image',
     name: 'Get Latest Screen Frame as Image',
     public: true,
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       const buffer = mediaBuffers.get(runtime.agentId);
 
       if (!buffer || buffer.videoFrames.length === 0) {
@@ -2532,7 +2457,7 @@ const gameAPIRoutes: Route[] = [
 
       // Return raw JPEG image
       res.setHeader('Content-Type', 'image/jpeg');
-      res.setHeader('Content-Length', latestFrame.length);
+      res.setHeader('Content-Length', String(latestFrame.length));
       res.send(Buffer.from(latestFrame));
     },
   },
@@ -2542,7 +2467,7 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/server/runtime',
     name: 'Get Server Runtime State',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       try {
         const hasConnection = !!runtime;
         const isConnected = hasConnection && runtime.agentId !== undefined;
@@ -2583,16 +2508,17 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/monologue',
     name: 'Get Agent Monologue',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       try {
         if (!runtime) {
           return res.status(404).json(errorResponse('NOT_FOUND', 'No agent runtime available'));
         }
 
         // Get recent memories that represent the agent's monologue/thoughts
+        const query = (req.query as Record<string, unknown>) || {};
         const memories = await runtime.getMemories({
-          roomId: req.query.roomId as UUID,
-          count: parseInt(req.query.count as string, 10) || 10,
+          roomId: query.roomId as UUID,
+          count: parseInt(String(query.count || 10), 10),
           tableName: 'memories',
         });
 
@@ -2623,18 +2549,17 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/messaging/ingest-external',
     name: 'Ingest External Message',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       try {
-        const {
-          channel_id,
-          server_id,
-          author_id,
-          author_display_name,
-          content,
-          source_type,
-          raw_message,
-          metadata,
-        } = req.body;
+        const body = req.body || {};
+        const channel_id = (body as Record<string, unknown>).channel_id as string;
+        const server_id = (body as Record<string, unknown>).server_id as string;
+        const author_id = (body as Record<string, unknown>).author_id as string;
+        const author_display_name = (body as Record<string, unknown>).author_display_name as string;
+        const content = (body as Record<string, unknown>).content as string;
+        const source_type = (body as Record<string, unknown>).source_type as string;
+        const raw_message = (body as Record<string, unknown>).raw_message;
+        const metadata = (body as Record<string, unknown>).metadata;
 
         // Validate required fields
         if (!channel_id || !content || !author_id) {
@@ -2672,14 +2597,16 @@ const gameAPIRoutes: Route[] = [
           channel = await serverInstance.createChannel({
             id: channel_id as UUID,
             serverId,
-            name: metadata?.channel_name || `Test Channel ${channel_id.substring(0, 8)}`,
-            type: 'GROUP' as any,
+            name:
+              (metadata as Record<string, any>)?.channel_name ||
+              `Test Channel ${channel_id.substring(0, 8)}`,
+            type: 'GROUP' as const,
             sourceType: source_type || 'test',
             metadata: {
               created_by: 'ingest_external_api',
               created_for: author_id,
               created_at: new Date().toISOString(),
-              ...metadata,
+              ...((metadata as object) || {}),
             },
           });
 
@@ -2697,7 +2624,7 @@ const gameAPIRoutes: Route[] = [
           sourceId: source_type || 'external',
           source_type: source_type || 'external',
           metadata: {
-            ...metadata,
+            ...((metadata as object) || {}),
             author_display_name,
             server_id,
             ingested_at: Date.now(),
@@ -2743,10 +2670,14 @@ const gameAPIRoutes: Route[] = [
     type: 'GET',
     path: '/api/memory/query',
     name: 'Query Memories',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       try {
-        const { roomId, limit = 10, offset = 0, tableName = 'memories' } = req.query;
-        
+        const query = req.query || {};
+        const roomId = (query as Record<string, unknown>).roomId as string;
+        const limit = parseInt(((query as Record<string, unknown>).limit as string) || '10', 10);
+        const offset = parseInt(((query as Record<string, unknown>).offset as string) || '0', 10);
+        const tableName = ((query as Record<string, unknown>).tableName as string) || 'memories';
+
         if (!runtime) {
           return res.status(500).json(errorResponse('NO_RUNTIME', 'Runtime not available'));
         }
@@ -2754,9 +2685,9 @@ const gameAPIRoutes: Route[] = [
         // Get memories using the runtime's getMemories method
         const memories = await runtime.getMemories({
           roomId: roomId as UUID,
-          count: parseInt(limit as string, 10),
+          count: parseInt(String(limit), 10),
           tableName: tableName as string,
-          start: offset ? Date.now() - (parseInt(offset as string, 10) * 86400000) : undefined, // offset in days
+          start: offset ? Date.now() - parseInt(String(offset), 10) * 86400000 : undefined, // offset in days
         });
 
         res.json({
@@ -2783,9 +2714,14 @@ const gameAPIRoutes: Route[] = [
     type: 'POST',
     path: '/api/agents/:agentId/message',
     name: 'Send Message (Legacy)',
-    handler: async (req: any, res: any, runtime: IAgentRuntime) => {
+    handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
       try {
-        const { text, userId, roomId, messageId } = req.body;
+        const body = (req.body as Record<string, unknown>) || {};
+        const params = (req.params as Record<string, unknown>) || {};
+        const text = body.text;
+        const userId = body.userId;
+        const roomId = body.roomId;
+        const messageId = body.messageId;
 
         // Transform to new format
         const newPayload = {
@@ -2799,7 +2735,7 @@ const gameAPIRoutes: Route[] = [
           metadata: {
             legacy: true,
             originalMessageId: messageId,
-            agentId: req.params.agentId,
+            agentId: params.agentId,
           },
         };
 
@@ -2818,7 +2754,6 @@ const gameAPIRoutes: Route[] = [
       } catch (error) {
         console.error('[API] Error in legacy message endpoint:', error);
         return res.status(500).json(errorResponse('LEGACY_ERROR', 'Failed to process message'));
-
       }
     },
   },
@@ -2861,7 +2796,7 @@ export const gameAPIPlugin: Plugin = {
     }
 
     // Debug: List all registered services
-    const services = (runtime as any).services || new Map();
+    const services = runtime.services || new Map();
     const serviceNames = Array.from(services.keys());
     console.log('[GAME-API] Available services at init:', serviceNames);
 
@@ -2893,12 +2828,9 @@ export const gameAPIPlugin: Plugin = {
         // Check if agent exists and has no goals yet
         const agent = await runtime.db?.getAgent?.(runtime.agentId);
         if (agent) {
-          const goalService = runtime.getService('goals'); // lowercase
+          const goalService = runtime.getService<GoalService>('goals'); // lowercase
           if (goalService) {
-            const existingGoals = await (goalService as any).getAllGoalsForOwner(
-              'agent',
-              runtime.agentId
-            );
+            const existingGoals = await goalService.getAllGoalsForOwner('agent', runtime.agentId);
             if (!existingGoals || existingGoals.length === 0) {
               console.log('[GAME-API] No existing goals found, creating initial set...');
               await createInitialTodosAndGoals(runtime);

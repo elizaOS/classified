@@ -51,7 +51,7 @@ export const TodoPluginComprehensiveE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         console.log('🧪 Testing complete todo lifecycle...');
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Generate unique test data
@@ -246,7 +246,7 @@ export const TodoPluginComprehensiveE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         console.log('🧪 Testing TODOS provider with real data...');
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Create test todos
@@ -315,7 +315,7 @@ export const TodoPluginComprehensiveE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         console.log('🧪 Testing overdue todos and reminder system...');
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Create an overdue todo
@@ -377,7 +377,7 @@ export const TodoPluginComprehensiveE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         console.log('🧪 Testing daily todo reset functionality...');
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Create daily todos
@@ -443,7 +443,7 @@ export const TodoPluginComprehensiveE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         console.log('🧪 Testing error handling scenarios...');
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Test getting non-existent todo

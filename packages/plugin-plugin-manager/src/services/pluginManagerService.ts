@@ -253,17 +253,17 @@ export class PluginManagerService extends Service implements PluginRegistry {
   // Protected plugins that cannot be registered, loaded, or unloaded by external code
   // These match the actual plugin names as defined in their respective index.ts files
   private readonly PROTECTED_PLUGINS = new Set<string>([
-    'plugin-manager',          // The plugin manager itself
-    '@elizaos/plugin-sql',     // SQL database plugin
-    'bootstrap',               // Bootstrap plugin
-    'game-api',               // Game API plugin
-    'inference',              // Inference engine
-    'autonomy',               // Autonomy plugin
-    'knowledge',              // Knowledge management
+    'plugin-manager', // The plugin manager itself
+    '@elizaos/plugin-sql', // SQL database plugin
+    'bootstrap', // Bootstrap plugin
+    'game-api', // Game API plugin
+    'inference', // Inference engine
+    'autonomy', // Autonomy plugin
+    'knowledge', // Knowledge management
     '@elizaos/plugin-personality', // Personality system
-    'experience',             // Experience tracking
-    'goals',                  // Goals tracking (can be removed once progression is working)
-    'todo',                   // Todo tracking (can be removed once progression is working)
+    'experience', // Experience tracking
+    'goals', // Goals tracking (can be removed once progression is working)
+    'todo', // Todo tracking (can be removed once progression is working)
   ]);
 
   constructor(runtime: IAgentRuntime, config?: PluginManagerConfig) {
@@ -498,7 +498,9 @@ export class PluginManagerService extends Service implements PluginRegistry {
     // Check if trying to register a duplicate of an original plugin
     const isOriginalName = this.originalPlugins.some((p) => p.name === plugin.name);
     if (isOriginalName) {
-      throw new Error(`Cannot register a plugin with the same name as an original plugin: ${plugin.name}`);
+      throw new Error(
+        `Cannot register a plugin with the same name as an original plugin: ${plugin.name}`
+      );
     }
 
     // Check if this is an attempt to register a protected plugin
@@ -739,20 +741,23 @@ export class PluginManagerService extends Service implements PluginRegistry {
     if (this.PROTECTED_PLUGINS.has(pluginName)) {
       return true;
     }
-    
+
     // Check without @elizaos/ prefix
     const withoutPrefix = pluginName.replace(/^@elizaos\//, '');
     if (this.PROTECTED_PLUGINS.has(withoutPrefix)) {
       return true;
     }
-    
+
     // Check with @elizaos/ prefix added
-    if (!pluginName.startsWith('@elizaos/') && this.PROTECTED_PLUGINS.has(`@elizaos/${pluginName}`)) {
+    if (
+      !pluginName.startsWith('@elizaos/') &&
+      this.PROTECTED_PLUGINS.has(`@elizaos/${pluginName}`)
+    ) {
       return true;
     }
-    
+
     // Also protect original plugins (loaded at startup)
-    return this.originalPlugins.some(p => p.name === pluginName);
+    return this.originalPlugins.some((p) => p.name === pluginName);
   }
 
   /**
@@ -766,7 +771,7 @@ export class PluginManagerService extends Service implements PluginRegistry {
    * Gets the list of original plugin names (loaded at startup)
    */
   getOriginalPlugins(): string[] {
-    return this.originalPlugins.map(p => p.name);
+    return this.originalPlugins.map((p) => p.name);
   }
 
   /**
@@ -784,16 +789,19 @@ export class PluginManagerService extends Service implements PluginRegistry {
     if (this.PROTECTED_PLUGINS.has(pluginName)) {
       return `${pluginName} is a core system plugin and cannot be unloaded`;
     }
-    
+
     const withoutPrefix = pluginName.replace(/^@elizaos\//, '');
-    if (this.PROTECTED_PLUGINS.has(withoutPrefix) || this.PROTECTED_PLUGINS.has(`@elizaos/${pluginName}`)) {
+    if (
+      this.PROTECTED_PLUGINS.has(withoutPrefix) ||
+      this.PROTECTED_PLUGINS.has(`@elizaos/${pluginName}`)
+    ) {
       return `${pluginName} is a core system plugin and cannot be unloaded`;
     }
-    
-    if (this.originalPlugins.some(p => p.name === pluginName)) {
+
+    if (this.originalPlugins.some((p) => p.name === pluginName)) {
       return `${pluginName} was loaded at startup and is required for agent operation`;
     }
-    
+
     return null;
   }
 

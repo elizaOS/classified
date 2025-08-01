@@ -1,5 +1,5 @@
 import type { IAgentRuntime, UUID } from '@elizaos/core';
-import { createTodoDataService } from '../services/todoDataService';
+import { createTodoDataService } from '../services/todoService';
 import { TodoReminderService } from '../services/reminderService';
 import { v4 as uuidv4 } from 'uuid';
 

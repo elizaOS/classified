@@ -296,12 +296,13 @@ export const createProjectAction: Action = {
     const formTemplate = getFormTemplate(projectType);
 
     const projectId = uuidv4();
+    const formId = uuidv4() as UUID; // Separate UUID for the form
     const formData = {
-      id: `project-${projectId}`,
+      id: formId,
       ...formTemplate,
       onCancel: {
         action: 'CANCEL_FORM',
-        data: { formId: `project-${projectId}` },
+        data: { formId },
       },
       onSubmit: {
         action: 'GENERATE_CODE',

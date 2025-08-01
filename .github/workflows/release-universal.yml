@@ -66,7 +66,7 @@ jobs:
         with:
           script: |
             const tag = 'v${{ env.PACKAGE_VERSION }}-universal';
-            
+
             try {
               const release = await github.rest.repos.createRelease({
                 owner: context.repo.owner,
@@ -107,11 +107,11 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
-            
+
             const dmgPath = path.join('packages/game/src-tauri/target/universal-apple-darwin/release/bundle/dmg', 
               `ElizaOS Terminal_${{ env.PACKAGE_VERSION }}_universal.dmg`);
             const dmgData = fs.readFileSync(dmgPath);
-            
+
             await github.rest.repos.uploadReleaseAsset({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -131,11 +131,11 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
-            
+
             const tarPath = path.join('packages/game/src-tauri/target/universal-apple-darwin/release/bundle/macos',
               `ElizaOS-Terminal-${{ env.PACKAGE_VERSION }}-universal.app.tar.gz`);
             const tarData = fs.readFileSync(tarPath);
-            
+
             await github.rest.repos.uploadReleaseAsset({
               owner: context.repo.owner,
               repo: context.repo.repo,

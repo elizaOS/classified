@@ -92,7 +92,7 @@ export class AgentImportService {
       result.agentName = manifest.agentName;
 
       // Begin database transaction
-      await this.db.transaction(async (tx: any) => {
+      await this.db.transaction(async (tx: unknown) => {
         // Delete existing agent data if overwrite is enabled
         if (overwrite) {
           await this.deleteExistingAgentData(tx);
@@ -199,7 +199,7 @@ export class AgentImportService {
   /**
    * Delete existing agent data (cascade will handle related tables)
    */
-  private async deleteExistingAgentData(tx: any): Promise<void> {
+  private async deleteExistingAgentData(tx: unknown): Promise<void> {
     logger.info(`[AgentImportService] Deleting existing data for agent ${this.targetAgentId}`);
 
     // Delete from server_agents first (no cascade from agents table)
@@ -212,7 +212,7 @@ export class AgentImportService {
   /**
    * Import agent data
    */
-  private async importAgent(tx: any, zip: AdmZip): Promise<void> {
+  private async importAgent(tx: unknown, zip: AdmZip): Promise<void> {
     const agentEntry = zip.getEntry('database/agent.json');
     if (!agentEntry) throw new Error('agent.json not found');
 
@@ -229,7 +229,7 @@ export class AgentImportService {
   /**
    * Import entities
    */
-  private async importEntities(tx: any, zip: AdmZip): Promise<void> {
+  private async importEntities(tx: unknown, zip: AdmZip): Promise<void> {
     const entry = zip.getEntry('database/entities.json');
     if (!entry) return; // Entities are optional
 
@@ -237,7 +237,7 @@ export class AgentImportService {
     if (entities.length === 0) return;
 
     // Update agent IDs
-    const updatedEntities = entities.map((entity: any) => ({
+    const updatedEntities = entities.map((entity: Record<string, unknown>) => ({
       ...entity,
       agentId: this.targetAgentId,
     }));
@@ -248,14 +248,14 @@ export class AgentImportService {
   /**
    * Import worlds
    */
-  private async importWorlds(tx: any, zip: AdmZip): Promise<void> {
+  private async importWorlds(tx: unknown, zip: AdmZip): Promise<void> {
     const entry = zip.getEntry('database/worlds.json');
     if (!entry) return;
 
     const worlds = JSON.parse(zip.readAsText(entry));
     if (worlds.length === 0) return;
 
-    const updatedWorlds = worlds.map((world: any) => ({
+    const updatedWorlds = worlds.map((world: Record<string, unknown>) => ({
       ...world,
       agentId: this.targetAgentId,
     }));
@@ -266,14 +266,14 @@ export class AgentImportService {
   /**
    * Import rooms
    */
-  private async importRooms(tx: any, zip: AdmZip): Promise<void> {
+  private async importRooms(tx: unknown, zip: AdmZip): Promise<void> {
     const entry = zip.getEntry('database/rooms.json');
     if (!entry) return;
 
     const rooms = JSON.parse(zip.readAsText(entry));
     if (rooms.length === 0) return;
 
-    const updatedRooms = rooms.map((room: any) => ({
+    const updatedRooms = rooms.map((room: Record<string, unknown>) => ({
       ...room,
       agentId: this.targetAgentId,
     }));
@@ -284,14 +284,14 @@ export class AgentImportService {
   /**
    * Import participants
    */
-  private async importParticipants(tx: any, zip: AdmZip): Promise<void> {
+  private async importParticipants(tx: unknown, zip: AdmZip): Promise<void> {
     const entry = zip.getEntry('database/participants.json');
     if (!entry) return;
 
     const participants = JSON.parse(zip.readAsText(entry));
     if (participants.length === 0) return;
 
-    const updatedParticipants = participants.map((participant: any) => ({
+    const updatedParticipants = participants.map((participant: Record<string, unknown>) => ({
       ...participant,
       agentId: this.targetAgentId,
     }));
@@ -302,7 +302,7 @@ export class AgentImportService {
   /**
    * Import memories (convert array embeddings back to vectors)
    */
-  private async importMemories(tx: any, zip: AdmZip): Promise<void> {
+  private async importMemories(tx: unknown, zip: AdmZip): Promise<void> {
     const entry = zip.getEntry('database/memories.json');
     if (!entry) return;
 
@@ -314,7 +314,7 @@ export class AgentImportService {
     for (let i = 0; i < memories.length; i += BATCH_SIZE) {
       const batch = memories.slice(i, i + BATCH_SIZE);
 
-      const updatedMemories = batch.map((memory: any) => ({
+      const updatedMemories = batch.map((memory: Record<string, unknown>) => ({
         ...memory,
         agentId: this.targetAgentId,
         // Convert array embeddings back to pgvector format
@@ -330,14 +330,14 @@ export class AgentImportService {
   /**
    * Import relationships
    */
-  private async importRelationships(tx: any, zip: AdmZip): Promise<void> {
+  private async importRelationships(tx: unknown, zip: AdmZip): Promise<void> {
     const entry = zip.getEntry('database/relationships.json');
     if (!entry) return;
 
     const relationships = JSON.parse(zip.readAsText(entry));
     if (relationships.length === 0) return;
 
-    const updatedRelationships = relationships.map((relationship: any) => ({
+    const updatedRelationships = relationships.map((relationship: Record<string, unknown>) => ({
       ...relationship,
       agentId: this.targetAgentId,
     }));
@@ -348,14 +348,14 @@ export class AgentImportService {
   /**
    * Import tasks
    */
-  private async importTasks(tx: any, zip: AdmZip): Promise<void> {
+  private async importTasks(tx: unknown, zip: AdmZip): Promise<void> {
     const entry = zip.getEntry('database/tasks.json');
     if (!entry) return;
 
     const tasks = JSON.parse(zip.readAsText(entry));
     if (tasks.length === 0) return;
 
-    const updatedTasks = tasks.map((task: any) => ({
+    const updatedTasks = tasks.map((task: Record<string, unknown>) => ({
       ...task,
       agentId: this.targetAgentId,
     }));
@@ -366,14 +366,14 @@ export class AgentImportService {
   /**
    * Import server_agents associations
    */
-  private async importServerAgents(tx: any, zip: AdmZip): Promise<void> {
+  private async importServerAgents(tx: unknown, zip: AdmZip): Promise<void> {
     const entry = zip.getEntry('database/server_agents.json');
     if (!entry) return;
 
     const serverAgents = JSON.parse(zip.readAsText(entry));
     if (serverAgents.length === 0) return;
 
-    const updatedServerAgents = serverAgents.map((sa: any) => ({
+    const updatedServerAgents = serverAgents.map((sa: Record<string, unknown>) => ({
       ...sa,
       agentId: this.targetAgentId,
     }));

@@ -25,7 +25,9 @@ export class SessionManager {
         await this.playwrightInstaller.ensurePlaywrightInstalled();
       } catch (error) {
         this.logger.error('Failed to install Playwright:', error);
-        throw new Error('Playwright is not installed and installation failed. Please install Playwright manually.');
+        throw new Error(
+          'Playwright is not installed and installation failed. Please install Playwright manually.'
+        );
       }
     }
 

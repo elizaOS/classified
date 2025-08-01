@@ -40,7 +40,10 @@ impl ScreenSharingTests {
         match Self::test_agent_frame_reception(app_handle).await {
             Ok(_) => info!("  ✅ Agent can receive frames"),
             Err(e) => {
-                warn!("  ⚠️  Agent frame reception not available (expected if agent not running): {}", e);
+                warn!(
+                    "  ⚠️  Agent frame reception not available (expected if agent not running): {}",
+                    e
+                );
             }
         }
 
@@ -52,14 +55,17 @@ impl ScreenSharingTests {
     async fn test_ipc_command_exists(app_handle: &AppHandle) -> BackendResult<()> {
         // Try to invoke the command with minimal data
         let _test_data = [0u8; 100]; // Small test frame
-        
+
         // We're just checking if the command exists, not if it succeeds
-        match app_handle.emit("ipc-test", json!({
-            "command": "stream_media_frame",
-            "exists": true
-        })) {
+        match app_handle.emit(
+            "ipc-test",
+            json!({
+                "command": "stream_media_frame",
+                "exists": true
+            }),
+        ) {
             Ok(_) => Ok(()),
-            Err(e) => Err(BackendError::Container(format!("IPC test failed: {}", e)))
+            Err(e) => Err(BackendError::Container(format!("IPC test failed: {}", e))),
         }
     }
 
@@ -77,13 +83,13 @@ impl ScreenSharingTests {
         // Check if agent is running by testing health endpoint
         let client = reqwest::Client::new();
         let health_url = "http://localhost:7777/api/health";
-        
+
         match client.get(health_url).send().await {
             Ok(response) if response.status().is_success() => {
                 info!("Agent is running, frame reception capability confirmed");
                 Ok(())
             }
-            _ => Err(BackendError::Container("Agent not running".to_string()))
+            _ => Err(BackendError::Container("Agent not running".to_string())),
         }
     }
 }
@@ -93,4 +99,4 @@ pub async fn test_screen_sharing(app_handle: AppHandle) -> Result<(), String> {
     ScreenSharingTests::test_screen_sharing_flow(&app_handle)
         .await
         .map_err(|e| e.to_string())
-} 
+}

@@ -7,7 +7,7 @@ interface AgentLog {
   type: 'agent' | 'system' | 'error';
   level: 'info' | 'warn' | 'error' | 'debug';
   message: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export const AgentLogs: React.FC = () => {
@@ -91,7 +91,10 @@ export const AgentLogs: React.FC = () => {
         <div className="logs-controls">
           <div className="filter-group">
             <label>Type:</label>
-            <select value={filter} onChange={(e) => setFilter(e.target.value as any)}>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as 'all' | 'agent' | 'system')}
+            >
               <option value="all">All</option>
               <option value="agent">Agent Only</option>
               <option value="system">System Only</option>

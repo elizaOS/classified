@@ -11,7 +11,7 @@ import {
   parseKeyValueXml,
   type State,
 } from '@elizaos/core';
-import type { TodoData, TodoDataService } from '../services/todoDataService';
+import type { TodoData, TodoService } from '../services/todoService';
 
 // Interface for task completion properties
 interface TaskCompletion {
@@ -119,7 +119,7 @@ export const completeTodoAction: Action = {
   ) => {
     logger.info('[completeTodo] Handler invoked', { messageContent: message.content.text });
 
-    const dataService = runtime.getService('todo') as TodoDataService;
+    const dataService = runtime.getService('todo') as TodoService;
     if (!dataService) {
       logger.error('[completeTodo] Todo service not available');
       if (callback) {

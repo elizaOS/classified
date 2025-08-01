@@ -11,10 +11,10 @@ const { componentTable, entityTable } = plugin.schema || {};
 if (componentTable) {
   console.log('componentTable keys:', Object.keys(componentTable));
   console.log('componentTable.entityId:', componentTable.entityId);
-  
+
   // Check specific column properties
   const cols = ['entityId', 'agentId', 'roomId', 'sourceEntityId'];
-  cols.forEach(col => {
+  cols.forEach((col) => {
     if (componentTable[col]) {
       console.log(`\n${col}:`);
       console.log('- name:', componentTable[col].name);

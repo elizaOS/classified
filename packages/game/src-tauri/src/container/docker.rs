@@ -19,11 +19,11 @@ impl DockerClient {
             docker_path: "docker".to_string(),
         }
     }
-    
+
     pub fn with_path(path: String) -> Self {
         Self { docker_path: path }
     }
-    
+
     pub fn get_path(&self) -> &str {
         &self.docker_path
     }
@@ -58,7 +58,10 @@ impl DockerClient {
 
     pub async fn is_available(&self) -> BackendResult<bool> {
         // Check if Docker is available by running 'docker version'
-        match std::process::Command::new(&self.docker_path).arg("version").output() {
+        match std::process::Command::new(&self.docker_path)
+            .arg("version")
+            .output()
+        {
             Ok(output) => {
                 if output.status.success() {
                     Ok(true)
@@ -317,7 +320,7 @@ impl DockerClient {
             ))),
         }
     }
-    
+
     pub async fn is_container_running(&self, container_name: &str) -> BackendResult<bool> {
         match std::process::Command::new(&self.docker_path)
             .args(["ps", "-q", "-f", &format!("name={}", container_name)])
@@ -360,7 +363,7 @@ impl DockerClient {
 
         Ok(output)
     }
-    
+
     pub async fn start_existing_container(&self, container_name: &str) -> BackendResult<()> {
         match std::process::Command::new(&self.docker_path)
             .args(["start", container_name])

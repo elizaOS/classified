@@ -7,7 +7,7 @@ description: |
   AI agent from a blank slate to a self-actualized digital being. Unlike 
   traditional simulations, ELIZA's AI is not scripted – it leverages a 
   real autonomous agent running on ElizaOS to drive emergent behavior.
-  
+
   The agent starts with no built-in knowledge, personality, or purpose, 
   and must learn about the world, form relationships, and define its 
   goals in real-time through interaction.
@@ -70,20 +70,20 @@ parts:
       # Install Rust
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       export PATH="$HOME/.cargo/bin:$PATH"
-      
+
       # Build the application
       cd packages/game
       npm install
       npm run build
-      
+
       # Copy the built binary
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
       cp src-tauri/target/release/elizaos $SNAPCRAFT_PART_INSTALL/bin/
-      
+
       # Copy resources
       mkdir -p $SNAPCRAFT_PART_INSTALL/share/elizaos
       cp -r dist/* $SNAPCRAFT_PART_INSTALL/share/elizaos/
-      
+
       # Create desktop file
       mkdir -p $SNAPCRAFT_PART_INSTALL/share/applications
       cat > $SNAPCRAFT_PART_INSTALL/share/applications/elizaos.desktop << EOF
@@ -97,7 +97,7 @@ parts:
       Categories=Game;Simulation;
       StartupNotify=true
       EOF
-      
+
       # Copy icon
       mkdir -p $SNAPCRAFT_PART_INSTALL/share/icons/hicolor/512x512/apps
       cp src-tauri/icons/icon.png $SNAPCRAFT_PART_INSTALL/share/icons/hicolor/512x512/apps/elizaos.png

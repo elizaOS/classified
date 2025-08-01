@@ -5,21 +5,24 @@ This directory contains all GitHub Actions workflows for the ElizaOS project.
 ## Build & Test Workflows
 
 ### build-test.yml
+
 - **Trigger**: Push to main, PRs, manual
 - **Purpose**: Builds and tests the Tauri application across all platforms
 - **Platforms**: Windows, macOS, Linux
 
 ### verify-deployment.yml
+
 - **Trigger**: Push, PRs, manual
 - **Purpose**: Verifies deployment scripts and configurations
 
 ## Release Workflows
 
 ### tauri-release.yml
+
 - **Trigger**: Push tags (`v*`), manual
 - **Purpose**: Main release workflow for desktop applications
 - **Outputs**: DMG (macOS), MSI/EXE (Windows), AppImage/DEB (Linux)
-- **Features**: 
+- **Features**:
   - Uses official Tauri GitHub Action
   - Code signing and notarization
   - Automatic GitHub release creation
@@ -27,11 +30,13 @@ This directory contains all GitHub Actions workflows for the ElizaOS project.
   - Supports both Intel and Apple Silicon builds for macOS
 
 ### release-universal.yml
+
 - **Trigger**: Push tags (`v*-universal`), manual
 - **Purpose**: Builds universal macOS binary (Intel + Apple Silicon)
 - **Output**: Universal DMG and app bundle
 
 ### container-release.yml
+
 - **Trigger**: Push to main, tags (`v*`), PRs
 - **Purpose**: Builds and pushes OCI-compliant containers (Docker/Podman compatible)
 - **Registry**: GitHub Container Registry (ghcr.io)
@@ -39,6 +44,7 @@ This directory contains all GitHub Actions workflows for the ElizaOS project.
 - **Platforms**: linux/amd64, linux/arm64
 
 ### app-store-deploy.yml
+
 - **Trigger**: Release published, manual
 - **Purpose**: Deploys to various app stores
 - **Platforms**:
@@ -51,17 +57,21 @@ This directory contains all GitHub Actions workflows for the ElizaOS project.
 ## Deployment Workflows
 
 ### deploy-lander.yml
+
 - **Trigger**: Push to main (lander changes), manual
 - **Purpose**: Deploys the landing page to GitHub Pages
 
 ### manual-release.yml
+
 - **Trigger**: Manual only
 - **Purpose**: Triggers a release build with custom version
 
 ## Required Secrets
 
 ### Code Signing
-- **macOS**: 
+
+- **macOS**:
+
   - `APPLE_CERTIFICATE` - P12 certificate for code signing
   - `APPLE_CERTIFICATE_PASSWORD` - Certificate password
   - `APPLE_SIGNING_IDENTITY` - Identity for code signing
@@ -92,7 +102,9 @@ This directory contains all GitHub Actions workflows for the ElizaOS project.
   - `WINDOWS_STORE_APP_ID` - Windows Store app ID
 
 ### App Store Deployment
+
 - **Steam**:
+
   - `STEAM_USERNAME` - Steam account username
   - `STEAM_PASSWORD` - Steam account password (if not using TOTP)
   - `STEAM_SHARED_SECRET` - Steam Guard shared secret (for TOTP)
@@ -100,6 +112,7 @@ This directory contains all GitHub Actions workflows for the ElizaOS project.
   - `STEAM_APP_ID` - Your Steam app ID
 
 - **Microsoft Store**:
+
   - `MS_TENANT_ID` - Azure AD tenant ID
   - `MS_SELLER_ID` - Microsoft Partner Center seller ID
   - `MS_CLIENT_ID` - Azure AD app client ID
@@ -115,6 +128,7 @@ This directory contains all GitHub Actions workflows for the ElizaOS project.
   - `SNAPCRAFT_STORE_CREDENTIALS`
 
 ### Other
+
 - `GITHUB_TOKEN` - Automatically provided
 
 ## Workflow Dependencies
@@ -123,14 +137,14 @@ This directory contains all GitHub Actions workflows for the ElizaOS project.
 graph TD
     A[Push/Tag] --> B[build-test.yml]
     A --> C[container-release.yml]
-    
+
     D[Tag v*] --> E[tauri-release.yml]
     E --> F[deploy-lander.yml]
-    
+
     G[Tag v*-universal] --> H[release-universal.yml]
-    
+
     I[Release Published] --> J[app-store-deploy.yml]
-    
+
     K[Manual Trigger] --> L[manual-release.yml]
     L --> E
 ```
@@ -146,16 +160,19 @@ graph TD
 ## Troubleshooting
 
 ### Build Failures
+
 - Check platform-specific dependencies
 - Verify all secrets are set correctly
 - Review build logs for missing tools
 
 ### Release Issues
+
 - Ensure tags follow correct format
 - Check GitHub token permissions
 - Verify artifact paths match
 
 ### App Store Deployment
+
 - Validate credentials before deployment
 - Test with development/sandbox environments first
 - Monitor platform-specific requirements

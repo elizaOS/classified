@@ -98,12 +98,12 @@ export const pluginStateProvider: Provider = {
     // Add information about protected and original plugins
     const protectedPlugins = pluginManager.getProtectedPlugins();
     const originalPlugins = pluginManager.getOriginalPlugins();
-    
+
     if (protectedPlugins.length > 0 || originalPlugins.length > 0) {
       sections.push(
         '**System Plugins:**\n' +
-        `- Protected: ${protectedPlugins.join(', ')}\n` +
-        `- Original (loaded at startup): ${originalPlugins.join(', ')}`
+          `- Protected: ${protectedPlugins.join(', ')}\n` +
+          `- Original (loaded at startup): ${originalPlugins.join(', ')}`
       );
     }
 

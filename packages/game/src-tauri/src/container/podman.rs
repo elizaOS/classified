@@ -271,7 +271,9 @@ impl PodmanClient {
 
                 // Simple health status based on state
                 let health = match state {
-                    crate::backend::ContainerState::Running => crate::backend::HealthStatus::Healthy,
+                    crate::backend::ContainerState::Running => {
+                        crate::backend::HealthStatus::Healthy
+                    }
                     _ => crate::backend::HealthStatus::Unknown,
                 };
 
@@ -366,7 +368,7 @@ impl PodmanClient {
             ))),
         }
     }
-    
+
     pub async fn is_container_running(&self, container_name: &str) -> BackendResult<bool> {
         match Command::new(&self.podman_path)
             .args(["ps", "-q", "-f", &format!("name={}", container_name)])

@@ -18,12 +18,14 @@ deployment/
 ## Quick Start
 
 1. **Run the setup script** (from this directory):
+
    ```bash
    cd deployment
    ./setup-app-stores.sh
    ```
 
 2. **Review platform requirements**:
+
    - See `README_APPSTORE.md` for comprehensive documentation
    - Each platform has its own README in its respective folder
 
@@ -34,21 +36,25 @@ deployment/
 ## Platform Overview
 
 ### 🎮 Steam
+
 - **Location**: `steam/`
 - **Cost**: $100 one-time
 - **Features**: Achievements, Cloud Saves, Workshop
 
 ### 🪟 Microsoft Store
+
 - **Location**: `microsoft-store/`
 - **Cost**: $19-99 one-time
 - **Format**: MSIX packages
 
 ### 🍎 Mac App Store
+
 - **Location**: `mac-app-store/`
 - **Cost**: $99/year
 - **Requirements**: Apple Developer account, code signing
 
 ### 🐧 Linux Stores
+
 - **Location**: `linux-stores/`
 - **Platforms**: Snap Store (free), Flathub (free)
 - **Formats**: Snap packages, Flatpak bundles
@@ -56,6 +62,7 @@ deployment/
 ## Automated Deployment
 
 GitHub Actions workflow is configured for automated deployment:
+
 - **Workflow**: `.github/workflows/app-store-deploy.yml`
 - **Triggers**: On release or manual dispatch
 - **Platforms**: All stores can be deployed automatically
@@ -65,12 +72,14 @@ GitHub Actions workflow is configured for automated deployment:
 Configure these in your GitHub repository settings:
 
 ### Steam
+
 - `STEAM_USERNAME`
-- `STEAM_PASSWORD` 
+- `STEAM_PASSWORD`
 - `STEAM_APP_ID`
 - `STEAM_CONFIG_VDF`
 
 ### Microsoft Store
+
 - `MS_PACKAGE_NAME`
 - `MS_PUBLISHER`
 - `MS_PUBLISHER_DISPLAY`
@@ -83,6 +92,7 @@ Configure these in your GitHub repository settings:
 - `MS_CERTIFICATE_PASSWORD`
 
 ### Mac App Store
+
 - `APPLE_ID`
 - `APPLE_TEAM_ID`
 - `APPLE_APP_PASSWORD`
@@ -91,6 +101,7 @@ Configure these in your GitHub repository settings:
 - `APPLE_PROVISIONING_PROFILE`
 
 ### Linux Stores
+
 - `SNAPCRAFT_STORE_CREDENTIALS`
 
 ## Build Commands
@@ -117,6 +128,7 @@ cd linux-stores/flatpak && flatpak-builder --repo=repo build-dir com.elizaos.Gam
 ## Support
 
 For platform-specific issues:
+
 - **Steam**: [Steamworks Forums](https://steamcommunity.com/groups/steamworks/discussions/)
 - **Microsoft**: [Partner Center Support](https://partner.microsoft.com/support)
 - **Apple**: [Developer Forums](https://developer.apple.com/forums/)

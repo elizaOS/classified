@@ -4,6 +4,9 @@ export * from './types';
 // Export utils first to avoid circular dependency issues
 export * from './utils';
 
+// Export test utilities
+export * from './test-utils';
+
 // Export schemas
 export * from './schemas/character';
 

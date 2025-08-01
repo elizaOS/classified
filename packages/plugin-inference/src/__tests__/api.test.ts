@@ -3,15 +3,32 @@ import { IAgentRuntime } from '@elizaos/core';
 import './setup'; // Import setup to run mocks
 import { resetInferenceState } from '../index';
 
+// Define request/response interfaces
+interface MockRequest {
+  body?: Record<string, unknown>;
+  params?: Record<string, unknown>;
+  query?: Record<string, unknown>;
+}
+
+interface MockResponse {
+  status: (code: number) => MockResponse;
+  json: (data: unknown) => MockResponse;
+  send: (data: unknown) => MockResponse;
+}
+
 // Mock Express request/response objects
-const createMockRequest = (body?: any, params?: any, query?: any) => ({
+const createMockRequest = (
+  body?: Record<string, unknown>,
+  params?: Record<string, unknown>,
+  query?: Record<string, unknown>
+): MockRequest => ({
   body: body || {},
   params: params || {},
   query: query || {},
 });
 
-const createMockResponse = () => {
-  const res: any = {};
+const createMockResponse = (): MockResponse => {
+  const res = {} as MockResponse;
   res.status = vi.fn().mockReturnValue(res);
   res.json = vi.fn().mockReturnValue(res);
   res.send = vi.fn().mockReturnValue(res);
@@ -37,16 +54,16 @@ const createMockRuntime = (settings: Record<string, string> = {}): IAgentRuntime
 // Import the route handlers from game-api-plugin
 // Note: In a real implementation, these would be exported from the plugin
 const mockProviderRoutes = {
-  getStatus: async (req: any, res: any, runtime: IAgentRuntime) => {
+  getStatus: async (req: MockRequest, res: MockResponse, runtime: IAgentRuntime) => {
     const { getProviderStatus } = await import('../index');
     const status = await getProviderStatus(runtime);
     res.json({ success: true, data: status });
   },
 
-  setSelected: async (req: any, res: any, runtime: IAgentRuntime) => {
+  setSelected: async (req: MockRequest, res: MockResponse, runtime: IAgentRuntime) => {
     const { setSelectedProvider, getProviderStatus } = await import('../index');
     try {
-      const { provider } = req.body;
+      const { provider } = req.body || {};
 
       if (provider !== null && typeof provider !== 'string') {
         return res.status(400).json({
@@ -55,7 +72,7 @@ const mockProviderRoutes = {
         });
       }
 
-      await setSelectedProvider(runtime, provider);
+      await setSelectedProvider(runtime, provider as string | null);
       const status = await getProviderStatus(runtime);
 
       res.json({
@@ -70,10 +87,10 @@ const mockProviderRoutes = {
     }
   },
 
-  setPreferences: async (req: any, res: any, runtime: IAgentRuntime) => {
+  setPreferences: async (req: MockRequest, res: MockResponse, runtime: IAgentRuntime) => {
     const { setProviderPreferences, getProviderStatus } = await import('../index');
     try {
-      const { preferences } = req.body;
+      const { preferences } = req.body || {};
 
       // Validate input
       if (!Array.isArray(preferences)) {
@@ -83,14 +100,14 @@ const mockProviderRoutes = {
         });
       }
 
-      if (preferences.some((p: any) => typeof p !== 'string')) {
+      if (preferences.some((p: unknown) => typeof p !== 'string')) {
         return res.status(400).json({
           success: false,
           error: 'All preferences must be strings',
         });
       }
 
-      await setProviderPreferences(runtime, preferences);
+      await setProviderPreferences(runtime, preferences as string[]);
       const status = await getProviderStatus(runtime);
 
       res.json({
@@ -175,7 +192,7 @@ describe('Inference Plugin API Endpoints', () => {
 
       // Pass null runtime to trigger error
       try {
-        await mockProviderRoutes.getStatus(req, res, null as any);
+        await mockProviderRoutes.getStatus(req, res, null as unknown as IAgentRuntime);
 
         // If no exception thrown, verify the response was handled
         expect(res.status).toHaveBeenCalledWith(500);

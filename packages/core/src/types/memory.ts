@@ -52,6 +52,26 @@ export interface BaseMetadata {
 
 export interface DocumentMetadata extends BaseMetadata {
   type: MemoryType.DOCUMENT;
+
+  source?: string;
+  sourceId?: UUID;
+  scope?: 'shared' | 'private' | 'room';
+  timestamp?: number;
+  tags?: string[];
+
+  // Document-specific properties
+  title?: string;
+  filename?: string;
+  originalFilename?: string;
+  contentType?: string;
+  fileType?: string; // MIME type
+  fileExt?: string;
+  fileSize?: number;
+  size?: number;
+  fragmentCount?: number;
+  path?: string;
+  documentId?: UUID;
+  position?: number;
 }
 
 export interface FragmentMetadata extends BaseMetadata {

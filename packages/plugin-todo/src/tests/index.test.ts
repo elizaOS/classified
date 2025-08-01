@@ -16,7 +16,7 @@ describe('TodoPlugin', () => {
     );
     expect(TodoPlugin.providers).toHaveLength(1);
     expect(TodoPlugin.actions).toHaveLength(5); // Now includes confirmTodoAction
-    expect(TodoPlugin.services).toHaveLength(2); // TodoDataService, TodoReminderService
+    expect(TodoPlugin.services).toHaveLength(2); // TodoService, TodoReminderService
     expect(TodoPlugin.routes).toBeDefined();
     expect(TodoPlugin.init).toBeInstanceOf(Function);
   });

@@ -23,7 +23,7 @@ describe('Messaging and WebSocket', () => {
     cy.window().then((win) => {
       win.localStorage.setItem('skipBoot', 'true');
     });
-    
+
     // Wait for elizaClient to be initialized
     cy.waitForElizaClient();
   });

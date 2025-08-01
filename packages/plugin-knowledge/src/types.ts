@@ -145,15 +145,8 @@ export const KnowledgeServiceType = {
   KNOWLEDGE: 'knowledge' as const,
 } satisfies Partial<import('@elizaos/core').ServiceTypeRegistry>;
 
-export interface KnowledgeDocumentMetadata extends Record<string, any> {
-  type: string; // e.g., 'document', 'website_content'
-  source: string; // e.g., 'upload', 'web_scrape', path to file
-  title?: string;
-  filename?: string;
-  fileExt?: string;
-  fileType?: string; // MIME type
-  fileSize?: number;
-}
+// Re-export the unified DocumentMetadata from core
+export type { DocumentMetadata } from '@elizaos/core';
 
 export interface KnowledgeConfig {
   CTX_KNOWLEDGE_ENABLED: boolean;

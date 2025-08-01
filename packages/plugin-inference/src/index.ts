@@ -314,6 +314,11 @@ async function initializeProviders(runtime: IAgentRuntime) {
   }
 }
 
+// Define interface for validation service
+interface ValidationService {
+  isValid(): boolean | Promise<boolean>;
+}
+
 /**
  * Check if a provider is valid and configured
  */
@@ -324,10 +329,10 @@ async function checkProviderValidity(
 ): Promise<boolean> {
   // Try to get the validation service for the provider
   const validationServiceName = `${providerName}-validation`;
-  const validationService = runtime.getService(validationServiceName);
+  const validationService = runtime.getService(validationServiceName) as ValidationService | null;
 
-  if (validationService && typeof (validationService as any).isValid === 'function') {
-    return (validationService as any).isValid();
+  if (validationService && typeof validationService.isValid === 'function') {
+    return await validationService.isValid();
   }
 
   // Fallback: check based on provider type if no validation service
@@ -417,7 +422,17 @@ async function getActiveProvider(
 async function routeToProvider<T>(
   runtime: IAgentRuntime,
   modelType: string,
-  params: any
+  params:
+    | GenerateTextParams
+    | TextEmbeddingParams
+    | TokenizeTextParams
+    | DetokenizeTextParams
+    | ImageGenerationParams
+    | ImageDescriptionParams
+    | ObjectGenerationParams
+    | string
+    | Buffer
+    | null
 ): Promise<T> {
   // For TEXT_EMBEDDING, always try to use the local FastEmbed plugin first
   if (modelType === ModelType.TEXT_EMBEDDING) {

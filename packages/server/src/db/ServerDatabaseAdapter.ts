@@ -14,7 +14,7 @@ export interface MessageServer {
   name: string;
   sourceType: string;
   sourceId?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,7 +27,7 @@ export interface Channel {
   sourceType?: string;
   sourceId?: string;
   topic?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,10 +37,10 @@ export interface Message {
   channelId: string;
   authorId: string;
   content: string;
-  rawMessage?: any;
+  rawMessage?: unknown;
   sourceType?: string;
   sourceId?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   inReplyToRootMessageId?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -71,7 +71,7 @@ export class ServerDatabaseAdapter {
     name: string;
     sourceType: string;
     sourceId?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }): Promise<MessageServer> {
     const id = data.id || (crypto.randomUUID() as UUID);
     const now = new Date();
@@ -152,7 +152,7 @@ export class ServerDatabaseAdapter {
     type: string;
     sourceType?: string;
     sourceId?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }): Promise<Channel> {
     const now = new Date();
     const channelId = data.id || crypto.randomUUID();
@@ -254,10 +254,10 @@ export class ServerDatabaseAdapter {
     channelId: string;
     authorId: string;
     content: string;
-    rawMessage?: any;
+    rawMessage?: unknown;
     sourceType?: string;
     sourceId?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }): Promise<Message> {
     const now = new Date();
     const messageId = data.id || crypto.randomUUID();

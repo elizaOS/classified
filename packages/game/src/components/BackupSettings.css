@@ -80,7 +80,7 @@
   font-size: 14px;
 }
 
-.config-item input[type="number"] {
+.config-item input[type='number'] {
   width: 60px;
   padding: 5px;
   background: rgba(0, 0, 0, 0.5);
@@ -89,7 +89,7 @@
   font-family: monospace;
 }
 
-.config-item input[type="checkbox"] {
+.config-item input[type='checkbox'] {
   width: 16px;
   height: 16px;
   margin-right: 8px;
@@ -334,7 +334,7 @@
   cursor: pointer;
 }
 
-.restore-options input[type="checkbox"] {
+.restore-options input[type='checkbox'] {
   margin-right: 8px;
 }
 
@@ -379,4 +379,67 @@
 .modal-actions button.danger:hover:not(:disabled) {
   background: rgba(255, 0, 0, 0.3);
   box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+}
+
+/* Notification Styles */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 15px 20px;
+  min-width: 300px;
+  max-width: 500px;
+  background: rgba(0, 0, 0, 0.9);
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: monospace;
+  font-size: 14px;
+  z-index: 1100;
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification.success {
+  border-color: #00ff00;
+  color: #00ff00;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+}
+
+.notification.error {
+  border-color: #ff0000;
+  color: #ff6600;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+}
+
+.notification button {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.notification button:hover {
+  opacity: 1;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }

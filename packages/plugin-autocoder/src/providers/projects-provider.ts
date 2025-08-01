@@ -1,5 +1,9 @@
-import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core';
-import { ProjectPlanningService, type ProjectPlan } from '../services/ProjectPlanningService';
+import type { IAgentRuntime, Memory, Provider, ProviderResult, State } from '@elizaos/core';
+import {
+  ProjectPlanningServiceInterface,
+  isProjectPlanningService,
+  type ProjectPlan,
+} from '../types';
 
 /**
  * Provider that exposes active projects context to the agent
@@ -14,8 +18,8 @@ export const projectsProvider: Provider = {
     _message: Memory,
     _state?: State
   ): Promise<ProviderResult> => {
-    const projectsService = runtime.getService<ProjectPlanningService>('project-planning');
-    if (!projectsService) {
+    const projectsService = runtime.getService('project-planning');
+    if (!isProjectPlanningService(projectsService)) {
       return {
         text: 'Project planning service is not available.',
         values: {},
@@ -24,7 +28,7 @@ export const projectsProvider: Provider = {
     }
 
     // Get all projects
-    const projects = await projectsService.listProjectPlans();
+    const projects = await (projectsService as ProjectPlanningServiceInterface).listProjectPlans();
 
     if (projects.length === 0) {
       return {

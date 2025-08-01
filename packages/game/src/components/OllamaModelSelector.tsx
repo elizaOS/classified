@@ -9,6 +9,7 @@ interface ModelInfo {
 }
 
 interface OllamaRecommendations {
+  success: boolean;
   system_info: {
     total_memory_gb: number;
     total_memory_mb: number;
@@ -39,8 +40,8 @@ export const OllamaModelSelector: React.FC<OllamaModelSelectorProps> = ({ value,
     try {
       setLoading(true);
       const { invoke } = await import('@tauri-apps/api/core');
-      const result = await invoke<any>('get_ollama_recommendations');
-      
+      const result = await invoke<OllamaRecommendations>('get_ollama_recommendations');
+
       if (result.success) {
         setRecommendations(result);
         // If no value set, use the default model
@@ -123,11 +124,11 @@ export const OllamaModelSelector: React.FC<OllamaModelSelectorProps> = ({ value,
             ))}
           </optgroup>
         )}
-        
-        {all_models.filter(m => !m.recommended).length > 0 && (
+
+        {all_models.filter((m) => !m.recommended).length > 0 && (
           <optgroup label="⚡ Other models (may require more memory)">
             {all_models
-              .filter(m => !m.recommended)
+              .filter((m) => !m.recommended)
               .map((model) => (
                 <option key={model.name} value={model.name}>
                   {model.name} - {model.description} (needs {model.min_memory_gb}GB)
@@ -139,11 +140,15 @@ export const OllamaModelSelector: React.FC<OllamaModelSelectorProps> = ({ value,
       </select>
 
       <div className="model-info">
-        {all_models.find(m => m.name === (value || recommendations.default_model)) && (
+        {all_models.find((m) => m.name === (value || recommendations.default_model)) && (
           <>
             <small className="model-requirements">
-              Selected model requires at least {' '}
-              {all_models.find(m => m.name === (value || recommendations.default_model))?.min_memory_gb}GB RAM
+              Selected model requires at least{' '}
+              {
+                all_models.find((m) => m.name === (value || recommendations.default_model))
+                  ?.min_memory_gb
+              }
+              GB RAM
             </small>
             {recommendations.installed_models.includes(value || recommendations.default_model) && (
               <small className="model-installed">✓ Model is installed</small>
@@ -278,4 +283,4 @@ export const OllamaModelSelector: React.FC<OllamaModelSelectorProps> = ({ value,
       `}</style>
     </div>
   );
-}; 
+};

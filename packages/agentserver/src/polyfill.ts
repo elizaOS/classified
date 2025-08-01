@@ -145,10 +145,10 @@ import http from 'node:http';
   // Additional DOM API polyfills
   class ImageDataPolyfill {
     data: Uint8ClampedArray<ArrayBufferLike>;
-    width: any;
-    height: any;
+    width: number;
+    height: number;
     colorSpace: string;
-    constructor(dataOrWidth, height, width) {
+    constructor(dataOrWidth: Uint8ClampedArray | number, height?: number, width?: number) {
       if (dataOrWidth instanceof Uint8ClampedArray) {
         this.data = dataOrWidth;
         this.width = height;
@@ -187,7 +187,7 @@ import http from 'node:http';
       this.height = 150;
     }
 
-    getContext(type) {
+    getContext(type: string) {
       if (type === '2d') {
         return {
           arc: () => {},

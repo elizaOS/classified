@@ -27,4 +27,7 @@ export const knowledgePlugin: Plugin = {
 
 export default knowledgePlugin;
 
+// Export service for external use
+export { KnowledgeService } from './service';
+
 export * from './types';

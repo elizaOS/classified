@@ -6,7 +6,7 @@ import {
   type UUID,
 } from '@elizaos/core';
 import { NotificationManager } from './notificationManager';
-import type { TodoData, TodoDataService } from './todoDataService';
+import type { TodoData, TodoService } from './todoService';
 
 // Define optional rolodex types for enhanced messaging
 interface RolodexService {
@@ -150,7 +150,7 @@ export class TodoReminderService extends Service {
   async checkTasksForReminders(): Promise<void> {
     logger.debug('[TodoReminderService] Checking tasks for reminders...');
 
-    const dataService = this.runtime.getService('todo') as TodoDataService;
+    const dataService = this.runtime.getService('todo') as TodoService;
     if (!dataService) {
       logger.error('[TodoReminderService] Todo service not available');
       return;

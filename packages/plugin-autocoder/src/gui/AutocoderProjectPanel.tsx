@@ -1,8 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { ProjectStatusUpdate, ProjectHistory } from '../services/ProjectStatusManager';
+import React, { useEffect, useState } from 'react';
+import {
+  AutocoderSocket,
+  AutocoderWebSocketMessage,
+  ProjectHistory,
+  ProjectStatusUpdate,
+} from '../types';
 
 interface AutocoderProjectPanelProps {
-  socket?: any; // WebSocket connection if available
+  socket?: AutocoderSocket; // WebSocket connection if available
   onProjectSelect?: (projectId: string) => void;
 }
 
@@ -38,7 +43,7 @@ export const AutocoderProjectPanel: React.FC<AutocoderProjectPanelProps> = ({
     if (!socket) return;
 
     // Listen for project updates
-    const handleProjectUpdate = (data: any) => {
+    const handleProjectUpdate = (data: AutocoderWebSocketMessage) => {
       if (data.type === 'PROJECT_UPDATE') {
         const update = data.data as ProjectStatusUpdate;
         setProjects((prev) => {

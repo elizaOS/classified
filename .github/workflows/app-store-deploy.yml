@@ -111,7 +111,7 @@ jobs:
         run: |
           # Find the MSIX file
           $msixFile = Get-ChildItem -Path ".\deployment\microsoft-store\output" -Filter "*.msix" | Select-Object -First 1
-          
+
           if ($msixFile) {
             Write-Host "Uploading $($msixFile.FullName) to Partner Center..."
             
@@ -182,7 +182,7 @@ jobs:
           # Install Transporter CLI
           curl -L https://github.com/itunes-connect-transporter/transporter/releases/latest/download/iTMSTransporter_macos.zip -o transporter.zip
           unzip transporter.zip
-          
+
           # Upload to App Store Connect
           ./iTMSTransporter/bin/iTMSTransporter \
             -m upload \
@@ -269,12 +269,12 @@ jobs:
               'deploy-snap': 'Snap Store',
               'deploy-flatpak': 'Flathub'
             };
-            
+
             let summary = '# 📦 App Store Deployment Summary\n\n';
             summary += `**Version**: ${context.payload.inputs?.release_tag || context.payload.release?.tag_name || 'Unknown'}\n\n`;
             summary += '**Note**: This shows which platforms were targeted for deployment. Check individual job logs for actual results.\n\n';
             summary += '| Platform | Status |\n|----------|--------|\n';
-            
+
             for (const [job, platform] of Object.entries(platforms)) {
               // In a workflow, we can check if a job was skipped by checking needs context
               // Since we're in a summary job, we'll just note which platforms were attempted
@@ -283,7 +283,7 @@ jobs:
               const emoji = wasRun ? '🚀' : '⏭️';
               summary += `| ${platform} | ${emoji} ${status} |\n`;
             }
-            
+
             // Update release notes with deployment summary
             if (context.event_name === 'release' && context.payload.release) {
               try {
@@ -297,6 +297,6 @@ jobs:
                 console.log('Could not update release notes:', error.message);
               }
             }
-            
+
             // Update job summary
             await core.summary.addRaw(summary).write();

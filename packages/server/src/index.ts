@@ -1272,7 +1272,7 @@ export class AgentServer {
       throw new Error(`Server ${serverId} not found`);
     }
 
-    return (this.database as any).addAgentToServer(serverId, agentId);
+    return this.serverDatabase.addAgentToServer(serverId, agentId);
   }
 
   /**

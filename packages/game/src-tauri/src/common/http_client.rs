@@ -33,10 +33,7 @@ pub async fn agent_server_request_with_port(
         request = request.json(&json_body);
     }
 
-    let response = request
-        .timeout(Duration::from_secs(timeout))
-        .send()
-        .await?;
+    let response = request.timeout(Duration::from_secs(timeout)).send().await?;
 
     if response.status().is_success() {
         let data: Value = response.json().await?;
@@ -80,10 +77,7 @@ pub async fn agent_server_request(
         request = request.json(&json_body);
     }
 
-    let response = request
-        .timeout(Duration::from_secs(timeout))
-        .send()
-        .await?;
+    let response = request.timeout(Duration::from_secs(timeout)).send().await?;
 
     if response.status().is_success() {
         let data: Value = response.json().await?;
@@ -126,10 +120,10 @@ pub async fn send_media_data(
         "timestamp": timestamp,
         "agentId": agent_id
     });
-    
+
     if let Some(st) = stream_type {
         payload["stream_type"] = Value::String(st.to_string());
     }
-    
+
     agent_server_request("POST", "/api/media/stream", Some(payload), None).await
-} 
+}

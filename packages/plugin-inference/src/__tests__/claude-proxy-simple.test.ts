@@ -2,8 +2,14 @@ import { describe, it, expect, beforeAll } from 'bun:test';
 import { logger } from '@elizaos/core';
 import { ClaudeProxy } from '../claude-proxy';
 
+// Define mock runtime interface
+interface MockRuntime {
+  getSetting: (key: string) => string | undefined;
+  useModel?: (modelType: string, params: unknown) => Promise<string>;
+}
+
 describe('Claude Proxy Simple Tests', () => {
-  let mockRuntime: any;
+  let mockRuntime: MockRuntime;
 
   beforeAll(() => {
     // Load environment variables from root .env
@@ -20,7 +26,7 @@ describe('Claude Proxy Simple Tests', () => {
         if (key === 'OPENAI_API_KEY') return process.env.OPENAI_API_KEY;
         return undefined;
       },
-      useModel: async (_modelType: any, params: any) => {
+      useModel: async (_modelType: string, params: unknown) => {
         // Mock response
         return 'OpenAI fallback working';
       },

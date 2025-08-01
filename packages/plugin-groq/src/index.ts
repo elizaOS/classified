@@ -158,7 +158,8 @@ async function handleRateLimitError(error: Error, retryFn: () => Promise<unknown
 /**
  * Helper function to get tracer if instrumentation is enabled
  */
-function getTracer(runtime: IAgentRuntime) {
+function getTracer(runtime: IAgentRuntime): any {
+  // Tracing is currently disabled - could be implemented in the future
   return null;
 }
 

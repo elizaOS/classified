@@ -772,12 +772,20 @@ src/
     elizaLogger.info(`Cloning existing plugin: ${prd.architecture.basePlugin}`);
 
     // Clone the plugin from registry
-    let clonePlugin: any;
+    let clonePlugin:
+      | ((pluginName: string) => Promise<{ success: boolean; localPath?: string; error?: string }>)
+      | undefined;
     try {
-      const pluginRegistryService = this.runtime.getService('plugin-registry') as any;
-      clonePlugin = pluginRegistryService.clonePlugin;
+      const pluginRegistryService = this.runtime.getService('plugin-registry');
+      if (pluginRegistryService && 'clonePlugin' in pluginRegistryService) {
+        clonePlugin = (pluginRegistryService as { clonePlugin: typeof clonePlugin }).clonePlugin;
+      }
     } catch (_error) {
       throw new Error('Plugin registry not available for cloning');
+    }
+
+    if (!clonePlugin) {
+      throw new Error('Plugin registry clone function not available');
     }
     const cloneResult = await clonePlugin(prd.architecture.basePlugin);
 
@@ -1599,7 +1607,7 @@ ${
     windSpeed: number;
     location: string;`
     : `
-    data: any;
+    data: Record<string, unknown>;
     status: number;
     message: string;`
 }
@@ -1608,7 +1616,7 @@ ${
 export type PluginAction = {
   name: string;
   description: string;
-  handler: (context: any) => Promise<void>;
+  handler: (context: Record<string, unknown>) => Promise<void>;
 };`,
     });
 

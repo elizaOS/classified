@@ -1,4 +1,5 @@
 import { type IAgentRuntime, type Memory, type Provider, type State, asUUID } from '@elizaos/core';
+import { AutonomyService } from 'service';
 
 /**
  * Admin Chat Provider - provides conversation history with admin user
@@ -10,12 +11,13 @@ export const adminChatProvider: Provider = {
 
   get: async (runtime: IAgentRuntime, message: Memory, _state?: State) => {
     // Only provide admin chat context in autonomous room
-    const autonomyService = runtime.getService('autonomy');
+    const autonomyService = runtime.getService<AutonomyService>('AUTONOMY');
     if (!autonomyService) {
+      console.error('Autonomy service not available');
       return { text: '' }; // Service not available
     }
 
-    const autonomousRoomId = (autonomyService as any).getAutonomousRoomId?.();
+    const autonomousRoomId = autonomyService.getAutonomousRoomId?.();
     if (!autonomousRoomId || message.roomId !== autonomousRoomId) {
       return { text: '' }; // Not in autonomous context
     }
@@ -67,9 +69,7 @@ export const adminChatProvider: Provider = {
       .join('\\n');
 
     // Get recent admin message summary
-    const recentAdminMessages = adminMessages
-      .filter((msg) => msg.entityId === adminUUID)
-      .slice(-3);
+    const recentAdminMessages = adminMessages.filter((msg) => msg.entityId === adminUUID).slice(-3);
 
     const lastAdminMessage = recentAdminMessages[recentAdminMessages.length - 1];
     const adminMoodContext =

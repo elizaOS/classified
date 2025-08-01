@@ -292,7 +292,7 @@ export function createDocumentMemory({
     entityId: agentId,
     content: { text },
     metadata: {
-      type: MemoryType.DOCUMENT,
+      type: MemoryType.CUSTOM,
       documentId: clientDocumentId,
       originalFilename,
       contentType,

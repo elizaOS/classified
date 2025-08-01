@@ -1,65 +1,98 @@
-import { IAgentRuntime, logger } from '@elizaos/core';
+import { IAgentRuntime, logger, EventType } from '@elizaos/core';
 import { CapabilityProgressionService } from './capabilityProgressionService';
 
 export class ProgressionTracker {
   private runtime: IAgentRuntime;
   private progressionService: CapabilityProgressionService;
-  private trackingInterval: NodeJS.Timeout | null = null;
-  private namingInterval: NodeJS.Timeout | null = null;
 
   constructor(runtime: IAgentRuntime, progressionService: CapabilityProgressionService) {
     this.runtime = runtime;
     this.progressionService = progressionService;
-    this.setupTracking();
+    this.setupEventListeners();
   }
 
-  private setupTracking(): void {
-    logger.info('[PROGRESSION_TRACKER] Setting up progression tracking');
-
-    // Track when agents are named by monitoring character updates
-    this.trackAgentNaming();
-    
-    // Set up periodic service usage checking
-    this.startServiceUsageTracking();
+  public stop(): void {
+    // Event listeners are automatically cleaned up with the runtime
+    // No manual cleanup needed for event-based approach
   }
 
-  private startServiceUsageTracking(): void {
-    // Check service usage periodically rather than wrapping methods
-    this.trackingInterval = setInterval(async () => {
-      if (this.progressionService.isUnlockedModeEnabled()) {
-        return; // Skip tracking in unlocked mode
-      }
+  private setupEventListeners(): void {
+    logger.info('[PROGRESSION_TRACKER] Setting up event-based progression tracking');
 
-      // Check shell service usage via history
-      try {
-        const shellService = this.runtime.getService('SHELL');
-        if (shellService && 'getHistory' in shellService) {
-          const history = (shellService as any).getHistory?.();
-          if (history && history.length > 0) {
-            // If we have command history, shell has been used
-            await this.progressionService.recordCapabilityUsed('shell');
-          }
-        }
-      } catch {
-        // Service might not be available yet
-      }
-    }, 10000); // Check every 10 seconds
+    // Skip setup in unlocked mode
+    if (this.progressionService.isUnlockedModeEnabled()) {
+      logger.info('[PROGRESSION_TRACKER] Skipping event listeners - unlocked mode enabled');
+      return;
+    }
+
+    // Register event listeners for progression tracking
+    this.runtime.registerEvent(EventType.SHELL_COMMAND_EXECUTED, async (params) => {
+      await this.handleShellCommandExecuted(params);
+    });
+
+    this.runtime.registerEvent(EventType.AGENT_NAMED, async (params) => {
+      await this.handleAgentNamed(params);
+    });
+
+    this.runtime.registerEvent(EventType.GOAL_CREATED, async (params) => {
+      await this.handleGoalCreated(params);
+    });
+
+    this.runtime.registerEvent(EventType.TODO_CREATED, async (params) => {
+      await this.handleTodoCreated(params);
+    });
+
+    this.runtime.registerEvent(EventType.BROWSER_ACTION_PERFORMED, async (params) => {
+      await this.handleBrowserActionPerformed(params);
+    });
+
+    this.runtime.registerEvent(EventType.FORM_SUBMITTED, async (params) => {
+      await this.handleFormSubmitted(params);
+    });
+
+    this.runtime.registerEvent(EventType.VISION_ACTION_PERFORMED, async (params) => {
+      await this.handleVisionActionPerformed(params);
+    });
+
+    this.runtime.registerEvent(EventType.MICROPHONE_USED, async (params) => {
+      await this.handleMicrophoneUsed(params);
+    });
+
+    this.runtime.registerEvent(EventType.CAPABILITY_USED, async (params) => {
+      await this.handleCapabilityUsed(params);
+    });
+
+    logger.info('[PROGRESSION_TRACKER] Event listeners registered');
   }
 
-  // Method to track shell command execution - called from API endpoints
-  public async trackShellCommand(command: string, exitCode: number): Promise<void> {
+  // Event handlers for progression tracking
+  private async handleShellCommandExecuted(params: {
+    command: string;
+    exitCode: number;
+    output?: string;
+  }): Promise<void> {
     if (this.progressionService.isUnlockedModeEnabled()) {
       return;
     }
 
-    if (exitCode === 0) {
-      logger.info('[PROGRESSION_TRACKER] Shell command executed successfully, recording capability usage');
+    if (params.exitCode === 0) {
+      logger.info(
+        '[PROGRESSION_TRACKER] Shell command executed successfully, recording capability usage'
+      );
       await this.progressionService.recordCapabilityUsed('shell');
     }
   }
 
-  // Method to track goal creation - called from API endpoints
-  public async trackGoalCreation(_goalData: any): Promise<void> {
+  private async handleAgentNamed(_params: { name: string }): Promise<void> {
+    if (this.progressionService.isUnlockedModeEnabled()) {
+      return;
+    }
+
+    logger.info(`[PROGRESSION_TRACKER] Agent named: ${_params.name}`);
+    this.progressionService.recordAgentNamed(_params.name);
+  }
+
+  private async handleGoalCreated(_params: { goalData: Record<string, unknown> }): Promise<void> {
     if (this.progressionService.isUnlockedModeEnabled()) {
       return;
     }
@@ -68,8 +101,7 @@ export class ProgressionTracker {
     await this.progressionService.recordCapabilityUsed('goals');
   }
 
-  // Method to track todo creation - called from API endpoints
-  public async trackTodoCreation(_todoData: any): Promise<void> {
+  private async handleTodoCreated(_params: { todoData: Record<string, unknown> }): Promise<void> {
     if (this.progressionService.isUnlockedModeEnabled()) {
       return;
     }
@@ -78,75 +110,136 @@ export class ProgressionTracker {
     await this.progressionService.recordCapabilityUsed('todo');
   }
 
-  private trackAgentNaming(): void {
-    // Skip tracking in unlocked mode
+  private async handleBrowserActionPerformed(params: {
+    action: string;
+    details?: Record<string, unknown>;
+  }): Promise<void> {
     if (this.progressionService.isUnlockedModeEnabled()) {
-      logger.info('[PROGRESSION_TRACKER] Skipping agent naming tracking - unlocked mode enabled');
       return;
     }
-    
-    // Monitor if the agent's character name changes from the default
-    const defaultNames = ['ELIZA', 'Unnamed Agent', 'TestAgent', ''];
-    let currentName = this.runtime.character?.name || '';
-    
-    // Check if agent already has a custom name
-    if (currentName && !defaultNames.includes(currentName)) {
-      logger.info(`[PROGRESSION_TRACKER] Agent already has custom name: ${currentName}`);
-      this.progressionService.recordAgentNamed(currentName);
+
+    logger.info(`[PROGRESSION_TRACKER] Browser action performed: ${params.action}`);
+    await this.progressionService.recordCapabilityUsed('browser');
+  }
+
+  private async handleFormSubmitted(params: { details?: Record<string, unknown> }): Promise<void> {
+    if (this.progressionService.isUnlockedModeEnabled()) {
+      return;
     }
-    
-    // Set up periodic checking for name changes (simple approach)
-    this.namingInterval = setInterval(() => {
-      // Skip if now in unlocked mode
-      if (this.progressionService.isUnlockedModeEnabled()) {
-        return;
-      }
-      
-      const newName = this.runtime.character?.name || '';
-      if (newName && !defaultNames.includes(newName) && newName !== currentName) {
-        logger.info(`[PROGRESSION_TRACKER] Agent name changed to: ${newName}`);
-        this.progressionService.recordAgentNamed(newName);
-        currentName = newName;
-      }
-    }, 5000); // Check every 5 seconds
+
+    logger.info('[PROGRESSION_TRACKER] Form submitted');
+    await this.progressionService.recordFormSubmitted(params.details);
+  }
+
+  private async handleVisionActionPerformed(params: {
+    action: string;
+    details?: Record<string, unknown>;
+  }): Promise<void> {
+    if (this.progressionService.isUnlockedModeEnabled()) {
+      return;
+    }
+
+    logger.info(`[PROGRESSION_TRACKER] Vision action performed: ${params.action}`);
+    await this.progressionService.recordCapabilityUsed('vision');
+  }
+
+  private async handleMicrophoneUsed(_params: {
+    details?: Record<string, unknown>;
+  }): Promise<void> {
+    if (this.progressionService.isUnlockedModeEnabled()) {
+      return;
+    }
+
+    logger.info('[PROGRESSION_TRACKER] Microphone used');
+    await this.progressionService.recordCapabilityUsed('microphone');
+  }
+
+  private async handleCapabilityUsed(params: {
+    capability: string;
+    details?: Record<string, unknown>;
+  }): Promise<void> {
+    if (this.progressionService.isUnlockedModeEnabled()) {
+      return;
+    }
+
+    logger.info(`[PROGRESSION_TRACKER] Capability used: ${params.capability}`);
+    await this.progressionService.recordCapabilityUsed(params.capability);
+  }
+
+  // Method to track shell command execution - called from API endpoints
+  public async trackShellCommand(command: string, exitCode: number): Promise<void> {
+    // Emit event instead of direct tracking
+    await this.runtime.emitEvent(EventType.SHELL_COMMAND_EXECUTED, {
+      command,
+      exitCode,
+    });
+  }
+
+  // Method to track goal creation - called from API endpoints
+  public async trackGoalCreation(goalData: Record<string, unknown>): Promise<void> {
+    // Emit event instead of direct tracking
+    await this.runtime.emitEvent(EventType.GOAL_CREATED, {
+      goalData,
+    });
+  }
+
+  // Method to track todo creation - called from API endpoints
+  public async trackTodoCreation(todoData: Record<string, unknown>): Promise<void> {
+    // Emit event instead of direct tracking
+    await this.runtime.emitEvent(EventType.TODO_CREATED, {
+      todoData,
+    });
+  }
+
+  // Method to track agent naming - should be called when agent name changes
+  public async trackAgentNaming(name: string): Promise<void> {
+    // Emit event instead of direct tracking
+    await this.runtime.emitEvent(EventType.AGENT_NAMED, {
+      name,
+    });
   }
 
   // Method to manually track specific actions
-  public async trackAction(actionType: string, details?: any): Promise<void> {
-    // Skip tracking in unlocked mode
-    if (this.progressionService.isUnlockedModeEnabled()) {
-      logger.info(`[PROGRESSION_TRACKER] Skipping action tracking in unlocked mode: ${actionType}`);
-      return;
-    }
-    
+  public async trackAction(actionType: string, details?: Record<string, unknown>): Promise<void> {
     logger.info(`[PROGRESSION_TRACKER] Manual action tracked: ${actionType}`, details);
-    
+
+    // Emit appropriate events based on action type
     switch (actionType) {
       case 'form_submitted':
-        await this.progressionService.recordFormSubmitted(details);
+        await this.runtime.emitEvent(EventType.FORM_SUBMITTED, { details });
         break;
       case 'browser_used':
-        await this.progressionService.recordCapabilityUsed('browser');
+        await this.runtime.emitEvent(EventType.BROWSER_ACTION_PERFORMED, {
+          action: actionType,
+          details,
+        });
         break;
       case 'vision_used':
-        await this.progressionService.recordCapabilityUsed('vision');
+        await this.runtime.emitEvent(EventType.VISION_ACTION_PERFORMED, {
+          action: actionType,
+          details,
+        });
         break;
       case 'microphone_used':
-        await this.progressionService.recordCapabilityUsed('microphone');
+        await this.runtime.emitEvent(EventType.MICROPHONE_USED, { details });
         break;
       default:
-        await this.progressionService.recordActionPerformed(actionType);
+        // For generic capability usage
+        await this.runtime.emitEvent(EventType.CAPABILITY_USED, {
+          capability: actionType,
+          details,
+        });
         break;
     }
   }
 
   // Method to check and display current progression status
-  public getProgressionStatus(): any {
+  public getProgressionStatus(): Record<string, unknown> {
     const state = this.progressionService.getProgressionState();
     const unlockedCapabilities = this.progressionService.getUnlockedCapabilities();
     const availableLevels = this.progressionService.getAvailableLevels();
     const isUnlockedMode = this.progressionService.isUnlockedModeEnabled();
-    
+
     return {
       mode: isUnlockedMode ? 'unlocked' : 'progression',
       isUnlockedMode,
@@ -155,7 +248,7 @@ export class ProgressionTracker {
       completedActions: state.completedActions,
       agentNamed: state.agentNamed,
       unlockedCapabilities,
-      availableLevels: availableLevels.map(level => ({
+      availableLevels: availableLevels.map((level) => ({
         id: level.id,
         name: level.name,
         description: level.description,

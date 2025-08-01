@@ -23,14 +23,14 @@ declare global {
       socket: {
         connected: boolean;
         on: (event: string, callback: Function) => void;
-        emit: (event: string, data: any) => void;
+        emit: (event: string, data: unknown) => void;
         disconnect: () => void;
         connect: () => void;
         _listeners?: Record<string, Function[]>;
       };
       isConnected: () => boolean;
       joinRoom?: (roomId: string) => void;
-      sendMessage?: (message: any) => void;
+      sendMessage?: (message: Record<string, unknown>) => void;
     };
   }
 }
@@ -39,7 +39,7 @@ interface OutputLine {
   type: 'user' | 'agent' | 'system' | 'error';
   content: string;
   timestamp: Date;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 interface PluginToggleState {
@@ -82,10 +82,17 @@ interface StreamingState {
 }
 
 // Enhanced capability buttons with progression support
+interface ProgressionStatus {
+  unlockedCapabilities?: string[];
+  mode?: string;
+  progressionReady?: boolean;
+  [key: string]: unknown;
+}
+
 const UltraSimpleButtons: React.FC<{
   states: PluginToggleState;
   onToggle: (capability: string) => Promise<void>;
-  progressionStatus?: any;
+  progressionStatus?: ProgressionStatus;
   capabilityUsage: CapabilityUsageState;
 }> = ({ states, onToggle, progressionStatus, capabilityUsage }) => {
   const [isTogglingState, setIsTogglingState] = useState({
@@ -104,27 +111,32 @@ const UltraSimpleButtons: React.FC<{
       // Fallback: if no progression data, allow all capabilities
       return true;
     }
-    
+
     // Map UI capability names to progression capability names
     const capabilityMap: Record<string, string[]> = {
-      'shell': ['shell', 'naming'],
-      'browser': ['browser', 'stagehand'],
-      'camera': ['camera', 'advanced_vision'],
-      'screen': ['vision', 'screen_capture'],
-      'microphone': ['microphone', 'sam', 'audio'],
-      'speakers': ['microphone', 'sam', 'audio'], // Speakers use same capabilities as microphone
-      'autonomy': ['autonomy'],
-      'goals': ['goals'],
-      'todo': ['todo'],
+      shell: ['shell', 'naming'],
+      browser: ['browser', 'stagehand'],
+      camera: ['camera', 'advanced_vision'],
+      screen: ['vision', 'screen_capture'],
+      microphone: ['microphone', 'sam', 'audio'],
+      speakers: ['microphone', 'sam', 'audio'], // Speakers use same capabilities as microphone
+      autonomy: ['autonomy'],
+      goals: ['goals'],
+      todo: ['todo'],
     };
-    
+
     const progressionCapabilities = capabilityMap[capability] || [capability];
-    return progressionCapabilities.some(cap => 
+    return progressionCapabilities.some((cap) =>
       progressionStatus.unlockedCapabilities.includes(cap)
     );
   };
 
-  const buttonStyle = (isActive: boolean, isToggling: boolean, isUnlocked: boolean, isNew: boolean) => ({
+  const buttonStyle = (
+    isActive: boolean,
+    isToggling: boolean,
+    isUnlocked: boolean,
+    isNew: boolean
+  ) => ({
     flex: '1 1 0',
     height: '40px',
     backgroundColor: !isUnlocked ? '#333333' : isActive ? '#00ff00' : '#1a1a1a',
@@ -170,14 +182,12 @@ const UltraSimpleButtons: React.FC<{
     }
   };
 
-
-
   return (
     <div style={{ display: 'flex', gap: '2px', width: '100%' }}>
       <div
         style={buttonStyle(
-          states.autonomy, 
-          isTogglingState.autonomy, 
+          states.autonomy,
+          isTogglingState.autonomy,
           isCapabilityUnlocked('autonomy'),
           isCapabilityUnlocked('autonomy') && !capabilityUsage['autonomy']?.hasBeenUsed
         )}
@@ -188,9 +198,13 @@ const UltraSimpleButtons: React.FC<{
           handleClick('autonomy');
         }}
         data-testid="autonomy-toggle"
-        title={!isCapabilityUnlocked('autonomy') ? '🔒 Locked - Complete progression to unlock' : 
-               (isCapabilityUnlocked('autonomy') && !capabilityUsage['autonomy']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
-               undefined}
+        title={
+          !isCapabilityUnlocked('autonomy')
+            ? '🔒 Locked - Complete progression to unlock'
+            : isCapabilityUnlocked('autonomy') && !capabilityUsage['autonomy']?.hasBeenUsed
+              ? '✨ NEW! Click to try this feature'
+              : undefined
+        }
       >
         <span data-testid="autonomy-toggle-status">{states.autonomy ? '●' : '○'}</span>
         <span>{isTogglingState.autonomy ? '...' : 'AUTO'}</span>
@@ -198,8 +212,8 @@ const UltraSimpleButtons: React.FC<{
 
       <div
         style={buttonStyle(
-          states.camera, 
-          isTogglingState.camera, 
+          states.camera,
+          isTogglingState.camera,
           isCapabilityUnlocked('camera'),
           isCapabilityUnlocked('camera') && !capabilityUsage['camera']?.hasBeenUsed
         )}
@@ -210,9 +224,13 @@ const UltraSimpleButtons: React.FC<{
           handleClick('camera');
         }}
         data-testid="camera-toggle"
-        title={!isCapabilityUnlocked('camera') ? '🔒 Locked - Complete progression to unlock' : 
-               (isCapabilityUnlocked('camera') && !capabilityUsage['camera']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
-               undefined}
+        title={
+          !isCapabilityUnlocked('camera')
+            ? '🔒 Locked - Complete progression to unlock'
+            : isCapabilityUnlocked('camera') && !capabilityUsage['camera']?.hasBeenUsed
+              ? '✨ NEW! Click to try this feature'
+              : undefined
+        }
       >
         <span data-testid="camera-toggle-status">{states.camera ? '●' : '○'}</span>
         <span>{isTogglingState.camera ? '...' : 'CAM'}</span>
@@ -220,8 +238,8 @@ const UltraSimpleButtons: React.FC<{
 
       <div
         style={buttonStyle(
-          states.screen, 
-          isTogglingState.screen, 
+          states.screen,
+          isTogglingState.screen,
           isCapabilityUnlocked('screen'),
           isCapabilityUnlocked('screen') && !capabilityUsage['screen']?.hasBeenUsed
         )}
@@ -232,9 +250,13 @@ const UltraSimpleButtons: React.FC<{
           handleClick('screen');
         }}
         data-testid="screen-toggle"
-        title={!isCapabilityUnlocked('screen') ? '🔒 Locked - Complete progression to unlock' : 
-               (isCapabilityUnlocked('screen') && !capabilityUsage['screen']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
-               undefined}
+        title={
+          !isCapabilityUnlocked('screen')
+            ? '🔒 Locked - Complete progression to unlock'
+            : isCapabilityUnlocked('screen') && !capabilityUsage['screen']?.hasBeenUsed
+              ? '✨ NEW! Click to try this feature'
+              : undefined
+        }
       >
         <span data-testid="screen-toggle-status">{states.screen ? '●' : '○'}</span>
         <span>{isTogglingState.screen ? '...' : 'SCR'}</span>
@@ -242,8 +264,8 @@ const UltraSimpleButtons: React.FC<{
 
       <div
         style={buttonStyle(
-          states.microphone, 
-          isTogglingState.microphone, 
+          states.microphone,
+          isTogglingState.microphone,
           isCapabilityUnlocked('microphone'),
           isCapabilityUnlocked('microphone') && !capabilityUsage['microphone']?.hasBeenUsed
         )}
@@ -254,9 +276,13 @@ const UltraSimpleButtons: React.FC<{
           handleClick('microphone');
         }}
         data-testid="microphone-toggle"
-        title={!isCapabilityUnlocked('microphone') ? '🔒 Locked - Complete progression to unlock' : 
-               (isCapabilityUnlocked('microphone') && !capabilityUsage['microphone']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
-               undefined}
+        title={
+          !isCapabilityUnlocked('microphone')
+            ? '🔒 Locked - Complete progression to unlock'
+            : isCapabilityUnlocked('microphone') && !capabilityUsage['microphone']?.hasBeenUsed
+              ? '✨ NEW! Click to try this feature'
+              : undefined
+        }
       >
         <span data-testid="microphone-toggle-status">{states.microphone ? '●' : '○'}</span>
         <span>{isTogglingState.microphone ? '...' : 'MIC'}</span>
@@ -264,8 +290,8 @@ const UltraSimpleButtons: React.FC<{
 
       <div
         style={buttonStyle(
-          states.speakers, 
-          isTogglingState.speakers, 
+          states.speakers,
+          isTogglingState.speakers,
           isCapabilityUnlocked('speakers'),
           isCapabilityUnlocked('speakers') && !capabilityUsage['speakers']?.hasBeenUsed
         )}
@@ -276,9 +302,13 @@ const UltraSimpleButtons: React.FC<{
           handleClick('speakers');
         }}
         data-testid="speakers-toggle"
-        title={!isCapabilityUnlocked('speakers') ? '🔒 Locked - Complete progression to unlock' : 
-               (isCapabilityUnlocked('speakers') && !capabilityUsage['speakers']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
-               undefined}
+        title={
+          !isCapabilityUnlocked('speakers')
+            ? '🔒 Locked - Complete progression to unlock'
+            : isCapabilityUnlocked('speakers') && !capabilityUsage['speakers']?.hasBeenUsed
+              ? '✨ NEW! Click to try this feature'
+              : undefined
+        }
       >
         <span data-testid="speakers-toggle-status">{states.speakers ? '●' : '○'}</span>
         <span>{isTogglingState.speakers ? '...' : 'SPK'}</span>
@@ -286,8 +316,8 @@ const UltraSimpleButtons: React.FC<{
 
       <div
         style={buttonStyle(
-          states.shell, 
-          isTogglingState.shell, 
+          states.shell,
+          isTogglingState.shell,
           isCapabilityUnlocked('shell'),
           isCapabilityUnlocked('shell') && !capabilityUsage['shell']?.hasBeenUsed
         )}
@@ -298,9 +328,13 @@ const UltraSimpleButtons: React.FC<{
           handleClick('shell');
         }}
         data-testid="shell-toggle"
-        title={!isCapabilityUnlocked('shell') ? '🔒 Locked - Complete progression to unlock' : 
-               (isCapabilityUnlocked('shell') && !capabilityUsage['shell']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
-               undefined}
+        title={
+          !isCapabilityUnlocked('shell')
+            ? '🔒 Locked - Complete progression to unlock'
+            : isCapabilityUnlocked('shell') && !capabilityUsage['shell']?.hasBeenUsed
+              ? '✨ NEW! Click to try this feature'
+              : undefined
+        }
       >
         <span data-testid="shell-toggle-status">{states.shell ? '●' : '○'}</span>
         <span>{isTogglingState.shell ? '...' : 'SH'}</span>
@@ -308,8 +342,8 @@ const UltraSimpleButtons: React.FC<{
 
       <div
         style={buttonStyle(
-          states.browser, 
-          isTogglingState.browser, 
+          states.browser,
+          isTogglingState.browser,
           isCapabilityUnlocked('browser'),
           isCapabilityUnlocked('browser') && !capabilityUsage['browser']?.hasBeenUsed
         )}
@@ -320,9 +354,13 @@ const UltraSimpleButtons: React.FC<{
           handleClick('browser');
         }}
         data-testid="browser-toggle"
-        title={!isCapabilityUnlocked('browser') ? '🔒 Locked - Complete progression to unlock' : 
-               (isCapabilityUnlocked('browser') && !capabilityUsage['browser']?.hasBeenUsed) ? '✨ NEW! Click to try this feature' : 
-               undefined}
+        title={
+          !isCapabilityUnlocked('browser')
+            ? '🔒 Locked - Complete progression to unlock'
+            : isCapabilityUnlocked('browser') && !capabilityUsage['browser']?.hasBeenUsed
+              ? '✨ NEW! Click to try this feature'
+              : undefined
+        }
       >
         <span data-testid="browser-toggle-status">{states.browser ? '●' : '○'}</span>
         <span>{isTogglingState.browser ? '...' : 'WWW'}</span>
@@ -361,9 +399,9 @@ export const GameInterface: React.FC = () => {
   // Game API readiness state
   const [gameApiReady, setGameApiReady] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
-  
+
   // Progression state
-  const [progressionStatus, setProgressionStatus] = useState<any>(null);
+  const [progressionStatus, setProgressionStatus] = useState<ProgressionStatus | null>(null);
 
   // Model readiness state
 
@@ -397,8 +435,8 @@ export const GameInterface: React.FC = () => {
     Array<{ id: string; title: string; type: string; createdAt: string }>
   >([]);
   const [isResetting, setIsResetting] = useState(false);
-  const [pluginConfigs, setPluginConfigs] = useState<any>({});
-  const [configValues, setConfigValues] = useState<any>({});
+  const [pluginConfigs, setPluginConfigs] = useState<Record<string, unknown>>({});
+  const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
 
   // Security state
   const [securityWarning, setSecurityWarning] = useState<SecurityWarningState>({
@@ -414,7 +452,7 @@ export const GameInterface: React.FC = () => {
       try {
         const parsed = JSON.parse(stored);
         // Convert date strings back to Date objects
-        Object.keys(parsed).forEach(key => {
+        Object.keys(parsed).forEach((key) => {
           if (parsed[key].firstSeenAt) {
             parsed[key].firstSeenAt = new Date(parsed[key].firstSeenAt);
           }
@@ -428,7 +466,9 @@ export const GameInterface: React.FC = () => {
   });
 
   // Individual security warnings for each capability
-  const [individualWarnings, setIndividualWarnings] = useState<{[capability: string]: boolean}>({});
+  const [individualWarnings, setIndividualWarnings] = useState<{ [capability: string]: boolean }>(
+    {}
+  );
 
   const [_userId] = useState(() => {
     const stored = localStorage.getItem('terminal-user-id');
@@ -515,7 +555,7 @@ export const GameInterface: React.FC = () => {
         }
 
         // Listen for startup status updates
-        const unlisten = await listen('startup-status', (event: any) => {
+        const unlisten = await listen('startup-status', (event: { payload: unknown }) => {
           const status = event.payload;
           if (status) {
             setGameApiReady(status.game_api_ready || false);
@@ -810,14 +850,14 @@ export const GameInterface: React.FC = () => {
             capability,
             onConfirm: () => {
               // Mark warning as acknowledged
-              setCapabilityUsage(prev => ({
+              setCapabilityUsage((prev) => ({
                 ...prev,
                 [capability]: {
                   ...prev[capability],
                   warningAcknowledged: true,
-                }
+                },
               }));
-              setIndividualWarnings(prev => ({ ...prev, [capability]: true }));
+              setIndividualWarnings((prev) => ({ ...prev, [capability]: true }));
               setSecurityWarning({ isVisible: false, capability: '', onConfirm: () => {} });
               performCapabilityToggle(capability);
             },
@@ -873,12 +913,12 @@ export const GameInterface: React.FC = () => {
         console.log(`[API_TOGGLE] Successfully toggled ${capability} to ${newState}`);
 
         // Mark capability as used
-        setCapabilityUsage(prev => ({
+        setCapabilityUsage((prev) => ({
           ...prev,
           [capability]: {
             ...prev[capability],
             hasBeenUsed: true,
-          }
+          },
         }));
 
         // Log security events for dangerous capabilities
@@ -932,15 +972,15 @@ export const GameInterface: React.FC = () => {
         setKnowledgeFiles([]);
 
         // Reset plugins to default state
-              setPlugins({
-        autonomy: false,
-        screen: false,
-        camera: false,
-        microphone: false,
-        speakers: false,
-        shell: false,
-        browser: false,
-      });
+        setPlugins({
+          autonomy: false,
+          screen: false,
+          camera: false,
+          microphone: false,
+          speakers: false,
+          shell: false,
+          browser: false,
+        });
 
         setShowResetDialog(false);
 
@@ -976,7 +1016,7 @@ export const GameInterface: React.FC = () => {
   // Data fetching
   const fetchGoals = async () => {
     try {
-      let data: any[] = [];
+      let data: unknown[] = [];
 
       if (isRunningInTauri) {
         // Use TauriService for IPC
@@ -999,7 +1039,7 @@ export const GameInterface: React.FC = () => {
 
   const fetchTodos = async () => {
     try {
-      let processedTodos: any[] = [];
+      let processedTodos: unknown[] = [];
 
       if (isRunningInTauri) {
         // Use TauriService for IPC
@@ -1067,16 +1107,25 @@ export const GameInterface: React.FC = () => {
 
       // Show ALL messages from the autonomy room in chronological order
       const roomMessages = data
-        .filter((memory: any) => memory.content?.text) // Only filter out empty messages
-        .sort((a: any, b: any) => (a.createdAt || 0) - (b.createdAt || 0)) // Chronological order
+        .filter((memory: Record<string, unknown>) => {
+          const content = memory.content as Record<string, unknown>;
+          return content?.text;
+        }) // Only filter out empty messages
+        .sort(
+          (a: Record<string, unknown>, b: Record<string, unknown>) =>
+            (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0)
+        ) // Chronological order
         .slice(-15) // Keep last 15 messages
-        .map((memory: any) => ({
-          text: memory.content.text,
-          timestamp: memory.createdAt,
-          entityId: memory.entityId,
-          agentId: memory.agentId,
-          isFromAgent: memory.entityId === memory.agentId,
-        }));
+        .map((memory: Record<string, unknown>) => {
+          const content = memory.content as Record<string, unknown>;
+          return {
+            text: String(content.text),
+            timestamp: Number(memory.createdAt),
+            entityId: String(memory.entityId),
+            agentId: String(memory.agentId),
+            isFromAgent: memory.entityId === memory.agentId,
+          };
+        });
 
       if (roomMessages.length === 0) {
         setAgentMonologue([
@@ -1152,7 +1201,7 @@ export const GameInterface: React.FC = () => {
       console.log('[KNOWLEDGE] Raw API response:', result);
 
       // Handle response format
-      let documentsArray: any[] = [];
+      let documentsArray: unknown[] = [];
       if (Array.isArray(result)) {
         documentsArray = result;
       } else {
@@ -1161,7 +1210,7 @@ export const GameInterface: React.FC = () => {
       }
 
       console.log('[KNOWLEDGE] Processing', documentsArray.length, 'documents');
-      const formattedFiles = documentsArray.map((doc: any) => ({
+      const formattedFiles = documentsArray.map((doc: Record<string, any>) => ({
         id: doc.id,
         title: doc.title || doc.originalFilename || 'Untitled',
         type: doc.contentType || 'unknown',
@@ -1183,7 +1232,7 @@ export const GameInterface: React.FC = () => {
         setPluginConfigs(configs);
 
         // Initialize config values with current values
-        const values: any = {};
+        const values: Record<string, unknown> = {};
         Object.entries(configs).forEach(([plugin, config]: [string, any]) => {
           values[plugin] = { ...config };
         });
@@ -1194,7 +1243,7 @@ export const GameInterface: React.FC = () => {
     }
   };
 
-  const updatePluginConfig = async (plugin: string, key: string, value: any) => {
+  const updatePluginConfig = async (plugin: string, key: string, value: unknown) => {
     try {
       // Validate configuration value
       const validation = InputValidator.validateConfigValue(key, value);
@@ -1219,7 +1268,7 @@ export const GameInterface: React.FC = () => {
         validation.sanitizedValue !== undefined ? validation.sanitizedValue : value;
 
       // Update local state immediately for responsive UI
-      setConfigValues((prev: any) => ({
+      setConfigValues((prev: Record<string, unknown>) => ({
         ...prev,
         [plugin]: {
           ...prev[plugin],
@@ -1525,7 +1574,7 @@ export const GameInterface: React.FC = () => {
   // Track when capabilities are unlocked
   useEffect(() => {
     if (progressionStatus?.unlockedCapabilities) {
-      setCapabilityUsage(prev => {
+      setCapabilityUsage((prev) => {
         const updated = { ...prev };
         progressionStatus.unlockedCapabilities.forEach((cap: string) => {
           if (!updated[cap]) {
@@ -1636,34 +1685,37 @@ export const GameInterface: React.FC = () => {
 
     const setupAgentScreenListener = async () => {
       try {
-        unsubscribe = await listen('agent-screen-frame', (event: any) => {
-          const { frame_data, width, height } = event.payload;
+        unsubscribe = await listen(
+          'agent-screen-frame',
+          (event: { payload: { data: string; type: string } }) => {
+            const { frame_data, width, height } = event.payload;
 
-          // Get the agent screen canvas
-          const canvas = document.getElementById('agent-screen-canvas') as HTMLCanvasElement;
-          if (!canvas) return;
+            // Get the agent screen canvas
+            const canvas = document.getElementById('agent-screen-canvas') as HTMLCanvasElement;
+            if (!canvas) return;
 
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
 
-          // Set canvas dimensions
-          canvas.width = width;
-          canvas.height = height;
+            // Set canvas dimensions
+            canvas.width = width;
+            canvas.height = height;
 
-          // Convert frame data back to Uint8Array
-          const imageData = new Uint8Array(frame_data);
+            // Convert frame data back to Uint8Array
+            const imageData = new Uint8Array(frame_data);
 
-          // Create blob and display on canvas
-          const blob = new Blob([imageData], { type: 'image/jpeg' });
-          const url = URL.createObjectURL(blob);
+            // Create blob and display on canvas
+            const blob = new Blob([imageData], { type: 'image/jpeg' });
+            const url = URL.createObjectURL(blob);
 
-          const img = new window.Image();
-          img.onload = () => {
-            ctx.drawImage(img, 0, 0, width, height);
-            URL.revokeObjectURL(url);
-          };
-          img.src = url;
-        });
+            const img = new window.Image();
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0, width, height);
+              URL.revokeObjectURL(url);
+            };
+            img.src = url;
+          }
+        );
       } catch (error) {
         console.error('Failed to setup agent screen listener:', error);
       }
@@ -1771,15 +1823,19 @@ export const GameInterface: React.FC = () => {
             </div>
             <div className="scrollable-content">
               <div className="chat-messages">
-                {output.filter(msg => msg.type === 'user' || msg.type === 'agent').map((msg, index) => (
-                  <div key={index} className={`message ${msg.type === 'agent' ? 'agent' : 'user'}`}>
-                    <span className="message-sender">{msg.type === 'agent' ? '🤖' : '👤'}</span>
-                    <span className="message-text">{msg.content}</span>
-                  </div>
-                ))}
-                {output.filter(msg => msg.type === 'user' || msg.type === 'agent').length === 0 && (
-                  <div className="empty-state">No messages yet. Start a conversation!</div>
-                )}
+                {output
+                  .filter((msg) => msg.type === 'user' || msg.type === 'agent')
+                  .map((msg, index) => (
+                    <div
+                      key={index}
+                      className={`message ${msg.type === 'agent' ? 'agent' : 'user'}`}
+                    >
+                      <span className="message-sender">{msg.type === 'agent' ? '🤖' : '👤'}</span>
+                      <span className="message-text">{msg.content}</span>
+                    </div>
+                  ))}
+                {output.filter((msg) => msg.type === 'user' || msg.type === 'agent').length ===
+                  0 && <div className="empty-state">No messages yet. Start a conversation!</div>}
               </div>
             </div>
           </div>
@@ -1833,9 +1889,6 @@ export const GameInterface: React.FC = () => {
             </div>
           </div>
         );
-
-
-
 
       case 'monologue':
         return (
@@ -2093,7 +2146,9 @@ export const GameInterface: React.FC = () => {
                       <label>Model</label>
                       <select
                         className="config-select"
-                        value={configValues.environment?.LANGUAGE_MODEL || 'llama-3.1-70b-versatile'}
+                        value={
+                          configValues.environment?.LANGUAGE_MODEL || 'llama-3.1-70b-versatile'
+                        }
                         onChange={(e) =>
                           updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
                         }
@@ -2344,7 +2399,7 @@ export const GameInterface: React.FC = () => {
                             },
                           ]);
                         }
-                      } catch (error: any) {
+                      } catch (error: unknown) {
                         const errorMsg = getScreenCaptureErrorMessage(error);
                         setOutput((prev) => [
                           ...prev,
@@ -2416,13 +2471,13 @@ export const GameInterface: React.FC = () => {
           if (!mockSocket._listeners) mockSocket._listeners = {};
           if (!mockSocket._listeners[event]) mockSocket._listeners[event] = [];
           mockSocket._listeners[event].push(callback);
-          
+
           // Auto-trigger connect event for new listeners
           if (event === 'connect' && mockSocket.connected) {
             setTimeout(() => callback(), 0);
           }
         },
-        emit: (event: string, data: any) => {
+        emit: (event: string, data: unknown) => {
           // Emit events to listeners
           if (mockSocket._listeners && mockSocket._listeners[event]) {
             mockSocket._listeners[event].forEach((callback: Function) => callback(data));
@@ -2446,20 +2501,20 @@ export const GameInterface: React.FC = () => {
           console.log('[Mock Client] Joining room:', roomId);
           mockSocket.emit('room:joined', { roomId });
         },
-        sendMessage: (message: any) => {
+        sendMessage: (message: Record<string, unknown>) => {
           console.log('[Mock Client] Sending message:', message);
           // Simulate server response after a delay
           setTimeout(() => {
             mockSocket.emit('message', {
               id: Date.now().toString(),
-              content: `Mock response to: ${  message.content}`,
+              content: `Mock response to: ${message.content}`,
               author: 'ELIZA',
               timestamp: Date.now(),
             });
           }, 100);
         },
       };
-      
+
       // Simulate connection
       setTimeout(() => mockSocket.connect(), 100);
     }
@@ -2677,28 +2732,33 @@ export const GameInterface: React.FC = () => {
           {/* Plugin Controls - Ultra Simple */}
           <div className="controls-section">
             <div className="controls-header">◆ CAPABILITIES</div>
-            
+
             {/* Progression Mode Toggle */}
             {progressionStatus && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 0',
-                marginBottom: '10px',
-                borderBottom: '1px solid rgba(0, 255, 170, 0.2)',
-              }}>
-                <span style={{ 
-                  color: '#00FF88', 
-                  fontSize: '12px',
-                  fontFamily: 'monospace',
-                  textTransform: 'uppercase'
-                }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 0',
+                  marginBottom: '10px',
+                  borderBottom: '1px solid rgba(0, 255, 170, 0.2)',
+                }}
+              >
+                <span
+                  style={{
+                    color: '#00FF88',
+                    fontSize: '12px',
+                    fontFamily: 'monospace',
+                    textTransform: 'uppercase',
+                  }}
+                >
                   Mode: {progressionStatus.mode || 'progression'}
                 </span>
                 <button
                   onClick={async () => {
-                    const newMode = progressionStatus.mode === 'unlocked' ? 'progression' : 'unlocked';
+                    const newMode =
+                      progressionStatus.mode === 'unlocked' ? 'progression' : 'unlocked';
                     try {
                       const response = await fetch('/api/agents/default/progression/mode', {
                         method: 'POST',
@@ -2709,11 +2769,14 @@ export const GameInterface: React.FC = () => {
                         const data = await response.json();
                         setProgressionStatus(data.data);
                         const message = `Switched to ${newMode} mode`;
-                        setOutput(prev => [...prev, {
-                          type: 'system',
-                          content: `> ${message}`,
-                          timestamp: new Date(),
-                        }]);
+                        setOutput((prev) => [
+                          ...prev,
+                          {
+                            type: 'system',
+                            content: `> ${message}`,
+                            timestamp: new Date(),
+                          },
+                        ]);
                       }
                     } catch (error) {
                       console.error('Failed to switch progression mode:', error);
@@ -2743,10 +2806,10 @@ export const GameInterface: React.FC = () => {
                 </button>
               </div>
             )}
-            
-            <UltraSimpleButtons 
-              states={plugins} 
-              onToggle={handleCapabilityToggle} 
+
+            <UltraSimpleButtons
+              states={plugins}
+              onToggle={handleCapabilityToggle}
               progressionStatus={progressionStatus}
               capabilityUsage={capabilityUsage}
             />
@@ -2755,7 +2818,16 @@ export const GameInterface: React.FC = () => {
           {/* Status Tabs */}
           <div className="status-tabs">
             {(
-              ['chat', 'goals', 'todos', 'monologue', 'files', 'config', 'logs', 'agent-screen'] as const
+              [
+                'chat',
+                'goals',
+                'todos',
+                'monologue',
+                'files',
+                'config',
+                'logs',
+                'agent-screen',
+              ] as const
             ).map((tab) => (
               <button
                 key={tab}

@@ -59,75 +59,72 @@ export class ExperienceService extends Service {
       prompt: embeddingText,
     });
 
-      const experience: Experience = {
-        id: uuidv4() as UUID,
-        agentId: this.runtime.agentId,
-        type: experienceData.type || ExperienceType.LEARNING,
-        outcome: experienceData.outcome || OutcomeType.NEUTRAL,
-        context: experienceData.context || '',
-        action: experienceData.action || '',
-        result: experienceData.result || '',
-        learning: experienceData.learning || '',
-        domain: experienceData.domain || 'general',
-        tags: experienceData.tags || [],
-        confidence: experienceData.confidence || 0.5,
-        importance: experienceData.importance || 0.5,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        accessCount: 0,
-        lastAccessedAt: Date.now(),
-        embedding,
-        relatedExperiences: experienceData.relatedExperiences,
-        supersedes: experienceData.supersedes,
-        previousBelief: experienceData.previousBelief,
-        correctedBelief: experienceData.correctedBelief,
-      };
+    const experience: Experience = {
+      id: uuidv4() as UUID,
+      agentId: this.runtime.agentId,
+      type: experienceData.type || ExperienceType.LEARNING,
+      outcome: experienceData.outcome || OutcomeType.NEUTRAL,
+      context: experienceData.context || '',
+      action: experienceData.action || '',
+      result: experienceData.result || '',
+      learning: experienceData.learning || '',
+      domain: experienceData.domain || 'general',
+      tags: experienceData.tags || [],
+      confidence: experienceData.confidence || 0.5,
+      importance: experienceData.importance || 0.5,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      accessCount: 0,
+      lastAccessedAt: Date.now(),
+      embedding,
+      relatedExperiences: experienceData.relatedExperiences,
+      supersedes: experienceData.supersedes,
+      previousBelief: experienceData.previousBelief,
+      correctedBelief: experienceData.correctedBelief,
+    };
 
-      // Store the experience
-      this.experiences.set(experience.id, experience);
+    // Store the experience
+    this.experiences.set(experience.id, experience);
 
-      // Update indexes
-      if (!this.experiencesByDomain.has(experience.domain)) {
-        this.experiencesByDomain.set(experience.domain, new Set());
-      }
-      this.experiencesByDomain.get(experience.domain)!.add(experience.id);
+    // Update indexes
+    if (!this.experiencesByDomain.has(experience.domain)) {
+      this.experiencesByDomain.set(experience.domain, new Set());
+    }
+    this.experiencesByDomain.get(experience.domain)!.add(experience.id);
 
-      if (!this.experiencesByType.has(experience.type)) {
-        this.experiencesByType.set(experience.type, new Set());
-      }
-      this.experiencesByType.get(experience.type)!.add(experience.id);
+    if (!this.experiencesByType.has(experience.type)) {
+      this.experiencesByType.set(experience.type, new Set());
+    }
+    this.experiencesByType.get(experience.type)!.add(experience.id);
 
-      // Check for contradictions and add relationships
-      const allExperiences = Array.from(this.experiences.values());
-      const contradictions = this.relationshipManager.findContradictions(
-        experience,
-        allExperiences
-      );
+    // Check for contradictions and add relationships
+    const allExperiences = Array.from(this.experiences.values());
+    const contradictions = this.relationshipManager.findContradictions(experience, allExperiences);
 
-      for (const contradiction of contradictions) {
-        this.relationshipManager.addRelationship({
-          fromId: experience.id,
-          toId: contradiction.id,
-          type: 'contradicts',
-          strength: 0.8,
-        });
-      }
-
-      // Prune if necessary
-      if (this.experiences.size > this.maxExperiences) {
-        await this.pruneOldExperiences();
-      }
-
-      // Emit event
-      await this.runtime.emitEvent('EXPERIENCE_RECORDED', {
-        experienceId: experience.id,
-        eventType: 'created',
-        timestamp: experience.createdAt,
+    for (const contradiction of contradictions) {
+      this.relationshipManager.addRelationship({
+        fromId: experience.id,
+        toId: contradiction.id,
+        type: 'contradicts',
+        strength: 0.8,
       });
+    }
 
-      logger.info(`[ExperienceService] Recorded experience: ${experience.id} (${experience.type})`);
+    // Prune if necessary
+    if (this.experiences.size > this.maxExperiences) {
+      await this.pruneOldExperiences();
+    }
 
-      return experience;
+    // Emit event
+    await this.runtime.emitEvent('EXPERIENCE_RECORDED', {
+      experienceId: experience.id,
+      eventType: 'created',
+      timestamp: experience.createdAt,
+    });
+
+    logger.info(`[ExperienceService] Recorded experience: ${experience.id} (${experience.type})`);
+
+    return experience;
   }
 
   async queryExperiences(query: ExperienceQuery): Promise<Experience[]> {

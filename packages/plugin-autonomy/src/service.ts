@@ -57,7 +57,7 @@ export class AutonomyService extends Service {
 
     // Ensure the autonomous room exists with proper world context
     const worldId = asUUID('00000000-0000-0000-0000-000000000001'); // Use a fixed world ID for autonomy
-    
+
     // Only set up world/room if runtime has these methods (not available in test mocks)
     if (this.runtime.ensureWorldExists) {
       await this.runtime.ensureWorldExists({
@@ -99,10 +99,7 @@ export class AutonomyService extends Service {
       await this.runtime.ensureParticipantInRoom(this.runtime.agentId, this.autonomousRoomId);
     }
 
-    console.log(
-      '[Autonomy] Ensured autonomous room exists with world ID:',
-      this.autonomousWorldId
-    );
+    console.log('[Autonomy] Ensured autonomous room exists with world ID:', this.autonomousWorldId);
 
     console.log(
       `[Autonomy] Settings check - AUTONOMY_ENABLED: ${autonomyEnabled}, AUTONOMY_AUTO_START: ${autoStart}`
@@ -205,8 +202,8 @@ export class AutonomyService extends Service {
     );
 
     // Get the agent's entity first - we'll need it throughout this function
-    const agentEntity = this.runtime.getEntityById 
-      ? await this.runtime.getEntityById(this.runtime.agentId) 
+    const agentEntity = this.runtime.getEntityById
+      ? await this.runtime.getEntityById(this.runtime.agentId)
       : { id: this.runtime.agentId };
     if (!agentEntity) {
       console.error('[Autonomy] Failed to get agent entity, skipping autonomous thought');
@@ -216,7 +213,7 @@ export class AutonomyService extends Service {
     // Get the last autonomous thought to continue the internal monologue
     let lastThought: string | undefined;
     let isFirstThought = false;
-    
+
     // Get recent autonomous memories from this room
     const recentMemories = await this.runtime.getMemories({
       roomId: this.autonomousRoomId,
@@ -237,93 +234,91 @@ export class AutonomyService extends Service {
 
     if (lastAgentThought?.content?.text) {
       lastThought = lastAgentThought.content.text;
-      console.log(
-        `[Autonomy] Continuing from last thought: "${lastThought.substring(0, 50)}..."`
-      );
+      console.log(`[Autonomy] Continuing from last thought: "${lastThought.substring(0, 50)}..."`);
     } else {
       isFirstThought = true;
       console.log('[Autonomy] No previous autonomous thoughts found, starting fresh monologue');
     }
 
-      // Create introspective monologue prompt (not conversational)
-      const monologuePrompt = this.createMonologuePrompt(lastThought, isFirstThought);
-      console.log(`[Autonomy] Monologue prompt: "${monologuePrompt.substring(0, 100)}..."`);
+    // Create introspective monologue prompt (not conversational)
+    const monologuePrompt = this.createMonologuePrompt(lastThought, isFirstThought);
+    console.log(`[Autonomy] Monologue prompt: "${monologuePrompt.substring(0, 100)}..."`);
 
-      // Create an autonomous message that will be processed through the full agent pipeline
-      const autonomousMessage: Memory = {
-        id: asUUID(uuidv4()), // Generate unique ID for this autonomous message
-        entityId: agentEntity.id ? asUUID(agentEntity.id) : this.runtime.agentId, // Use the agent's entity ID or fallback to agentId
-        content: {
-          text: monologuePrompt,
-          source: 'autonomous-trigger',
-          metadata: {
-            type: 'autonomous-prompt',
-            isAutonomous: true,
-            isInternalThought: true,
-            channelId: 'autonomous',
-            timestamp: Date.now(),
-            isContinuation: !isFirstThought,
-          },
+    // Create an autonomous message that will be processed through the full agent pipeline
+    const autonomousMessage: Memory = {
+      id: asUUID(uuidv4()), // Generate unique ID for this autonomous message
+      entityId: agentEntity.id ? asUUID(agentEntity.id) : this.runtime.agentId, // Use the agent's entity ID or fallback to agentId
+      content: {
+        text: monologuePrompt,
+        source: 'autonomous-trigger',
+        metadata: {
+          type: 'autonomous-prompt',
+          isAutonomous: true,
+          isInternalThought: true,
+          channelId: 'autonomous',
+          timestamp: Date.now(),
+          isContinuation: !isFirstThought,
         },
-        roomId: this.autonomousRoomId,
-        agentId: this.runtime.agentId,
-        createdAt: Date.now(),
-      };
+      },
+      roomId: this.autonomousRoomId,
+      agentId: this.runtime.agentId,
+      createdAt: Date.now(),
+    };
 
-      console.log('[Autonomy] Processing autonomous message through full agent pipeline...');
+    console.log('[Autonomy] Processing autonomous message through full agent pipeline...');
 
-      // Process the message through the complete agent pipeline
-      // This will:
-      // 1. Gather context from providers
-      // 2. Generate response using the full LLM pipeline
-      // 3. Execute any actions the agent decides to take
-      // 4. Run evaluators on the result
-      // 5. Store memories appropriately
-      await this.runtime.emitEvent(EventType.MESSAGE_RECEIVED, {
-        runtime: this.runtime,
-        message: autonomousMessage,
-        callback: async (content: Content) => {
-          console.log('[Autonomy] Response generated:', `${content.text?.substring(0, 100)}...`);
+    // Process the message through the complete agent pipeline
+    // This will:
+    // 1. Gather context from providers
+    // 2. Generate response using the full LLM pipeline
+    // 3. Execute any actions the agent decides to take
+    // 4. Run evaluators on the result
+    // 5. Store memories appropriately
+    await this.runtime.emitEvent(EventType.MESSAGE_RECEIVED, {
+      runtime: this.runtime,
+      message: autonomousMessage,
+      callback: async (content: Content) => {
+        console.log('[Autonomy] Response generated:', `${content.text?.substring(0, 100)}...`);
 
-          // Store the response with autonomous metadata
-          if (content.text) {
-            const responseMemory: Memory = {
-              id: asUUID(uuidv4()),
-              entityId: agentEntity.id ? asUUID(agentEntity.id) : this.runtime.agentId, // Use the agent's entity ID from above or fallback to agentId
-              agentId: this.runtime.agentId,
-              content: {
-                text: content.text,
-                thought: content.thought,
-                actions: content.actions,
-                source: content.source || 'autonomous',
-                metadata: {
-                  ...(content.metadata || {}),
-                  isAutonomous: true,
-                  isInternalThought: true,
-                  channelId: 'autonomous',
-                  timestamp: Date.now(),
-                },
+        // Store the response with autonomous metadata
+        if (content.text) {
+          const responseMemory: Memory = {
+            id: asUUID(uuidv4()),
+            entityId: agentEntity.id ? asUUID(agentEntity.id) : this.runtime.agentId, // Use the agent's entity ID from above or fallback to agentId
+            agentId: this.runtime.agentId,
+            content: {
+              text: content.text,
+              thought: content.thought,
+              actions: content.actions,
+              source: content.source || 'autonomous',
+              metadata: {
+                ...(content.metadata || {}),
+                isAutonomous: true,
+                isInternalThought: true,
+                channelId: 'autonomous',
+                timestamp: Date.now(),
               },
-              roomId: this.autonomousRoomId,
-              createdAt: Date.now(),
-            };
+            },
+            roomId: this.autonomousRoomId,
+            createdAt: Date.now(),
+          };
 
-            // Save the autonomous thought
-            await this.runtime.createMemory(responseMemory, 'messages');
+          // Save the autonomous thought
+          await this.runtime.createMemory(responseMemory, 'messages');
 
-            // Broadcast the thought to WebSocket clients
-            await this.broadcastThoughtToMonologue(
-              content.text!,
-              responseMemory.id || asUUID(uuidv4())
-            );
-          }
-        },
-        onComplete: async () => {
-          console.log('[Autonomy] ✅ Autonomous message processing completed');
-        },
-      });
+          // Broadcast the thought to WebSocket clients
+          await this.broadcastThoughtToMonologue(
+            content.text!,
+            responseMemory.id || asUUID(uuidv4())
+          );
+        }
+      },
+      onComplete: async () => {
+        console.log('[Autonomy] ✅ Autonomous message processing completed');
+      },
+    });
 
-      console.log('[Autonomy] ✅ Autonomous message event emitted to agent pipeline');
+    console.log('[Autonomy] ✅ Autonomous message event emitted to agent pipeline');
   }
   /**
    * Create an introspective monologue prompt suited for internal thoughts

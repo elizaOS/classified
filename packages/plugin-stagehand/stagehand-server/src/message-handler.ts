@@ -31,7 +31,7 @@ export class MessageHandler {
       switch (type) {
         case 'health':
           return this.handleHealth(requestId);
-          
+
         case 'createSession':
           return await this.handleCreateSession(requestId, clientId);
 
@@ -385,7 +385,7 @@ export class MessageHandler {
       data: {
         status: 'ok',
         message: 'Stagehand server is running',
-      }
+      },
     };
   }
 }

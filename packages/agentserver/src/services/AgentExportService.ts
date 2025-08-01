@@ -159,9 +159,9 @@ export class AgentExportService {
       .where(eq(memoryTable.agentId as any, this.agentId));
 
     // Convert vector embeddings to arrays for JSON serialization
-    const memoriesWithArrayEmbeddings = memories.map((memory: any) => ({
+    const memoriesWithArrayEmbeddings = memories.map((memory: Record<string, unknown>) => ({
       ...memory,
-      embedding: memory.embedding ? Array.from(memory.embedding as any) : null,
+      embedding: memory.embedding ? Array.from(memory.embedding as ArrayLike<number>) : null,
     }));
 
     archive.append(JSON.stringify(memoriesWithArrayEmbeddings, null, 2), {

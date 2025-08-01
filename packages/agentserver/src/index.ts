@@ -1,27 +1,29 @@
 import './polyfill';
 
-import type { Plugin } from '@elizaos/core';
+import type { Character, Plugin } from '@elizaos/core';
 import {
   AgentRuntime as ElizaAgentRuntime,
   IAgentRuntime,
   logger,
   stringToUuid,
 } from '@elizaos/core';
+import { Request, Response } from 'express';
+
+import autocoderPlugin from '@elizaos/plugin-autocoder';
 import { autonomyPlugin } from '@elizaos/plugin-autonomy';
 import { bootstrapPlugin } from '@elizaos/plugin-bootstrap';
-import GoalsPlugin from '@elizaos/plugin-goals';
-import TodoPlugin from '@elizaos/plugin-todo';
-import shellPlugin from '@elizaos/plugin-shell';
-import { knowledgePlugin } from '@elizaos/plugin-knowledge';
-import { inferencePlugin } from '@elizaos/plugin-inference';
-import PersonalityPlugin from '@elizaos/plugin-personality';
-import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
 import { experiencePlugin } from '@elizaos/plugin-experience';
-import { stagehandPlugin } from '@elizaos/plugin-stagehand';
-import { visionPlugin } from '@elizaos/plugin-vision';
-import autocoderPlugin from '@elizaos/plugin-autocoder';
+import GoalsPlugin from '@elizaos/plugin-goals';
+import { inferencePlugin } from '@elizaos/plugin-inference';
+import { knowledgePlugin } from '@elizaos/plugin-knowledge';
+import PersonalityPlugin from '@elizaos/plugin-personality';
 import { pluginManagerPlugin } from '@elizaos/plugin-plugin-manager';
 import samPlugin from '@elizaos/plugin-sam';
+import shellPlugin from '@elizaos/plugin-shell';
+import { plugin as sqlPlugin } from '@elizaos/plugin-sql';
+import { stagehandPlugin } from '@elizaos/plugin-stagehand';
+import TodoPlugin from '@elizaos/plugin-todo';
+import { visionPlugin } from '@elizaos/plugin-vision';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -31,6 +33,7 @@ import { gameAPIPlugin } from './game-api-plugin';
 import { AgentServer } from './server';
 import { CapabilityProgressionService } from './services/capabilityProgressionService';
 import { ProgressionTracker } from './services/progressionTracker';
+import { ProgressivePluginService } from './services/progressivePluginService';
 
 /**
  * Agent ID Handling Strategy:
@@ -101,15 +104,15 @@ const allAvailablePlugins: Record<string, Plugin> = {
 // Create initial plugin list with only basic capabilities
 function createInitialPlugins(): Plugin[] {
   return [
-    sqlPlugin,          // Always needed for database
-    bootstrapPlugin,    // Always needed for basic runtime
-    gameAPIPlugin,      // Always needed for game API
-    inferencePlugin,    // Always needed for inference
-    autonomyPlugin,     // Start with autonomy enabled
-    knowledgePlugin,    // Always needed for memory
-    PersonalityPlugin,  // Always needed for character
-    experiencePlugin,   // Always needed for learning
-    shellPlugin,        // Shell is available from level 0
+    sqlPlugin, // Always needed for database
+    bootstrapPlugin, // Always needed for basic runtime
+    gameAPIPlugin, // Always needed for game API
+    inferencePlugin, // Always needed for inference
+    autonomyPlugin, // Start with autonomy enabled
+    knowledgePlugin, // Always needed for memory
+    PersonalityPlugin, // Always needed for character
+    experiencePlugin, // Always needed for learning
+    shellPlugin, // Shell is available from level 0
     // Goals and Todo will be added via progression at level 2
   ].filter(Boolean);
 }
@@ -117,7 +120,7 @@ function createInitialPlugins(): Plugin[] {
 const initialPlugins = createInitialPlugins();
 
 // Function to start an agent runtime - called by server.ts
-export async function startAgent(character: any): Promise<IAgentRuntime> {
+export async function startAgent(character: Character): Promise<IAgentRuntime> {
   console.log('[AGENT START] Starting agent:', character.name);
 
   // Generate the proper agent ID from the character name
@@ -127,7 +130,10 @@ export async function startAgent(character: any): Promise<IAgentRuntime> {
   console.log('[AGENT START] Using embedding provider:', embeddingProvider);
   console.log('[AGENT START] Using model provider:', modelProvider);
 
-  console.log('[AGENT START] Initial plugins:', initialPlugins.map((p) => p.name || 'unnamed').join(', '));
+  console.log(
+    '[AGENT START] Initial plugins:',
+    initialPlugins.map((p) => p.name || 'unnamed').join(', ')
+  );
 
   // Ensure character has proper structure with UUID string
   const cleanCharacter = {
@@ -148,68 +154,38 @@ export async function startAgent(character: any): Promise<IAgentRuntime> {
     plugins: initialPlugins,
   });
 
-  // Add progressive plugin support
-  (runtime as any).registerProgressivePlugin = async (capability: string) => {
-    console.log(`[PROGRESSION] Registering plugin for capability: ${capability}`);
-    logger.info(`[PROGRESSION] Registering plugin for capability: ${capability}`);
-    
-    const pluginMappings: Record<string, Plugin[]> = {
-      // Level 1 capabilities
-      'browser': [allAvailablePlugins.stagehand], // Browser capability uses Stagehand for web automation
-      'stagehand': [allAvailablePlugins.stagehand], // Alias for backward compatibility
-      
-      // Level 2 capabilities
-      'goals': [allAvailablePlugins.goals],
-      'todo': [allAvailablePlugins.todo],
-      
-      // Level 3 capabilities
-      'vision': [allAvailablePlugins.vision], // Vision plugin
-      'screen_capture': [allAvailablePlugins.vision], // Screen capture uses vision plugin
-      
-      // Level 4 capabilities
-      'microphone': [allAvailablePlugins.sam], // SAM plugin provides TTS/audio capabilities
-      'sam': [allAvailablePlugins.sam], // SAM plugin directly
-      'audio': [allAvailablePlugins.sam], // Audio capability uses SAM plugin
-      
-      // Level 5 capabilities
-      'camera': [], // Camera plugin not yet implemented
-      'advanced_vision': [allAvailablePlugins.vision], // Advanced vision uses vision plugin
-      
-      // Level 6 capabilities
-      'autocoder': [allAvailablePlugins.autocoder],
-      'code_generation': [allAvailablePlugins.autocoder],
-      'project_management': [allAvailablePlugins.autocoder],
-      'plugin-manager': [allAvailablePlugins.pluginManager],
-      
-      // Note: 'shell' is already in initial plugins, no need to register progressively
-      // Note: 'naming' is handled by ProgressionTracker, not a plugin capability
-    };
-    
-    const pluginsToRegister = pluginMappings[capability] || [];
-    console.log(`[PROGRESSION] Found ${pluginsToRegister.length} plugins to register for ${capability}`);
-    logger.info(`[PROGRESSION] Found ${pluginsToRegister.length} plugins to register for ${capability}`);
-    
-    for (const plugin of pluginsToRegister) {
-      if (!runtime.plugins.find(p => p.name === plugin.name)) {
-        console.log(`[PROGRESSION] Registering plugin: ${plugin.name} for capability: ${capability}`);
-        logger.info(`[PROGRESSION] Registering plugin: ${plugin.name} for capability: ${capability}`);
-        
-        try {
-          await runtime.registerPlugin(plugin);
-          console.log(`[PROGRESSION] Successfully registered plugin: ${plugin.name}`);
-          logger.info(`[PROGRESSION] Successfully registered plugin: ${plugin.name}`);
-        } catch (error) {
-          console.error(`[PROGRESSION] Failed to register plugin ${plugin.name}:`, error);
-          logger.error(`[PROGRESSION] Failed to register plugin ${plugin.name}:`, error);
-        }
-      } else {
-        console.log(`[PROGRESSION] Plugin ${plugin.name} already registered`);
-        logger.info(`[PROGRESSION] Plugin ${plugin.name} already registered`);
-      }
-    }
+  // Define plugin mappings for progressive unlocking
+  const pluginMappings: Record<string, Plugin[]> = {
+    // Level 1 capabilities
+    browser: [allAvailablePlugins.stagehand], // Browser capability uses Stagehand for web automation
+    stagehand: [allAvailablePlugins.stagehand], // Alias for backward compatibility
+
+    // Level 2 capabilities
+    goals: [allAvailablePlugins.goals],
+    todo: [allAvailablePlugins.todo],
+
+    // Level 3 capabilities
+    vision: [allAvailablePlugins.vision], // Vision plugin handles both camera and screen capture
+
+    // Level 4 capabilities
+    sam: [allAvailablePlugins.sam], // SAM plugin for TTS/audio output
+
+    // Level 5 capabilities
+    advanced: [], // Placeholder for future advanced capabilities
+
+    // Level 6 capabilities
+    autocoder: [allAvailablePlugins.autocoder],
+    code_generation: [allAvailablePlugins.autocoder],
+    project_management: [allAvailablePlugins.autocoder],
+    'plugin-manager': [allAvailablePlugins.pluginManager],
+
+    // Note: 'shell' is already in initial plugins, no need to register progressively
+    // Note: 'naming' is handled by ProgressionTracker, not a plugin capability
   };
 
-  console.log('[AGENT START] AgentRuntime created with initial capabilities and progressive plugin support');
+  console.log(
+    '[AGENT START] AgentRuntime created with initial capabilities and progressive plugin support'
+  );
 
   // Initialize runtime - this will set up database connection AND create the agent via ensureAgentExists
   await runtime.initialize();
@@ -217,18 +193,24 @@ export async function startAgent(character: any): Promise<IAgentRuntime> {
     '[AGENT START] Runtime initialized - agent creation handled by runtime.ensureAgentExists()'
   );
 
-  // Initialize the capability progression service
-  const progressionService = new CapabilityProgressionService(runtime);
-  
-  // Initialize the progression tracker
-  const progressionTracker = new ProgressionTracker(runtime, progressionService);
-  
-  // Store the progression service and tracker on the runtime for later access
-  (runtime as any).progressionService = progressionService;
-  (runtime as any).progressionTracker = progressionTracker;
+  // Register progression services
+  await runtime.registerService(CapabilityProgressionService);
+  await runtime.registerService(ProgressivePluginService);
 
-  // Make progression tracker available globally for action tracking
-  (global as any).elizaProgressionTracker = progressionTracker;
+  // Get the registered services
+  const progressionService =
+    runtime.getService<CapabilityProgressionService>('CAPABILITY_PROGRESSION');
+  const progressivePluginService =
+    runtime.getService<ProgressivePluginService>('PROGRESSIVE_PLUGIN');
+
+  if (progressivePluginService) {
+    progressivePluginService.setAvailablePlugins(pluginMappings);
+  }
+
+  // Initialize the progression tracker (event listener only)
+  if (progressionService) {
+    const _progressionTracker = new ProgressionTracker(runtime, progressionService);
+  }
 
   console.log('[AGENT START] Capability progression system initialized');
 
@@ -256,10 +238,10 @@ export async function startServer() {
   const server = new AgentServer();
 
   // Make server instance globally available for MessageBusService
-  (global as any).elizaAgentServer = server;
+  (global as Record<string, unknown>).elizaAgentServer = server;
 
   // Assign the startAgent method to make it compatible with the lifecycle API
-  (server as any).startAgent = async (character: any) => {
+  (server as unknown as Record<string, unknown>).startAgent = async (character: Character) => {
     logger.info('[SERVER] Starting agent via API call:', character.name);
     const runtime = await startAgent(character);
     await server.registerAgent(runtime);
@@ -284,7 +266,7 @@ export async function startServer() {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       } else {
         throw new Error(
-          `Failed to connect to PostgreSQL after ${maxRetries} attempts: ${(error as any).message}`
+          `Failed to connect to PostgreSQL after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     }
@@ -371,45 +353,11 @@ export async function startServer() {
   // These need to be available before the agent starts
   console.log('[BACKEND] Adding messaging stub endpoints...');
 
-  // Knowledge Files endpoint (expected by frontend)
-  server.app.get('/api/knowledge/files', async (req: any, res: any) => {
-    try {
-      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as any;
-      if (!targetRuntime) {
-        return res.json({ success: true, data: { files: [], count: 0 } });
-      }
-
-      const knowledgeService = targetRuntime.getService('knowledge');
-      if (!knowledgeService) {
-        return res.json({ success: true, data: { files: [], count: 0 } });
-      }
-
-      const documents = await (knowledgeService as any).getMemories({
-        tableName: 'documents',
-        count: 100,
-        agentId: targetRuntime.agentId,
-      });
-
-      const files = documents.map((doc: any) => ({
-        id: doc.id,
-        name: doc.metadata?.originalFilename || doc.metadata?.title || 'Untitled',
-        filename: doc.metadata?.originalFilename || 'unknown',
-        contentType: doc.metadata?.contentType || 'text/plain',
-        size: doc.metadata?.size || 0,
-        uploadedAt: new Date(doc.createdAt || doc.metadata?.timestamp || Date.now()).toISOString(),
-        fragmentCount: doc.metadata?.fragmentCount || 0,
-      }));
-
-      res.json({ success: true, data: { files, count: files.length } });
-    } catch (error) {
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
-    }
-  });
-
   // Plugin Config endpoint
-  server.app.get('/api/plugin-config', async (req: any, res: any) => {
+  server.app.get('/api/plugin-config', async (req: Request, res: Response) => {
     try {
-      const _targetRuntime = Array.from((server as any).agents?.values() || [])[0];
+      const serverWithAgents = server as unknown as { agents: Map<string, IAgentRuntime> };
+      const _targetRuntime = Array.from(serverWithAgents.agents?.values() || [])[0];
       const configurations = {
         environment: {
           OPENAI_API_KEY: process.env.OPENAI_API_KEY ? '***SET***' : 'NOT_SET',
@@ -419,128 +367,91 @@ export async function startServer() {
       };
       res.json({ success: true, data: { configurations, availablePlugins: [] } });
     } catch (error) {
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ success: false, error: { message: errorMessage } });
     }
   });
 
   // Generic Capability Toggle endpoint - supports both default and specific agent IDs
-  server.app.post('/api/agents/:agentId/capabilities/:capability', async (req: any, res: any) => {
-    try {
-      const capability = req.params.capability.toLowerCase();
-      let targetRuntime: any | undefined;
+  server.app.post(
+    '/api/agents/:agentId/capabilities/:capability',
+    async (req: Request, res: Response) => {
+      try {
+        const capability = req.params.capability.toLowerCase();
+        let targetRuntime: IAgentRuntime | undefined;
 
-      // Handle "default" as a special case - get the first agent
-      if (req.params.agentId === 'default') {
-        targetRuntime = Array.from((server as any).agents?.values() || [])[0];
-      } else {
-        // Try to get the specific agent by ID
-        targetRuntime = (server as any).agents?.get(req.params.agentId);
-      }
+        const serverWithAgents = server as unknown as { agents: Map<string, IAgentRuntime> };
 
-      if (!targetRuntime) {
-        return res.status(503).json({
-          success: false,
-          error: {
-            message:
-              req.params.agentId === 'default'
-                ? 'No agents available'
-                : `Agent ${req.params.agentId} not found`,
+        // Handle "default" as a special case - get the first agent
+        if (req.params.agentId === 'default') {
+          targetRuntime = Array.from(serverWithAgents.agents?.values() || [])[0];
+        } else {
+          // Try to get the specific agent by ID (cast to UUID type)
+          targetRuntime = serverWithAgents.agents?.get(req.params.agentId as any);
+        }
+
+        if (!targetRuntime) {
+          return res.status(503).json({
+            success: false,
+            error: {
+              message:
+                req.params.agentId === 'default'
+                  ? 'No agents available'
+                  : `Agent ${req.params.agentId} not found`,
+            },
+          });
+        }
+
+        const capabilityMappings = {
+          camera: ['ENABLE_CAMERA', 'VISION_CAMERA_ENABLED'],
+          microphone: ['ENABLE_MICROPHONE', 'VISION_MICROPHONE_ENABLED'],
+          speakers: ['ENABLE_SPEAKER', 'VISION_SPEAKER_ENABLED'],
+          screen: ['ENABLE_SCREEN_CAPTURE', 'VISION_SCREEN_ENABLED'],
+          shell: ['ENABLE_SHELL', 'SHELL_ENABLED'],
+          browser: ['ENABLE_BROWSER', 'BROWSER_ENABLED'],
+          autonomy: ['AUTONOMY_ENABLED', 'ENABLE_AUTONOMY'],
+        };
+
+        if (!capabilityMappings[capability as keyof typeof capabilityMappings]) {
+          return res
+            .status(400)
+            .json({ success: false, error: { message: `Unknown capability: ${capability}` } });
+        }
+
+        const settings = capabilityMappings[capability as keyof typeof capabilityMappings];
+        const currentlyEnabled = settings.some(
+          (setting: string) =>
+            targetRuntime.getSetting(setting) === 'true' ||
+            targetRuntime.getSetting(setting) === true
+        );
+
+        const newState = !currentlyEnabled;
+        settings.forEach((setting: string) => {
+          targetRuntime.setSetting(setting, newState.toString());
+        });
+
+        res.json({
+          success: true,
+          data: {
+            enabled: newState,
+            capability,
+            settings_updated: settings,
+            agentId: targetRuntime.agentId,
           },
         });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ success: false, error: { message: errorMessage } });
       }
-
-      const capabilityMappings = {
-        camera: ['ENABLE_CAMERA', 'VISION_CAMERA_ENABLED'],
-        microphone: ['ENABLE_MICROPHONE', 'VISION_MICROPHONE_ENABLED'],
-        speakers: ['ENABLE_SPEAKER', 'VISION_SPEAKER_ENABLED'],
-        screen: ['ENABLE_SCREEN_CAPTURE', 'VISION_SCREEN_ENABLED'],
-        shell: ['ENABLE_SHELL', 'SHELL_ENABLED'],
-        browser: ['ENABLE_BROWSER', 'BROWSER_ENABLED'],
-        autonomy: ['AUTONOMY_ENABLED', 'ENABLE_AUTONOMY'],
-      };
-
-      if (!capabilityMappings[capability as keyof typeof capabilityMappings]) {
-        return res
-          .status(400)
-          .json({ success: false, error: { message: `Unknown capability: ${capability}` } });
-      }
-
-      const settings = capabilityMappings[capability as keyof typeof capabilityMappings];
-      const currentlyEnabled = settings.some(
-        (setting: string) =>
-          targetRuntime.getSetting(setting) === 'true' || targetRuntime.getSetting(setting) === true
-      );
-
-      const newState = !currentlyEnabled;
-      settings.forEach((setting: string) => {
-        targetRuntime.setSetting(setting, newState.toString());
-      });
-
-      res.json({
-        success: true,
-        data: {
-          enabled: newState,
-          capability,
-          settings_updated: settings,
-          agentId: targetRuntime.agentId,
-        },
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
     }
-  });
-
-  server.app.delete('/knowledge/documents/:documentId', async (req: any, res: any) => {
-    try {
-      console.log('[BACKEND] Direct delete endpoint called for document:', req.params.documentId);
-
-      // Find the runtime with the knowledge service
-      let targetRuntime: any | null = null;
-
-      // Get all agents from the server
-      const agents = Array.from((server as any).agents?.values() || []) as any[];
-      for (const runtime of agents) {
-        const knowledgeService = runtime.getService('knowledge');
-        if (knowledgeService) {
-          targetRuntime = runtime;
-          break;
-        }
-      }
-
-      if (!targetRuntime) {
-        return res.status(503).json({
-          success: false,
-          error: { code: 'SERVICE_UNAVAILABLE', message: 'Knowledge service not available' },
-        });
-      }
-
-      const knowledgeService = targetRuntime.getService('knowledge');
-      const documentId = req.params.documentId;
-
-      // Use the knowledge service deleteMemory method to actually delete the document
-      await (knowledgeService as any).deleteMemory(documentId);
-      console.log('[BACKEND] Successfully deleted knowledge document:', documentId);
-
-      res.json({
-        success: true,
-        data: {
-          message: 'Document deleted successfully',
-          documentId,
-        },
-      });
-    } catch (error) {
-      console.error('[BACKEND] Error deleting knowledge document:', error);
-      res.status(500).json({
-        success: false,
-        error: { code: 'DELETE_FAILED', message: (error as any).message },
-      });
-    }
-  });
+  );
 
   // GET primary agent endpoint - returns the first available agent
-  server.app.get('/api/agents/primary', async (req: any, res: any) => {
+  server.app.get('/api/agents/primary', async (req: Request, res: Response) => {
     try {
-      const primaryAgent = Array.from((server as any).agents?.values() || [])[0] as any | undefined;
+      const primaryAgent = Array.from(server.agents?.values() || [])[0] as
+        | IAgentRuntime
+        | undefined;
 
       if (!primaryAgent) {
         return res.status(200).json({
@@ -568,15 +479,16 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error getting primary agent:', error);
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ success: false, error: { message: errorMessage } });
     }
   });
 
   // GET list of agents endpoint
-  server.app.get('/api/agents', async (req: any, res: any) => {
+  server.app.get('/api/agents', async (req: Request, res: Response) => {
     try {
-      const agentEntries = Array.from((server as any).agents?.entries() || []) as Array<
-        [string, any]
+      const agentEntries = Array.from(server.agents?.entries() || []) as Array<
+        [string, IAgentRuntime]
       >;
       const agents = agentEntries.map(([id, runtime]) => ({
         id,
@@ -593,15 +505,16 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error listing agents:', error);
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ success: false, error: { message: errorMessage } });
     }
   });
 
   // GET default agent settings endpoint - specific route to bypass UUID validation
-  server.app.get('/api/agents/default/settings', async (req: any, res: any) => {
+  server.app.get('/api/agents/default/settings', async (req: Request, res: Response) => {
     try {
       // Get the first available agent
-      const targetRuntime = Array.from((server as any).agents?.values() || [])[0] as any;
+      const targetRuntime = Array.from(server.agents?.values() || [])[0] as IAgentRuntime;
 
       if (!targetRuntime) {
         // Return a minimal response indicating server is ready but no agent yet
@@ -616,7 +529,7 @@ export async function startServer() {
       }
 
       // Get common settings
-      const settings: Record<string, any> = {};
+      const settings: Record<string, unknown> = {};
       const commonSettingKeys = [
         'ENABLE_CAMERA',
         'ENABLE_SCREEN_CAPTURE',
@@ -650,22 +563,23 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error retrieving default agent settings:', error);
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ success: false, error: { message: errorMessage } });
     }
   });
 
   // GET settings endpoint - supports both /api/agents/default/settings and /api/agents/:agentId/settings
   // Progression status endpoint
-  server.app.get('/api/agents/:agentId/progression', async (req: any, res: any) => {
+  server.app.get('/api/agents/:agentId/progression', async (req: Request, res: Response) => {
     try {
       let targetRuntime: IAgentRuntime | undefined;
 
       // Handle "default" as a special case - get the first agent
       if (req.params.agentId === 'default') {
-        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+        targetRuntime = Array.from(server.agents?.values() || [])[0] as IAgentRuntime;
       } else {
         // Try to get the specific agent by ID
-        targetRuntime = (server as any).agents?.get(req.params.agentId);
+        targetRuntime = server.agents?.get(req.params.agentId as any);
       }
 
       if (!targetRuntime) {
@@ -673,16 +587,18 @@ export async function startServer() {
           success: true,
           data: {
             progressionReady: false,
-            message: req.params.agentId === 'default'
-              ? 'No agents available yet'
-              : `Agent ${req.params.agentId} not found`,
+            message:
+              req.params.agentId === 'default'
+                ? 'No agents available yet'
+                : `Agent ${req.params.agentId} not found`,
           },
         });
       }
 
-      // Get progression status from the tracker
-      const progressionTracker = (targetRuntime as any).progressionTracker;
-      if (!progressionTracker) {
+      // Get progression service from the runtime
+      const progressionService =
+        targetRuntime.getService<CapabilityProgressionService>('CAPABILITY_PROGRESSION');
+      if (!progressionService) {
         return res.status(200).json({
           success: true,
           data: {
@@ -692,12 +608,16 @@ export async function startServer() {
         });
       }
 
-      const progressionStatus = progressionTracker.getProgressionStatus();
+      const progressionStatus = {
+        progressionReady: true,
+        ...progressionService.getProgressionState(),
+        unlockedCapabilities: progressionService.getUnlockedCapabilities(),
+        progressionMode: progressionService.isUnlockedModeEnabled() ? 'unlocked' : 'progression',
+      };
 
       res.json({
         success: true,
         data: {
-          progressionReady: true,
           agentId: targetRuntime.agentId,
           agentName: targetRuntime.character?.name || 'Unknown Agent',
           ...progressionStatus,
@@ -705,30 +625,32 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error retrieving progression status:', error);
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ success: false, error: { message: errorMessage } });
     }
   });
 
   // POST endpoint to switch progression mode
-  server.app.post('/api/agents/:agentId/progression/mode', async (req: any, res: any) => {
+  server.app.post('/api/agents/:agentId/progression/mode', async (req: Request, res: Response) => {
     try {
       let targetRuntime: IAgentRuntime | undefined;
 
       // Handle "default" as a special case - get the first agent
       if (req.params.agentId === 'default') {
-        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+        targetRuntime = Array.from(server.agents?.values() || [])[0] as IAgentRuntime;
       } else {
         // Try to get the specific agent by ID
-        targetRuntime = (server as any).agents?.get(req.params.agentId);
+        targetRuntime = server.agents?.get(req.params.agentId as any);
       }
 
       if (!targetRuntime) {
         return res.status(404).json({
           success: false,
           error: {
-            message: req.params.agentId === 'default'
-              ? 'No agents available'
-              : `Agent ${req.params.agentId} not found`,
+            message:
+              req.params.agentId === 'default'
+                ? 'No agents available'
+                : `Agent ${req.params.agentId} not found`,
           },
         });
       }
@@ -745,7 +667,8 @@ export async function startServer() {
       }
 
       // Get progression service from the runtime
-      const progressionService = (targetRuntime as any).progressionService;
+      const progressionService =
+        targetRuntime.getService<CapabilityProgressionService>('CAPABILITY_PROGRESSION');
       if (!progressionService) {
         return res.status(503).json({
           success: false,
@@ -759,8 +682,12 @@ export async function startServer() {
       await progressionService.setProgressionMode(mode);
 
       // Get updated status
-      const progressionTracker = (targetRuntime as any).progressionTracker;
-      const progressionStatus = progressionTracker ? progressionTracker.getProgressionStatus() : {};
+      const progressionStatus = {
+        progressionReady: true,
+        ...progressionService.getProgressionState(),
+        unlockedCapabilities: progressionService.getUnlockedCapabilities(),
+        progressionMode: progressionService.isUnlockedModeEnabled() ? 'unlocked' : 'progression',
+      };
 
       res.json({
         success: true,
@@ -774,20 +701,21 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error switching progression mode:', error);
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ success: false, error: { message: errorMessage } });
     }
   });
 
-  server.app.get('/api/agents/:agentId/settings', async (req: any, res: any) => {
+  server.app.get('/api/agents/:agentId/settings', async (req: Request, res: Response) => {
     try {
-      let targetRuntime: any | undefined;
+      let targetRuntime: IAgentRuntime | undefined;
 
       // Handle "default" as a special case - get the first agent
       if (req.params.agentId === 'default') {
-        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as any;
+        targetRuntime = Array.from(server.agents?.values() || [])[0] as IAgentRuntime;
       } else {
         // Try to get the specific agent by ID
-        targetRuntime = (server as any).agents?.get(req.params.agentId);
+        targetRuntime = server.agents?.get(req.params.agentId as any);
       }
 
       if (!targetRuntime) {
@@ -807,7 +735,7 @@ export async function startServer() {
       }
 
       // Get common settings
-      const settings: Record<string, any> = {};
+      const settings: Record<string, unknown> = {};
       const commonSettingKeys = [
         'ENABLE_CAMERA',
         'ENABLE_SCREEN_CAPTURE',
@@ -841,30 +769,32 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error retrieving settings:', error);
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ success: false, error: { message: errorMessage } });
     }
   });
 
   // POST endpoint to track action execution for progression
-  server.app.post('/api/agents/:agentId/track-action', async (req: any, res: any) => {
+  server.app.post('/api/agents/:agentId/track-action', async (req: Request, res: Response) => {
     try {
       let targetRuntime: IAgentRuntime | undefined;
 
       // Handle "default" as a special case - get the first agent
       if (req.params.agentId === 'default') {
-        targetRuntime = Array.from((server as any).agents?.values() || [])[0] as IAgentRuntime;
+        targetRuntime = Array.from(server.agents?.values() || [])[0] as IAgentRuntime;
       } else {
         // Try to get the specific agent by ID
-        targetRuntime = (server as any).agents?.get(req.params.agentId);
+        targetRuntime = server.agents?.get(req.params.agentId as any);
       }
 
       if (!targetRuntime) {
         return res.status(404).json({
           success: false,
           error: {
-            message: req.params.agentId === 'default'
-              ? 'No agents available'
-              : `Agent ${req.params.agentId} not found`,
+            message:
+              req.params.agentId === 'default'
+                ? 'No agents available'
+                : `Agent ${req.params.agentId} not found`,
           },
         });
       }
@@ -879,17 +809,41 @@ export async function startServer() {
         });
       }
 
-      // Get progression tracker from the runtime
-      const progressionTracker = (targetRuntime as any).progressionTracker;
-      if (!progressionTracker) {
-        return res.status(200).json({
-          success: true,
-          message: 'Progression tracking not available',
-        });
+      // Emit event for the action instead of direct tracking
+      // This follows the event-driven pattern
+      switch (action) {
+        case 'form_submitted':
+          await targetRuntime.emitEvent('FORM_SUBMITTED', { details });
+          break;
+        case 'browser_used':
+          await targetRuntime.emitEvent('BROWSER_ACTION_PERFORMED', { action, details });
+          break;
+        case 'vision_used':
+          await targetRuntime.emitEvent('VISION_ACTION_PERFORMED', { action, details });
+          break;
+        case 'microphone_used':
+          await targetRuntime.emitEvent('MICROPHONE_USED', { details });
+          break;
+        case 'shell_command':
+          await targetRuntime.emitEvent('SHELL_COMMAND_EXECUTED', {
+            command: details?.command,
+            exitCode: details?.exitCode || 0,
+          });
+          break;
+        case 'goal_created':
+          await targetRuntime.emitEvent('GOAL_CREATED', { goalData: details });
+          break;
+        case 'todo_created':
+          await targetRuntime.emitEvent('TODO_CREATED', { todoData: details });
+          break;
+        case 'agent_named':
+          await targetRuntime.emitEvent('AGENT_NAMED', { name: details?.name });
+          break;
+        default:
+          // For generic capability usage
+          await targetRuntime.emitEvent('CAPABILITY_USED', { capability: action, details });
+          break;
       }
-
-      // Track the action
-      await progressionTracker.trackAction(action, details);
 
       res.json({
         success: true,
@@ -901,7 +855,8 @@ export async function startServer() {
       });
     } catch (error) {
       console.error('[API] Error tracking action:', error);
-      res.status(500).json({ success: false, error: { message: (error as any).message } });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ success: false, error: { message: errorMessage } });
     }
   });
 

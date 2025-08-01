@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod ollama_container_tests {
     use app_lib::{ContainerManager, ContainerRuntimeType, OLLAMA_CONTAINER};
-    
 
     #[tokio::test]
     async fn test_ollama_container_config() {
@@ -20,14 +19,14 @@ mod ollama_container_tests {
         match result {
             Ok(status) => {
                 assert_eq!(status.name, OLLAMA_CONTAINER);
-                
+
                 // Ports may not be populated immediately
                 if !status.ports.is_empty() {
                     assert_eq!(status.ports.len(), 1);
                     assert_eq!(status.ports[0].host_port, 11434);
                     assert_eq!(status.ports[0].container_port, 11434);
                 }
-                
+
                 println!("✅ Ollama container configuration test passed");
 
                 // Clean up - stop the container
@@ -171,7 +170,7 @@ mod ollama_container_tests {
 
                 // Verify the container name and ports
                 assert_eq!(status.name, OLLAMA_CONTAINER);
-                
+
                 if !status.ports.is_empty() {
                     assert_eq!(status.ports[0].container_port, 11434);
                 }

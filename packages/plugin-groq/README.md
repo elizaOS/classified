@@ -127,7 +127,8 @@ console.log(text);
 
 ```javascript
 const userProfile = await runtime.useModel(ModelType.OBJECT_SMALL, {
-  prompt: 'Generate a JSON object for a user with name "Alex", age 30, and hobbies ["reading", "hiking"].',
+  prompt:
+    'Generate a JSON object for a user with name "Alex", age 30, and hobbies ["reading", "hiking"].',
   temperature: 0.5,
 });
 console.log(userProfile);
@@ -137,7 +138,8 @@ console.log(userProfile);
 
 ```javascript
 const complexData = await runtime.useModel(ModelType.OBJECT_LARGE, {
-  prompt: 'Generate a detailed JSON object for a product listing: name "Laptop Pro", category "Electronics", price 1200, features ["16GB RAM", "512GB SSD", "15-inch Display"], and availability "in stock".',
+  prompt:
+    'Generate a detailed JSON object for a product listing: name "Laptop Pro", category "Electronics", price 1200, features ["16GB RAM", "512GB SSD", "15-inch Display"], and availability "in stock".',
   temperature: 0.7,
 });
 console.log(complexData);

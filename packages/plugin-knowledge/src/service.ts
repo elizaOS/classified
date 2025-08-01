@@ -1,6 +1,7 @@
 import {
   Content,
   createUniqueUuid,
+  DocumentMetadata,
   FragmentMetadata,
   IAgentRuntime,
   KnowledgeItem,
@@ -60,7 +61,7 @@ export class KnowledgeService extends Service {
     try {
       // Use a small delay to ensure runtime is fully ready if needed, though constructor implies it should be.
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      const result: LoadResult = await loadDocsFromPath(this as any, this.runtime.agentId);
+      const result: LoadResult = await loadDocsFromPath(this, this.runtime.agentId);
       if (result.successful > 0) {
         logger.info(
           `KnowledgeService: Loaded ${result.successful} documents from docs folder on startup for agent ${this.runtime.agentId}`
@@ -497,8 +498,13 @@ export class KnowledgeService extends Service {
         id: fragment.id as UUID, // Cast as UUID after filtering
         content: fragment.content as Content, // Cast if necessary, ensure Content type matches
         similarity: fragment.similarity,
-        metadata: fragment.metadata,
+        metadata: fragment.metadata as DocumentMetadata,
+        createdAt: fragment.createdAt || Date.now(),
+        agentId: fragment.agentId || this.runtime.agentId,
+        entityId: fragment.entityId || this.runtime.agentId,
+        roomId: fragment.roomId || this.runtime.agentId,
         worldId: fragment.worldId,
+        embedding: fragment.embedding,
       }));
   }
 
@@ -531,8 +537,9 @@ export class KnowledgeService extends Service {
       }
 
       // Add RAG metadata to the memory
-      const updatedMetadata = {
+      const updatedMetadata: MemoryMetadata = {
         ...existingMemory.metadata,
+        type: MemoryType.CUSTOM, // Must use CUSTOM type for additional properties
         knowledgeUsed: true, // Simple flag for UI to detect RAG usage
         ragUsage: {
           retrievedFragments: ragMetadata.retrievedFragments,
@@ -542,7 +549,6 @@ export class KnowledgeService extends Service {
           usedInResponse: true,
         },
         timestamp: existingMemory.metadata?.timestamp || Date.now(),
-        type: existingMemory.metadata?.type || 'message',
       };
 
       // Update the memory
@@ -612,7 +618,7 @@ export class KnowledgeService extends Service {
           (memory) =>
             memory.metadata?.type === 'message' &&
             now - (memory.createdAt || 0) < 10000 && // Created in last 10 seconds
-            !(memory.metadata as any)?.ragUsage // Doesn't already have RAG data
+            !(memory.metadata as Record<string, any>)?.ragUsage // Doesn't already have RAG data
         )
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // Most recent first
 
@@ -665,8 +671,8 @@ export class KnowledgeService extends Service {
           `KnowledgeService: Processing character knowledge for ${this.runtime.character?.name} - ${item.slice(0, 100)}`
         );
 
-        let metadata: MemoryMetadata = {
-          type: MemoryType.DOCUMENT, // Character knowledge often represents a doc/fact.
+        let metadata: DocumentMetadata = {
+          type: MemoryType.DOCUMENT, // Using DOCUMENT type for character knowledge
           timestamp: Date.now(),
           source: 'character', // Indicate the source
         };
@@ -696,6 +702,11 @@ export class KnowledgeService extends Service {
               text: item,
             },
             metadata,
+            createdAt: Date.now(),
+            agentId: this.runtime.agentId,
+            entityId: this.runtime.agentId,
+            roomId: this.runtime.agentId,
+            worldId: this.runtime.agentId,
           },
           undefined,
           {
@@ -753,7 +764,7 @@ export class KnowledgeService extends Service {
       content: item.content,
       metadata: {
         ...(item.metadata || {}), // Spread existing metadata
-        type: MemoryType.DOCUMENT, // Ensure it's marked as a document
+        type: MemoryType.CUSTOM, // Using CUSTOM type to allow documentId property
         documentId: item.id, // Ensure metadata.documentId is set to the item's ID
         timestamp: item.metadata?.timestamp || Date.now(),
       },

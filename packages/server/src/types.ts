@@ -5,7 +5,7 @@ export interface MessageServer {
   name: string;
   sourceType: string; // e.g., 'eliza_native', 'discord_guild'
   sourceId?: string; // original platform ID if applicable
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,7 +18,7 @@ export interface MessageChannel {
   sourceType?: string;
   sourceId?: string;
   topic?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,13 +28,13 @@ export interface CentralRootMessage {
   channelId: UUID; // FK to MessageChannel.id
   authorId: UUID; // Identifier for the author (could be an agent's runtime.agentId or a dedicated central user ID)
   content: string;
-  rawMessage?: any;
+  rawMessage?: unknown;
   inReplyToRootMessageId?: UUID; // FK to CentralRootMessage.id (self-reference)
   sourceType?: string;
   sourceId?: string; // Original message ID from the source platform
   createdAt: Date;
   updatedAt: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // This is what goes on the internal bus and often what APIs might return for a "full" message

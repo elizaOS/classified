@@ -12,7 +12,7 @@ import {
   type State,
   type UUID,
 } from '@elizaos/core';
-import type { TodoData, TodoDataService } from '../services/todoDataService';
+import type { TodoData, TodoService } from '../services/todoService';
 
 // Interface for task cancellation properties
 interface TaskCancellation {
@@ -124,7 +124,7 @@ export const cancelTodoAction: Action = {
   ) => {
     logger.info('[cancelTodo] Handler invoked', { messageContent: message.content.text });
 
-    const dataService = runtime.getService('todo') as TodoDataService;
+    const dataService = runtime.getService('todo') as TodoService;
     if (!dataService) {
       logger.error('[cancelTodo] Todo service not available');
       if (callback) {

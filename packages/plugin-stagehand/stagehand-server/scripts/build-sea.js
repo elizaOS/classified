@@ -87,8 +87,29 @@ async function downloadNodeBinary(platform, arch) {
 
   // Find the node binary
   const ext = platform === 'win32' ? '.exe' : '';
-  const nodeBinary =
-    platform === 'win32' ? join(extractDir, `node${ext}`) : join(extractDir, 'bin', `node${ext}`);
+  let nodeBinary;
+
+  if (platform === 'win32') {
+    // For Windows, the ZIP extraction creates a subdirectory like node-v20.18.1-win-x64
+    // We need to find this directory and get the node.exe from there
+    const fs = await import('fs');
+    const subdirs = await fs.promises.readdir(extractDir);
+    const nodeDir = subdirs.find((dir) => dir.startsWith('node-v'));
+    if (nodeDir) {
+      nodeBinary = join(extractDir, nodeDir, `node${ext}`);
+    } else {
+      nodeBinary = join(extractDir, `node${ext}`);
+    }
+  } else {
+    nodeBinary = join(extractDir, 'bin', `node${ext}`);
+  }
+
+  // Verify the node binary exists
+  try {
+    await access(nodeBinary);
+  } catch (error) {
+    throw new Error(`Node binary not found at ${nodeBinary}. Extraction may have failed.`);
+  }
 
   return nodeBinary;
 }

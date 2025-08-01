@@ -450,7 +450,7 @@ export class TodoDataManager {
 }
 
 /**
- * Create a new TodoDataService instance
+ * Create a new TodoService instance
  */
 export function createTodoDataService(runtime: IAgentRuntime): TodoDataManager {
   return new TodoDataManager(runtime);
@@ -459,7 +459,7 @@ export function createTodoDataService(runtime: IAgentRuntime): TodoDataManager {
 /**
  * Service wrapper for database operations
  */
-export class TodoDataService extends Service {
+export class TodoService extends Service {
   static readonly serviceType: ServiceTypeName = 'TODO' as ServiceTypeName;
   static readonly serviceName = 'Todo';
 
@@ -471,11 +471,11 @@ export class TodoDataService extends Service {
     this.dataManager = null;
   }
 
-  static async start(runtime: IAgentRuntime): Promise<TodoDataService> {
-    const service = new TodoDataService();
+  static async start(runtime: IAgentRuntime): Promise<TodoService> {
+    const service = new TodoService();
 
     if (!runtime.db) {
-      logger.warn('Database not available, TodoDataService will be limited');
+      logger.warn('Database not available, TodoService will be limited');
     } else {
       service.dataManager = new TodoDataManager(runtime);
     }
@@ -484,7 +484,7 @@ export class TodoDataService extends Service {
   }
 
   /**
-   * Get the underlying TodoDataService instance
+   * Get the underlying TodoService instance
    */
   getDataService(): TodoDataManager | null {
     return this.dataManager;
@@ -508,7 +508,7 @@ export class TodoDataService extends Service {
     tags?: string[];
   }): Promise<UUID | null> {
     if (!this.dataManager) {
-      throw new Error('TodoDataService not available');
+      throw new Error('TodoService not available');
     }
     return this.dataManager.createTodo(params);
   }
@@ -552,7 +552,7 @@ export class TodoDataService extends Service {
     }
   ): Promise<boolean> {
     if (!this.dataManager) {
-      throw new Error('TodoDataService not available');
+      throw new Error('TodoService not available');
     }
     return this.dataManager.updateTodo(todoId, updates);
   }
@@ -562,7 +562,7 @@ export class TodoDataService extends Service {
    */
   async deleteTodo(todoId: UUID): Promise<boolean> {
     if (!this.dataManager) {
-      throw new Error('TodoDataService not available');
+      throw new Error('TodoService not available');
     }
     return this.dataManager.deleteTodo(todoId);
   }
@@ -582,7 +582,7 @@ export class TodoDataService extends Service {
    */
   async addTags(todoId: UUID, tags: string[]): Promise<boolean> {
     if (!this.dataManager) {
-      throw new Error('TodoDataService not available');
+      throw new Error('TodoService not available');
     }
     return this.dataManager.addTags(todoId, tags);
   }
@@ -592,7 +592,7 @@ export class TodoDataService extends Service {
    */
   async removeTags(todoId: UUID, tags: string[]): Promise<boolean> {
     if (!this.dataManager) {
-      throw new Error('TodoDataService not available');
+      throw new Error('TodoService not available');
     }
     return this.dataManager.removeTags(todoId, tags);
   }

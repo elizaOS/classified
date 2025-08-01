@@ -4,6 +4,48 @@ import type { IncomingMessage } from 'http';
 import type { WebSocket, WebSocketServer } from 'ws';
 import type { AgentServer } from '../index';
 
+// WebSocket message interfaces
+interface WebSocketConnectMessage {
+  agent_id?: string;
+  channel_id?: string;
+}
+
+interface WebSocketChannelJoinMessage {
+  roomId?: string;
+  agentId?: string;
+}
+
+interface WebSocketUserMessage {
+  content: string;
+  author?: string;
+  channel_id?: string;
+  agent_id?: string;
+  timestamp?: number;
+}
+
+interface WebSocketSendMessage {
+  content: string;
+  senderName?: string;
+  author?: string;
+  roomId?: string;
+  channelId?: string;
+  agentId?: string;
+  timestamp?: number;
+}
+
+interface ProcessAgentMessageData {
+  content: string;
+  author: string;
+  channel_id?: string;
+  agent_id?: string;
+  timestamp: number;
+}
+
+interface WebSocketOutgoingMessage {
+  type: string;
+  [key: string]: unknown;
+}
+
 export class WebSocketRouter {
   private agents: Map<UUID, IAgentRuntime>;
   private connections: Map<WebSocket, { agentId?: UUID; channelId?: string }>;
@@ -90,7 +132,7 @@ export class WebSocketRouter {
     }
   }
 
-  private async handleConnect(ws: WebSocket, message: any) {
+  private async handleConnect(ws: WebSocket, message: WebSocketConnectMessage) {
     const { agent_id, channel_id } = message;
 
     if (agent_id && !validateUuid(agent_id)) {
@@ -115,7 +157,7 @@ export class WebSocketRouter {
     });
   }
 
-  private async handleChannelJoining(ws: WebSocket, message: any) {
+  private async handleChannelJoining(ws: WebSocket, message: WebSocketChannelJoinMessage) {
     const { roomId, agentId } = message;
 
     if (agentId && !validateUuid(agentId)) {
@@ -140,7 +182,7 @@ export class WebSocketRouter {
     });
   }
 
-  private async handleUserMessage(ws: WebSocket, message: any) {
+  private async handleUserMessage(ws: WebSocket, message: WebSocketUserMessage) {
     await this.processAgentMessage(ws, {
       content: message.content,
       author: message.author || 'User',
@@ -150,7 +192,7 @@ export class WebSocketRouter {
     });
   }
 
-  private async handleSendMessage(ws: WebSocket, message: any) {
+  private async handleSendMessage(ws: WebSocket, message: WebSocketSendMessage) {
     await this.processAgentMessage(ws, {
       content: message.content,
       author: message.senderName || message.author || 'User',
@@ -160,7 +202,7 @@ export class WebSocketRouter {
     });
   }
 
-  private async processAgentMessage(ws: WebSocket, messageData: any) {
+  private async processAgentMessage(ws: WebSocket, messageData: ProcessAgentMessageData) {
     const { content, author, channel_id, agent_id, timestamp } = messageData;
 
     if (!content || !author) {
@@ -267,7 +309,7 @@ export class WebSocketRouter {
     }
   }
 
-  private sendMessage(ws: WebSocket, message: any) {
+  private sendMessage(ws: WebSocket, message: WebSocketOutgoingMessage) {
     if (ws.readyState === ws.OPEN) {
       ws.send(JSON.stringify(message));
     }
@@ -282,7 +324,7 @@ export class WebSocketRouter {
   }
 
   // Broadcast message to all connected clients for a specific agent/channel
-  public broadcastMessage(agentId: UUID, channelId: string, message: any) {
+  public broadcastMessage(agentId: UUID, channelId: string, message: WebSocketOutgoingMessage) {
     const messageToSend = {
       type: 'message_broadcast',
       ...message,

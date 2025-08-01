@@ -15,13 +15,15 @@ const playwrightInstaller = new PlaywrightInstaller(logger);
 
 async function startServer() {
   logger.info(`Stagehand server starting on port ${PORT}`);
-  
+
   // Ensure Playwright is installed before starting the server
   try {
     await playwrightInstaller.ensurePlaywrightInstalled();
   } catch (error) {
     logger.error('Failed to ensure Playwright installation:', error);
-    logger.warn('Server will start but Stagehand operations may fail until Playwright is installed');
+    logger.warn(
+      'Server will start but Stagehand operations may fail until Playwright is installed'
+    );
   }
 
   // Create WebSocket server

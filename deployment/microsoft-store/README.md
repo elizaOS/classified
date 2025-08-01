@@ -5,11 +5,13 @@ This directory contains all Microsoft Store-specific deployment files and script
 ## Prerequisites
 
 1. **Windows Developer Account**:
+
    - Register at https://partner.microsoft.com/dashboard
    - Individual: $19 (one-time)
    - Company: $99 (one-time)
 
 2. **Windows SDK**:
+
    - Download from https://developer.microsoft.com/windows/downloads/windows-sdk/
    - Required for MSIX packaging
 
@@ -20,6 +22,7 @@ This directory contains all Microsoft Store-specific deployment files and script
 ## Setup Instructions
 
 1. **Configure Package Identity**:
+
    ```powershell
    # Set your package identity
    $env:MS_PACKAGE_NAME = "YourPublisher.ElizaOS"
@@ -28,11 +31,13 @@ This directory contains all Microsoft Store-specific deployment files and script
    ```
 
 2. **Generate MSIX Package**:
+
    ```powershell
    .\scripts\build_msix.ps1
    ```
 
 3. **Test Package**:
+
    ```powershell
    .\scripts\test_msix.ps1
    ```
@@ -62,17 +67,18 @@ microsoft-store/
 
 ## Asset Requirements
 
-| Asset | Size | Usage |
-|-------|------|-------|
-| Square150x150Logo.png | 150x150 | Medium tile |
-| Square44x44Logo.png | 44x44 | App list |
-| Wide310x150Logo.png | 310x150 | Wide tile |
-| StoreLogo.png | 50x50 | Store listing |
-| SplashScreen.png | 620x300 | Splash screen |
+| Asset                 | Size    | Usage         |
+| --------------------- | ------- | ------------- |
+| Square150x150Logo.png | 150x150 | Medium tile   |
+| Square44x44Logo.png   | 44x44   | App list      |
+| Wide310x150Logo.png   | 310x150 | Wide tile     |
+| StoreLogo.png         | 50x50   | Store listing |
+| SplashScreen.png      | 620x300 | Splash screen |
 
 ## Testing
 
 Use the Windows App Certification Kit (WACK):
+
 ```powershell
 # Run certification test
 & "${env:ProgramFiles(x86)}\Windows Kits\10\App Certification Kit\appcert.exe" test -appxpackagepath ".\output\ElizaOS.msix" -reportoutputpath ".\certification_report.xml"

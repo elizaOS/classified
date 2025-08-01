@@ -1,3 +1,5 @@
+import { WebSocketMessage } from '../types/shared';
+
 // Block old WebSocket messages
 export function blockOldMessages() {
   console.log('🛡️ Installing WebSocket message blocker...');
@@ -8,14 +10,14 @@ export function blockOldMessages() {
   WebSocket.prototype.send = function (data: string | ArrayBufferLike | Blob | ArrayBufferView) {
     // Try to parse and check the message
     try {
-      let message: any;
+      let message: WebSocketMessage | null = null;
       if (typeof data === 'string') {
-        message = JSON.parse(data);
+        message = JSON.parse(data) as WebSocketMessage;
       }
 
       // Block specific message types or content
       if (message && message.type === 'send_message') {
-        const messageText = message.message?.text || '';
+        const messageText = message.message?.text || message.message?.content || '';
         if (messageText.includes('admin has opened the terminal')) {
           console.error('🚫 BLOCKED problematic message!', message);
           console.trace();

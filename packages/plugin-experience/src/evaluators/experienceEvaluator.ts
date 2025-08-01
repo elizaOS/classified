@@ -118,8 +118,8 @@ export const experienceEvaluator: Evaluator = {
       minConfidence: 0.7,
     });
 
-      // Use LLM to extract novel experiences from the conversation
-      const extractionPrompt = `Analyze this conversation for novel learning experiences that would be surprising or valuable to remember.
+    // Use LLM to extract novel experiences from the conversation
+    const extractionPrompt = `Analyze this conversation for novel learning experiences that would be surprising or valuable to remember.
 
 Conversation context:
 ${conversationContext}
@@ -148,59 +148,57 @@ Respond with JSON array of experiences (max 3):
 
 Return empty array [] if no novel experiences found.`;
 
-      const response = await runtime.useModel(ModelType.TEXT_LARGE, {
-        prompt: extractionPrompt,
+    const response = await runtime.useModel(ModelType.TEXT_LARGE, {
+      prompt: extractionPrompt,
+    });
+
+    let experiences: any[] = [];
+    const jsonMatch = response.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      experiences = JSON.parse(jsonMatch[0]);
+    }
+
+    // Record each novel experience
+    for (const exp of experiences.slice(0, 3)) {
+      // Max 3 experiences per extraction
+      if (!exp.learning || !exp.confidence || exp.confidence < 0.6) {
+        continue;
+      }
+
+      const experienceType =
+        {
+          DISCOVERY: ExperienceType.DISCOVERY,
+          CORRECTION: ExperienceType.CORRECTION,
+          SUCCESS: ExperienceType.SUCCESS,
+          LEARNING: ExperienceType.LEARNING,
+        }[exp.type] || ExperienceType.LEARNING;
+
+      await experienceService.recordExperience({
+        type: experienceType,
+        outcome:
+          experienceType === ExperienceType.CORRECTION ? OutcomeType.POSITIVE : OutcomeType.NEUTRAL,
+        context: sanitizeContext(exp.context || 'Conversation analysis'),
+        action: 'pattern_recognition',
+        result: exp.learning,
+        learning: sanitizeContext(exp.learning),
+        domain: detectDomain(exp.learning),
+        tags: ['extracted', 'novel', exp.type.toLowerCase()],
+        confidence: Math.min(exp.confidence, 0.9), // Cap confidence
+        importance: 0.8, // High importance for extracted experiences
       });
 
-      let experiences: any[] = [];
-      const jsonMatch = response.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        experiences = JSON.parse(jsonMatch[0]);
-      }
+      logger.info(
+        `[experienceEvaluator] Recorded novel experience: ${exp.learning.substring(0, 100)}...`
+      );
+    }
 
-      // Record each novel experience
-      for (const exp of experiences.slice(0, 3)) {
-        // Max 3 experiences per extraction
-        if (!exp.learning || !exp.confidence || exp.confidence < 0.6) {
-          continue;
-        }
-
-        const experienceType =
-          {
-            DISCOVERY: ExperienceType.DISCOVERY,
-            CORRECTION: ExperienceType.CORRECTION,
-            SUCCESS: ExperienceType.SUCCESS,
-            LEARNING: ExperienceType.LEARNING,
-          }[exp.type] || ExperienceType.LEARNING;
-
-        await experienceService.recordExperience({
-          type: experienceType,
-          outcome:
-            experienceType === ExperienceType.CORRECTION
-              ? OutcomeType.POSITIVE
-              : OutcomeType.NEUTRAL,
-          context: sanitizeContext(exp.context || 'Conversation analysis'),
-          action: 'pattern_recognition',
-          result: exp.learning,
-          learning: sanitizeContext(exp.learning),
-          domain: detectDomain(exp.learning),
-          tags: ['extracted', 'novel', exp.type.toLowerCase()],
-          confidence: Math.min(exp.confidence, 0.9), // Cap confidence
-          importance: 0.8, // High importance for extracted experiences
-        });
-
-        logger.info(
-          `[experienceEvaluator] Recorded novel experience: ${exp.learning.substring(0, 100)}...`
-        );
-      }
-
-      if (experiences.length > 0) {
-        logger.info(
-          `[experienceEvaluator] Extracted ${experiences.length} novel experiences from conversation`
-        );
-      } else {
-        logger.debug(`[experienceEvaluator] No novel experiences found in recent conversation`);
-      }
+    if (experiences.length > 0) {
+      logger.info(
+        `[experienceEvaluator] Extracted ${experiences.length} novel experiences from conversation`
+      );
+    } else {
+      logger.debug(`[experienceEvaluator] No novel experiences found in recent conversation`);
+    }
   },
 };
 

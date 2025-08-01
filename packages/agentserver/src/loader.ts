@@ -23,7 +23,7 @@ export function tryLoadFile(filePath: string): string | null {
     return fs.readFileSync(filePath, 'utf8');
   } catch (e) {
     // Only catch file not found errors, let other errors propagate
-    if (e.code === 'ENOENT') {
+    if (e instanceof Error && 'code' in e && (e as NodeJS.ErrnoException).code === 'ENOENT') {
       return null;
     }
     throw e;
@@ -218,7 +218,9 @@ export async function loadCharacterTryPath(characterPath: string): Promise<Chara
       } catch (e) {
         // If it's a validation/parsing error, throw immediately (fail fast)
         // Only continue if it's a file not found error
-        if (e.code !== 'ENOENT') {
+        if (
+          !(e instanceof Error && 'code' in e && (e as NodeJS.ErrnoException).code === 'ENOENT')
+        ) {
           throw e;
         }
       }
@@ -255,10 +257,13 @@ async function readCharactersFromStorage(characterPaths: string[]): Promise<stri
     }
   } catch (err) {
     // Only catch expected errors like directory not existing
-    if (err.code === 'ENOENT' || err.code === 'EACCES') {
-      logger.error(`Cannot access character storage directory: ${err.message}`);
-      // Return original characterPaths, don't fail the whole process
-      return characterPaths;
+    if (err instanceof Error && 'code' in err) {
+      const nodeErr = err as NodeJS.ErrnoException;
+      if (nodeErr.code === 'ENOENT' || nodeErr.code === 'EACCES') {
+        logger.error(`Cannot access character storage directory: ${nodeErr.message}`);
+        // Return original characterPaths, don't fail the whole process
+        return characterPaths;
+      }
     }
     // Unexpected errors should propagate
     throw err;

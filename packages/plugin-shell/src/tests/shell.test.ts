@@ -13,6 +13,10 @@ import {
   type State,
   ModelType,
   ContentType,
+  createMockRuntime as createTypedMockRuntime,
+  asUUID,
+  createMockMemory,
+  createMockState,
 } from '@elizaos/core';
 import { createMockRuntime } from './test-utils';
 import { ShellService } from '../service';
@@ -49,14 +53,13 @@ const createUnitTest = (config: {
 describe('ShellService', () => {
   const shellServiceSuite = new TestSuite('ShellService', {
     beforeEach: () => {
-      // Use unified mock runtime
-      const mockRuntime = createMockRuntime({
-        agentId: '00000000-0000-0000-0000-000000000001' as any,
+      // Use type-safe mock runtime
+      const mockRuntime = createTypedMockRuntime({
+        agentId: asUUID('00000000-0000-0000-0000-000000000001'),
         getService: mock(),
-        createMemory: mock(),
         composeState: mock(),
         useModel: mock(),
-      }) as any;
+      }) as IAgentRuntime;
 
       const shellService = new ShellService(mockRuntime);
 
@@ -112,13 +115,12 @@ describe('ShellService', () => {
   // Filesystem operations test suite
   const filesystemOperationsSuite = new TestSuite('Filesystem Operations', {
     beforeEach: () => {
-      const mockRuntime = createMockRuntime({
-        agentId: '00000000-0000-0000-0000-000000000001' as any,
+      const mockRuntime = createTypedMockRuntime({
+        agentId: asUUID('00000000-0000-0000-0000-000000000001'),
         getService: mock(),
-        createMemory: mock(),
         composeState: mock(),
         useModel: mock(),
-      }) as any;
+      }) as IAgentRuntime;
       const shellService = new ShellService(mockRuntime);
       mock.restore();
       return { shellService, mockRuntime };

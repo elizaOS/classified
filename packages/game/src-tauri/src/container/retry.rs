@@ -90,10 +90,7 @@ where
         match operation().await {
             Ok(result) => {
                 if attempt > 1 {
-                    info!(
-                        "✅ {} succeeded after {} attempts",
-                        operation_name, attempt
-                    );
+                    info!("✅ {} succeeded after {} attempts", operation_name, attempt);
                 }
                 return Ok(result);
             }
@@ -118,15 +115,13 @@ where
                     actual_delay = Duration::from_secs_f64(delay.as_secs_f64() * jitter_factor);
                 }
 
-                info!(
-                    "⏳ Retrying {} in {:?}...",
-                    operation_name, actual_delay
-                );
+                info!("⏳ Retrying {} in {:?}...", operation_name, actual_delay);
                 sleep(actual_delay).await;
 
                 // Calculate next delay with backoff
                 delay = Duration::from_secs_f64(
-                    (delay.as_secs_f64() * config.backoff_factor).min(config.max_delay.as_secs_f64()),
+                    (delay.as_secs_f64() * config.backoff_factor)
+                        .min(config.max_delay.as_secs_f64()),
                 );
             }
         }
@@ -136,7 +131,7 @@ where
 /// Check if an error is retryable
 pub fn is_retryable_error(error: &BackendError) -> bool {
     let error_str = error.to_string().to_lowercase();
-    
+
     // Connection errors are retryable
     if error_str.contains("connection refused")
         || error_str.contains("connection reset")
@@ -205,4 +200,4 @@ mod tests {
         let error = BackendError::Container("Invalid configuration".to_string());
         assert!(!is_retryable_error(&error));
     }
-} 
+}

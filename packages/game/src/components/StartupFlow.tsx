@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import './StartupFlow.css';
 
+import { TauriWindow } from '../types/shared';
+
 declare global {
-  interface Window {
-    __TAURI_INTERNALS__?: any;
-  }
+  interface Window extends TauriWindow {}
 }
 
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -81,7 +81,7 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
     const { invoke } = await import('@tauri-apps/api/core');
 
     // Listen for startup status updates
-    const unlistenStatus = await listen('startup-status', (event: any) => {
+    const unlistenStatus = await listen('startup-status', (event: { payload: StartupStatus }) => {
       console.log('[STARTUP] Status update:', event.payload);
       setStatus(event.payload);
 
@@ -101,7 +101,7 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
     });
 
     // Listen for real-time setup progress updates (includes model download progress)
-    const unlistenProgress = await listen('setup-progress', (event: any) => {
+    const unlistenProgress = await listen('setup-progress', (event: { payload: StartupStatus }) => {
       console.log('[STARTUP] Setup progress update:', event.payload);
       const setupProgress = event.payload;
 

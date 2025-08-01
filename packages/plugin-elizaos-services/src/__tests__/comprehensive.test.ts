@@ -5,8 +5,7 @@
 
 import { describe, test, expect, mock } from 'bun:test';
 import { elizaOSServicesPlugin, ElizaOSService } from '../index.js';
-import { ModelType, IAgentRuntime } from '@elizaos/core';
-import { createMockRuntime } from './test-utils.js';
+import { ModelType, IAgentRuntime, createMockRuntime } from '@elizaos/core';
 
 describe('ElizaOS Services Plugin - Comprehensive Tests', () => {
   describe('Plugin Structure', () => {
@@ -36,36 +35,36 @@ describe('ElizaOS Services Plugin - Comprehensive Tests', () => {
   describe('Plugin Configuration', () => {
     test('plugin initialization with valid config', async () => {
       const mockRuntime = createMockRuntime({
-        getSetting: mock((key: string) => {
+        getSetting: (key: string) => {
           if (key === 'OPENAI_API_KEY') return 'test-openai-key';
           if (key === 'ELIZAOS_API_URL') return 'https://api.elizaos.ai';
           if (key === 'ELIZAOS_API_KEY') return 'test-key-123';
-          return null;
-        }),
+          return undefined;
+        },
       });
       const config = {
         ELIZAOS_API_URL: 'https://api.elizaos.ai',
         ELIZAOS_API_KEY: 'test-key-123',
       };
 
-      // Should not throw
+      // Should not throw - using type-safe runtime
       await expect(
-        elizaOSServicesPlugin.init!(config, mockRuntime as unknown as IAgentRuntime)
+        elizaOSServicesPlugin.init!(config, mockRuntime as IAgentRuntime)
       ).resolves.toBeUndefined();
     });
 
     test('plugin initialization with minimal config', async () => {
       const mockRuntime = createMockRuntime({
-        getSetting: mock((key: string) => {
+        getSetting: (key: string) => {
           if (key === 'OPENAI_API_KEY') return 'test-openai-key';
-          return null;
-        }),
+          return undefined;
+        },
       });
       const config = {};
 
-      // Should not throw even with empty config
+      // Should not throw even with empty config - using type-safe runtime
       await expect(
-        elizaOSServicesPlugin.init!(config, mockRuntime as unknown as IAgentRuntime)
+        elizaOSServicesPlugin.init!(config, mockRuntime as IAgentRuntime)
       ).resolves.toBeUndefined();
     });
   });
@@ -73,30 +72,30 @@ describe('ElizaOS Services Plugin - Comprehensive Tests', () => {
   describe('Service Management', () => {
     test('ElizaOSService can be started', async () => {
       const mockRuntime = createMockRuntime();
-      const service = await ElizaOSService.start(mockRuntime as unknown as IAgentRuntime);
+      const service = await ElizaOSService.start(mockRuntime as IAgentRuntime);
 
       expect(service).toBeInstanceOf(ElizaOSService);
       expect(service.capabilityDescription).toContain('multi-provider support');
     });
 
     test('ElizaOSService can be stopped', async () => {
-      const mockRuntime = createMockRuntime();
       const mockService = { stop: mock(() => Promise.resolve()) };
-      mockRuntime.getService = mock(() => mockService);
+      const mockRuntime = createMockRuntime({
+        getService: <T extends any>() => mockService as T,
+      });
 
-      // Should not throw
-      await expect(
-        ElizaOSService.stop(mockRuntime as unknown as IAgentRuntime)
-      ).resolves.toBeUndefined();
+      // Should not throw - using type-safe runtime
+      await expect(ElizaOSService.stop(mockRuntime as IAgentRuntime)).resolves.toBeUndefined();
       expect(mockService.stop).toHaveBeenCalled();
     });
 
     test('stopping non-existent service throws error', async () => {
-      const mockRuntime = createMockRuntime();
-      mockRuntime.getService = mock(() => null);
+      const mockRuntime = createMockRuntime({
+        getService: <T extends any>() => null as T | null,
+      });
 
-      // Should throw error when service not found
-      await expect(ElizaOSService.stop(mockRuntime as unknown as IAgentRuntime)).rejects.toThrow(
+      // Should throw error when service not found - using type-safe runtime
+      await expect(ElizaOSService.stop(mockRuntime as IAgentRuntime)).rejects.toThrow(
         'ElizaOS service not found'
       );
     });
@@ -145,15 +144,17 @@ describe('ElizaOS Services Plugin - Comprehensive Tests', () => {
       const mockRuntime = createMockRuntime();
       const textModel = elizaOSServicesPlugin.models![ModelType.TEXT_SMALL];
 
-      await expect(textModel(mockRuntime as any, { prompt: 'test' })).rejects.toThrow();
+      await expect(textModel(mockRuntime as IAgentRuntime, { prompt: 'test' })).rejects.toThrow();
     });
 
     test('embedding model handles missing API keys gracefully', async () => {
       const mockRuntime = createMockRuntime();
       const embeddingModel = elizaOSServicesPlugin.models![ModelType.TEXT_EMBEDDING];
 
-      // Should throw an error when no API provider is available
-      await expect(embeddingModel(mockRuntime as any, { text: 'test' })).rejects.toThrow();
+      // Should throw an error when no API provider is available - using type-safe runtime
+      await expect(
+        embeddingModel(mockRuntime as IAgentRuntime, { text: 'test' })
+      ).rejects.toThrow();
     });
   });
 

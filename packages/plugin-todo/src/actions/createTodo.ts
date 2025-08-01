@@ -14,7 +14,7 @@ import {
   type UUID,
 } from '@elizaos/core';
 import type { TodoMetadata } from '../types';
-import type { TodoDataService } from '../services/todoDataService';
+import type { TodoService } from '../services/todoService';
 
 // Interface for parsed task data
 interface TodoTaskInput {
@@ -181,7 +181,7 @@ export const createTodoAction: Action = {
       const isWaitingConfirmation = (state as any)?.isWaitingTodoConfirmation;
 
       // Get the data service early for all operations
-      const dataService = runtime.getService('todo') as TodoDataService;
+      const dataService = runtime.getService('todo') as TodoService;
       if (!dataService) {
         logger.error('[createTodo] Todo service not available');
         const errorResponse = `Sorry, the todo service is not available right now. Please try again later.`;

@@ -107,9 +107,10 @@ export function createAgentCapabilitiesRouter(
           enabled = runtime.plugins?.some((p) => p.name?.includes('shell')) || false;
           break;
         case 'browser':
-          enabled = runtime.plugins?.some((p) => 
-            p.name?.includes('browser') || p.name?.includes('stagehand')
-          ) || false;
+          enabled =
+            runtime.plugins?.some(
+              (p) => p.name?.includes('browser') || p.name?.includes('stagehand')
+            ) || false;
           break;
         case 'camera':
           enabled =
@@ -201,13 +202,18 @@ export function createAgentCapabilitiesRouter(
           logger.info(
             `${capability} capability ${enabled ? 'enabled' : 'disabled'} for agent ${runtime.character.name}`
           );
-          
-          console.log(`[API] Checking runtime for registerProgressivePlugin:`, typeof (runtime as any).registerProgressivePlugin);
-          
-          if (enabled && typeof (runtime as any).registerProgressivePlugin === 'function') {
+
+          // Use ProgressivePluginService to register/unregister plugins
+          const progressivePluginService = runtime.getService('PROGRESSIVE_PLUGIN');
+
+          if (enabled && progressivePluginService) {
             console.log(`[CAPABILITY] Registering progressive plugin for ${capability}`);
             logger.info(`[CAPABILITY] Registering progressive plugin for ${capability}`);
-            await (runtime as any).registerProgressivePlugin(capability);
+            try {
+              await (progressivePluginService as any).registerCapabilityPlugins(capability);
+            } catch (error) {
+              logger.error(`[CAPABILITY] Failed to register plugins for ${capability}:`, error);
+            }
           }
           console.log(`[API] ${capability} capability ${enabled ? 'enabled' : 'disabled'}`);
           break;

@@ -11,7 +11,7 @@ interface KnowledgeDocumentProperties {
   position?: number;
 }
 
-type KnowledgeDocumentMetadata = MemoryMetadata & KnowledgeDocumentProperties;
+type DocumentMetadata = MemoryMetadata & KnowledgeDocumentProperties;
 
 interface MemoryNode extends NodeObject {
   id: UUID;
@@ -50,7 +50,7 @@ const processGraphData = (memories: Memory[]) => {
   });
 
   memories.forEach((memory) => {
-    const metadata = memory.metadata as KnowledgeDocumentMetadata;
+    const metadata = memory.metadata as DocumentMetadata;
 
     if (!memory.id || !metadata || typeof metadata !== 'object') {
       return;
@@ -255,7 +255,7 @@ export function MemoryGraph({ memories, onNodeClick, selectedMemoryId }: MemoryG
                 : 'hsl(210, 10%, 70%)' // Gray for fragments
           }
           nodeLabel={(node: MemoryNode) => {
-            const metadata = node.memory.metadata as KnowledgeDocumentMetadata;
+            const metadata = node.memory.metadata as DocumentMetadata;
             return `${node.type === 'document' ? 'Document' : 'Fragment'}: ${
               metadata.title || node.id.substring(0, 8)
             }`;

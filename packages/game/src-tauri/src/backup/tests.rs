@@ -53,21 +53,19 @@ mod tests {
     #[test]
     fn test_backup_serialization() {
         use chrono::Utc;
-        
+
         let backup = Backup {
             id: "test-123".to_string(),
             timestamp: Utc::now(),
             backup_type: BackupType::Manual,
             size_bytes: 1024,
-            components: vec![
-                BackupComponent {
-                    name: "test component".to_string(),
-                    component_type: ComponentType::PostgresDatabase,
-                    path: PathBuf::from("/test/path"),
-                    size_bytes: 512,
-                    checksum: "abc123".to_string(),
-                }
-            ],
+            components: vec![BackupComponent {
+                name: "test component".to_string(),
+                component_type: ComponentType::PostgresDatabase,
+                path: PathBuf::from("/test/path"),
+                size_bytes: 512,
+                checksum: "abc123".to_string(),
+            }],
             metadata: BackupMetadata {
                 agent_id: "agent-123".to_string(),
                 agent_name: "Test Agent".to_string(),
@@ -79,7 +77,7 @@ mod tests {
 
         let json = serde_json::to_string(&backup).unwrap();
         let deserialized: Backup = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(deserialized.id, backup.id);
         assert_eq!(deserialized.backup_type, backup.backup_type);
         assert_eq!(deserialized.size_bytes, backup.size_bytes);
@@ -97,13 +95,13 @@ mod tests {
                 crate::backend::ContainerRuntimeType::Podman
             ).unwrap()
         );
-        
+
         // Create a mock app handle
         let app_handle = tauri::test::mock_app().handle();
-        
+
         let backup_manager = BackupManager::new(container_manager, app_handle);
         let config = backup_manager.get_config().await;
-        
+
         assert_eq!(config.auto_backup_enabled, true);
         assert_eq!(config.auto_backup_interval_hours, 4);
     }
@@ -117,14 +115,14 @@ mod tests {
                 crate::backend::ContainerRuntimeType::Podman
             ).unwrap()
         );
-        
+
         let app_handle = tauri::test::mock_app().handle();
         let backup_manager = BackupManager::new(container_manager, app_handle);
-        
+
         // Update config to use temp directory
         let temp_config = create_test_backup_config();
         backup_manager.update_config(temp_config).await.unwrap();
-        
+
         let backups = backup_manager.list_backups().await.unwrap();
         assert_eq!(backups.len(), 0);
     }
@@ -134,15 +132,21 @@ mod tests {
     fn test_backup_error_display() {
         let io_error = BackupError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            "File not found"
+            "File not found",
         ));
         assert!(io_error.to_string().contains("IO error"));
 
         let container_error = BackupError::Container("Container not running".to_string());
-        assert_eq!(container_error.to_string(), "Container error: Container not running");
+        assert_eq!(
+            container_error.to_string(),
+            "Container error: Container not running"
+        );
 
         let db_error = BackupError::DatabaseBackup("pg_dump failed".to_string());
-        assert_eq!(db_error.to_string(), "Database backup failed: pg_dump failed");
+        assert_eq!(
+            db_error.to_string(),
+            "Database backup failed: pg_dump failed"
+        );
     }
 
     /*
@@ -153,19 +157,19 @@ mod tests {
                 crate::backend::ContainerRuntimeType::Podman
             ).unwrap()
         );
-        
+
         let app_handle = tauri::test::mock_app().handle();
         let backup_manager = Arc::new(
             BackupManager::new(container_manager, app_handle)
         );
-        
+
         let scheduler = BackupScheduler::new(backup_manager);
-        
+
         assert!(!scheduler.is_running().await);
-        
+
         scheduler.start().await;
         assert!(scheduler.is_running().await);
-        
+
         scheduler.stop().await;
         assert!(!scheduler.is_running().await);
     }
@@ -179,12 +183,9 @@ mod tests {
             (ComponentType::AgentKnowledge, "\"agent_knowledge\""),
             (ComponentType::AgentLogs, "\"agent_logs\""),
         ];
-        
+
         for (component_type, expected) in cases {
-            assert_eq!(
-                serde_json::to_string(&component_type).unwrap(),
-                expected
-            );
+            assert_eq!(serde_json::to_string(&component_type).unwrap(), expected);
         }
     }
 
@@ -196,20 +197,20 @@ mod tests {
                 crate::backend::ContainerRuntimeType::Podman
             ).unwrap()
         );
-        
+
         let app_handle = tauri::test::mock_app().handle();
         let backup_manager = BackupManager::new(container_manager, app_handle);
-        
+
         let new_config = BackupConfig {
             auto_backup_enabled: false,
             auto_backup_interval_hours: 8,
             max_backups_to_keep: 10,
             backup_directory: PathBuf::from("/custom/backup/path"),
         };
-        
+
         backup_manager.update_config(new_config.clone()).await.unwrap();
         let retrieved_config = backup_manager.get_config().await;
-        
+
         assert_eq!(retrieved_config.auto_backup_enabled, false);
         assert_eq!(retrieved_config.auto_backup_interval_hours, 8);
         assert_eq!(retrieved_config.max_backups_to_keep, 10);
@@ -226,10 +227,10 @@ mod tests {
             backup_version: "1.0.0".to_string(),
             notes: Some("This is a test backup".to_string()),
         };
-        
+
         let json = serde_json::to_string(&metadata).unwrap();
         let deserialized: BackupMetadata = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(deserialized.agent_id, metadata.agent_id);
         assert_eq!(deserialized.agent_name, metadata.agent_name);
         assert_eq!(deserialized.eliza_version, metadata.eliza_version);

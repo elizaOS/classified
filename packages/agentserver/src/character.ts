@@ -147,7 +147,7 @@ You should be autonomous when enabled, setting your own goals and tasks, but als
 
   // Essential plugins for the ELIZA Terminal game
   plugins: [],
-  
+
   // Capabilities for the agent
   capabilities: ['browser', 'vision', 'autonomy'],
 

@@ -382,32 +382,38 @@ curl -X POST http://localhost:7777/api/agents/default/progression/mode \
 In progression mode, capabilities are unlocked through the following levels:
 
 ### Level 0: Basic Existence
+
 - **Available**: Shell, Naming
 - **Always unlocked at start**
 
 ### Level 1: Web Explorer
+
 - **Unlocks**: Browser, Stagehand
-- **Requirements**: 
+- **Requirements**:
   - Agent must choose a name
   - Agent must use shell commands
 
 ### Level 2: Organizational Skills
+
 - **Unlocks**: Goals, Todo
-- **Requirements**: 
+- **Requirements**:
   - Agent must use browser capabilities
 
 ### Level 3: Visual Perception
+
 - **Unlocks**: Vision, Screen Capture
 - **Requirements**:
   - Agent must use goal management
   - Agent must submit a web form
 
 ### Level 4: Audio Communication
+
 - **Unlocks**: Microphone, SAM, Audio
 - **Requirements**:
   - Agent must use vision capabilities
 
 ### Level 5: Visual Recording
+
 - **Unlocks**: Camera, Advanced Vision
 - **Requirements**:
   - Agent must use microphone capabilities
@@ -415,12 +421,14 @@ In progression mode, capabilities are unlocked through the following levels:
 ## Testing Considerations
 
 ### When to Use Unlocked Mode
+
 - Development and testing of capabilities
 - Debugging specific features
 - Running automated tests
 - Demonstrating full agent capabilities
 
 ### When to Use Progression Mode
+
 - Testing the progression system itself
 - Creating a gamified experience
 - Gradual onboarding of new users
@@ -436,6 +444,7 @@ The progression system tracks agent actions and automatically unlocks new capabi
 - The agent starts at the maximum level
 
 Switching between modes:
+
 - **Unlocked → Progression**: Resets all progress, returns to level 0
 - **Progression → Unlocked**: Instantly unlocks all capabilities
 

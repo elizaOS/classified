@@ -1,19 +1,19 @@
 use crate::backend::{BackendError, BackendResult, ContainerRuntimeType};
-use crate::container::{ContainerManager, RuntimeDetectionStatus};
 use crate::common::{AGENT_CONTAINER, OLLAMA_CONTAINER, POSTGRES_CONTAINER};
+use crate::container::{ContainerManager, RuntimeDetectionStatus};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use tracing::{error, info, warn};
 
 mod memory;
-pub use memory::{MemoryConfig, ContainerMemoryLimits};
+pub use memory::{ContainerMemoryLimits, MemoryConfig};
 
 #[derive(Debug, Clone)]
 #[allow(clippy::enum_variant_names)]
 enum OllamaStatus {
-    ContainerizedRunning,  // Our containerized Ollama on port 17777
-    NativeRunning,         // Native Ollama installation on port 11434
+    ContainerizedRunning, // Our containerized Ollama on port 17777
+    NativeRunning,        // Native Ollama installation on port 11434
     NotRunning,           // No Ollama found
 }
 
@@ -109,7 +109,7 @@ impl StartupManager {
             "Checking for orphaned containers from previous runs",
         )
         .await;
-        
+
         if let Err(e) = self.cleanup_orphaned_containers(&resource_dir).await {
             warn!("Failed to cleanup orphaned containers: {}", e);
             // Continue anyway - this is not critical
@@ -118,7 +118,7 @@ impl StartupManager {
         // First check if ElizaOS server is already running
         let mut server_healthy = false;
         let mut recovery_attempted = false;
-        
+
         // Try up to 2 times: first check, then recovery + check
         for attempt in 0..2 {
             match self.check_existing_server().await {
@@ -130,7 +130,7 @@ impl StartupManager {
                     if attempt == 0 && !recovery_attempted {
                         // First attempt failed, try recovery
                         warn!("⚠️ ElizaOS server not responding, attempting recovery...");
-                        
+
                         // Ensure we have Podman ready first
                         self.update_status(
                             StartupStage::DetectingRuntime,
@@ -139,49 +139,55 @@ impl StartupManager {
                             "Checking Podman status",
                         )
                         .await;
-                        
+
                         if let Err(e) = self.ensure_podman_ready().await {
                             error!("Podman setup failed during recovery: {}", e);
                             // Continue to normal startup flow
                             break;
                         }
-                        
+
                         // Initialize container manager for recovery if not already done
                         if self.container_manager.is_none() {
-                            match ContainerManager::new_with_runtime_manager(ContainerRuntimeType::Podman, resource_dir.clone())
-                                .await
+                            match ContainerManager::new_with_runtime_manager(
+                                ContainerRuntimeType::Podman,
+                                resource_dir.clone(),
+                            )
+                            .await
                             {
                                 Ok(mut manager) => {
                                     manager.set_app_handle(self.app_handle.clone());
-                                    
+
                                     // Calculate and set memory limits based on system resources
                                     let memory_config = MemoryConfig::calculate();
                                     if memory_config.has_sufficient_memory {
                                         let container_limits = memory_config.get_container_limits();
                                         manager.set_memory_limits(container_limits);
                                     }
-                                    
+
                                     self.container_manager = Some(Arc::new(manager));
                                 }
                                 Err(e) => {
-                                    error!("Failed to create container manager for recovery: {}", e);
+                                    error!(
+                                        "Failed to create container manager for recovery: {}",
+                                        e
+                                    );
                                     // Continue to normal startup
                                     break;
                                 }
                             }
                         }
-                        
+
                         // Attempt recovery
                         if let Err(e) = self.recover_elizaos_server().await {
                             error!("Recovery failed: {}", e);
                             // Continue to normal startup
                             break;
                         }
-                        
+
                         recovery_attempted = true;
                         // Wait a bit for the server to stabilize after recovery
                         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-                        
+
                         // Loop will retry the health check
                     } else {
                         // Recovery already attempted or second check failed
@@ -190,10 +196,10 @@ impl StartupManager {
                 }
             }
         }
-        
+
         if server_healthy {
             info!("✅ Found healthy ElizaOS server - checking Ollama status");
-            
+
             // Even with existing server, we need to ensure Ollama is running
             self.update_status(
                 StartupStage::DetectingRuntime,
@@ -221,19 +227,22 @@ impl StartupManager {
 
             // Initialize container manager if needed
             if self.container_manager.is_none() {
-                match ContainerManager::new_with_runtime_manager(ContainerRuntimeType::Podman, resource_dir.clone())
-                    .await
+                match ContainerManager::new_with_runtime_manager(
+                    ContainerRuntimeType::Podman,
+                    resource_dir.clone(),
+                )
+                .await
                 {
                     Ok(mut manager) => {
                         manager.set_app_handle(self.app_handle.clone());
-                        
+
                         // Calculate and set memory limits based on system resources
                         let memory_config = MemoryConfig::calculate();
                         if memory_config.has_sufficient_memory {
                             let container_limits = memory_config.get_container_limits();
                             manager.set_memory_limits(container_limits);
                         }
-                        
+
                         self.container_manager = Some(Arc::new(manager));
                     }
                     Err(e) => {
@@ -261,7 +270,7 @@ impl StartupManager {
 
             // Check current Ollama status
             let ollama_status = self.check_ollama_status().await?;
-            
+
             match ollama_status {
                 OllamaStatus::ContainerizedRunning => {
                     info!("✅ Our containerized Ollama is already running on eliza-network");
@@ -271,21 +280,26 @@ impl StartupManager {
                         OllamaStatus::NativeRunning => "Found Ollama on port 11434, but need our container for network isolation",
                         _ => "No Ollama detected",
                     };
-                    
+
                     info!("🔍 {}", status_msg);
                     info!("🚀 Starting our containerized Ollama on eliza-network");
-                    
+
                     if let Some(manager) = &self.container_manager {
                         // Create network if it doesn't exist
-                        if let Err(e) = manager.ensure_network_exists(crate::common::NETWORK_NAME).await {
+                        if let Err(e) = manager
+                            .ensure_network_exists(crate::common::NETWORK_NAME)
+                            .await
+                        {
                             warn!("Failed to ensure network exists: {}", e);
                         }
-                        
+
                         // Check if we need to clean up existing Ollama container
                         match manager.get_container_status(OLLAMA_CONTAINER).await {
                             Ok(status) => {
                                 if !matches!(status.health, crate::backend::HealthStatus::Healthy) {
-                                    warn!("Found unhealthy Ollama container, attempting cleanup...");
+                                    warn!(
+                                        "Found unhealthy Ollama container, attempting cleanup..."
+                                    );
                                     if let Err(e) = manager.stop_container(OLLAMA_CONTAINER).await {
                                         warn!("Failed to stop unhealthy Ollama: {}", e);
                                     }
@@ -297,61 +311,96 @@ impl StartupManager {
                                 // No container exists, which is fine
                             }
                         }
-                        
+
                         // Start our Ollama on eliza-network
                         match manager.start_ollama().await {
                             Ok(_) => {
-                                info!("✅ Containerized Ollama started successfully on eliza-network");
-                                
+                                info!(
+                                    "✅ Containerized Ollama started successfully on eliza-network"
+                                );
+
                                 // Wait for health check with retries
                                 let mut health_check_attempts = 0;
                                 let max_attempts = 3;
                                 let mut ollama_healthy = false;
-                                
+
                                 while health_check_attempts < max_attempts && !ollama_healthy {
                                     health_check_attempts += 1;
-                                    info!("Waiting for Ollama health check (attempt {}/{})", health_check_attempts, max_attempts);
-                                    
-                                    match manager.wait_for_container_health(OLLAMA_CONTAINER, std::time::Duration::from_secs(90)).await {
+                                    info!(
+                                        "Waiting for Ollama health check (attempt {}/{})",
+                                        health_check_attempts, max_attempts
+                                    );
+
+                                    match manager
+                                        .wait_for_container_health(
+                                            OLLAMA_CONTAINER,
+                                            std::time::Duration::from_secs(90),
+                                        )
+                                        .await
+                                    {
                                         Ok(_) => {
                                             ollama_healthy = true;
                                         }
                                         Err(e) => {
-                                            warn!("Ollama health check failed (attempt {}): {}", health_check_attempts, e);
-                                            
+                                            warn!(
+                                                "Ollama health check failed (attempt {}): {}",
+                                                health_check_attempts, e
+                                            );
+
                                             if health_check_attempts < max_attempts {
                                                 // Try to diagnose the issue
                                                 info!("Attempting to diagnose Ollama startup issue...");
-                                                
+
                                                 // Check if the container is actually running
-                                                if let Ok(status) = manager.get_container_status(OLLAMA_CONTAINER).await {
+                                                if let Ok(status) = manager
+                                                    .get_container_status(OLLAMA_CONTAINER)
+                                                    .await
+                                                {
                                                     info!("Ollama container state: {:?}, health: {:?}", status.state, status.health);
-                                                    
+
                                                     // If container crashed, try to restart
-                                                    if matches!(status.state, crate::backend::ContainerState::Stopped | crate::backend::ContainerState::Error) {
+                                                    if matches!(
+                                                        status.state,
+                                                        crate::backend::ContainerState::Stopped
+                                                            | crate::backend::ContainerState::Error
+                                                    ) {
                                                         warn!("Ollama container crashed, attempting restart...");
-                                                        if let Err(e) = manager.restart_container(OLLAMA_CONTAINER).await {
-                                                            error!("Failed to restart Ollama: {}", e);
+                                                        if let Err(e) = manager
+                                                            .restart_container(OLLAMA_CONTAINER)
+                                                            .await
+                                                        {
+                                                            error!(
+                                                                "Failed to restart Ollama: {}",
+                                                                e
+                                                            );
                                                         }
                                                     }
                                                 }
-                                                
+
                                                 // Wait before retry
-                                                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                                                tokio::time::sleep(
+                                                    tokio::time::Duration::from_secs(5),
+                                                )
+                                                .await;
                                             }
                                         }
                                     }
                                 }
-                                
+
                                 if !ollama_healthy {
                                     // Try direct health check as a fallback
-                                    info!("Container health check failed, trying direct API check...");
+                                    info!(
+                                        "Container health check failed, trying direct API check..."
+                                    );
                                     match manager.check_ollama_health_direct().await {
                                         Ok(true) => {
                                             info!("✅ Direct Ollama health check passed, continuing despite container health check failure");
                                         }
                                         _ => {
-                                            error!("Ollama failed to become healthy after {} attempts", max_attempts);
+                                            error!(
+                                                "Ollama failed to become healthy after {} attempts",
+                                                max_attempts
+                                            );
                                             self.update_status(
                                                 StartupStage::Error,
                                                 0,
@@ -363,7 +412,7 @@ impl StartupManager {
                                         }
                                     }
                                 }
-                                
+
                                 // Pull models
                                 self.update_status(
                                     StartupStage::DownloadingModels,
@@ -372,7 +421,7 @@ impl StartupManager {
                                     "Pulling required models for agent operation",
                                 )
                                 .await;
-                                
+
                                 if let Err(e) = manager.pull_ollama_models().await {
                                     error!("Failed to pull Ollama models: {}", e);
                                     warn!("⚠️ Some models may not be available: {}", e);
@@ -422,8 +471,10 @@ impl StartupManager {
                         "ElizaOS server is running but Game API plugin is not responding. Chat will be disabled.",
                     )
                     .await;
-                    
-                    return Err(BackendError::Container("Game API plugin not available".to_string()));
+
+                    return Err(BackendError::Container(
+                        "Game API plugin not available".to_string(),
+                    ));
                 }
                 Err(e) => {
                     self.update_status(
@@ -433,7 +484,7 @@ impl StartupManager {
                         &format!("Failed to verify Game API: {}", e),
                     )
                     .await;
-                    
+
                     return Err(e);
                 }
             }
@@ -480,7 +531,7 @@ impl StartupManager {
             Ok(mut manager) => {
                 // Set the app handle for event emission
                 manager.set_app_handle(self.app_handle.clone());
-                
+
                 // Calculate and set memory limits based on system resources
                 let memory_config = MemoryConfig::calculate();
                 if memory_config.has_sufficient_memory {
@@ -564,24 +615,31 @@ impl StartupManager {
 
     async fn check_existing_server(&self) -> BackendResult<bool> {
         info!("🔍 Checking for existing ElizaOS server on port 7777...");
-        
+
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(5))
             .build()
             .map_err(|e| BackendError::Container(format!("Failed to create HTTP client: {}", e)))?;
-        
+
         // First try a simple ping to avoid rate limiting
         match client.get("http://localhost:7777/api/ping").send().await {
             Ok(response) if response.status().is_success() => {
                 // Server is responding, now check full health
-                match client.get("http://localhost:7777/api/server/health").send().await {
+                match client
+                    .get("http://localhost:7777/api/server/health")
+                    .send()
+                    .await
+                {
                     Ok(health_response) if health_response.status().is_success() => {
                         info!("📡 Server responded with status: 200 OK");
-                        
+
                         match health_response.json::<serde_json::Value>().await {
                             Ok(health_data) => {
-                                info!("🔍 Health data received: {}", serde_json::to_string(&health_data).unwrap_or_default());
-                                
+                                info!(
+                                    "🔍 Health data received: {}",
+                                    serde_json::to_string(&health_data).unwrap_or_default()
+                                );
+
                                 // Check if the server is actually ready
                                 if let Some(ready) = health_data["data"]["ready"].as_bool() {
                                     if ready {
@@ -605,7 +663,10 @@ impl StartupManager {
                         return Ok(true);
                     }
                     Ok(response) => {
-                        warn!("⚠️ Server health check returned status: {}", response.status());
+                        warn!(
+                            "⚠️ Server health check returned status: {}",
+                            response.status()
+                        );
                         return Ok(false);
                     }
                     Err(e) => {
@@ -613,7 +674,7 @@ impl StartupManager {
                         return Ok(false);
                     }
                 }
-                
+
                 Ok(true)
             }
             Ok(response) if response.status().as_u16() == 429 => {
@@ -622,7 +683,10 @@ impl StartupManager {
                 Ok(true)
             }
             Ok(response) => {
-                info!("📡 Server responded with non-success status: {}", response.status());
+                info!(
+                    "📡 Server responded with non-success status: {}",
+                    response.status()
+                );
                 Ok(false)
             }
             Err(e) => {
@@ -636,16 +700,16 @@ impl StartupManager {
     /// This kills any process on the agent port and cleans up eliza-agent containers
     async fn recover_elizaos_server(&self) -> BackendResult<()> {
         warn!("🔧 Starting ElizaOS server recovery process...");
-        
+
         // Ensure we have container manager
         let manager = self.container_manager.as_ref().ok_or_else(|| {
             BackendError::Container("Container manager not initialized for recovery".to_string())
         })?;
-        
+
         // Step 1: Check container statuses
         info!("📊 Checking container statuses...");
         let mut recovery_actions = vec![];
-        
+
         // Check each critical container
         for container_name in &[POSTGRES_CONTAINER, OLLAMA_CONTAINER, AGENT_CONTAINER] {
             match manager.get_container_status(container_name).await {
@@ -672,17 +736,17 @@ impl StartupManager {
                 }
             }
         }
-        
+
         // Step 2: Execute recovery actions
         for action in recovery_actions {
             let parts: Vec<&str> = action.split(':').collect();
             if parts.len() != 2 {
                 continue;
             }
-            
+
             let action_type = parts[0];
             let container_name = parts[1];
-            
+
             match action_type {
                 "restart" => {
                     info!("🔄 Restarting container: {}", container_name);
@@ -695,7 +759,7 @@ impl StartupManager {
                     // Stop and remove the container first
                     let _ = manager.stop_container(container_name).await;
                     let _ = manager.remove_container(container_name).await;
-                    
+
                     // Recreate based on container type
                     match container_name {
                         POSTGRES_CONTAINER => {
@@ -732,23 +796,32 @@ impl StartupManager {
                     }
                 }
                 "health" => {
-                    info!("🏥 Waiting for container to become healthy: {}", container_name);
+                    info!(
+                        "🏥 Waiting for container to become healthy: {}",
+                        container_name
+                    );
                     // Just wait a bit more for health
-                    if let Err(e) = manager.wait_for_container_health(
-                        container_name,
-                        std::time::Duration::from_secs(30)
-                    ).await {
-                        warn!("Container {} still unhealthy after wait: {}", container_name, e);
+                    if let Err(e) = manager
+                        .wait_for_container_health(
+                            container_name,
+                            std::time::Duration::from_secs(30),
+                        )
+                        .await
+                    {
+                        warn!(
+                            "Container {} still unhealthy after wait: {}",
+                            container_name, e
+                        );
                     }
                 }
                 _ => {}
             }
         }
-        
+
         // Step 3: Wait for services to stabilize
         info!("⏳ Waiting for services to stabilize...");
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        
+
         // Step 4: Verify recovery
         match self.check_existing_server().await {
             Ok(true) => {
@@ -765,7 +838,7 @@ impl StartupManager {
 
     async fn check_ollama_status(&self) -> BackendResult<OllamaStatus> {
         info!("🔍 Checking Ollama availability...");
-        
+
         // Check if our containerized Ollama is running
         if let Some(manager) = &self.container_manager {
             match manager.get_container_status(OLLAMA_CONTAINER).await {
@@ -774,14 +847,17 @@ impl StartupManager {
                     return Ok(OllamaStatus::ContainerizedRunning);
                 }
                 Ok(status) => {
-                    info!("📍 Found eliza-ollama container but it's not healthy: {:?}", status.health);
+                    info!(
+                        "📍 Found eliza-ollama container but it's not healthy: {:?}",
+                        status.health
+                    );
                 }
                 Err(e) => {
                     info!("📍 No eliza-ollama container found: {}", e);
                 }
             }
         }
-        
+
         // Check if native Ollama is running on default port
         let client = reqwest::Client::new();
         match client
@@ -799,13 +875,13 @@ impl StartupManager {
                 info!("❌ No Ollama service found");
             }
         }
-        
+
         Ok(OllamaStatus::NotRunning)
     }
 
     async fn verify_game_api(&self) -> BackendResult<bool> {
         info!("🎮 Verifying Game API plugin connectivity...");
-        
+
         // Get the current port configuration
         let agent_port = if let Some(manager) = &self.container_manager {
             let port_config = manager.get_port_config().await;
@@ -813,34 +889,39 @@ impl StartupManager {
         } else {
             7777 // Default fallback
         };
-        
+
         let client = reqwest::Client::new();
         let max_attempts = 10;
         let initial_delay_secs = 2; // Start with 2 seconds
         let max_delay_secs = 30; // Cap at 30 seconds
-        
+
         for attempt in 0..max_attempts {
             // Calculate exponential backoff delay
             let delay_secs = if attempt == 0 {
                 0 // No delay on first attempt
             } else {
-                let exponential_delay = initial_delay_secs * (2_u64).pow((attempt - 1).min(5) as u32);
+                let exponential_delay =
+                    initial_delay_secs * (2_u64).pow((attempt - 1).min(5) as u32);
                 exponential_delay.min(max_delay_secs)
             };
-            
+
             if delay_secs > 0 {
                 info!("⏳ Waiting {} seconds before next attempt...", delay_secs);
                 tokio::time::sleep(tokio::time::Duration::from_secs(delay_secs)).await;
             }
-            
+
             self.update_status(
                 StartupStage::VerifyingGameAPI,
                 95 + (attempt * 5 / max_attempts) as u8, // Progress from 95 to 100
                 "Verifying Game API plugin...",
-                &format!("Checking Game API availability (attempt {}/{})", attempt + 1, max_attempts),
+                &format!(
+                    "Checking Game API availability (attempt {}/{})",
+                    attempt + 1,
+                    max_attempts
+                ),
             )
             .await;
-            
+
             // First check basic health
             let health_url = format!("http://localhost:{}/api/server/health", agent_port);
             let health_response = client
@@ -848,31 +929,34 @@ impl StartupManager {
                 .timeout(std::time::Duration::from_secs(5))
                 .send()
                 .await;
-                
+
             if let Ok(response) = health_response {
                 if response.status().is_success() {
                     // Add a small delay to avoid rapid successive requests
                     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                    
+
                     // Use the actual agent ID
                     let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
-                    let settings_url = format!("http://localhost:{}/api/agents/{}/settings", agent_port, agent_id);
+                    let settings_url = format!(
+                        "http://localhost:{}/api/agents/{}/settings",
+                        agent_port, agent_id
+                    );
                     let settings_response = client
                         .get(&settings_url)
                         .timeout(std::time::Duration::from_secs(5))
                         .send()
                         .await;
-                    
+
                     if let Ok(settings_resp) = settings_response {
                         let status = settings_resp.status();
-                        
+
                         // Handle rate limiting specifically
                         if status.as_u16() == 429 {
                             warn!("⚠️ Rate limit hit, using longer backoff...");
                             // Force a longer delay on next iteration
                             continue;
                         }
-                        
+
                         // Accept success (200) or service unavailable (503) which means route exists but runtime not ready
                         if status.is_success() || status.as_u16() == 503 {
                             if status.is_success() {
@@ -880,7 +964,7 @@ impl StartupManager {
                             } else {
                                 info!("✅ Game API plugin routes exist (runtime initializing)");
                             }
-                            
+
                             self.update_status(
                                 StartupStage::GameAPIReady,
                                 100,
@@ -888,22 +972,34 @@ impl StartupManager {
                                 "All systems operational - ready to play",
                             )
                             .await;
-                            
+
                             return Ok(true);
                         } else if status.as_u16() == 404 {
                             // Try to get the primary agent and use its endpoint
-                            info!("⚠️ Default endpoint not found, trying primary agent discovery...");
-                            
+                            info!(
+                                "⚠️ Default endpoint not found, trying primary agent discovery..."
+                            );
+
                             // Add delay to avoid rapid requests
                             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                            
-                            let primary_url = format!("http://localhost:{}/api/agents/primary", agent_port);
-                            if let Ok(primary_resp) = client.get(&primary_url).timeout(std::time::Duration::from_secs(2)).send().await {
+
+                            let primary_url =
+                                format!("http://localhost:{}/api/agents/primary", agent_port);
+                            if let Ok(primary_resp) = client
+                                .get(&primary_url)
+                                .timeout(std::time::Duration::from_secs(2))
+                                .send()
+                                .await
+                            {
                                 if primary_resp.status().is_success() {
-                                    if let Ok(primary_data) = primary_resp.json::<serde_json::Value>().await {
-                                        if let Some(true) = primary_data["data"]["available"].as_bool() {
+                                    if let Ok(primary_data) =
+                                        primary_resp.json::<serde_json::Value>().await
+                                    {
+                                        if let Some(true) =
+                                            primary_data["data"]["available"].as_bool()
+                                        {
                                             info!("✅ Primary agent discovered, Game API is ready");
-                                            
+
                                             self.update_status(
                                                 StartupStage::GameAPIReady,
                                                 100,
@@ -911,17 +1007,20 @@ impl StartupManager {
                                                 "All systems operational - ready to play",
                                             )
                                             .await;
-                                            
+
                                             return Ok(true);
                                         }
                                     }
                                 }
                             }
-                            
+
                             warn!("⚠️ Game API plugin routes not found (404) and primary agent not available");
                         } else {
-                            warn!("⚠️ Game API plugin routes not ready yet (status: {})", status);
-                            
+                            warn!(
+                                "⚠️ Game API plugin routes not ready yet (status: {})",
+                                status
+                            );
+
                             // Try to get error details
                             if let Ok(error_text) = settings_resp.text().await {
                                 warn!("⚠️ Error response: {}", error_text);
@@ -935,8 +1034,11 @@ impl StartupManager {
                 warn!("⚠️ Health check failed: {}", e);
             }
         }
-        
-        warn!("❌ Game API verification failed after {} attempts", max_attempts);
+
+        warn!(
+            "❌ Game API verification failed after {} attempts",
+            max_attempts
+        );
         Ok(false)
     }
 
@@ -960,12 +1062,12 @@ impl StartupManager {
 
         // Use the new robust container startup method with retry logic
         info!("🚀 Starting containers with dependency management and retry logic...");
-        
+
         // Start containers with proper error handling and retries
         match container_manager.start_containers_with_dependencies().await {
             Ok(()) => {
                 info!("✅ All containers started successfully");
-                
+
                 // Update status to indicate containers are ready
                 self.update_status(
                     StartupStage::ContainersReady,
@@ -1002,7 +1104,7 @@ impl StartupManager {
                     }
                     Ok(false) => {
                         error!("❌ Game API verification failed");
-                        
+
                         self.update_status(
                             StartupStage::Error,
                             0,
@@ -1011,11 +1113,13 @@ impl StartupManager {
                         )
                         .await;
 
-                        Err(BackendError::Container("Game API plugin verification failed".to_string()))
+                        Err(BackendError::Container(
+                            "Game API plugin verification failed".to_string(),
+                        ))
                     }
                     Err(e) => {
                         error!("❌ Error during Game API verification: {}", e);
-                        
+
                         self.update_status(
                             StartupStage::Error,
                             0,
@@ -1030,7 +1134,7 @@ impl StartupManager {
             }
             Err(e) => {
                 error!("❌ Failed to start containers: {}", e);
-                
+
                 self.update_status(
                     StartupStage::Error,
                     0,
@@ -1044,15 +1148,13 @@ impl StartupManager {
         }
     }
 
-
-
     async fn update_status(&self, stage: StartupStage, progress: u8, message: &str, details: &str) {
         let mut status = self.status.lock().unwrap();
         status.stage = stage.clone();
         status.progress = progress;
         status.message = message.to_string();
         status.details = details.to_string();
-        
+
         // Update game_api_ready based on stage
         status.game_api_ready = matches!(stage, StartupStage::GameAPIReady | StartupStage::Ready);
 
@@ -1064,8 +1166,6 @@ impl StartupManager {
             error!("Failed to emit startup status: {}", e);
         }
     }
-
-
 
     pub fn get_status(&self) -> StartupStatus {
         self.status.lock().unwrap().clone()
@@ -1080,14 +1180,20 @@ impl StartupManager {
     }
 
     /// Clean up any orphaned containers from previous runs
-    async fn cleanup_orphaned_containers(&mut self, resource_dir: &std::path::Path) -> BackendResult<()> {
+    async fn cleanup_orphaned_containers(
+        &mut self,
+        resource_dir: &std::path::Path,
+    ) -> BackendResult<()> {
         info!("🧹 Checking for orphaned containers from previous runs...");
 
         // First ensure we have a container manager
         if self.container_manager.is_none() {
             // Try to create a minimal container manager just for cleanup
-            match ContainerManager::new_with_runtime_manager(ContainerRuntimeType::Podman, resource_dir.to_path_buf())
-                .await
+            match ContainerManager::new_with_runtime_manager(
+                ContainerRuntimeType::Podman,
+                resource_dir.to_path_buf(),
+            )
+            .await
             {
                 Ok(mut manager) => {
                     manager.set_app_handle(self.app_handle.clone());
@@ -1111,33 +1217,33 @@ impl StartupManager {
         Ok(())
     }
 
-
-
     async fn ensure_podman_ready(&self) -> BackendResult<()> {
         use crate::container::retry::{retry_with_backoff, RetryConfig};
-        
+
         info!("🔍 Ensuring Podman is ready...");
 
         // First, check if Podman is already healthy with retries
-        let quick_check_result = retry_with_backoff(
-            "Podman health check",
-            RetryConfig::quick(),
-            || async {
+        let quick_check_result =
+            retry_with_backoff("Podman health check", RetryConfig::quick(), || async {
                 let output = tokio::process::Command::new("podman")
                     .args(["info", "--format", "{{.Host.Arch}}"])
                     .output()
                     .await
-                    .map_err(|e| BackendError::Container(format!("Failed to run podman info: {}", e)))?;
+                    .map_err(|e| {
+                        BackendError::Container(format!("Failed to run podman info: {}", e))
+                    })?;
 
                 if output.status.success() {
                     Ok(())
                 } else {
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    Err(BackendError::Container(format!("Podman not healthy: {}", stderr)))
+                    Err(BackendError::Container(format!(
+                        "Podman not healthy: {}",
+                        stderr
+                    )))
                 }
-            },
-        )
-        .await;
+            })
+            .await;
 
         if quick_check_result.is_ok() {
             info!("✅ Podman is already running and healthy");
@@ -1149,7 +1255,13 @@ impl StartupManager {
 
         // Check connection status
         let connection_check = tokio::process::Command::new("podman")
-            .args(["system", "connection", "list", "--format", "{{.Name}},{{.Default}}"])
+            .args([
+                "system",
+                "connection",
+                "list",
+                "--format",
+                "{{.Name}},{{.Default}}",
+            ])
             .output()
             .await
             .map_err(|e| BackendError::Container(format!("Failed to check connections: {}", e)))?;
@@ -1157,12 +1269,14 @@ impl StartupManager {
         if !connection_check.status.success() {
             // No connections available, try to initialize
             info!("📝 No Podman connections found, initializing machine...");
-            
+
             let init_result = tokio::process::Command::new("podman")
                 .args(["machine", "init"])
                 .output()
                 .await
-                .map_err(|e| BackendError::Container(format!("Failed to init Podman machine: {}", e)))?;
+                .map_err(|e| {
+                    BackendError::Container(format!("Failed to init Podman machine: {}", e))
+                })?;
 
             let stderr = String::from_utf8_lossy(&init_result.stderr);
             if !init_result.status.success() && !stderr.contains("already exists") {
@@ -1190,14 +1304,14 @@ impl StartupManager {
         // Check and configure memory before starting the machine
         info!("🧠 Checking system memory and Podman machine configuration...");
         let memory_config = MemoryConfig::calculate();
-        
+
         if !memory_config.has_sufficient_memory {
             return Err(BackendError::Container(format!(
                 "Insufficient system memory. System has {:.1} GB, but at least 7.5 GB is recommended for running llama3.2:3b model",
                 memory_config.total_system_memory_mb as f64 / 1024.0
             )));
         }
-        
+
         // Check if memory adjustment is needed
         if memory_config.needs_memory_adjustment().await? {
             info!("📊 Adjusting Podman machine memory allocation...");
@@ -1211,14 +1325,14 @@ impl StartupManager {
                 ),
             )
             .await;
-            
+
             // Apply the memory configuration
             memory_config.apply_to_podman_machine().await?;
         }
 
         if needs_start {
             info!("🚀 Starting Podman machine...");
-            
+
             // Try to stop first in case it's in a bad state
             let _ = tokio::process::Command::new("podman")
                 .args(["machine", "stop"])
@@ -1237,10 +1351,15 @@ impl StartupManager {
                         .args(["machine", "start"])
                         .output()
                         .await
-                        .map_err(|e| BackendError::Container(format!("Failed to run podman machine start: {}", e)))?;
+                        .map_err(|e| {
+                            BackendError::Container(format!(
+                                "Failed to run podman machine start: {}",
+                                e
+                            ))
+                        })?;
 
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    
+
                     // Check if it's already running (not an error)
                     if !output.status.success() && !stderr.contains("already running") {
                         Err(BackendError::Container(format!(
@@ -1255,7 +1374,7 @@ impl StartupManager {
             .await?;
 
             info!("✅ Podman machine started successfully");
-            
+
             // Wait for it to be fully ready
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
@@ -1269,7 +1388,10 @@ impl StartupManager {
 
         if let Ok(output) = reset_result {
             if !output.status.success() {
-                warn!("Failed to reset default connection: {}", String::from_utf8_lossy(&output.stderr));
+                warn!(
+                    "Failed to reset default connection: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
             }
         }
 
@@ -1282,7 +1404,9 @@ impl StartupManager {
                     .args(["info", "--format", "{{.Host.Arch}}"])
                     .output()
                     .await
-                    .map_err(|e| BackendError::Container(format!("Final health check failed: {}", e)))?;
+                    .map_err(|e| {
+                        BackendError::Container(format!("Final health check failed: {}", e))
+                    })?;
 
                 if !output.status.success() {
                     let error_str = String::from_utf8_lossy(&output.stderr);
@@ -1347,22 +1471,22 @@ impl StartupManager {
         }
 
         info!("🐳 Building Docker image...");
-        
+
         // First, ensure Podman machine is running before attempting build
         let machine_check = tokio::process::Command::new("podman")
             .args(["system", "connection", "list"])
             .output()
             .await;
-            
+
         if machine_check.is_err() || !machine_check.unwrap().status.success() {
             warn!("⚠️ Cannot connect to Podman, attempting to start machine...");
-            
+
             // Try to list machines
             let machine_list = tokio::process::Command::new("podman")
                 .args(["machine", "list", "--format", "json"])
                 .output()
                 .await;
-                
+
             if let Ok(list_output) = machine_list {
                 if list_output.status.success() {
                     // Try to start the default machine
@@ -1370,7 +1494,7 @@ impl StartupManager {
                         .args(["machine", "start"])
                         .output()
                         .await;
-                        
+
                     if let Ok(start_output) = start_result {
                         if start_output.status.success() {
                             info!("✅ Podman machine started successfully");
@@ -1383,7 +1507,7 @@ impl StartupManager {
                 }
             }
         }
-        
+
         let docker_output = tokio::process::Command::new("podman")
             .args([
                 "build",
@@ -1409,6 +1533,4 @@ impl StartupManager {
         info!("✅ eliza-agent:latest image built successfully");
         Ok(())
     }
-
 }
-

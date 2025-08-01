@@ -1,21 +1,5 @@
-import type { MemoryMetadata } from './memory';
+import { DocumentMetadata, Memory } from './memory';
 import type { Content, UUID } from './primitives';
-
-/**
- * Represents a single item of knowledge that can be processed and stored by the agent.
- * Knowledge items consist of content (text and optional structured data) and metadata.
- * These items are typically added to the agent's knowledge base via `AgentRuntime.addKnowledge`
- * and retrieved using `AgentRuntime.getKnowledge`.
- * The `id` is a unique identifier for the knowledge item, often derived from its source or content.
- */
-export type KnowledgeItem = {
-  /** A Universally Unique Identifier for this specific knowledge item. */
-  id: UUID;
-  /** The actual content of the knowledge item, which must include text and can have other fields. */
-  content: Content;
-  /** Optional metadata associated with this knowledge item, conforming to `MemoryMetadata`. */
-  metadata?: MemoryMetadata;
-};
 
 /**
  * Defines the scope or visibility of knowledge items within the agent's system.
@@ -62,4 +46,69 @@ export interface ChunkRow {
   /** The unique identifier for this chunk of text. */
   id: string;
   // Add other properties if needed
+}
+
+/**
+ * Extended knowledge item that includes additional properties commonly used
+ * in knowledge management systems like creation timestamps, embeddings, etc.
+ * This maintains compatibility with the base KnowledgeItem while adding
+ * commonly needed fields for storage and retrieval.
+ */
+export interface KnowledgeItem extends Memory {
+  /** A Universally Unique Identifier for this specific knowledge item. */
+  id: UUID;
+  /** The actual content of the knowledge item, which must include text and can have other fields. */
+  content: Content;
+  /** Optional metadata with extended document properties */
+  metadata?: DocumentMetadata;
+  /** Creation timestamp */
+  createdAt: number;
+  /** Associated agent ID */
+  agentId: UUID;
+  /** Associated entity ID */
+  entityId: UUID;
+  /** Associated room ID */
+  roomId: UUID;
+  /** Associated world ID */
+  worldId?: UUID;
+  /** Optional embedding vector for semantic search */
+  embedding?: number[];
+  /** Similarity score when retrieved via search */
+  similarity?: number;
+}
+
+/**
+ * Service interface for knowledge management operations.
+ * Provides methods for retrieving, storing, and searching knowledge items.
+ */
+export interface IKnowledgeService {
+  getMemories(params: {
+    tableName: string;
+    count: number;
+    agentId: UUID;
+  }): Promise<KnowledgeItem[]>;
+
+  deleteMemory?(memoryId: UUID): Promise<void>;
+
+  addKnowledge?(options: {
+    clientDocumentId: UUID;
+    content: string;
+    contentType: string;
+    originalFilename: string;
+    worldId: UUID;
+    roomId: UUID;
+    entityId: UUID;
+    agentId?: UUID;
+    metadata?: Record<string, unknown>;
+  }): Promise<{
+    clientDocumentId: UUID;
+    storedDocumentMemoryId: UUID;
+    fragmentCount: number;
+  }>;
+
+  searchKnowledge?(params: {
+    query: string;
+    agentId: UUID;
+    limit?: number;
+  }): Promise<KnowledgeItem[]>;
 }

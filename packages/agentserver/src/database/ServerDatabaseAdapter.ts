@@ -14,7 +14,7 @@ export interface MessageServer {
   name: string;
   sourceType: string;
   sourceId?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,7 +27,7 @@ export interface Channel {
   sourceType?: string;
   sourceId?: string;
   topic?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,10 +37,10 @@ export interface Message {
   channelId: string;
   authorId: string;
   content: string;
-  rawMessage?: any;
+  rawMessage?: unknown;
   sourceType?: string;
   sourceId?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   inReplyToRootMessageId?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -71,7 +71,7 @@ export class ServerDatabaseAdapter {
     name: string;
     sourceType: string;
     sourceId?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }): Promise<MessageServer> {
     const id = data.id || (crypto.randomUUID() as UUID);
     const now = new Date();
@@ -109,14 +109,14 @@ export class ServerDatabaseAdapter {
    */
   async getMessageServers(): Promise<MessageServer[]> {
     const results = await this.db.select().from(messageServerTable);
-    return results.map((r) => ({
+    return results.map((r: Record<string, unknown>) => ({
       id: r.id as UUID,
-      name: r.name,
-      sourceType: r.sourceType,
-      sourceId: r.sourceId || undefined,
-      metadata: r.metadata || undefined,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
+      name: r.name as string,
+      sourceType: r.sourceType as string,
+      sourceId: (r.sourceId as string) || undefined,
+      metadata: (r.metadata as Record<string, unknown>) || undefined,
+      createdAt: r.createdAt as Date,
+      updatedAt: r.updatedAt as Date,
     }));
   }
 
@@ -152,7 +152,7 @@ export class ServerDatabaseAdapter {
     type: string;
     sourceType?: string;
     sourceId?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }): Promise<Channel> {
     const now = new Date();
     const channelId = data.id || crypto.randomUUID();
@@ -204,16 +204,16 @@ export class ServerDatabaseAdapter {
       .select()
       .from(channelTable)
       .where(eq(channelTable.serverId, serverId));
-    return results.map((r) => ({
-      id: r.id,
-      serverId: r.serverId,
-      name: r.name,
-      type: r.type,
-      sourceType: r.sourceType || undefined,
-      sourceId: r.sourceId || undefined,
-      metadata: r.metadata || undefined,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
+    return results.map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      serverId: r.serverId as UUID,
+      name: r.name as string,
+      type: r.type as string,
+      sourceType: (r.sourceType as string) || undefined,
+      sourceId: (r.sourceId as string) || undefined,
+      metadata: (r.metadata as Record<string, unknown>) || undefined,
+      createdAt: r.createdAt as Date,
+      updatedAt: r.updatedAt as Date,
     }));
   }
 
@@ -232,7 +232,7 @@ export class ServerDatabaseAdapter {
       .select()
       .from(serverAgentsTable)
       .where(eq(serverAgentsTable.serverId, serverId));
-    return results.map((r) => r.agentId);
+    return results.map((r: Record<string, unknown>) => r.agentId as UUID);
   }
 
   /**
@@ -254,10 +254,10 @@ export class ServerDatabaseAdapter {
     channelId: string;
     authorId: string;
     content: string;
-    rawMessage?: any;
+    rawMessage?: unknown;
     sourceType?: string;
     sourceId?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
   }): Promise<Message> {
     const now = new Date();
     const messageId = data.id || crypto.randomUUID();
@@ -308,17 +308,17 @@ export class ServerDatabaseAdapter {
       .limit(limit)
       .offset(offset);
 
-    return results.map((r) => ({
-      id: r.id,
-      channelId: r.channelId,
-      authorId: r.authorId,
-      content: r.content,
-      rawMessage: r.rawMessage || undefined,
-      sourceType: r.sourceType || undefined,
-      sourceId: r.sourceId || undefined,
-      metadata: r.metadata || undefined,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
+    return results.map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      channelId: r.channelId as string,
+      authorId: r.authorId as string,
+      content: r.content as string,
+      rawMessage: (r.rawMessage as unknown) || undefined,
+      sourceType: (r.sourceType as string) || undefined,
+      sourceId: (r.sourceId as string) || undefined,
+      metadata: (r.metadata as Record<string, unknown>) || undefined,
+      createdAt: r.createdAt as Date,
+      updatedAt: r.updatedAt as Date,
     }));
   }
 
@@ -345,7 +345,7 @@ export class ServerDatabaseAdapter {
       .select()
       .from(channelParticipantsTable)
       .where(eq(channelParticipantsTable.channelId, channelId));
-    return results.map((r) => r.userId);
+    return results.map((r: Record<string, unknown>) => r.userId as UUID);
   }
 
   /**
@@ -422,9 +422,9 @@ export class ServerDatabaseAdapter {
    */
   async updateChannel(
     channelId: string,
-    updates: { name?: string; metadata?: any }
+    updates: { name?: string; metadata?: Record<string, unknown> }
   ): Promise<Channel> {
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
 

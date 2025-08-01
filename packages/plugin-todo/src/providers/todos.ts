@@ -7,7 +7,7 @@ import {
   type UUID,
   logger,
 } from '@elizaos/core';
-import { createTodoDataService } from '../services/todoDataService';
+import { createTodoDataService } from '../services/todoService';
 
 /**
  * The TodosProvider fetches and formats information about a user's tasks and points.

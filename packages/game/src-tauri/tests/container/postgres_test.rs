@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod postgres_container_tests {
     use app_lib::{ContainerManager, ContainerRuntimeType, POSTGRES_CONTAINER};
-    
 
     #[tokio::test]
     async fn test_postgres_container_config() {
@@ -20,14 +19,14 @@ mod postgres_container_tests {
         match result {
             Ok(status) => {
                 assert_eq!(status.name, POSTGRES_CONTAINER);
-                
+
                 // Ports may not be populated immediately after container start
                 if !status.ports.is_empty() {
                     assert_eq!(status.ports.len(), 1);
                     assert_eq!(status.ports[0].host_port, 5432);
                     assert_eq!(status.ports[0].container_port, 5432);
                 }
-                
+
                 println!("✅ PostgreSQL container configuration test passed");
 
                 // Clean up - stop the container

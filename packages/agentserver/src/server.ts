@@ -1,12 +1,20 @@
-import { type Character, type IAgentRuntime, logger, stringToUuid, type UUID } from '@elizaos/core';
+import {
+  type Character,
+  type IAgentRuntime,
+  logger,
+  stringToUuid,
+  type UUID,
+  type IDatabaseAdapter,
+} from '@elizaos/core';
 import cors from 'cors';
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import * as fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import path, { basename, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { WebSocket } from 'ws';
 
 import { randomUUID } from 'crypto';
 import { createApiRouter, createPluginRouteHandler } from './api/index';
@@ -18,41 +26,17 @@ import { jsonToCharacter, loadCharacterTryPath } from './loader';
 // CRITICAL: Ensure http module is available globally before importing ws
 // This fixes Bun bundling issues with the ws module
 const setupHttpForWs = () => {
-  const g = globalThis as any;
+  const g = globalThis as typeof globalThis & { http?: typeof http };
   g.http = http;
   if (typeof global !== 'undefined') {
-    (global as any).http = http;
+    (global as typeof global & { http?: typeof http }).http = http;
   }
 
-  // Also add STATUS_CODES directly to the global object
-  if (!g.http || !g.http.STATUS_CODES) {
-    // Define STATUS_CODES if missing
-    const STATUS_CODES = {
-      100: 'Continue',
-      101: 'Switching Protocols',
-      102: 'Processing',
-      200: 'OK',
-      201: 'Created',
-      202: 'Accepted',
-      204: 'No Content',
-      301: 'Moved Permanently',
-      302: 'Found',
-      304: 'Not Modified',
-      400: 'Bad Request',
-      401: 'Unauthorized',
-      403: 'Forbidden',
-      404: 'Not Found',
-      405: 'Method Not Allowed',
-      409: 'Conflict',
-      500: 'Internal Server Error',
-      501: 'Not Implemented',
-      502: 'Bad Gateway',
-      503: 'Service Unavailable',
-    };
+  // Ensure STATUS_CODES is available - this is needed for WebSocket compatibility
+  if (!g.http?.STATUS_CODES) {
+    // Just ensure the http module has what it needs without full replacement
     if (!g.http) {
-      g.http = { STATUS_CODES };
-    } else if (!g.http.STATUS_CODES) {
-      g.http.STATUS_CODES = STATUS_CODES;
+      g.http = http;
     }
   }
 
@@ -95,7 +79,6 @@ import type {
   MessageServiceStructure,
 } from './types';
 import { TodoPlugin } from '@elizaos/plugin-todo';
-// import { GoalsPlugin } from '@elizaos/plugin-goals';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -167,6 +150,31 @@ export type ServerMiddleware = (
   next: express.NextFunction
 ) => void;
 
+// Define a type for Express errors
+interface ExpressError extends Error {
+  status?: number;
+  statusCode?: number;
+  code?: string;
+}
+
+// Define WebSocket message data interface
+interface WebSocketMessageData {
+  channelId: string;
+  agentId: string;
+  content: string;
+  author: string;
+  metadata: Record<string, unknown>;
+}
+
+// Define log entry interface
+interface LogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+  agentName?: string;
+  [key: string]: unknown;
+}
+
 /**
  * Class representing an agent server.
  */ /**
@@ -174,15 +182,15 @@ export type ServerMiddleware = (
  */
 export class AgentServer {
   public app!: express.Application;
-  private agents: Map<UUID, IAgentRuntime>;
+  public agents: Map<UUID, IAgentRuntime>;
   public server!: http.Server;
   public webSocketServer!: WebSocketServer; // Native WebSocket server
   private logStreamConnections: Map<string, { agentName?: string; level?: string }> = new Map();
   public isInitialized: boolean = false; // Flag to prevent double initialization
 
-  public database!: any; // This will be the agent database adapter (for compatibility)
+  public database!: IDatabaseAdapter; // This will be the agent database adapter (for compatibility)
   public serverDatabase!: ServerDatabaseAdapter; // Server-specific database adapter
-  private db!: any; // Raw database connection
+  private db!: unknown; // Raw database connection
 
   public startAgent!: (character: Character) => Promise<IAgentRuntime>;
   public stopAgent!: (runtime: IAgentRuntime) => void;
@@ -217,7 +225,7 @@ export class AgentServer {
    * @param {ServerOptions} [options] - Optional server options.
    * @returns {Promise<void>} A promise that resolves when initialization is complete.
    */
-  public async initialize(postgresUrl): Promise<void> {
+  public async initialize(postgresUrl: string): Promise<void> {
     if (this.isInitialized) {
       logger.warn('AgentServer is already initialized, skipping initialization');
       return;
@@ -235,11 +243,14 @@ export class AgentServer {
       );
       await tempAdapter.init();
 
-      // Get the raw database connection
-      this.db = (tempAdapter as any).getDatabase();
+      // Get the raw database connection (BaseDrizzleAdapter has getDatabase method)
+      interface BaseDrizzleAdapter {
+        getDatabase(): any;
+      }
+      this.db = (tempAdapter as unknown as BaseDrizzleAdapter).getDatabase();
 
       // Create the server-specific database adapter
-      this.serverDatabase = new ServerDatabaseAdapter(this.db);
+      this.serverDatabase = new ServerDatabaseAdapter(this.db as any);
 
       // Keep the agent database adapter for backward compatibility
       this.database = tempAdapter;
@@ -249,7 +260,7 @@ export class AgentServer {
       // Run server-specific migrations first
       logger.info('[INIT] Running server-specific database migrations...');
       try {
-        const serverMigrationService = new ServerMigrationService(this.db);
+        const serverMigrationService = new ServerMigrationService(this.db as any);
         await serverMigrationService.runMigrations();
         logger.success('[INIT] Server migrations completed successfully');
       } catch (migrationError) {
@@ -262,10 +273,10 @@ export class AgentServer {
       // Then run plugin migrations for core ElizaOS tables
       logger.info('[INIT] Running plugin migrations for core tables...');
       const migrationService = new DatabaseMigrationService();
-      await migrationService.initializeWithDatabase(this.db);
+      await migrationService.initializeWithDatabase(this.db as any);
 
       // Register all plugin schemas: SQL (core tables), Todo, and Goals
-      const pluginsToMigrate = [sqlPlugin, TodoPlugin/*, GoalsPlugin*/];
+      const pluginsToMigrate = [sqlPlugin, TodoPlugin /*, GoalsPlugin*/];
       logger.info(`[INIT] Registering schemas for ${pluginsToMigrate.length} plugins...`);
       migrationService.discoverAndRegisterPluginSchemas(pluginsToMigrate);
 
@@ -280,7 +291,7 @@ export class AgentServer {
       try {
         const criticalTables = ['agents', 'entities', 'rooms', 'participants', 'memories', 'cache'];
         for (const tableName of criticalTables) {
-          const result = await this.db.execute(
+          const result = await (this.db as any).execute(
             sql`SELECT EXISTS (
                 SELECT FROM information_schema.tables 
                 WHERE table_schema = 'public'
@@ -296,7 +307,9 @@ export class AgentServer {
         logger.success('[INIT] All critical tables verified');
       } catch (verifyError) {
         logger.error('[INIT] Table verification failed:', verifyError);
-        throw new Error(`Database table verification failed: ${verifyError.message}`);
+        const errorMessage =
+          verifyError instanceof Error ? verifyError.message : String(verifyError);
+        throw new Error(`Database table verification failed: ${errorMessage}`);
       }
 
       // Add a small delay to ensure database is fully ready
@@ -324,11 +337,13 @@ export class AgentServer {
     logger.debug(`[AgentServer] Found ${servers.length} existing servers`);
 
     // Log all existing servers for debugging
-    servers.forEach((s: any) => {
+    servers.forEach((s: MessageServer) => {
       logger.debug(`[AgentServer] Existing server: ID=${s.id}, Name=${s.name}`);
     });
 
-    const defaultServer = servers.find((s: any) => s.id === '00000000-0000-0000-0000-000000000000');
+    const defaultServer = servers.find(
+      (s: MessageServer) => s.id === '00000000-0000-0000-0000-000000000000'
+    );
 
     if (!defaultServer) {
       logger.info(
@@ -654,7 +669,7 @@ export class AgentServer {
         next();
       },
       apiRouter,
-      (err: any, req: Request, res: Response, _next: express.NextFunction) => {
+      (err: ExpressError, req: Request, res: Response, _next: NextFunction) => {
         logger.error(`API error: ${req.method} ${req.path}`, err);
         res.status(500).json({
           success: false,
@@ -668,9 +683,9 @@ export class AgentServer {
 
     // Store server instance for plugins to access
     this.app.locals.agentServer = this;
-    
+
     // Also store as global for plugins that need WebSocket broadcasting
-    (global as any).elizaAgentServer = this;
+    (global as typeof global & { elizaAgentServer?: any }).elizaAgentServer = this;
 
     // Serve the simple messaging UI
     this.app.get('/messaging', (req, res) => {
@@ -716,7 +731,7 @@ export class AgentServer {
     });
 
     // Return 403 Forbidden for non-API routes when UI is disabled
-    (this.app as any).use((_req: express.Request, res: express.Response) => {
+    this.app.use((_req: express.Request, res: express.Response) => {
       res.sendStatus(403); // Standard HTTP 403 Forbidden
     });
 
@@ -739,22 +754,25 @@ export class AgentServer {
    * Sets up listener for agent responses from internal message bus
    */
   private setupMessageBusListener(): void {
-    internalMessageBus.on('agent_response', (response: any) => {
+    internalMessageBus.on('agent_response', (response: unknown) => {
       logger.info('[AgentServer] Received agent response from message bus:', response);
 
+      // Cast to access properties (response structure is dynamic)
+      const agentResponse = response as Record<string, unknown>;
+
       // Broadcast to WebSocket clients in the channel
-      if (response.channel_id) {
+      if (agentResponse.channel_id) {
         this.broadcastToWebSocketClients(
           {
             type: 'agent_message',
-            id: response.id || randomUUID(),
-            content: response.content,
-            author: response.agentName || 'ELIZA',
-            channel_id: response.channel_id,
-            timestamp: response.timestamp || Date.now(),
-            metadata: response.metadata,
+            id: agentResponse.id || randomUUID(),
+            content: agentResponse.content,
+            author: agentResponse.agentName || 'ELIZA',
+            channel_id: agentResponse.channel_id,
+            timestamp: agentResponse.timestamp || Date.now(),
+            metadata: agentResponse.metadata,
           },
-          response.channel_id
+          agentResponse.channel_id as string
         );
       }
     });
@@ -870,17 +888,24 @@ export class AgentServer {
               // Notify vision service
               const visionService =
                 streamRuntime.getService('vision') || streamRuntime.getService('VISION');
+              interface VisionServiceMethods {
+                processMediaStream?: (data: any) => Promise<void>;
+              }
               if (
                 visionService &&
-                typeof (visionService as any).processMediaStream === 'function'
+                typeof (visionService as VisionServiceMethods).processMediaStream === 'function'
               ) {
-                await (visionService as any).processMediaStream({
-                  type: media_type,
-                  streamType: stream_type,
-                  data: mediaData,
-                  encoding,
-                  timestamp: Date.now(),
-                });
+                const processMediaStream = (visionService as VisionServiceMethods)
+                  .processMediaStream;
+                if (processMediaStream) {
+                  await processMediaStream({
+                    type: media_type,
+                    streamType: stream_type,
+                    data: mediaData,
+                    encoding,
+                    timestamp: Date.now(),
+                  });
+                }
               }
 
               // Send acknowledgment
@@ -1004,14 +1029,8 @@ export class AgentServer {
    * Process WebSocket messages and route them to agents
    */
   private async processWebSocketMessage(
-    messageData: {
-      channelId: string;
-      agentId: string;
-      content: string;
-      author: string;
-      metadata: any;
-    },
-    ws: any
+    messageData: WebSocketMessageData,
+    ws: WebSocket
   ): Promise<void> {
     try {
       const { channelId, agentId, content, author, metadata } = messageData;
@@ -1058,7 +1077,10 @@ export class AgentServer {
         channel = await this.createChannel({
           id: channelUuid,
           serverId,
-          name: metadata?.channel_name || `Game Channel ${channelId.substring(0, 8)}`,
+          name:
+            typeof metadata?.channel_name === 'string'
+              ? metadata.channel_name
+              : `Game Channel ${channelId.substring(0, 8)}`,
           type: ChannelType.GROUP,
           sourceType: 'websocket_client',
           metadata: {
@@ -1140,7 +1162,7 @@ export class AgentServer {
    * Broadcast messages to WebSocket clients
    */
   public broadcastToWebSocketClients(
-    message: any,
+    message: Record<string, unknown>,
     _channelId?: string,
     _excludeClientId?: string
   ): void {
@@ -1211,7 +1233,7 @@ export class AgentServer {
   /**
    * Broadcast log entries to subscribed WebSocket clients
    */
-  private broadcastLogToSubscribers(logEntry: any): void {
+  private broadcastLogToSubscribers(logEntry: LogEntry): void {
     if (this.logStreamConnections.size === 0) {
       return;
     }
@@ -1421,19 +1443,20 @@ export class AgentServer {
             // Resolve the promise now that the server is actually listening
             resolve();
           })
-          .on('error', (error: any) => {
+          .on('error', (error: Error) => {
             logger.error(`Failed to bind server to ${host}:${port}:`, error);
 
             // Provide helpful error messages for common issues
-            if (error.code === 'EADDRINUSE') {
+            const nodeError = error as NodeJS.ErrnoException;
+            if (nodeError.code === 'EADDRINUSE') {
               logger.error(
                 `Port ${port} is already in use. Please try a different port or stop the process using that port.`
               );
-            } else if (error.code === 'EACCES') {
+            } else if (nodeError.code === 'EACCES') {
               logger.error(
                 `Permission denied to bind to port ${port}. Try using a port above 1024 or running with appropriate permissions.`
               );
-            } else if (error.code === 'EADDRNOTAVAIL') {
+            } else if (nodeError.code === 'EADDRNOTAVAIL') {
               logger.error(
                 `Cannot bind to ${host}:${port} - address not available. Check if the host address is correct.`
               );
@@ -1545,7 +1568,11 @@ export class AgentServer {
 
   async updateChannel(
     channelId: UUID,
-    updates: { name?: string; participantCentralUserIds?: UUID[]; metadata?: any }
+    updates: {
+      name?: string;
+      participantCentralUserIds?: UUID[];
+      metadata?: Record<string, unknown>;
+    }
   ): Promise<MessageChannel> {
     const channel = await this.serverDatabase.updateChannel(channelId, updates);
     return {
@@ -1604,10 +1631,11 @@ export class AgentServer {
         channel_id: centralMessage.channelId,
         server_id: channel.serverId,
         author_id: centralMessage.authorId,
-        author_display_name:
+        author_display_name: String(
           centralMessage.metadata?.user_display_name ||
-          centralMessage.metadata?.authorName ||
-          'User',
+            centralMessage.metadata?.authorName ||
+            'User'
+        ),
         content: centralMessage.content,
         raw_message: centralMessage.rawMessage,
         source_id: centralMessage.sourceId,
@@ -1716,11 +1744,11 @@ export class AgentServer {
   async getServersForAgent(agentId: UUID): Promise<UUID[]> {
     // This method isn't directly supported in the adapter, so we need to implement it differently
     const servers = await this.serverDatabase.getMessageServers();
-    const serverIds = [];
+    const serverIds: UUID[] = [];
     for (const server of servers) {
       const agents = await this.serverDatabase.getAgentsForServer(server.id);
       if (agents.includes(agentId)) {
-        serverIds.push(server.id as never);
+        serverIds.push(server.id);
       }
     }
     return serverIds;

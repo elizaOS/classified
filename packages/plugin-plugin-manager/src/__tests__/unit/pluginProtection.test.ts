@@ -47,14 +47,14 @@ describe('Plugin Protection Mechanism', () => {
       registerEvent: vi.fn(),
       getService: vi.fn(),
     } as any;
-    
+
     pluginManager = await PluginManagerService.start(runtime);
   });
 
   describe('Protected Plugin List', () => {
     it('should have all core plugins in protected list', () => {
       const protectedPlugins = pluginManager.getProtectedPlugins();
-      
+
       expect(protectedPlugins).toContain('plugin-manager');
       expect(protectedPlugins).toContain('@elizaos/plugin-sql');
       expect(protectedPlugins).toContain('bootstrap');
@@ -77,7 +77,7 @@ describe('Plugin Protection Mechanism', () => {
 
     it('should return false for original plugins', () => {
       const originalPlugins = pluginManager.getOriginalPlugins();
-      
+
       for (const pluginName of originalPlugins) {
         expect(pluginManager.canUnloadPlugin(pluginName)).toBe(false);
       }
@@ -88,7 +88,7 @@ describe('Plugin Protection Mechanism', () => {
       const testPlugin = mockPlugin('test-dynamic-plugin');
       const pluginId = await pluginManager.registerPlugin(testPlugin);
       await pluginManager.loadPlugin({ pluginId });
-      
+
       expect(pluginManager.canUnloadPlugin('test-dynamic-plugin')).toBe(true);
     });
   });
@@ -109,7 +109,7 @@ describe('Plugin Protection Mechanism', () => {
     it('should return null for unprotected plugins', async () => {
       const testPlugin = mockPlugin('unprotected-plugin');
       const pluginId = await pluginManager.registerPlugin(testPlugin);
-      
+
       const reason = pluginManager.getProtectionReason('unprotected-plugin');
       expect(reason).toBeNull();
     });
@@ -119,35 +119,33 @@ describe('Plugin Protection Mechanism', () => {
     it('should throw error when trying to register plugin with protected name', async () => {
       // Try to register a plugin with a name that's in PROTECTED_PLUGINS but not in originalPlugins
       const protectedPlugin = mockPlugin('plugin-manager');
-      
-      await expect(
-        pluginManager.registerPlugin(protectedPlugin)
-      ).rejects.toThrow('Cannot register protected plugin');
+
+      await expect(pluginManager.registerPlugin(protectedPlugin)).rejects.toThrow(
+        'Cannot register protected plugin'
+      );
     });
 
     it('should throw error when trying to register duplicate of original plugin', async () => {
       const duplicatePlugin = mockPlugin('@elizaos/plugin-sql');
-      
+
       // Since @elizaos/plugin-sql is already registered during initialization,
       // it should throw "already registered" error
-      await expect(
-        pluginManager.registerPlugin(duplicatePlugin)
-      ).rejects.toThrow('already registered');
+      await expect(pluginManager.registerPlugin(duplicatePlugin)).rejects.toThrow(
+        'already registered'
+      );
     });
-
-
   });
 
   describe('Plugin Unloading Protection', () => {
     it('should throw error when trying to unload protected plugin', async () => {
       // Get a protected plugin's ID
       const plugins = pluginManager.getAllPlugins();
-      const sqlPlugin = plugins.find(p => p.name === '@elizaos/plugin-sql');
-      
+      const sqlPlugin = plugins.find((p) => p.name === '@elizaos/plugin-sql');
+
       if (sqlPlugin) {
-        await expect(
-          pluginManager.unloadPlugin({ pluginId: sqlPlugin.id })
-        ).rejects.toThrow('Cannot unload original plugin');
+        await expect(pluginManager.unloadPlugin({ pluginId: sqlPlugin.id })).rejects.toThrow(
+          'Cannot unload original plugin'
+        );
       }
     });
 
@@ -156,12 +154,10 @@ describe('Plugin Protection Mechanism', () => {
       const testPlugin = mockPlugin('test-unloadable');
       const pluginId = await pluginManager.registerPlugin(testPlugin);
       await pluginManager.loadPlugin({ pluginId });
-      
+
       // Should be able to unload it
-      await expect(
-        pluginManager.unloadPlugin({ pluginId })
-      ).resolves.not.toThrow();
-      
+      await expect(pluginManager.unloadPlugin({ pluginId })).resolves.not.toThrow();
+
       // Verify it's unloaded
       const pluginState = pluginManager.getPlugin(pluginId);
       expect(pluginState?.status).toBe('unloaded');
@@ -171,8 +167,8 @@ describe('Plugin Protection Mechanism', () => {
   describe('Force Loading Protection', () => {
     it('should throw error when trying to force load protected plugin', async () => {
       const plugins = pluginManager.getAllPlugins();
-      const protectedPlugin = plugins.find(p => p.name === 'bootstrap');
-      
+      const protectedPlugin = plugins.find((p) => p.name === 'bootstrap');
+
       if (protectedPlugin) {
         await expect(
           pluginManager.loadPlugin({ pluginId: protectedPlugin.id, force: true })
@@ -190,10 +186,10 @@ describe('Plugin Protection Mechanism', () => {
 
     it('should detect protection for plugins registered without prefix', async () => {
       const testPlugin = mockPlugin('plugin-personality');
-      
-      await expect(
-        pluginManager.registerPlugin(testPlugin)
-      ).rejects.toThrow('Cannot register protected plugin');
+
+      await expect(pluginManager.registerPlugin(testPlugin)).rejects.toThrow(
+        'Cannot register protected plugin'
+      );
     });
   });
 });

@@ -14,7 +14,7 @@ import { todosProvider } from './providers/todos';
 
 // Import services
 import { TodoReminderService } from './services/reminderService';
-import { TodoDataService } from './services/todoDataService';
+import { TodoService } from './services/todoService';
 
 // Import schema
 import { todoSchemaExport } from './schema';
@@ -42,7 +42,7 @@ export const TodoPlugin: Plugin = {
     updateTodoAction,
     cancelTodoAction,
   ],
-  services: [TodoDataService, TodoReminderService],
+  services: [TodoService, TodoReminderService],
   routes,
   schema: todoSchemaExport,
   tests: e2eTestSuites,
@@ -52,3 +52,7 @@ export const TodoPlugin: Plugin = {
 };
 
 export default TodoPlugin;
+
+// Export services for external use
+export { TodoService } from './services/todoService';
+export { TodoReminderService } from './services/reminderService';

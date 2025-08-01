@@ -100,25 +100,25 @@ impl Default for RestoreOptions {
 pub enum BackupError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("Container error: {0}")]
     Container(String),
-    
+
     #[error("Database backup failed: {0}")]
     DatabaseBackup(String),
-    
+
     #[error("Agent state backup failed: {0}")]
     AgentStateBackup(String),
-    
+
     #[error("Restore failed: {0}")]
     RestoreFailed(String),
-    
+
     #[error("Invalid backup: {0}")]
     InvalidBackup(String),
-    
+
     #[error("Backup not found: {0}")]
     NotFound(String),
-    
+
     #[error("Configuration error: {0}")]
     Config(String),
 }

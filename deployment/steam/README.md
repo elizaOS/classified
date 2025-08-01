@@ -5,14 +5,17 @@ This directory contains all Steam-specific deployment files and scripts.
 ## Setup Instructions
 
 1. **Get your Steam App ID**:
+
    - Register at https://partner.steamgames.com
    - Create a new app and note your App ID
 
 2. **Download Steamworks SDK**:
+
    - Download from https://partner.steamgames.com/downloads/
    - Extract to `steam/sdk/`
 
 3. **Configure Environment**:
+
    ```bash
    export STEAM_USERNAME="your_username"
    export STEAM_PASSWORD="your_password"

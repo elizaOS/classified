@@ -1,8 +1,8 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
-import { createGoalAction } from '../actions/createGoal';
+import type { HandlerCallback, IAgentRuntime, Memory, State } from '@elizaos/core';
+import { asUUID } from '@elizaos/core';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { completeGoalAction } from '../actions/completeGoal';
-import { createMockRuntime } from './test-utils';
-import type { IAgentRuntime, Memory, State, HandlerCallback } from '@elizaos/core';
+import { createGoalAction } from '../actions/createGoal';
 
 describe('Goal Action Handlers', () => {
   let mockRuntime: IAgentRuntime;
@@ -13,34 +13,42 @@ describe('Goal Action Handlers', () => {
   beforeEach(() => {
     mock.restore();
 
-    mockRuntime = createMockRuntime() as unknown as IAgentRuntime;
+    // Create mock runtime manually
+    mockRuntime = {
+      agentId: asUUID('12345678-1234-1234-1234-123456789012'),
+      character: {
+        id: asUUID('12345678-1234-1234-1234-123456789012'),
+        name: 'TestAgent',
+      },
+      useModel: mock(),
+      composeState: mock().mockResolvedValue({
+        data: { messages: [], entities: [] },
+        values: {},
+        text: '',
+      }),
+      getService: mock().mockReturnValue(null),
+      getSetting: mock().mockReturnValue(undefined),
+    } as unknown as IAgentRuntime;
 
-    // Override specific methods for testing
-    mockRuntime.useModel = mock();
-    mockRuntime.composeState = mock().mockResolvedValue({
-      data: { messages: [], entities: [] },
-      values: {},
-      text: '',
-    });
-    (mockRuntime as any).db = null; // No database in unit tests
-
+    // Create mock memory manually
     mockMessage = {
-      id: 'test-message-id' as any,
-      entityId: 'test-entity-id' as any,
-      agentId: 'test-agent-id' as any,
-      roomId: 'test-room-id' as any,
+      id: asUUID('12345678-1234-1234-1234-123456789013'),
+      entityId: asUUID('12345678-1234-1234-1234-123456789014'),
+      roomId: asUUID('12345678-1234-1234-1234-123456789015'),
+      agentId: asUUID('12345678-1234-1234-1234-123456789012'),
       content: {
         text: 'test message',
         source: 'test',
       },
       createdAt: Date.now(),
-    };
+    } as Memory;
 
+    // Create mock state manually
     mockState = {
       data: { messages: [], entities: [] },
       values: {},
       text: '',
-    };
+    } as State;
 
     mockCallback = mock().mockResolvedValue([]);
   });
@@ -76,9 +84,13 @@ describe('Goal Action Handlers', () => {
       expect(result).toBeDefined();
       expect(typeof result).not.toBe('boolean');
 
-      const actionResult = result as any;
-      expect(actionResult.values.success).toBe(false);
-      expect(actionResult.values.error).toBe('Goal tracking is not available at the moment.');
+      // Type-safe result checking
+      if (result && typeof result === 'object' && 'values' in result && result.values) {
+        expect(result.values.success).toBe(false);
+        expect(result.values.error).toBe('Goal tracking is not available at the moment.');
+      } else {
+        throw new Error('Expected result to have values property');
+      }
     });
   });
 
@@ -95,8 +107,6 @@ describe('Goal Action Handlers', () => {
       const result = await completeGoalAction.validate(mockRuntime, mockMessage);
       expect(result).toBe(false);
 
-      // With database mock
-      mockRuntime.db = {} as any;
       const resultWithDb = await completeGoalAction.validate(mockRuntime, mockMessage);
       expect(resultWithDb).toBe(false); // Still false because no goal data service
     });

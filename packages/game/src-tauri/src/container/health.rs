@@ -162,18 +162,25 @@ async fn perform_health_check(
         Ok(Err(e)) => {
             // Check if it's a transient error
             let error_string = e.to_string();
-            if error_string.contains("No such container") || error_string.contains("is not running") {
+            if error_string.contains("No such container") || error_string.contains("is not running")
+            {
                 // Container is not running, this is expected during shutdown
                 debug!("Container {} is not running: {}", container_name, e);
             } else {
-                warn!("Health check execution failed for {}: {}", container_name, e);
+                warn!(
+                    "Health check execution failed for {}: {}",
+                    container_name, e
+                );
             }
             Err(BackendError::Container(format!(
                 "Health check execution failed: {e}"
             )))
         }
         Err(_) => {
-            debug!("Health check timed out for {} after {:?}", container_name, timeout);
+            debug!(
+                "Health check timed out for {} after {:?}",
+                container_name, timeout
+            );
             Err(BackendError::Container(
                 "Health check timed out".to_string(),
             ))

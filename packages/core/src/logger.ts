@@ -176,7 +176,7 @@ class ElizaLogger {
     if (this.isLevelEnabled('fatal')) {
       const formattedArgs = this.formatArgs(args);
       captureLogEntry('fatal', formattedArgs);
-      adze.error(formattedArgs[0], ...(formattedArgs.slice(1) as any[])); // Use error level for fatal
+      adze.error(formattedArgs[0], ...formattedArgs.slice(1)); // Use error level for fatal
     }
   }
 
@@ -184,7 +184,7 @@ class ElizaLogger {
     if (this.isLevelEnabled('error')) {
       const formattedArgs = this.formatArgs(args);
       captureLogEntry('error', formattedArgs);
-      adze.error(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
+      adze.error(formattedArgs[0], ...formattedArgs.slice(1));
     }
   }
 
@@ -192,7 +192,7 @@ class ElizaLogger {
     if (this.isLevelEnabled('warn')) {
       const formattedArgs = this.formatArgs(args);
       captureLogEntry('warn', formattedArgs);
-      adze.warn(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
+      adze.warn(formattedArgs[0], ...formattedArgs.slice(1));
     }
   }
 
@@ -200,7 +200,7 @@ class ElizaLogger {
     if (this.isLevelEnabled('info')) {
       const formattedArgs = this.formatArgs(args);
       captureLogEntry('info', formattedArgs);
-      adze.info(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
+      adze.info(formattedArgs[0], ...formattedArgs.slice(1));
     }
   }
 
@@ -208,7 +208,7 @@ class ElizaLogger {
     if (this.isLevelEnabled('debug')) {
       const formattedArgs = this.formatArgs(args);
       captureLogEntry('debug', formattedArgs);
-      adze.debug(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
+      adze.debug(formattedArgs[0], ...formattedArgs.slice(1));
     }
   }
 
@@ -216,7 +216,7 @@ class ElizaLogger {
     if (this.isLevelEnabled('trace')) {
       const formattedArgs = this.formatArgs(args);
       captureLogEntry('trace', formattedArgs);
-      adze.verbose(formattedArgs[0], ...(formattedArgs.slice(1) as any[])); // Use verbose for trace
+      adze.verbose(formattedArgs[0], ...formattedArgs.slice(1)); // Use verbose for trace
     }
   }
 
@@ -224,7 +224,7 @@ class ElizaLogger {
     if (this.isLevelEnabled('verbose')) {
       const formattedArgs = this.formatArgs(args);
       captureLogEntry('verbose', formattedArgs);
-      adze.verbose(formattedArgs[0], ...(formattedArgs.slice(1) as any[]));
+      adze.verbose(formattedArgs[0], ...formattedArgs.slice(1));
     }
   }
 
@@ -256,8 +256,10 @@ class ElizaLogger {
 
   // Check if level is enabled
   private isLevelEnabled(level: string): boolean {
+    const isDebugMode = (process?.env?.LOG_LEVEL || '').toLowerCase() === 'debug';
+    const effectiveLevel = isDebugMode ? 'debug' : process?.env?.DEFAULT_LOG_LEVEL || 'info';
     const currentLevel =
-      customLevels[effectiveLogLevel as keyof typeof customLevels] || customLevels.info;
+      customLevels[effectiveLevel as keyof typeof customLevels] || customLevels.info;
     const requestedLevel = customLevels[level as keyof typeof customLevels];
     return requestedLevel >= currentLevel;
   }
@@ -277,7 +279,8 @@ class ElizaLogger {
 
   // Pino compatibility properties
   get level() {
-    return effectiveLogLevel;
+    const isDebugMode = (process?.env?.LOG_LEVEL || '').toLowerCase() === 'debug';
+    return isDebugMode ? 'debug' : process?.env?.DEFAULT_LOG_LEVEL || 'info';
   }
 
   set level(newLevel: string) {

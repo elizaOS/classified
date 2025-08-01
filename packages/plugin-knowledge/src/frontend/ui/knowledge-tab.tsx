@@ -119,7 +119,7 @@ const DialogFooter = ({
 
 const ITEMS_PER_PAGE = 10;
 
-interface KnowledgeDocumentMetadata extends DocumentMetadata {
+interface DocumentMetadata extends DocumentMetadata {
   title?: string;
   filename?: string;
   originalFilename?: string;
@@ -500,7 +500,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
 
     return memories.filter((memory) => {
       if (isDocumentMemory(memory)) {
-        const metadata = memory.metadata as KnowledgeDocumentMetadata;
+        const metadata = memory.metadata as DocumentMetadata;
         const filename = metadata.filename || metadata.originalFilename || metadata.path || '';
         return filename.toLowerCase().includes(filenameFilter.toLowerCase());
       }
@@ -974,7 +974,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
     if (!isDocumentMemory(memory)) {
       return null;
     }
-    const metadata = memory.metadata as KnowledgeDocumentMetadata;
+    const metadata = memory.metadata as DocumentMetadata;
 
     // Try to get a meaningful name from various metadata fields
     const getDocumentName = () => {
@@ -1082,8 +1082,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
               )}
               <span className="text-muted-foreground ml-2">
                 {isDocumentMemory(memory)
-                  ? (memory.metadata as KnowledgeDocumentMetadata)?.title ||
-                    memory.id?.substring(0, 8)
+                  ? (memory.metadata as DocumentMetadata)?.title || memory.id?.substring(0, 8)
                   : memory.id?.substring(0, 8)}
               </span>
             </h3>
@@ -1495,16 +1494,15 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
               <div className="flex items-center justify-between">
                 <div>
                   <DialogTitle className="text-xl">
-                    {(viewingContent.metadata as KnowledgeDocumentMetadata)?.title ||
-                      'Document Content'}
+                    {(viewingContent.metadata as DocumentMetadata)?.title || 'Document Content'}
                   </DialogTitle>
                   <DialogDescription>
-                    {(viewingContent.metadata as KnowledgeDocumentMetadata)?.filename ||
+                    {(viewingContent.metadata as DocumentMetadata)?.filename ||
                       'Knowledge document'}
                   </DialogDescription>
                 </div>
                 {(() => {
-                  const metadata = viewingContent.metadata as KnowledgeDocumentMetadata;
+                  const metadata = viewingContent.metadata as DocumentMetadata;
                   const contentType = metadata?.contentType || '';
                   const fileExt = metadata?.fileExt?.toLowerCase() || '';
                   const isPdf = contentType === 'application/pdf' || fileExt === 'pdf';
@@ -1544,7 +1542,7 @@ export function KnowledgeTab({ agentId }: { agentId: UUID }) {
             <div className="flex-1 overflow-auto px-6 pb-2">
               {(() => {
                 if (isDocumentMemory(viewingContent)) {
-                  const metadata = viewingContent.metadata as KnowledgeDocumentMetadata;
+                  const metadata = viewingContent.metadata as DocumentMetadata;
                   const contentType = metadata?.contentType || '';
                   const fileExt = metadata?.fileExt?.toLowerCase() || '';
                   const isPdf = contentType === 'application/pdf' || fileExt === 'pdf';

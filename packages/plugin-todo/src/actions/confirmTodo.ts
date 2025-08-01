@@ -14,7 +14,7 @@ import {
   formatMessages,
 } from '@elizaos/core';
 import type { TodoMetadata } from '../types';
-import type { TodoDataService } from '../services/todoDataService';
+import type { TodoService } from '../services/todoService';
 
 // Interface for confirmation data stored in state
 interface PendingTodoData {
@@ -272,7 +272,7 @@ export const confirmTodoAction: Action = {
       }
 
       // User confirmed - create the task
-      const dataService = runtime.getService('todo') as TodoDataService;
+      const dataService = runtime.getService('todo') as TodoService;
       if (!dataService) {
         logger.error('[confirmTodo] Todo service not available');
         await callback?.(

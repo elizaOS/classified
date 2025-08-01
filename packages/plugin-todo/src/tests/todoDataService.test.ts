@@ -3,7 +3,7 @@ import type { IAgentRuntime, UUID } from '@elizaos/core';
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { createMockRuntime } from './test-utils';
 import { todosTable, todoTagsTable } from '../schema.ts';
-import { createTodoDataService, TodoDataManager } from '../services/todoDataService.ts';
+import { createTodoDataService, TodoDataManager } from '../services/todoService.ts';
 
 // Mock type definitions
 interface MockThenable {
@@ -32,7 +32,7 @@ interface MockDb {
 type ResolveFn<T = unknown> = (value: T) => void;
 type RejectFn = (error: Error) => void;
 
-describe('TodoDataService', () => {
+describe('TodoService', () => {
   let mockRuntime: IAgentRuntime;
   let service: TodoDataManager;
   let mockDb: MockDb;

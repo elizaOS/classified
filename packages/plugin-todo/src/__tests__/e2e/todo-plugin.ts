@@ -38,7 +38,7 @@ export const TodoPluginE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         logger.info('Testing task creation and completion flow...');
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Create test data
@@ -105,7 +105,7 @@ export const TodoPluginE2ETestSuite: TestSuite = {
       fn: async (runtime: IAgentRuntime) => {
         logger.info('Testing overdue task detection...');
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Create test data
@@ -210,7 +210,7 @@ export const TodoPluginE2ETestSuite: TestSuite = {
 
         logger.info('✓ Rolodex services found');
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Create test data
@@ -270,7 +270,7 @@ export const TodoPluginE2ETestSuite: TestSuite = {
           throw new Error('TodoReminderService not found');
         }
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Create test data
@@ -320,7 +320,7 @@ export const TodoPluginE2ETestSuite: TestSuite = {
           throw new Error('TodoReminderService not found');
         }
 
-        const { createTodoDataService } = await import('../../services/todoDataService');
+        const { createTodoDataService } = await import('../../services/todoService');
         const dataService = createTodoDataService(runtime);
 
         // Create test data

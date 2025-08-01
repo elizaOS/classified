@@ -77,7 +77,7 @@ export const unloadPluginAction: Action = {
 
     // Filter out protected plugins that cannot be unloaded
     const unloadablePlugins = loadedPlugins.filter((p) => pluginManager.canUnloadPlugin(p.name));
-    
+
     return unloadablePlugins.length > 0;
   },
 

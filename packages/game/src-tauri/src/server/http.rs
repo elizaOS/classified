@@ -1,6 +1,6 @@
 use crate::backend::{BackendConfig, BackendError, BackendResult};
 use crate::container::ContainerManager;
-use crate::server::websocket::{WebSocketHub, app_websocket_handler};
+use crate::server::websocket::{app_websocket_handler, WebSocketHub};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -31,8 +31,10 @@ impl HttpServer {
         Self {
             config: BackendConfig::default(),
             container_manager: Arc::new(
-                ContainerManager::new_with_runtime_type(crate::backend::ContainerRuntimeType::Podman)
-                    .expect("Failed to create container manager"),
+                ContainerManager::new_with_runtime_type(
+                    crate::backend::ContainerRuntimeType::Podman,
+                )
+                .expect("Failed to create container manager"),
             ),
             websocket_hub: Arc::new(WebSocketHub::new()),
         }

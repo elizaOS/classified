@@ -1,7 +1,8 @@
-import type { Provider, IAgentRuntime, Memory, State, ProviderResult } from '@elizaos/core';
+import type { IAgentRuntime, Memory, Provider, ProviderResult, State } from '@elizaos/core';
+import { execSync } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { isCodeGenerationService } from '../types';
 
 interface FileInfo {
   path: string;
@@ -34,7 +35,7 @@ export const currentProjectProvider: Provider = {
   ): Promise<ProviderResult> => {
     // Get the code generation service to access current project
     const codeGenService = runtime.getService('code-generation');
-    if (!codeGenService) {
+    if (!isCodeGenerationService(codeGenService)) {
       return {
         text: 'No active project. Code generation service is not available.',
         values: {},

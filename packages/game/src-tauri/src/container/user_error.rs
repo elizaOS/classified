@@ -1,7 +1,7 @@
-use crate::backend::{BackendError};
+use crate::backend::BackendError;
 use serde::{Deserialize, Serialize};
-use tracing::{error, info};
 use tauri::Emitter;
+use tracing::{error, info};
 
 /// User-friendly error representation with actionable guidance
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,22 +25,22 @@ pub enum ErrorCode {
     ContainerTimeout,
     PodmanNotRunning,
     PodmanMachineError,
-    
+
     // Resource errors
     InsufficientMemory,
     InsufficientDisk,
     CpuOverload,
-    
+
     // Network errors
     NetworkTimeout,
     DownloadFailed,
     NoInternetConnection,
-    
+
     // Model errors
     ModelTooLarge,
     ModelDownloadFailed,
     ModelCorrupted,
-    
+
     // System errors
     PermissionDenied,
     FileSystemError,
@@ -51,15 +51,15 @@ pub enum ErrorCode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ErrorAction {
-    Retry { 
+    Retry {
         label: String,
-        command: String 
+        command: String,
     },
-    OpenUrl { 
+    OpenUrl {
         label: String,
-        url: String 
+        url: String,
     },
-    RunCommand { 
+    RunCommand {
         label: String,
         command: String,
         description: String,
@@ -69,9 +69,9 @@ pub enum ErrorAction {
         setting: String,
         recommended_value: String,
     },
-    ContactSupport { 
+    ContactSupport {
         label: String,
-        issue_template: String 
+        issue_template: String,
     },
     ShowLogs {
         label: String,
@@ -82,17 +82,11 @@ pub enum ErrorAction {
 impl From<BackendError> for UserError {
     fn from(err: BackendError) -> Self {
         let technical_details = Some(format!("{:?}", err));
-        
+
         match err {
-            BackendError::Container(msg) => {
-                UserError::from_container_error(msg, technical_details)
-            }
-            BackendError::Network(msg) => {
-                UserError::from_network_error(msg, technical_details)
-            }
-            BackendError::Resource(msg) => {
-                UserError::from_resource_error(msg, technical_details)
-            }
+            BackendError::Container(msg) => UserError::from_container_error(msg, technical_details),
+            BackendError::Network(msg) => UserError::from_network_error(msg, technical_details),
+            BackendError::Resource(msg) => UserError::from_resource_error(msg, technical_details),
             _ => UserError::generic_error(err.to_string(), technical_details),
         }
     }
@@ -101,22 +95,24 @@ impl From<BackendError> for UserError {
 impl UserError {
     fn from_container_error(msg: String, technical_details: Option<String>) -> Self {
         let lower_msg = msg.to_lowercase();
-        
+
         // Port conflict detection
-        if lower_msg.contains("port") && (lower_msg.contains("in use") || lower_msg.contains("already")) {
+        if lower_msg.contains("port")
+            && (lower_msg.contains("in use") || lower_msg.contains("already"))
+        {
             return Self::port_conflict_error(msg, technical_details);
         }
-        
+
         // Podman machine errors
         if lower_msg.contains("podman machine") || lower_msg.contains("cannot connect to podman") {
             return Self::podman_machine_error(msg, technical_details);
         }
-        
+
         // Container not found
         if lower_msg.contains("not found") || lower_msg.contains("no such container") {
             return Self::container_not_found_error(msg, technical_details);
         }
-        
+
         // Generic container error
         Self {
             code: ErrorCode::ContainerNotFound,
@@ -142,34 +138,46 @@ impl UserError {
             estimated_fix_time: Some("1-2 minutes".to_string()),
         }
     }
-    
+
     fn port_conflict_error(msg: String, technical_details: Option<String>) -> Self {
         // Extract port number if possible
         let port = extract_port_from_message(&msg).unwrap_or(5432);
-        
+
         let (service_name, suggestions) = match port {
-            5432 => ("PostgreSQL", vec![
-                "Another PostgreSQL instance might be running".to_string(),
-                "Docker Desktop might be using this port".to_string(),
-                "Try stopping other database services".to_string(),
-            ]),
-            11434 => ("Ollama", vec![
-                "Another Ollama instance might be running".to_string(),
-                "Check if Ollama Desktop is running".to_string(),
-                "Try 'ollama stop' in terminal".to_string(),
-            ]),
-            7777 => ("Agent Server", vec![
-                "Another instance of ElizaOS might be running".to_string(),
-                "A development server might be using this port".to_string(),
-                "Check your other terminal windows".to_string(),
-            ]),
-            _ => ("Service", vec![
-                format!("Port {} is being used by another application", port),
-                "Try closing other development tools".to_string(),
-                "Restart your computer to free up ports".to_string(),
-            ]),
+            5432 => (
+                "PostgreSQL",
+                vec![
+                    "Another PostgreSQL instance might be running".to_string(),
+                    "Docker Desktop might be using this port".to_string(),
+                    "Try stopping other database services".to_string(),
+                ],
+            ),
+            11434 => (
+                "Ollama",
+                vec![
+                    "Another Ollama instance might be running".to_string(),
+                    "Check if Ollama Desktop is running".to_string(),
+                    "Try 'ollama stop' in terminal".to_string(),
+                ],
+            ),
+            7777 => (
+                "Agent Server",
+                vec![
+                    "Another instance of ElizaOS might be running".to_string(),
+                    "A development server might be using this port".to_string(),
+                    "Check your other terminal windows".to_string(),
+                ],
+            ),
+            _ => (
+                "Service",
+                vec![
+                    format!("Port {} is being used by another application", port),
+                    "Try closing other development tools".to_string(),
+                    "Restart your computer to free up ports".to_string(),
+                ],
+            ),
         };
-        
+
         Self {
             code: ErrorCode::PortConflict,
             title: format!("{} Port Already In Use", service_name),
@@ -204,12 +212,13 @@ impl UserError {
             estimated_fix_time: Some("30 seconds".to_string()),
         }
     }
-    
+
     fn podman_machine_error(_msg: String, technical_details: Option<String>) -> Self {
         Self {
             code: ErrorCode::PodmanMachineError,
             title: "Podman Machine Not Running".to_string(),
-            message: "The Podman virtual machine needs to be started to manage containers.".to_string(),
+            message: "The Podman virtual machine needs to be started to manage containers."
+                .to_string(),
             technical_details,
             suggestions: vec![
                 "Podman requires a virtual machine on macOS and Windows".to_string(),
@@ -236,10 +245,10 @@ impl UserError {
             estimated_fix_time: Some("1-2 minutes".to_string()),
         }
     }
-    
+
     fn from_network_error(msg: String, technical_details: Option<String>) -> Self {
         let lower_msg = msg.to_lowercase();
-        
+
         if lower_msg.contains("timeout") {
             Self::network_timeout_error(msg, technical_details)
         } else if lower_msg.contains("no internet") || lower_msg.contains("connection") {
@@ -248,7 +257,7 @@ impl UserError {
             Self::generic_network_error(msg, technical_details)
         }
     }
-    
+
     fn network_timeout_error(_msg: String, technical_details: Option<String>) -> Self {
         Self {
             code: ErrorCode::NetworkTimeout,
@@ -279,10 +288,10 @@ impl UserError {
             estimated_fix_time: Some("Depends on connection speed".to_string()),
         }
     }
-    
+
     fn from_resource_error(msg: String, technical_details: Option<String>) -> Self {
         let lower_msg = msg.to_lowercase();
-        
+
         if lower_msg.contains("memory") {
             Self::insufficient_memory_error(msg, technical_details)
         } else if lower_msg.contains("disk") || lower_msg.contains("space") {
@@ -291,12 +300,14 @@ impl UserError {
             Self::generic_resource_error(msg, technical_details)
         }
     }
-    
+
     fn insufficient_memory_error(_msg: String, technical_details: Option<String>) -> Self {
         Self {
             code: ErrorCode::InsufficientMemory,
             title: "Not Enough Memory".to_string(),
-            message: "Your system doesn't have enough RAM to run all the AI models. Let's fix this.".to_string(),
+            message:
+                "Your system doesn't have enough RAM to run all the AI models. Let's fix this."
+                    .to_string(),
             technical_details,
             suggestions: vec![
                 "Close other applications to free up memory".to_string(),
@@ -306,7 +317,14 @@ impl UserError {
             actions: vec![
                 ErrorAction::RunCommand {
                     label: "Check Memory Usage".to_string(),
-                    command: if cfg!(windows) { "taskmgr" } else if cfg!(target_os = "macos") { "open -a 'Activity Monitor'" } else { "free -h" }.to_string(),
+                    command: if cfg!(windows) {
+                        "taskmgr"
+                    } else if cfg!(target_os = "macos") {
+                        "open -a 'Activity Monitor'"
+                    } else {
+                        "free -h"
+                    }
+                    .to_string(),
                     description: "Opens system resource monitor".to_string(),
                 },
                 ErrorAction::ChangeSettings {
@@ -323,7 +341,7 @@ impl UserError {
             estimated_fix_time: Some("5-10 minutes".to_string()),
         }
     }
-    
+
     fn container_not_found_error(_msg: String, technical_details: Option<String>) -> Self {
         Self {
             code: ErrorCode::ContainerNotFound,
@@ -350,12 +368,14 @@ impl UserError {
             estimated_fix_time: Some("1 minute".to_string()),
         }
     }
-    
+
     fn no_internet_error(_msg: String, technical_details: Option<String>) -> Self {
         Self {
             code: ErrorCode::NoInternetConnection,
             title: "No Internet Connection".to_string(),
-            message: "Unable to connect to the internet. Some features require downloading AI models.".to_string(),
+            message:
+                "Unable to connect to the internet. Some features require downloading AI models."
+                    .to_string(),
             technical_details,
             suggestions: vec![
                 "Check if your internet connection is working".to_string(),
@@ -365,7 +385,12 @@ impl UserError {
             actions: vec![
                 ErrorAction::RunCommand {
                     label: "Test Connection".to_string(),
-                    command: if cfg!(windows) { "ping google.com" } else { "ping -c 4 google.com" }.to_string(),
+                    command: if cfg!(windows) {
+                        "ping google.com"
+                    } else {
+                        "ping -c 4 google.com"
+                    }
+                    .to_string(),
                     description: "Tests internet connectivity".to_string(),
                 },
                 ErrorAction::Retry {
@@ -377,12 +402,14 @@ impl UserError {
             estimated_fix_time: Some("Immediate once connected".to_string()),
         }
     }
-    
+
     fn insufficient_disk_error(_msg: String, technical_details: Option<String>) -> Self {
         Self {
             code: ErrorCode::InsufficientDisk,
             title: "Not Enough Disk Space".to_string(),
-            message: "Your system is running low on disk space. AI models require several GB of storage.".to_string(),
+            message:
+                "Your system is running low on disk space. AI models require several GB of storage."
+                    .to_string(),
             technical_details,
             suggestions: vec![
                 "Delete unnecessary files to free up space".to_string(),
@@ -393,7 +420,14 @@ impl UserError {
             actions: vec![
                 ErrorAction::RunCommand {
                     label: "Check Disk Usage".to_string(),
-                    command: if cfg!(windows) { "explorer" } else if cfg!(target_os = "macos") { "open -a 'Disk Utility'" } else { "df -h" }.to_string(),
+                    command: if cfg!(windows) {
+                        "explorer"
+                    } else if cfg!(target_os = "macos") {
+                        "open -a 'Disk Utility'"
+                    } else {
+                        "df -h"
+                    }
+                    .to_string(),
                     description: "Shows disk space usage".to_string(),
                 },
                 ErrorAction::OpenUrl {
@@ -405,7 +439,7 @@ impl UserError {
             estimated_fix_time: Some("10-30 minutes".to_string()),
         }
     }
-    
+
     fn generic_network_error(_msg: String, technical_details: Option<String>) -> Self {
         Self {
             code: ErrorCode::NetworkTimeout,
@@ -431,7 +465,7 @@ impl UserError {
             estimated_fix_time: Some("1-5 minutes".to_string()),
         }
     }
-    
+
     fn generic_resource_error(_msg: String, technical_details: Option<String>) -> Self {
         Self {
             code: ErrorCode::InsufficientMemory,
@@ -457,7 +491,7 @@ impl UserError {
             estimated_fix_time: Some("5-15 minutes".to_string()),
         }
     }
-    
+
     fn generic_error(msg: String, technical_details: Option<String>) -> Self {
         Self {
             code: ErrorCode::UnknownError,
@@ -496,7 +530,7 @@ fn extract_port_from_message(msg: &str) -> Option<u16> {
 
 fn get_alternative_port(original: u16) -> u16 {
     match original {
-        5432 => 5433,  // PostgreSQL alternative
+        5432 => 5433,   // PostgreSQL alternative
         11434 => 11435, // Ollama alternative
         7777 => 7778,   // Agent alternative
         p => p + 1000,  // Generic alternative
@@ -509,38 +543,47 @@ pub async fn handle_user_error(
     app_handle: Option<&tauri::AppHandle>,
 ) -> UserError {
     let user_error = UserError::from(err);
-    
+
     // Log the technical details
     error!("Error occurred: {:?}", user_error.technical_details);
-    info!("User-friendly error: {} - {}", user_error.title, user_error.message);
-    
+    info!(
+        "User-friendly error: {} - {}",
+        user_error.title, user_error.message
+    );
+
     // Emit to frontend if app handle is available
     if let Some(app) = app_handle {
         let _ = app.emit("user-error", &user_error);
     }
-    
+
     user_error
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_port_extraction() {
-        assert_eq!(extract_port_from_message("port 5432 already in use"), Some(5432));
-        assert_eq!(extract_port_from_message("bind: address already in use :11434"), Some(11434));
+        assert_eq!(
+            extract_port_from_message("port 5432 already in use"),
+            Some(5432)
+        );
+        assert_eq!(
+            extract_port_from_message("bind: address already in use :11434"),
+            Some(11434)
+        );
         assert_eq!(extract_port_from_message("no port here"), None);
     }
-    
+
     #[test]
     fn test_error_conversion() {
         let backend_err = BackendError::Container("port 5432 already in use".to_string());
         let user_err = UserError::from(backend_err);
-        
+
         assert_eq!(user_err.code, ErrorCode::PortConflict);
         assert!(user_err.title.contains("PostgreSQL"));
         assert!(user_err.can_retry);
         assert!(!user_err.actions.is_empty());
     }
-} 
+}

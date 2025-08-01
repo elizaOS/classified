@@ -6,6 +6,7 @@ import {
   type IAgentRuntime,
   type ServiceTypeName,
   logger,
+  EventType,
 } from '@elizaos/core';
 import { ShellServiceType } from './types';
 
@@ -235,6 +236,15 @@ export class ShellService extends Service {
     if (errorOutput.trim()) {
       logger.debug(`[ShellService] Command error: ${errorOutput.trim()}`);
     }
+
+    // Emit event for progression tracking
+    await this.runtime.emitEvent(EventType.SHELL_COMMAND_EXECUTED, {
+      command,
+      exitCode,
+      output: output.trim(),
+      error: errorOutput.trim() || undefined,
+      cwd: this.currentWorkingDirectory,
+    });
 
     return {
       output: output.trim(),

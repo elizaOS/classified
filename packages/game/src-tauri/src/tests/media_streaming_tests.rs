@@ -37,27 +37,33 @@ impl MediaStreamingTests {
 
         // Test stream_media_frame command with mock data
         let test_frame = vec![0u8; 1024]; // 1KB test frame
-        match app_handle.emit("test-ipc-call", serde_json::json!({
-            "command": "stream_media_frame",
-            "args": {
-                "stream_type": "test",
-                "frame_data": test_frame,
-                "timestamp": chrono::Utc::now().timestamp_millis() as u64
-            }
-        })) {
+        match app_handle.emit(
+            "test-ipc-call",
+            serde_json::json!({
+                "command": "stream_media_frame",
+                "args": {
+                    "stream_type": "test",
+                    "frame_data": test_frame,
+                    "timestamp": chrono::Utc::now().timestamp_millis() as u64
+                }
+            }),
+        ) {
             Ok(_) => info!("✅ stream_media_frame command accessible"),
             Err(e) => return Err(format!("❌ stream_media_frame command failed: {}", e)),
         }
 
         // Test stream_media_audio command
         let test_audio = vec![0u8; 512]; // 512B test audio
-        match app_handle.emit("test-ipc-call", serde_json::json!({
-            "command": "stream_media_audio",
-            "args": {
-                "audio_data": test_audio,
-                "timestamp": chrono::Utc::now().timestamp_millis() as u64
-            }
-        })) {
+        match app_handle.emit(
+            "test-ipc-call",
+            serde_json::json!({
+                "command": "stream_media_audio",
+                "args": {
+                    "audio_data": test_audio,
+                    "timestamp": chrono::Utc::now().timestamp_millis() as u64
+                }
+            }),
+        ) {
             Ok(_) => info!("✅ stream_media_audio command accessible"),
             Err(e) => return Err(format!("❌ stream_media_audio command failed: {}", e)),
         }
@@ -70,10 +76,7 @@ impl MediaStreamingTests {
         info!("🧪 Test 2: Testing WebSocket media methods");
 
         // Get WebSocket client
-        let ws_client = app_handle
-            .state::<Arc<WebSocketClient>>()
-            .inner()
-            .clone();
+        let ws_client = app_handle.state::<Arc<WebSocketClient>>().inner().clone();
 
         // Test connection state
         let is_connected = ws_client.is_connected().await;
@@ -84,14 +87,20 @@ impl MediaStreamingTests {
             let test_frame = vec![0u8; 1024];
             match ws_client.send_media_frame(test_frame, "test").await {
                 Ok(_) => info!("✅ WebSocket media frame method works"),
-                Err(e) => info!("⚠️ WebSocket media frame failed (expected if no active stream): {}", e),
+                Err(e) => info!(
+                    "⚠️ WebSocket media frame failed (expected if no active stream): {}",
+                    e
+                ),
             }
 
             // Test sending audio chunk
             let test_audio = vec![0u8; 512];
             match ws_client.send_audio_chunk(test_audio).await {
                 Ok(_) => info!("✅ WebSocket audio chunk method works"),
-                Err(e) => info!("⚠️ WebSocket audio chunk failed (expected if no active stream): {}", e),
+                Err(e) => info!(
+                    "⚠️ WebSocket audio chunk failed (expected if no active stream): {}",
+                    e
+                ),
             }
         } else {
             info!("⚠️ WebSocket not connected, skipping media method tests");
@@ -107,7 +116,10 @@ impl MediaStreamingTests {
         // Test start command
         match start_agent_screen_capture().await {
             Ok(_) => info!("✅ Agent screen capture start command works"),
-            Err(e) => info!("⚠️ Agent screen capture start failed (expected if no Xvfb): {}", e),
+            Err(e) => info!(
+                "⚠️ Agent screen capture start failed (expected if no Xvfb): {}",
+                e
+            ),
         }
 
         // Small delay
@@ -168,18 +180,20 @@ impl MediaStreamingTests {
 
         // Send a test frame
         let test_frame = vec![0u8; 1024];
-        app_handle.emit("test-media-frame", serde_json::json!({
-            "type": "video",
-            "stream_type": "camera",
-            "data": test_frame,
-            "timestamp": chrono::Utc::now().timestamp_millis()
-        })).map_err(|e| format!("Failed to emit test frame: {}", e))?;
+        app_handle
+            .emit(
+                "test-media-frame",
+                serde_json::json!({
+                    "type": "video",
+                    "stream_type": "camera",
+                    "data": test_frame,
+                    "timestamp": chrono::Utc::now().timestamp_millis()
+                }),
+            )
+            .map_err(|e| format!("Failed to emit test frame: {}", e))?;
 
         // Wait for acknowledgment with timeout
-        match tokio::time::timeout(
-            tokio::time::Duration::from_secs(2),
-            rx.recv()
-        ).await {
+        match tokio::time::timeout(tokio::time::Duration::from_secs(2), rx.recv()).await {
             Ok(Some(ack)) => {
                 info!("✅ Received media stream acknowledgment: {}", ack);
                 Ok(())
@@ -199,4 +213,4 @@ impl MediaStreamingTests {
 /// Runtime test entry point
 pub async fn test_media_streaming(app_handle: AppHandle) -> Result<(), String> {
     MediaStreamingTests::run_all_tests(app_handle).await
-} 
+}

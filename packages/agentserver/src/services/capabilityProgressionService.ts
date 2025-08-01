@@ -1,4 +1,4 @@
-import { IAgentRuntime, logger } from '@elizaos/core';
+import { IAgentRuntime, logger, Service, ServiceType } from '@elizaos/core';
 
 export interface ProgressionLevel {
   id: string;
@@ -24,20 +24,30 @@ export interface ProgressionState {
   lastUnlockTime: Date | null;
 }
 
-export class CapabilityProgressionService {
-  private runtime: IAgentRuntime;
+export class CapabilityProgressionService extends Service {
+  static serviceType = ServiceType.OTHER;
+  static serviceName = 'CAPABILITY_PROGRESSION';
+  capabilityDescription = 'Manages progressive capability unlocking and level progression';
+
+  static async start(runtime: IAgentRuntime): Promise<CapabilityProgressionService> {
+    const service = new CapabilityProgressionService(runtime);
+    return service;
+  }
+
   private progressionState: ProgressionState;
   private levels: ProgressionLevel[];
   private isUnlockedMode: boolean = false;
 
-  constructor(runtime: IAgentRuntime) {
-    this.runtime = runtime;
-    
+  constructor(runtime?: IAgentRuntime) {
+    super(runtime);
+    if (!runtime) return; // For service construction pattern
+
     // Check if unlocked mode is enabled via settings
-    this.isUnlockedMode = this.runtime.getSetting('PROGRESSION_MODE') === 'unlocked' ||
-                         this.runtime.getSetting('UNLOCKED_MODE') === 'true' ||
-                         this.runtime.getSetting('DISABLE_PROGRESSION') === 'true';
-    
+    this.isUnlockedMode =
+      this.runtime.getSetting('PROGRESSION_MODE') === 'unlocked' ||
+      this.runtime.getSetting('UNLOCKED_MODE') === 'true' ||
+      this.runtime.getSetting('DISABLE_PROGRESSION') === 'true';
+
     this.progressionState = {
       currentLevel: this.isUnlockedMode ? 6 : 0, // Max level if unlocked mode (0-6 = 7 levels)
       unlockedLevels: [],
@@ -45,15 +55,17 @@ export class CapabilityProgressionService {
       agentNamed: this.isUnlockedMode,
       lastUnlockTime: null,
     };
-    
+
     this.levels = this.initializeProgressionLevels();
-    
+
     // If unlocked mode, unlock all levels immediately
     if (this.isUnlockedMode) {
       this.unlockAllLevels();
     }
-    
-    logger.info(`[PROGRESSION] CapabilityProgressionService initialized in ${this.isUnlockedMode ? 'UNLOCKED' : 'PROGRESSION'} mode`);
+
+    logger.info(
+      `[PROGRESSION] CapabilityProgressionService initialized in ${this.isUnlockedMode ? 'UNLOCKED' : 'PROGRESSION'} mode`
+    );
   }
 
   private initializeProgressionLevels(): ProgressionLevel[] {
@@ -100,9 +112,10 @@ export class CapabilityProgressionService {
       },
       {
         id: 'level_3_vision',
-        name: 'Visual Perception',
-        description: 'Agent gains screen capture and vision capabilities',
-        unlockedCapabilities: ['vision', 'screen_capture'],
+        name: 'Sensory Perception',
+        description:
+          'Agent gains comprehensive sensory capabilities including camera, screen capture, and microphone audio transcription',
+        unlockedCapabilities: ['vision'],
         unlockConditions: [
           {
             type: 'capability_used',
@@ -118,9 +131,9 @@ export class CapabilityProgressionService {
       },
       {
         id: 'level_4_audio',
-        name: 'Audio Communication',
-        description: 'Agent gains microphone and audio capabilities',
-        unlockedCapabilities: ['microphone', 'sam', 'audio'],
+        name: 'Audio Output',
+        description: 'Agent gains text-to-speech and audio synthesis capabilities',
+        unlockedCapabilities: ['sam'],
         unlockConditions: [
           {
             type: 'capability_used',
@@ -131,15 +144,15 @@ export class CapabilityProgressionService {
         isUnlocked: false,
       },
       {
-        id: 'level_5_camera',
-        name: 'Visual Recording',
-        description: 'Agent gains camera and advanced visual capabilities',
-        unlockedCapabilities: ['camera', 'advanced_vision'],
+        id: 'level_5_advanced',
+        name: 'Advanced Capabilities',
+        description: 'Agent gains access to advanced features and experimental capabilities',
+        unlockedCapabilities: ['advanced'],
         unlockConditions: [
           {
             type: 'capability_used',
-            capability: 'microphone',
-            description: 'Agent must use microphone capabilities',
+            capability: 'sam',
+            description: 'Agent must use audio output capabilities',
           },
         ],
         isUnlocked: false,
@@ -147,8 +160,14 @@ export class CapabilityProgressionService {
       {
         id: 'level_6_autocoder',
         name: 'Autonomous Code Generation',
-        description: 'Agent gains the ability to autonomously create and modify code projects and manage plugins',
-        unlockedCapabilities: ['autocoder', 'code_generation', 'project_management', 'plugin-manager'],
+        description:
+          'Agent gains the ability to autonomously create and modify code projects and manage plugins',
+        unlockedCapabilities: [
+          'autocoder',
+          'code_generation',
+          'project_management',
+          'plugin-manager',
+        ],
         unlockConditions: [
           {
             type: 'capability_used',
@@ -173,20 +192,20 @@ export class CapabilityProgressionService {
 
   private async unlockAllLevels(): Promise<void> {
     logger.info('[PROGRESSION] Unlocking all levels in UNLOCKED mode');
-    
+
     for (const level of this.levels) {
       level.isUnlocked = true;
       this.progressionState.unlockedLevels.push(level.id);
     }
-    
+
     this.progressionState.currentLevel = this.levels.length - 1;
     this.progressionState.lastUnlockTime = new Date();
-    
+
     // Register all capabilities immediately
     for (const level of this.levels) {
       await this.registerLevelCapabilities(level);
     }
-    
+
     logger.info('[PROGRESSION] All levels and capabilities unlocked');
   }
 
@@ -196,21 +215,21 @@ export class CapabilityProgressionService {
       logger.debug('[PROGRESSION] Skipping progression checks - unlocked mode enabled');
       return;
     }
-    
+
     logger.debug('[PROGRESSION] Checking progression conditions');
-    
+
     let progressMade = false;
-    
+
     for (let i = this.progressionState.currentLevel + 1; i < this.levels.length; i++) {
       const level = this.levels[i];
-      
+
       if (await this.areConditionsMet(level.unlockConditions)) {
         await this.unlockLevel(level);
         progressMade = true;
         break; // Only unlock one level at a time
       }
     }
-    
+
     if (!progressMade) {
       logger.debug('[PROGRESSION] No progression conditions met');
     }
@@ -231,18 +250,20 @@ export class CapabilityProgressionService {
     switch (condition.type) {
       case 'agent_named':
         return this.progressionState.agentNamed;
-      
+
       case 'capability_used':
         if (!condition.capability) return false;
-        return this.progressionState.completedActions.includes(`capability_used_${condition.capability}`);
-      
+        return this.progressionState.completedActions.includes(
+          `capability_used_${condition.capability}`
+        );
+
       case 'form_submitted':
         return this.progressionState.completedActions.includes('form_submitted');
-      
+
       case 'action_performed':
         if (!condition.action) return false;
         return this.progressionState.completedActions.includes(`action_${condition.action}`);
-      
+
       default:
         logger.warn(`[PROGRESSION] Unknown condition type: ${condition.type}`);
         return false;
@@ -251,38 +272,40 @@ export class CapabilityProgressionService {
 
   private async unlockLevel(level: ProgressionLevel): Promise<void> {
     logger.info(`[PROGRESSION] Unlocking level: ${level.name}`);
-    
+
     level.isUnlocked = true;
     this.progressionState.currentLevel = this.levels.indexOf(level);
     this.progressionState.unlockedLevels.push(level.id);
     this.progressionState.lastUnlockTime = new Date();
-    
+
     // Register new plugins for this level
     await this.registerLevelCapabilities(level);
-    
+
     // Inject system message about the unlock
     await this.injectUnlockMessage(level);
-    
+
     logger.info(`[PROGRESSION] Level ${level.name} unlocked successfully`);
   }
 
   private async registerLevelCapabilities(level: ProgressionLevel): Promise<void> {
-    logger.info(`[PROGRESSION] Registering capabilities for ${level.name}: ${level.unlockedCapabilities.join(', ')}`);
-    
-    // Use the dynamic plugin registration function if available
-    const registerProgressivePlugin = (this.runtime as any).registerProgressivePlugin;
-    
-    if (registerProgressivePlugin) {
+    logger.info(
+      `[PROGRESSION] Registering capabilities for ${level.name}: ${level.unlockedCapabilities.join(', ')}`
+    );
+
+    // Use the ProgressivePluginService to register capabilities
+    const progressivePluginService = this.runtime.getService('PROGRESSIVE_PLUGIN');
+
+    if (progressivePluginService) {
       for (const capability of level.unlockedCapabilities) {
         try {
-          await registerProgressivePlugin(capability);
+          await (progressivePluginService as any).registerCapabilityPlugins(capability);
           logger.info(`[PROGRESSION] Successfully registered capability: ${capability}`);
         } catch (error) {
           logger.error(`[PROGRESSION] Failed to register capability ${capability}:`, error);
         }
       }
     } else {
-      logger.warn('[PROGRESSION] Dynamic plugin registration not available');
+      logger.warn('[PROGRESSION] ProgressivePluginService not available');
       for (const capability of level.unlockedCapabilities) {
         logger.info(`[PROGRESSION] Would register capability: ${capability}`);
       }
@@ -291,13 +314,13 @@ export class CapabilityProgressionService {
 
   private async injectUnlockMessage(level: ProgressionLevel): Promise<void> {
     const message = `🎉 Congratulations! You have unlocked new capabilities: ${level.name}!\n\n${level.description}\n\nNew abilities: ${level.unlockedCapabilities.join(', ')}\n\nExplore these new capabilities in the interface - they should now be available for you to use!`;
-    
+
     logger.info(`[PROGRESSION] Injecting unlock message: ${message}`);
-    
+
     try {
       // Get the server instance from the global scope
       const elizaAgentServer = (global as any).elizaAgentServer;
-      
+
       if (elizaAgentServer) {
         // Create a system message and inject it into the message flow
         const systemMessage = {
@@ -313,10 +336,10 @@ export class CapabilityProgressionService {
           createdAt: new Date().toISOString(),
           type: 'system_announcement',
         };
-        
+
         // Broadcast the message through the WebSocket system
         elizaAgentServer.broadcastMessage(systemMessage);
-        
+
         logger.info(`[PROGRESSION] Successfully injected system message for ${level.name}`);
       } else {
         logger.warn('[PROGRESSION] Agent server not available for message injection');
@@ -342,7 +365,7 @@ export class CapabilityProgressionService {
     }
   }
 
-  public async recordFormSubmitted(formData?: any): Promise<void> {
+  public async recordFormSubmitted(formData?: Record<string, unknown>): Promise<void> {
     logger.info('[PROGRESSION] Form submitted', formData);
     const action = 'form_submitted';
     if (!this.progressionState.completedActions.includes(action)) {
@@ -367,8 +390,8 @@ export class CapabilityProgressionService {
 
   public getUnlockedCapabilities(): string[] {
     return this.levels
-      .filter(level => level.isUnlocked)
-      .flatMap(level => level.unlockedCapabilities);
+      .filter((level) => level.isUnlocked)
+      .flatMap((level) => level.unlockedCapabilities);
   }
 
   public getProgressionState(): ProgressionState {
@@ -376,7 +399,7 @@ export class CapabilityProgressionService {
   }
 
   public getAvailableLevels(): ProgressionLevel[] {
-    return this.levels.map(level => ({ ...level }));
+    return this.levels.map((level) => ({ ...level }));
   }
 
   public isCapabilityUnlocked(capability: string): boolean {
@@ -390,18 +413,20 @@ export class CapabilityProgressionService {
   public async setProgressionMode(mode: 'progression' | 'unlocked'): Promise<void> {
     const wasUnlocked = this.isUnlockedMode;
     this.isUnlockedMode = mode === 'unlocked';
-    
+
     logger.info(`[PROGRESSION] Switching to ${mode} mode`);
-    
+
     if (mode === 'unlocked' && !wasUnlocked) {
       // Switching to unlocked mode - unlock everything
       await this.unlockAllLevels();
     } else if (mode === 'progression' && wasUnlocked) {
       // Switching to progression mode - reset to initial state
       this.resetProgression();
-      logger.info('[PROGRESSION] Reset to progression mode - capabilities will need to be re-earned');
+      logger.info(
+        '[PROGRESSION] Reset to progression mode - capabilities will need to be re-earned'
+      );
     }
-    
+
     // Update runtime setting
     this.runtime.setSetting('PROGRESSION_MODE', mode);
   }
@@ -415,12 +440,17 @@ export class CapabilityProgressionService {
       agentNamed: false,
       lastUnlockTime: null,
     };
-    
+
     // Reset level states
     this.levels.forEach((level, index) => {
       level.isUnlocked = index === 0; // Only level 0 is unlocked
     });
-    
+
     logger.info('[PROGRESSION] Progression reset to initial state');
+  }
+
+  async stop(): Promise<void> {
+    // No cleanup needed for this service
+    logger.info('[PROGRESSION] CapabilityProgressionService stopped');
   }
 }

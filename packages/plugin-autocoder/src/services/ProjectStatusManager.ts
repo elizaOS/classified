@@ -1,44 +1,38 @@
-import {
-  Service,
-  elizaLogger,
-  type IAgentRuntime,
-  ServiceType,
-  type ServiceTypeName,
-} from '@elizaos/core';
+import { Service, elizaLogger, type IAgentRuntime, type ServiceTypeName } from '@elizaos/core';
 import { EventEmitter } from 'events';
-import { v4 as uuidv4 } from 'uuid';
-import type { ProjectType, ProjectStatus } from '../types';
 
-export interface ProjectStatusUpdate {
-  projectId: string;
-  projectName: string;
-  type: ProjectType;
-  status: ProjectStatus;
-  currentStep?: string;
-  progress?: number; // 0-100
-  message?: string;
-  error?: string;
-  startedAt?: number;
-  completedAt?: number;
-  files?: Array<{ path: string; status: 'pending' | 'generating' | 'complete' | 'error' }>;
-  validationResults?: {
-    lint: { passed: boolean; errors?: string[] };
-    typeCheck: { passed: boolean; errors?: string[] };
-    tests: { passed: boolean; errors?: string[] };
-    build: { passed: boolean; errors?: string[] };
-  };
+import { v4 as uuidv4 } from 'uuid';
+import type { ProjectHistory, ProjectStatusUpdate, ProjectType } from '../types';
+
+// Types are now imported from ../types
+
+/**
+ * Typed EventEmitter for project status events
+ */
+interface ProjectStatusEvents {
+  update: (data: ProjectStatusUpdate) => void;
+  complete: (data: ProjectStatusUpdate) => void;
+  error: (data: ProjectStatusUpdate) => void;
 }
 
-export interface ProjectHistory {
-  id: string;
-  name: string;
-  type: ProjectType;
-  status: ProjectStatus;
-  startedAt: number;
-  completedAt?: number;
-  duration?: number;
-  filesGenerated?: number;
-  error?: string;
+/**
+ * Extended EventEmitter with typed events
+ */
+class TypedEventEmitter extends EventEmitter {
+  on<U extends keyof ProjectStatusEvents>(event: U, listener: ProjectStatusEvents[U]): this {
+    return super.on(event as string, listener);
+  }
+
+  emit<U extends keyof ProjectStatusEvents>(
+    event: U,
+    ...args: Parameters<ProjectStatusEvents[U]>
+  ): boolean {
+    return super.emit(event as string, ...args);
+  }
+
+  off<U extends keyof ProjectStatusEvents>(event: U, listener: ProjectStatusEvents[U]): this {
+    return super.off(event as string, listener);
+  }
 }
 
 /**
@@ -46,11 +40,15 @@ export interface ProjectHistory {
  */
 export class ProjectStatusManager extends Service {
   static serviceName: string = 'project-status-manager';
-  static serviceType: ServiceTypeName = ServiceType.UNKNOWN;
+  static serviceType: ServiceTypeName = 'project-status' as ServiceTypeName;
+
+  get capabilityDescription(): string {
+    return 'Manages project status updates and real-time notifications for code generation projects';
+  }
 
   private projects: Map<string, ProjectStatusUpdate> = new Map();
   private history: ProjectHistory[] = [];
-  private eventEmitter: EventEmitter = new EventEmitter();
+  private eventEmitter: TypedEventEmitter = new TypedEventEmitter();
 
   /**
    * Static factory method required by Service base class
@@ -70,7 +68,7 @@ export class ProjectStatusManager extends Service {
     elizaLogger.info('Starting ProjectStatusManager');
 
     // Listen for runtime events if available
-    if (this.runtime.emitEvent) {
+    if (typeof this.runtime.emitEvent === 'function') {
       // We'll emit our own events
     }
   }
@@ -238,14 +236,14 @@ export class ProjectStatusManager extends Service {
   /**
    * Subscribe to project updates
    */
-  on(event: 'update' | 'complete' | 'error', callback: (data: any) => void): void {
+  on(event: 'update' | 'complete' | 'error', callback: (data: ProjectStatusUpdate) => void): void {
     this.eventEmitter.on(event, callback);
   }
 
   /**
    * Unsubscribe from project updates
    */
-  off(event: string, callback: (data: any) => void): void {
+  off(event: 'update' | 'complete' | 'error', callback: (data: ProjectStatusUpdate) => void): void {
     this.eventEmitter.off(event, callback);
   }
 
@@ -292,7 +290,7 @@ export class ProjectStatusManager extends Service {
     }
 
     // Emit to runtime if available
-    if (this.runtime.emitEvent) {
+    if (typeof this.runtime.emitEvent === 'function') {
       this.runtime.emitEvent('project:update', project);
 
       if (project.status === 'completed') {
@@ -303,9 +301,11 @@ export class ProjectStatusManager extends Service {
     }
 
     // If the runtime has WebSocket support, emit through that
-    const socketService = this.runtime.getService('socket');
-    if (socketService && typeof (socketService as any).emit === 'function') {
-      (socketService as any).emit('autocoder:project:update', {
+    const socketService = this.runtime.getService('socket') as {
+      emit?: (event: string, data: any) => void;
+    };
+    if (socketService && typeof socketService.emit === 'function') {
+      socketService.emit('autocoder:project:update', {
         type: 'PROJECT_UPDATE',
         data: project,
       });

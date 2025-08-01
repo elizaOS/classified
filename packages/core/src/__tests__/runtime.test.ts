@@ -53,7 +53,20 @@ const mockDatabaseAdapter: IDatabaseAdapter = {
   deleteAllMemories: mock().mockResolvedValue(undefined),
   countMemories: mock().mockResolvedValue(0),
   getRoomsByIds: mock().mockResolvedValue([]),
-  createRooms: mock().mockResolvedValue([stringToUuid(uuidv4())]),
+  createRooms: mock().mockImplementation(async (rooms) => {
+    const createdRoomIds = rooms.map(() => stringToUuid(uuidv4()));
+    // Update getRoomsByIds to return the created rooms
+    (mockDatabaseAdapter.getRoomsByIds as any).mockImplementation(async (roomIds) => {
+      return roomIds.map((id) => ({
+        id,
+        world_id: id,
+        server_id: id,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      }));
+    });
+    return createdRoomIds;
+  }),
   deleteRoom: mock().mockResolvedValue(undefined),
   getRoomsForParticipant: mock().mockResolvedValue([]),
   getRoomsForParticipants: mock().mockResolvedValue([]),
