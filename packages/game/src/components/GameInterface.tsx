@@ -426,7 +426,7 @@ export const GameInterface: React.FC = () => {
 
   // UI state
   const [currentTab, setCurrentTab] = useState<
-    'chat' | 'goals' | 'todos' | 'monologue' | 'files' | 'config' | 'logs' | 'agent-screen'
+    'goals' | 'todos' | 'monologue' | 'files' | 'config' | 'logs' | 'agent-screen'
   >('goals');
   const [logsSubTab, setLogsSubTab] = useState<'agent' | 'container'>('agent');
   // Config dialog removed - not currently used
@@ -1815,31 +1815,6 @@ export const GameInterface: React.FC = () => {
       todos.length
     );
     switch (currentTab) {
-      case 'chat':
-        return (
-          <div className="status-content" data-testid="chat-content">
-            <div className="status-header">
-              <span>◎ CHAT</span>
-            </div>
-            <div className="scrollable-content">
-              <div className="chat-messages">
-                {output
-                  .filter((msg) => msg.type === 'user' || msg.type === 'agent')
-                  .map((msg, index) => (
-                    <div
-                      key={index}
-                      className={`message ${msg.type === 'agent' ? 'agent' : 'user'}`}
-                    >
-                      <span className="message-sender">{msg.type === 'agent' ? '🤖' : '👤'}</span>
-                      <span className="message-text">{msg.content}</span>
-                    </div>
-                  ))}
-                {output.filter((msg) => msg.type === 'user' || msg.type === 'agent').length ===
-                  0 && <div className="empty-state">No messages yet. Start a conversation!</div>}
-              </div>
-            </div>
-          </div>
-        );
       case 'goals':
         return (
           <div className="status-content" data-testid="goals-content">
@@ -2819,7 +2794,6 @@ export const GameInterface: React.FC = () => {
           <div className="status-tabs">
             {(
               [
-                'chat',
                 'goals',
                 'todos',
                 'monologue',

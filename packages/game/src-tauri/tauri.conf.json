@@ -4,8 +4,8 @@
   "version": "../package.json",
   "identifier": "com.classified.eliza",
   "build": {
-    "beforeDevCommand": "vite dev --host 0.0.0.0 --port 5173",
-    "beforeBuildCommand": "vite build",
+    "beforeDevCommand": "cd .. && npx vite dev --host 0.0.0.0 --port 5173",
+    "beforeBuildCommand": "cd .. && bun vite build",
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173"
   },
