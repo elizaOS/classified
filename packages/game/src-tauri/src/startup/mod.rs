@@ -763,7 +763,14 @@ impl StartupManager {
                     // Recreate based on container type
                     match container_name {
                         POSTGRES_CONTAINER => {
-                            if let Err(e) = manager.start_postgres().await {
+                            // Find available ports and update configuration
+                            let available_ports = crate::container::manager::PortConfig::find_available_ports().await;
+                            manager.update_port_config(available_ports).await;
+                            
+                            // Ensure network exists before starting postgres
+                            if let Err(e) = manager.ensure_network_exists(crate::common::NETWORK_NAME).await {
+                                error!("Failed to ensure network exists for postgres recreation: {}", e);
+                            } else if let Err(e) = manager.start_postgres().await {
                                 error!("Failed to recreate postgres: {}", e);
                             }
                         }
@@ -783,7 +790,14 @@ impl StartupManager {
                     info!("➕ Creating missing container: {}", container_name);
                     match container_name {
                         POSTGRES_CONTAINER => {
-                            if let Err(e) = manager.start_postgres().await {
+                            // Find available ports and update configuration
+                            let available_ports = crate::container::manager::PortConfig::find_available_ports().await;
+                            manager.update_port_config(available_ports).await;
+                            
+                            // Ensure network exists before starting postgres
+                            if let Err(e) = manager.ensure_network_exists(crate::common::NETWORK_NAME).await {
+                                error!("Failed to ensure network exists for postgres creation: {}", e);
+                            } else if let Err(e) = manager.start_postgres().await {
                                 error!("Failed to create postgres: {}", e);
                             }
                         }

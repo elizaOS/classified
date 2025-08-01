@@ -49,7 +49,7 @@ impl PortConfig {
                 "PostgreSQL port {} is in use, trying alternative...",
                 config.postgres_port
             );
-            config.postgres_port = 5433;
+            config.postgres_port = 5432;
             if !crate::common::is_port_available(config.postgres_port) {
                 // Try a range of ports
                 for port in 5434..5440 {

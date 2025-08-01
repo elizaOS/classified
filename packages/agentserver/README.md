@@ -51,7 +51,7 @@ When running `bun run dev`, the following happens:
 The server expects PostgreSQL to be running on:
 
 - **Docker/Container**: `eliza-postgres:5432`
-- **Local Development**: `localhost:5433`
+- **Local Development**: `localhost:5432`
 
 Default credentials:
 

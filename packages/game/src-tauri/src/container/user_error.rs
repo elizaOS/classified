@@ -530,7 +530,7 @@ fn extract_port_from_message(msg: &str) -> Option<u16> {
 
 fn get_alternative_port(original: u16) -> u16 {
     match original {
-        5432 => 5433,   // PostgreSQL alternative
+        5432 => 5432,   // PostgreSQL alternative
         11434 => 11435, // Ollama alternative
         7777 => 7778,   // Agent alternative
         p => p + 1000,  // Generic alternative

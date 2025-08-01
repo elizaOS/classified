@@ -44,6 +44,15 @@ pub async fn start_postgres_container(
             e.message.clone()
         })?;
 
+    // Find available ports and update configuration
+    let available_ports = crate::container::manager::PortConfig::find_available_ports().await;
+    state.update_port_config(available_ports).await;
+    
+    // Ensure network exists before starting postgres
+    if let Err(e) = state.ensure_network_exists(crate::common::container_utils::NETWORK_NAME).await {
+        return Err(format!("Failed to ensure network exists: {}", e));
+    }
+
     match state.start_postgres().await {
         Ok(status) => {
             info!("PostgreSQL container started successfully");
