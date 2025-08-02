@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 
 const TARGETS = {
   local: null, // Use local platform
-  'linux-x64': 'bun-linux-x64',
+  'linux-amd64': 'bun-linux-x64', // Docker expects amd64, bun uses x64
   'linux-arm64': 'bun-linux-arm64',
 };
 

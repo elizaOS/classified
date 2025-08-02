@@ -2793,15 +2793,7 @@ export const GameInterface: React.FC = () => {
           {/* Status Tabs */}
           <div className="status-tabs">
             {(
-              [
-                'goals',
-                'todos',
-                'monologue',
-                'files',
-                'config',
-                'logs',
-                'agent-screen',
-              ] as const
+              ['goals', 'todos', 'monologue', 'files', 'config', 'logs', 'agent-screen'] as const
             ).map((tab) => (
               <button
                 key={tab}
