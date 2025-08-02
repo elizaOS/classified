@@ -40,6 +40,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: |
+          cd packages/agentserver
+          bun install
+
+      - name: Build backend and binaries
+        run: |
+          cd packages/agentserver
+          echo "🔨 Building backend and binary files for Docker..."
+          bun run build
+
+      - name: Verify binaries exist
+        run: |
+          ls -la packages/agentserver/dist-binaries/
+          echo "✅ Binary files ready for Docker build"
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
