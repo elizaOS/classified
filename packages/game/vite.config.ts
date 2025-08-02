@@ -6,6 +6,7 @@ const FRONTEND_PORT = parseInt(process.env.FRONTEND_PORT || '5173', 10);
 
 export default defineConfig({
   plugins: [react()],
+  base: process.env.NODE_ENV === 'production' ? '/classified/' : '/',
   server: {
     port: FRONTEND_PORT,
     host: true,

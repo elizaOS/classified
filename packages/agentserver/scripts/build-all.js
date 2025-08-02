@@ -98,7 +98,16 @@ async function cleanContainerCache() {
 
 async function main() {
   const rootDir = path.join(__dirname, '..', '..', '..');
-  const platform = process.env.TARGET_PLATFORM || `linux/${process.arch}`;
+  
+  // Map Node.js arch to Docker/Podman arch names
+  const archMapping = {
+    'x64': 'amd64',
+    'arm64': 'arm64',
+    'arm': 'arm/v7'
+  };
+  const dockerArch = archMapping[process.arch] || process.arch;
+  const platform = process.env.TARGET_PLATFORM || `linux/${dockerArch}`;
+  
   const useCache = process.env.USE_CACHE !== 'false';
   const cleanCache = process.env.CLEAN_CACHE === 'true';
 
