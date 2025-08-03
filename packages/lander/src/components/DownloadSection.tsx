@@ -79,7 +79,7 @@ export const DownloadSection: React.FC = () => {
             <div className="text-red-400 font-mono text-sm mb-4">{error}</div>
             <div className="text-center">
               <a
-                href="https://github.com/lalalune/thegame/releases"
+                href="https://github.com/lalalune/classified/releases"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-green-400 text-black font-mono font-bold text-xs px-4 py-2 hover:bg-green-300 transition-colors"
@@ -138,7 +138,7 @@ export const DownloadSection: React.FC = () => {
             </div>
             <div className="flex flex-wrap justify-center gap-8 text-xs font-mono">
               <a
-                href="https://github.com/lalalune/thegame/releases"
+                href="https://github.com/lalalune/classified/releases"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-green-400 hover:text-green-300 underline"
@@ -146,7 +146,7 @@ export const DownloadSection: React.FC = () => {
                 [ALL BUILDS]
               </a>
               <a
-                href="https://github.com/lalalune/thegame"
+                href="https://github.com/lalalune/classified"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-green-400 hover:text-green-300 underline"

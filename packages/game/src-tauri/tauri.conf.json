@@ -5,7 +5,7 @@
   "identifier": "com.classified.eliza",
   "build": {
     "beforeDevCommand": "cd .. && npx vite dev --host 0.0.0.0 --port 5173",
-    "beforeBuildCommand": "cd ../agentserver && bun scripts/build.js && cd ../game && bun vite build",
+    "beforeBuildCommand": "cd ../agentserver && bun run build:backend && cd ../game && bun vite build",
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173"
   },

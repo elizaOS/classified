@@ -13,7 +13,7 @@ export const Footer: React.FC = () => {
             {/* Links */}
             <div className="flex flex-wrap justify-center gap-8 text-xs font-mono mb-4">
               <a
-                href="https://github.com/lalalune/thegame"
+                href="https://github.com/lalalune/classified"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-green-400 hover:text-green-300 transition-colors"
@@ -29,7 +29,7 @@ export const Footer: React.FC = () => {
                 [COMMUNICATION]
               </a>
               <a
-                href="https://github.com/lalalune/thegame/releases"
+                href="https://github.com/lalalune/classified/releases"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-green-400 hover:text-green-300 transition-colors"

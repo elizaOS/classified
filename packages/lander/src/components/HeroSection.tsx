@@ -49,7 +49,7 @@ export const HeroSection: React.FC = () => {
           {/* Bottom Links */}
           <div className="flex justify-center gap-8 text-xs font-mono">
             <a
-              href="https://github.com/lalalune/thegame"
+              href="https://github.com/lalalune/classified"
               target="_blank"
               rel="noopener noreferrer"
               className="text-green-400 hover:text-green-300 underline"
