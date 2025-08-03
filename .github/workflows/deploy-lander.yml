@@ -62,6 +62,7 @@ jobs:
           bun run build
         env:
           GITHUB_SHA: ${{ github.sha }}
+          VITE_GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

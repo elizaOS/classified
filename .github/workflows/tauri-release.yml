@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create-release.outputs.result }}
-      release_upload_url: ${{ steps.create-release.outputs.upload_url }}
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,6 +29,7 @@ jobs:
         id: create-release
         uses: actions/github-script@v7
         with:
+          result-encoding: string
           script: |
             const tag = context.payload.inputs?.tag || context.ref.replace('refs/tags/', '');
 
@@ -43,7 +44,8 @@ jobs:
                 prerelease: false
               });
               
-              return release.data.id;
+              core.setOutput('upload_url', release.data.upload_url);
+              return release.data.id.toString();
             } catch (error) {
               if (error.status === 422) {
                 // Release already exists, get it
@@ -53,7 +55,8 @@ jobs:
                 });
                 const existingRelease = releases.data.find(r => r.tag_name === tag);
                 if (existingRelease) {
-                  return existingRelease.id;
+                  core.setOutput('upload_url', existingRelease.upload_url);
+                  return existingRelease.id.toString();
                 }
               }
               throw error;
@@ -115,7 +118,9 @@ jobs:
           cd packages/game
           bun run build:frontend || bun run build
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: Build Tauri App
+        id: tauri-build
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Code signing for macOS
@@ -129,17 +134,96 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: 'ELIZA ${{ github.event.inputs.tag || github.ref_name }}'
-          releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: false
-          prerelease: false
+          # When releaseId is provided, don't provide tag/release creation params
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
           projectPath: packages/game
           tauriScript: bunx tauri
           includeDebug: false
           includeRelease: true
+
+      # Debug: List built artifacts
+      - name: List Built Artifacts
+        if: always()
+        run: |
+          echo "Searching for built artifacts..."
+          echo "=== All files in bundle directories ==="
+          find packages/game/src-tauri/target -name "bundle" -type d -exec find {} -type f \; 2>/dev/null || true
+          echo "=== Summary of release artifacts ==="
+          find packages/game/src-tauri/target -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.msi" -o -name "*.exe" | grep -E "(deb|AppImage|dmg|msi|exe)$" || echo "No artifacts found"
+
+      # Fallback: Manually upload artifacts if tauri-action didn't upload them
+      - name: Upload Release Assets
+        if: success() || (failure() && steps.tauri-build.outcome == 'success')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const glob = require('@actions/glob');
+            
+            const releaseId = '${{ needs.create-release.outputs.release_id }}';
+            
+            // Get existing assets to avoid duplicates
+            const { data: release } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId
+            });
+            
+            const existingAssets = release.assets.map(a => a.name);
+            console.log('Existing assets:', existingAssets);
+            
+            // Find built artifacts
+            const patterns = {
+              'ubuntu-22.04': [
+                'packages/game/src-tauri/target/release/bundle/deb/*.deb',
+                'packages/game/src-tauri/target/release/bundle/appimage/*.AppImage'
+              ],
+              'windows-latest': [
+                'packages/game/src-tauri/target/release/bundle/msi/*.msi',
+                'packages/game/src-tauri/target/release/bundle/nsis/*.exe'
+              ],
+              'macos-latest': [
+                'packages/game/src-tauri/target/*/release/bundle/dmg/*.dmg',
+                'packages/game/src-tauri/target/*/release/bundle/macos/*.app.tar.gz'
+              ]
+            };
+            
+            const platform = '${{ matrix.platform }}';
+            const searchPatterns = patterns[platform] || [];
+            
+            for (const pattern of searchPatterns) {
+              const globber = await glob.create(pattern);
+              const files = await globber.glob();
+              console.log(`Found ${files.length} files matching ${pattern}`);
+              
+              for (const file of files) {
+                const fileName = path.basename(file);
+                
+                // Skip if already uploaded
+                if (existingAssets.includes(fileName)) {
+                  console.log(`Skipping ${fileName} - already uploaded`);
+                  continue;
+                }
+                
+                console.log(`Uploading ${fileName}...`);
+                const data = fs.readFileSync(file);
+                
+                try {
+                  await github.rest.repos.uploadReleaseAsset({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    release_id: releaseId,
+                    name: fileName,
+                    data: data
+                  });
+                  console.log(`Successfully uploaded ${fileName}`);
+                } catch (error) {
+                  console.error(`Failed to upload ${fileName}:`, error.message);
+                }
+              }
+            }
 
   trigger-lander-update:
     needs: [create-release, publish-tauri]

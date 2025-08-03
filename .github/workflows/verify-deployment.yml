@@ -6,6 +6,10 @@ on:
     - cron: '0 */6 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   verify-site:
     runs-on: ubuntu-latest
@@ -13,10 +17,14 @@ jobs:
       - name: Check Lander Site
         run: |
           echo "Checking if lander site is accessible..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" https://elizaos.github.io/eliza/)
+          # Extract repository name from full repository path
+          REPO_FULL="${{ github.repository }}"
+          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_NAME="${REPO_FULL#*/}"  # Remove owner prefix
+          response=$(curl -s -o /dev/null -w "%{http_code}" "https://${REPO_OWNER}.github.io/${REPO_NAME}/")
 
           if [ "$response" = "200" ]; then
-            echo "✅ Lander site is accessible"
+            echo "✅ Lander site is accessible at https://${REPO_OWNER}.github.io/${REPO_NAME}/"
           else
             echo "❌ Lander site returned HTTP $response"
             exit 1
@@ -25,7 +33,7 @@ jobs:
       - name: Check GitHub API Access
         run: |
           echo "Verifying GitHub API access for releases..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" https://api.github.com/repos/elizaos/eliza/releases)
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://api.github.com/repos/${{ github.repository }}/releases)
 
           if [ "$response" = "200" ]; then
             echo "✅ GitHub API is accessible"

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getApiReleasesUrl } from '../utils/repository';
 
 export interface GitHubAsset {
   id: number;
@@ -122,24 +123,28 @@ export const useGithubReleases = () => {
     setLoading(true);
     setError(null);
 
-    const response = await fetch('https://api.github.com/repos/elizaos/eliza/releases');
+    try {
+      const response = await fetch(getApiReleasesUrl());
 
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+
+      const data: GitHubRelease[] = await response.json();
+
+      // Find the latest non-prerelease version
+      const latestStable = data.find((release) => !release.prerelease && !release.draft);
+
+      if (latestStable) {
+        setLatestRelease(latestStable);
+        const links = parseDownloadLinks(latestStable.assets);
+        setDownloadLinks(links);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch releases');
+    } finally {
+      setLoading(false);
     }
-
-    const data: GitHubRelease[] = await response.json();
-
-    // Find the latest non-prerelease version
-    const latestStable = data.find((release) => !release.prerelease && !release.draft);
-
-    if (latestStable) {
-      setLatestRelease(latestStable);
-      const links = parseDownloadLinks(latestStable.assets);
-      setDownloadLinks(links);
-    }
-
-    setLoading(false);
   };
 
   const refetch = () => {

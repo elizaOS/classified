@@ -1,4 +1,5 @@
 import React from 'react';
+import { getGitHubUrl } from '../utils/repository';
 
 export const HeroSection: React.FC = () => {
   const scrollToDownload = () => {
@@ -49,7 +50,7 @@ export const HeroSection: React.FC = () => {
           {/* Bottom Links */}
           <div className="flex justify-center gap-8 text-xs font-mono">
             <a
-              href="https://github.com/lalalune/classified"
+              href={getGitHubUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className="text-green-400 hover:text-green-300 underline"
