@@ -9,7 +9,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/eliza-agent
 
 jobs:
   build-and-push:
@@ -25,6 +24,12 @@ jobs:
           - linux/arm64
 
     steps:
+      - name: Convert repository name to lowercase
+        id: repo
+        run: |
+          echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/eliza-agent" >> $GITHUB_OUTPUT
+          
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -65,7 +70,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ steps.repo.outputs.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -98,6 +103,11 @@ jobs:
       packages: write
 
     steps:
+      - name: Convert repository name to lowercase
+        id: repo
+        run: |
+          echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -145,7 +155,7 @@ jobs:
               restart: unless-stopped
 
             eliza-agent:
-              image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+              image: ${{ env.REGISTRY }}/${{ steps.repo.outputs.IMAGE_NAME }}:latest
               ports:
                 - "7777:7777"
                 - "5173:5173"
@@ -231,8 +241,9 @@ jobs:
           - `knowledge_data`: Knowledge base storage
           EOF
 
-          docker build -f Dockerfile.compose -t ${{ env.REGISTRY }}/${{ github.repository }}/compose:latest .
-          docker push ${{ env.REGISTRY }}/${{ github.repository }}/compose:latest
+          # Build with lowercase repository name for container registry compliance
+          docker build -f Dockerfile.compose -t ${{ env.REGISTRY }}/${{ steps.repo.outputs.REPO_LOWER }}/compose:latest .
+          docker push ${{ env.REGISTRY }}/${{ steps.repo.outputs.REPO_LOWER }}/compose:latest
 
   release-notes:
     runs-on: ubuntu-latest
@@ -240,13 +251,19 @@ jobs:
     needs: [build-and-push, build-compose-stack]
 
     steps:
+      - name: Convert repository name to lowercase
+        id: repo
+        run: |
+          echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "IMAGE_NAME=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/eliza-agent" >> $GITHUB_OUTPUT
+          
       - name: Create Release Notes
         uses: actions/github-script@v7
         with:
           script: |
             const tag = context.ref.replace('refs/tags/', '');
             const registry = '${{ env.REGISTRY }}';
-            const imageName = '${{ env.IMAGE_NAME }}';
+            const imageName = '${{ steps.repo.outputs.IMAGE_NAME }}';
 
             const releaseNotes = `
             ## ELIZA Container Release ${tag}
@@ -282,7 +299,7 @@ jobs:
             **Production Deployment:**
             \`\`\`bash
             # Get production compose file
-            docker run --rm ${registry}/${{ github.repository }}/compose:latest cat /docker-compose.yml > docker-compose.yml
+            docker run --rm ${registry}/${{ steps.repo.outputs.REPO_LOWER }}/compose:latest cat /docker-compose.yml > docker-compose.yml
 
             # Start full stack
             docker-compose up -d
