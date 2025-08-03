@@ -1,6 +1,6 @@
 {
   "name": "@elizaos/project-starter",
-  "description": "Project starter for elizaOS",
+  "description": "Project starter for elizaos",
   "version": "1.2.1",
   "type": "module",
   "private": true,

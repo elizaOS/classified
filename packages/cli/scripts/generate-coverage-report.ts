@@ -143,7 +143,7 @@ async function generateCoverageReport(): Promise<CoverageReport> {
 }
 
 async function main() {
-  console.log('🔍 Analyzing Unit Test Coverage for elizaOS CLI...\n');
+  console.log('🔍 Analyzing Unit Test Coverage for elizaos CLI...\n');
 
   const report = await generateCoverageReport();
 

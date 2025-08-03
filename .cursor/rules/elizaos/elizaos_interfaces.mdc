@@ -2,7 +2,7 @@
 alwaysApply: true
 ---
 
-# Important interfaces for elizaOS
+# Important interfaces for elizaos
 
 /**
  * Represents the core runtime environment for an agent.

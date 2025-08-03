@@ -132,7 +132,7 @@ describe('${basename(sourcePath).replace('.ts', '')}', () => {
 }
 
 async function main() {
-  console.log('🧪 Generating Unit Test Skeletons for elizaOS CLI...\n');
+  console.log('🧪 Generating Unit Test Skeletons for elizaos CLI...\n');
 
   const srcPath = join(process.cwd(), 'src');
   const sourceFiles = await findAllSourceFiles(srcPath);

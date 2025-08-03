@@ -10,12 +10,12 @@
   },
   "license": "MIT",
   "author": {
-    "name": "elizaOS",
+    "name": "elizaos",
     "url": "https://twitter.com/eliza_OS"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/elizaOS/eliza.git",
+    "url": "https://github.com/elizaos/eliza.git",
     "directory": "packages/server"
   },
   "files": [

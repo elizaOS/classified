@@ -7,7 +7,7 @@ set -e
 export ELIZA_TEST_MODE="true"
 export NODE_ENV="test"
 
-echo "🧪 Running elizaOS CLI Test Suite"
+echo "🧪 Running elizaos CLI Test Suite"
 echo "================================="
 
 # Colors for output

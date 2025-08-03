@@ -16,10 +16,10 @@ import {
 import { logger, UUID } from '@elizaos/core';
 
 const TEST_CHARACTER_URL =
-  'https://raw.githubusercontent.com/elizaOS/eliza/refs/heads/develop/packages/cli/tests/test-characters/shaw.json';
+  'https://raw.githubusercontent.com/elizaos/eliza/refs/heads/develop/packages/cli/tests/test-characters/shaw.json';
 
 const TEST_MULTI_CHARACTER_URL =
-  'https://raw.githubusercontent.com/elizaOS/eliza/refs/heads/develop/packages/cli/tests/test-characters/multi-chars.json';
+  'https://raw.githubusercontent.com/elizaos/eliza/refs/heads/develop/packages/cli/tests/test-characters/multi-chars.json';
 
 // Mock modules
 mock.module('node:fs', () => ({

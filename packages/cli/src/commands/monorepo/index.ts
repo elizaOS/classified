@@ -14,7 +14,7 @@ export const monorepo = new Command()
   .option('-d, --dir <directory>', 'Destination directory', './eliza')
   .action(async (options: MonorepoOptions) => {
     try {
-      const repo = 'elizaOS/eliza';
+      const repo = 'elizaos/eliza';
       const branch = options.branch || 'develop';
       const dir = options.dir || './eliza';
 

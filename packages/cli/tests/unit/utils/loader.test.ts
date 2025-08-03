@@ -9,7 +9,7 @@ import {
 import type { Character } from '@elizaos/core';
 
 const TEST_MULTI_CHARACTER_URL =
-  'https://raw.githubusercontent.com/elizaOS/eliza/refs/heads/develop/packages/cli/tests/test-characters/multi-chars.json';
+  'https://raw.githubusercontent.com/elizaos/eliza/refs/heads/develop/packages/cli/tests/test-characters/multi-chars.json';
 
 // Mock dependencies
 mock.module('node:fs', () => ({

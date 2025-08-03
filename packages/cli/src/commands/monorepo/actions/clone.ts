@@ -31,7 +31,7 @@ export async function cloneRepository(
       console.error(`  • main - The main branch`);
       console.error(`  • develop - The development branch (default)`);
       console.error(
-        `\nFor a complete list of branches, visit: https://github.com/elizaOS/eliza/branches`
+        `\nFor a complete list of branches, visit: https://github.com/elizaos/eliza/branches`
       );
       throw new Error(`Branch '${branch}' not found`);
     }

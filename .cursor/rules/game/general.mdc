@@ -12,7 +12,7 @@ Please follow these carefully
 
 - Clean up after yourself. Don't leave `test-*.mjs` or `fix-*.ts` around. That's so bad. If you make files you don't need, delete them after. Better yet, don't make new files for stuff that isn't going to stay in core. You can just run code or shell instead.
 
-- Always make sure you're using the actual elizaOS runtime and building the actual game and not shortcutting with other systems if you run into trouble
+- Always make sure you're using the actual elizaos runtime and building the actual game and not shortcutting with other systems if you run into trouble
 
 - KEEP IT SIMPLE. Plugins should never have more than a couple of services, a few actions and providers. Don't make an "EnhancedActionService" when you already have an ActionService. Just use the ActionService and fix it.
 

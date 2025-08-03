@@ -25,7 +25,7 @@ const pgliteConfigSchema = z.object({
 /**
  * Default sample environment variables written to new .env files.
  */
-const SAMPLE_ENV_TEMPLATE = `### elizaOS Environment Variables ###
+const SAMPLE_ENV_TEMPLATE = `### elizaos Environment Variables ###
 # To get started, copy this file to .env, or make a .env and add the settings you'd like to override
 # Please read the comments for each of the configurations
 
