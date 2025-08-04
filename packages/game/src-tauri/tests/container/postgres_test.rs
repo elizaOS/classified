@@ -23,8 +23,8 @@ mod postgres_container_tests {
                 // Ports may not be populated immediately after container start
                 if !status.ports.is_empty() {
                     assert_eq!(status.ports.len(), 1);
-                    assert_eq!(status.ports[0].host_port, 5432);
-                    assert_eq!(status.ports[0].container_port, 5432);
+                            assert_eq!(status.ports[0].host_port, 7654);
+        assert_eq!(status.ports[0].container_port, 5432);
                 }
 
                 println!("✅ PostgreSQL container configuration test passed");

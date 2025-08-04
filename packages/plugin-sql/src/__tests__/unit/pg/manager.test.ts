@@ -25,7 +25,7 @@ describe('PostgresConnectionManager', () => {
 
   describe('constructor', () => {
     it('should create an instance with connection URL', () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       expect(manager).toBeDefined();
@@ -36,7 +36,7 @@ describe('PostgresConnectionManager', () => {
 
   describe('getDatabase', () => {
     it('should return the drizzle database instance', () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       const db = manager.getDatabase();
@@ -47,7 +47,7 @@ describe('PostgresConnectionManager', () => {
 
   describe('getConnection', () => {
     it('should return the pool instance', () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       const connection = manager.getConnection();
@@ -58,7 +58,7 @@ describe('PostgresConnectionManager', () => {
 
   describe('getClient', () => {
     it('should return a client from the pool', async () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       const mockClient = {
@@ -74,7 +74,7 @@ describe('PostgresConnectionManager', () => {
     });
 
     it('should throw error when pool connection fails', async () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       mockPoolInstance.connect.mockRejectedValue(new Error('Connection failed'));
@@ -85,7 +85,7 @@ describe('PostgresConnectionManager', () => {
 
   describe('testConnection', () => {
     it('should return true when connection is successful', async () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       const mockClient = {
@@ -103,7 +103,7 @@ describe('PostgresConnectionManager', () => {
     });
 
     it('should return false when connection fails', async () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       mockPoolInstance.connect.mockRejectedValue(new Error('Connection failed'));
@@ -113,7 +113,7 @@ describe('PostgresConnectionManager', () => {
     });
 
     it('should return false when query fails', async () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       const mockClient = {
@@ -131,7 +131,7 @@ describe('PostgresConnectionManager', () => {
 
   describe('close', () => {
     it('should end the pool connection', async () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       mockPoolInstance.end.mockResolvedValue(undefined);
@@ -141,7 +141,7 @@ describe('PostgresConnectionManager', () => {
     });
 
     it('should propagate errors during close', async () => {
-      const connectionUrl = 'postgresql://user:pass@localhost:5432/testdb';
+      const connectionUrl = 'postgresql://user:pass@localhost:7654/testdb';
       const manager = new PostgresConnectionManager(connectionUrl);
 
       mockPoolInstance.end.mockRejectedValue(new Error('Close failed'));

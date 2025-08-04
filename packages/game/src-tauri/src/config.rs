@@ -87,6 +87,16 @@ pub fn get_room_id() -> &'static str {
     &get_config().room_id
 }
 
+/// Get the API base URL from configuration
+pub fn get_api_base_url() -> &'static str {
+    &get_config().api_base_url
+}
+
+/// Get the WebSocket URL from configuration
+pub fn get_websocket_url() -> &'static str {
+    &get_config().websocket_url
+}
+
 
 
 #[cfg(test)]

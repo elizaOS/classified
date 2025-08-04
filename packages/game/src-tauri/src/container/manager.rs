@@ -32,7 +32,7 @@ pub struct PortConfig {
 impl Default for PortConfig {
     fn default() -> Self {
         Self {
-            postgres_port: 5432,
+            postgres_port: 7654,
             ollama_port: 11434,
             agent_port: 7777,
         }
@@ -333,7 +333,7 @@ impl ContainerManager {
         let port_config = self.port_config.read().await;
         let postgres_port = port_config.postgres_port;
 
-        if postgres_port != 5432 {
+        if postgres_port != 7654 {
             info!("Using alternative PostgreSQL port: {}", postgres_port);
         }
 
@@ -1299,7 +1299,7 @@ impl ContainerManager {
         let available_ports = PortConfig::find_available_ports().await;
         *self.port_config.write().await = available_ports.clone();
 
-        if available_ports.postgres_port != 5432 {
+        if available_ports.postgres_port != 7654 {
             info!(
                 "⚠️ Using alternative PostgreSQL port: {}",
                 available_ports.postgres_port

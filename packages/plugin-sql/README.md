@@ -110,7 +110,7 @@ The adapter implements the following error handling configurations:
 
 The plugin uses the following environment variables:
 
-- `POSTGRES_URL`: Connection string for PostgreSQL database (e.g., `postgresql://user:password@localhost:5432/dbname`)
+- `POSTGRES_URL`: Connection string for PostgreSQL database (e.g., `postgresql://user:password@localhost:7654/dbname`)
   - If not provided, the plugin will use PGlite as a fallback
 - `PGLITE_DATA_DIR`: (Optional) Directory for PGlite data storage (default: `./pglite`)
 

@@ -52,7 +52,7 @@ export class AgentImportService {
     const postgresUrl =
       process.env.POSTGRES_URL ||
       process.env.DATABASE_URL ||
-      'postgresql://eliza:eliza_secure_pass@localhost:5432/eliza';
+      'postgresql://eliza:eliza_secure_pass@localhost:7654/eliza';
 
     this.pool = new Pool({
       connectionString: postgresUrl,

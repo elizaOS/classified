@@ -141,10 +141,10 @@ impl UserError {
 
     fn port_conflict_error(msg: String, technical_details: Option<String>) -> Self {
         // Extract port number if possible
-        let port = extract_port_from_message(&msg).unwrap_or(5432);
+        let port = extract_port_from_message(&msg).unwrap_or(7654);
 
         let (service_name, suggestions) = match port {
-            5432 => (
+            7654 => (
                 "PostgreSQL",
                 vec![
                     "Another PostgreSQL instance might be running".to_string(),
@@ -530,7 +530,7 @@ fn extract_port_from_message(msg: &str) -> Option<u16> {
 
 fn get_alternative_port(original: u16) -> u16 {
     match original {
-        5432 => 5432,   // PostgreSQL alternative
+        7654 => 7655,   // PostgreSQL alternative
         11434 => 11435, // Ollama alternative
         7777 => 7778,   // Agent alternative
         p => p + 1000,  // Generic alternative
@@ -566,8 +566,8 @@ mod tests {
     #[test]
     fn test_port_extraction() {
         assert_eq!(
-            extract_port_from_message("port 5432 already in use"),
-            Some(5432)
+            extract_port_from_message("port 7654 already in use"),
+            Some(7654)
         );
         assert_eq!(
             extract_port_from_message("bind: address already in use :11434"),
@@ -578,7 +578,7 @@ mod tests {
 
     #[test]
     fn test_error_conversion() {
-        let backend_err = BackendError::Container("port 5432 already in use".to_string());
+        let backend_err = BackendError::Container("port 7654 already in use".to_string());
         let user_err = UserError::from(backend_err);
 
         assert_eq!(user_err.code, ErrorCode::PortConflict);

@@ -4,7 +4,8 @@ use async_trait::async_trait;
 
 use std::path::Path;
 use std::process::Command;
-use tracing::{error, info, warn};
+use tokio::process::Command as AsyncCommand;
+use tracing::{debug, error, info, warn};
 
 // Helper function to parse Podman uptime strings
 fn parse_podman_uptime(status: &str) -> u64 {
@@ -293,23 +294,66 @@ impl PodmanClient {
 
         // Parse the first matching container
         if let Some(line) = lines.first() {
+            info!("Parsing container status line for {}: {}", container_name, line);
             let parts: Vec<&str> = line.split(':').collect();
+            info!("Parts count: {}, parts: {:?}", parts.len(), parts);
             if parts.len() >= 6 {
-                let state = match parts[3] {
-                    "running" => crate::backend::ContainerState::Running,
-                    "paused" => crate::backend::ContainerState::Stopped,
-                    "exited" | "stopped" => crate::backend::ContainerState::Stopped,
-                    "created" => crate::backend::ContainerState::Starting,
-                    _ => crate::backend::ContainerState::Unknown,
+                // The image name can contain colons (e.g., docker.io/pgvector/pgvector:pg16)
+                // So we need to find the state field by looking for known state values
+                let mut state_index = None;
+                for (i, part) in parts.iter().enumerate() {
+                    match *part {
+                        "running" | "paused" | "exited" | "stopped" | "created" => {
+                            state_index = Some(i);
+                            break;
+                        }
+                        _ => continue,
+                    }
+                }
+                
+                let state = if let Some(idx) = state_index {
+                    info!("State field (parts[{}]): '{}'", idx, parts[idx]);
+                    match parts[idx] {
+                        "running" => crate::backend::ContainerState::Running,
+                        "paused" => crate::backend::ContainerState::Stopped,
+                        "exited" | "stopped" => crate::backend::ContainerState::Stopped,
+                        "created" => crate::backend::ContainerState::Starting,
+                        _ => {
+                            warn!("Unknown state '{}' for container {}", parts[idx], container_name);
+                            crate::backend::ContainerState::Unknown
+                        },
+                    }
+                } else {
+                    warn!("Could not find state field in parts: {:?}", parts);
+                    crate::backend::ContainerState::Unknown
                 };
                 
-                // Parse uptime from status field
-                let uptime_seconds = parse_podman_uptime(parts[4]);
+                // Parse uptime from status field (should be right after the state)
+                let uptime_seconds = if let Some(idx) = state_index {
+                    if idx + 1 < parts.len() {
+                        parse_podman_uptime(parts[idx + 1])
+                    } else {
+                        0
+                    }
+                } else {
+                    0
+                };
 
                 // Get actual health status from inspect if container is running
                 let health = if state == crate::backend::ContainerState::Running {
-                    self.get_container_health_status(container_name).await.unwrap_or(crate::backend::HealthStatus::Unknown)
+                    info!("Container {} is running, checking health status", container_name);
+                    match self.get_container_health_status(container_name).await {
+                        Ok(health_status) => {
+                            info!("Health check returned {:?} for container {}", health_status, container_name);
+                            health_status
+                        },
+                        Err(e) => {
+                            warn!("Health check failed for container {}: {}", container_name, e);
+                            crate::backend::HealthStatus::Unknown
+                        }
+                    }
                 } else {
+                    info!("Container {} is not running (state: {:?}), setting health to Unknown", container_name, state);
                     crate::backend::HealthStatus::Unknown
                 };
 
@@ -333,8 +377,10 @@ impl PodmanClient {
     }
 
     async fn get_container_health_status(&self, container_name: &str) -> BackendResult<crate::backend::HealthStatus> {
+        info!("Checking health status for container: {}", container_name);
+        
         // Use inspect to get detailed health information
-        let output = Command::new(&self.podman_path)
+        let output = AsyncCommand::new(&self.podman_path)
             .args([
                 "inspect",
                 "--format",
@@ -342,24 +388,80 @@ impl PodmanClient {
                 container_name,
             ])
             .output()
+            .await
             .map_err(|e| BackendError::Container(format!("Failed to inspect container health: {e}")))?;
 
         if !output.status.success() {
+            warn!("Failed to inspect health for container {}", container_name);
             return Ok(crate::backend::HealthStatus::Unknown);
         }
 
         let health_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        info!("Container {} health status from inspect: '{}'", container_name, health_str);
         
         match health_str.as_str() {
             "healthy" => Ok(crate::backend::HealthStatus::Healthy),
             "unhealthy" => Ok(crate::backend::HealthStatus::Unhealthy),
             "starting" => Ok(crate::backend::HealthStatus::Starting),
             "none" => {
-                // No health check defined, assume healthy if running
-                Ok(crate::backend::HealthStatus::Healthy)
+                // No health check defined, check if PostgreSQL is actually ready
+                if container_name.contains("postgres") {
+                    info!("Container {} has no health check, checking PostgreSQL readiness", container_name);
+                    // For PostgreSQL, run pg_isready to check if it's actually ready
+                    match self.check_postgres_ready(container_name).await {
+                        Ok(true) => {
+                            info!("PostgreSQL is ready for container {}", container_name);
+                            Ok(crate::backend::HealthStatus::Healthy)
+                        },
+                        Ok(false) => {
+                            info!("PostgreSQL is not ready yet for container {}", container_name);
+                            Ok(crate::backend::HealthStatus::Starting)
+                        },
+                        Err(e) => {
+                            warn!("Error checking PostgreSQL readiness for {}: {}", container_name, e);
+                            Ok(crate::backend::HealthStatus::Unknown)
+                        },
+                    }
+                } else {
+                    // For other containers without health check, assume healthy if running
+                    Ok(crate::backend::HealthStatus::Healthy)
+                }
             }
-            _ => Ok(crate::backend::HealthStatus::Unknown),
+            _ => {
+                warn!("Unknown health status '{}' for container {}", health_str, container_name);
+                Ok(crate::backend::HealthStatus::Unknown)
+            }
         }
+    }
+
+    async fn check_postgres_ready(&self, container_name: &str) -> BackendResult<bool> {
+        // Run pg_isready inside the container to check if PostgreSQL is ready
+        // Don't specify user/database to avoid auth issues - just check if server is accepting connections
+        let output = AsyncCommand::new(&self.podman_path)
+            .args([
+                "exec",
+                container_name,
+                "pg_isready",
+                "-h",
+                "localhost",
+                "-p",
+                "5432",
+            ])
+            .output()
+            .await
+            .map_err(|e| BackendError::Container(format!("Failed to check PostgreSQL readiness: {e}")))?;
+
+        // Log the result for debugging
+        let is_ready = output.status.success();
+        if !is_ready {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            info!("PostgreSQL not ready yet for {}: stderr={}, stdout={}", container_name, stderr, stdout);
+        } else {
+            info!("PostgreSQL is ready for container {} via pg_isready", container_name);
+        }
+        
+        Ok(is_ready)
     }
 
     pub async fn list_containers_by_pattern(&self, pattern: &str) -> BackendResult<Vec<String>> {
@@ -582,8 +684,19 @@ impl ContainerRuntime for PodmanClient {
 
                     // Get actual health status if container is running
                     let health = if state == ContainerState::Running {
-                        self.get_container_health_status(container_name).await.unwrap_or(HealthStatus::Unknown)
+                        info!("Container {} is running (fallback method), checking health status", container_name);
+                        match self.get_container_health_status(container_name).await {
+                            Ok(health_status) => {
+                                info!("Health check returned {:?} for container {} (fallback)", health_status, container_name);
+                                health_status
+                            },
+                            Err(e) => {
+                                warn!("Health check failed for container {} (fallback): {}", container_name, e);
+                                HealthStatus::Unknown
+                            }
+                        }
                     } else {
+                        info!("Container {} is not running (state: {:?}, fallback), setting health to Unknown", container_name, state);
                         HealthStatus::Unknown
                     };
 

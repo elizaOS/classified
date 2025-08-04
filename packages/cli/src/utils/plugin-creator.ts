@@ -671,7 +671,7 @@ You are now going to implement this plugin following ElizaOS 1.0.0 best practice
     });
     
     it('should work with PostgreSQL', async () => {
-      process.env.POSTGRES_URL = 'postgresql://test:test@localhost:5432/test';
+      process.env.POSTGRES_URL = 'postgresql://test:test@localhost:7654/test';
       delete process.env.PGLITE_DATA_DIR;
       // Test plugin functionality
     });

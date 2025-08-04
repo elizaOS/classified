@@ -34,7 +34,7 @@ impl Default for BackendConfig {
         Self {
             http_port: 7777, // Frontend expects port 7777
             websocket_port: 7779,
-            postgres_url: "postgresql://eliza:eliza@localhost:5432/eliza".to_string(),
+            postgres_url: "postgresql://eliza:eliza@localhost:7654/eliza".to_string(),
             auth: AuthConfig {
                 jwt_secret: "dev-secret-change-in-production".to_string(),
                 session_timeout_hours: 24,

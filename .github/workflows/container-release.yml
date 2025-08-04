@@ -133,7 +133,7 @@ jobs:
               volumes:
                 - postgres_data:/var/lib/postgresql/data
               ports:
-                - "5432:5432"
+                - "7654:5432"
               healthcheck:
                 test: ["CMD-SHELL", "pg_isready -U eliza"]
                 interval: 30s
@@ -274,7 +274,7 @@ jobs:
             - \`${registry}/${imageName}:${tag}\` (linux/amd64, linux/arm64)
             - \`${registry}/${imageName}:latest\` (if this is the latest release)
 
-            **Note:** These images are OCI-compliant and work with both Docker and Podman [[memory:4430015]].
+            **Note:** These images are OCI-compliant and work with both Docker and Podman.
 
             **Quick Start with Docker:**
             \`\`\`bash

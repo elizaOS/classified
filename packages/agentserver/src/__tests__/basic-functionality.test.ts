@@ -216,11 +216,11 @@ describe('Basic Server Functionality', () => {
       // Custom configuration
       const customConfig = createServerConfig({
         dataDir: '/custom/data',
-        postgresUrl: 'postgresql://localhost:5432/test',
+        postgresUrl: 'postgresql://localhost:7654/test',
         middlewares: ['middleware1', 'middleware2'],
       });
       expect(customConfig.dataDir).toBe('/custom/data');
-      expect(customConfig.postgresUrl).toBe('postgresql://localhost:5432/test');
+      expect(customConfig.postgresUrl).toBe('postgresql://localhost:7654/test');
       expect(customConfig.middlewares).toEqual(['middleware1', 'middleware2']);
       expect(customConfig.hasCustomDataDir).toBe(true);
       expect(customConfig.hasCustomDb).toBe(true);

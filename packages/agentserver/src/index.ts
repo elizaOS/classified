@@ -225,7 +225,7 @@ export async function startServer() {
     process.env.AGENT_CONTAINER === 'true' ||
     process.env.DOCKER_CONTAINER === 'true' ||
     fs.existsSync('/.dockerenv');
-  const postgresHost = isContainer ? 'eliza-postgres:5432' : 'localhost:5432';
+  const postgresHost = isContainer ? 'eliza-postgres:5432' : 'localhost:7654';
   const fallbackDatabaseUrl = `postgresql://eliza:eliza_secure_pass@${postgresHost}/eliza`;
 
   // Use environment variable if set, otherwise use fallback

@@ -39,7 +39,7 @@ impl PortDetectionConfig {
 
     /// PostgreSQL port detection configuration
     pub fn postgres() -> Self {
-        Self::new("PostgreSQL", 5432, 5432, 5434, 5440)
+        Self::new("PostgreSQL", 7654, 7654, 7655, 7660)
     }
 
     /// Ollama port detection configuration  
@@ -160,7 +160,7 @@ mod tests {
     fn test_port_detection_config() {
         let postgres_config = PortDetectionConfig::postgres();
         assert_eq!(postgres_config.service_name, "PostgreSQL");
-        assert_eq!(postgres_config.default_port, 5432);
+        assert_eq!(postgres_config.default_port, 7654);
         
         let ollama_config = PortDetectionConfig::ollama();
         assert_eq!(ollama_config.service_name, "Ollama");
@@ -174,24 +174,18 @@ mod tests {
     #[test]
     fn test_port_detection_result() {
         let result = PortDetectionResult {
-            port: 5432,
-            used_default: true,
-            used_fallback: false,
+            port: 7654,
         };
         
-        assert_eq!(result.port, 5432);
-        assert!(result.used_default);
-        assert!(!result.used_fallback);
+        assert_eq!(result.port, 7654);
     }
 
     #[test] 
-    fn test_find_first_available_in_range() {
-        // This test might fail if ports in the range are actually in use
-        let port = find_first_available_in_range(9000, 9010);
-        // We can't assert a specific port since it depends on system state
-        // but we can verify it returns a port in the expected range if found
-        if let Some(port) = port {
-            assert!(port >= 9000 && port < 9010);
-        }
+    fn test_find_available_port_with_config() {
+        let config = PortDetectionConfig::postgres();
+        // Test with a very high port that should be available
+        let result = find_available_port(&config, 65000);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().port, 65000);
     }
 }
