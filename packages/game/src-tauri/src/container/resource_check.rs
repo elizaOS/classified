@@ -151,27 +151,56 @@ impl ResourceChecker {
     }
 
     fn check_disk_space(&self, required_gb: u64) -> ResourceStatus {
-        // TODO: Fix disk checking for sysinfo v0.31
-        // For now, return a simple check
-        let available_gb = 100; // Assume 100GB available for now
+        use sysinfo::Disks;
+        
+        let disks = Disks::new_with_refreshed_list();
+        
+        // Find the main disk (usually "/" on Unix or "C:\" on Windows)
+        let mut total_available_gb = 0u64;
+        let mut found_main_disk = false;
+        
+        for disk in disks.iter() {
+            let mount_point = disk.mount_point().to_string_lossy();
+            
+            // Check for main system disk
+            #[cfg(unix)]
+            let is_main = mount_point == "/";
+            #[cfg(windows)]
+            let is_main = mount_point.starts_with("C:");
+            
+            if is_main {
+                found_main_disk = true;
+                let available_bytes = disk.available_space();
+                total_available_gb = available_bytes / (1024 * 1024 * 1024); // Convert to GB
+                break;
+            }
+        }
+        
+        // Fallback if main disk not found - sum all disks
+        if !found_main_disk {
+            for disk in disks.iter() {
+                let available_bytes = disk.available_space();
+                total_available_gb += available_bytes / (1024 * 1024 * 1024);
+            }
+        }
 
-        if available_gb >= required_gb {
+        if total_available_gb >= required_gb {
             ResourceStatus {
                 passed: true,
-                available: available_gb,
+                available: total_available_gb,
                 required: required_gb,
                 unit: "GB".to_string(),
-                message: format!("{}GB available, {}GB required", available_gb, required_gb),
+                message: format!("{}GB available, {}GB required", total_available_gb, required_gb),
             }
         } else {
             ResourceStatus {
                 passed: false,
-                available: available_gb,
+                available: total_available_gb,
                 required: required_gb,
                 unit: "GB".to_string(),
                 message: format!(
                     "Insufficient disk space: {}GB available, {}GB required",
-                    available_gb, required_gb
+                    total_available_gb, required_gb
                 ),
             }
         }
@@ -273,6 +302,35 @@ impl ResourceRequirements {
             min_disk_gb: 10,     // 10GB for models
             required_ports: vec![],
             estimated_download_mb: 5120, // ~5GB for models
+        }
+    }
+    
+    /// Get resource requirements based on available system memory
+    pub fn for_system_memory(total_memory_mb: u64) -> Self {
+        if total_memory_mb <= 8192 {
+            // Low memory system (8GB or less)
+            Self {
+                min_memory_mb: 2048,     // 2GB minimum
+                min_disk_gb: 8,          // 8GB for smaller models
+                required_ports: vec![],
+                estimated_download_mb: 2048, // ~2GB for smaller models
+            }
+        } else if total_memory_mb <= 16384 {
+            // Medium memory system (16GB or less)
+            Self {
+                min_memory_mb: 3072,     // 3GB minimum
+                min_disk_gb: 10,         // 10GB for models
+                required_ports: vec![],
+                estimated_download_mb: 3072, // ~3GB for models
+            }
+        } else {
+            // High memory system (>16GB)
+            Self {
+                min_memory_mb: 4096,     // 4GB minimum
+                min_disk_gb: 10,         // 10GB for models
+                required_ports: vec![],
+                estimated_download_mb: 5120, // ~5GB for models
+            }
         }
     }
 }

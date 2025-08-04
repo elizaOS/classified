@@ -6,6 +6,30 @@ use std::path::Path;
 use std::process::Command;
 use tracing::{error, info, warn};
 
+// Helper function to parse Podman uptime strings
+fn parse_podman_uptime(status: &str) -> u64 {
+    // Status examples: "Up 2 hours ago", "Up 3 minutes ago", "Exited (0) 3 hours ago"
+    if !status.contains("Up") {
+        return 0;
+    }
+    
+    let parts: Vec<&str> = status.split_whitespace().collect();
+    if parts.len() < 3 {
+        return 0;
+    }
+    
+    let number = parts[1].parse::<u64>().unwrap_or(0);
+    let unit = parts[2];
+    
+    match unit {
+        s if s.starts_with("second") => number,
+        s if s.starts_with("minute") => number * 60,
+        s if s.starts_with("hour") => number * 3600,
+        s if s.starts_with("day") => number * 86400,
+        _ => 0,
+    }
+}
+
 #[derive(Clone)]
 pub struct PodmanClient {
     podman_path: String,
@@ -232,18 +256,19 @@ impl PodmanClient {
         Ok(())
     }
 
-    pub async fn get_container_status(
+    pub async fn get_container_status_impl(
         &self,
         container_name: &str,
     ) -> BackendResult<crate::backend::ContainerStatus> {
         info!("Getting status for container: {}", container_name);
 
+        // First check if container exists
         let output = Command::new(&self.podman_path)
             .args([
                 "ps",
                 "-a",
                 "--format",
-                "{{.ID}}:{{.Names}}:{{.State}}:{{.Status}}",
+                "{{.ID}}:{{.Names}}:{{.Image}}:{{.State}}:{{.Status}}:{{.CreatedAt}}",
                 "--filter",
                 &format!("name={}", container_name),
             ])
@@ -269,33 +294,35 @@ impl PodmanClient {
         // Parse the first matching container
         if let Some(line) = lines.first() {
             let parts: Vec<&str> = line.split(':').collect();
-            if parts.len() >= 4 {
-                let state = match parts[2] {
+            if parts.len() >= 6 {
+                let state = match parts[3] {
                     "running" => crate::backend::ContainerState::Running,
                     "paused" => crate::backend::ContainerState::Stopped,
                     "exited" | "stopped" => crate::backend::ContainerState::Stopped,
                     "created" => crate::backend::ContainerState::Starting,
                     _ => crate::backend::ContainerState::Unknown,
                 };
+                
+                // Parse uptime from status field
+                let uptime_seconds = parse_podman_uptime(parts[4]);
 
-                // Simple health status based on state
-                let health = match state {
-                    crate::backend::ContainerState::Running => {
-                        crate::backend::HealthStatus::Healthy
-                    }
-                    _ => crate::backend::HealthStatus::Unknown,
+                // Get actual health status from inspect if container is running
+                let health = if state == crate::backend::ContainerState::Running {
+                    self.get_container_health_status(container_name).await.unwrap_or(crate::backend::HealthStatus::Unknown)
+                } else {
+                    crate::backend::HealthStatus::Unknown
                 };
 
                 return Ok(crate::backend::ContainerStatus {
                     id: parts[0].to_string(),
                     name: parts[1].to_string(),
-                    image: "unknown".to_string(), // TODO: Update podman ps format to include image
+                    image: parts[2].to_string(),
                     state,
                     health,
                     ports: vec![],
-                    started_at: None,
-                    uptime_seconds: 0,
-                    restart_count: 0,
+                    started_at: None, // Podman timestamp parsing would go here
+                    uptime_seconds,
+                    restart_count: 0, // Podman doesn't provide this in ps output
                 });
             }
         }
@@ -303,6 +330,36 @@ impl PodmanClient {
         Err(BackendError::Container(
             "Failed to parse container status".to_string(),
         ))
+    }
+
+    async fn get_container_health_status(&self, container_name: &str) -> BackendResult<crate::backend::HealthStatus> {
+        // Use inspect to get detailed health information
+        let output = Command::new(&self.podman_path)
+            .args([
+                "inspect",
+                "--format",
+                "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}",
+                container_name,
+            ])
+            .output()
+            .map_err(|e| BackendError::Container(format!("Failed to inspect container health: {e}")))?;
+
+        if !output.status.success() {
+            return Ok(crate::backend::HealthStatus::Unknown);
+        }
+
+        let health_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        
+        match health_str.as_str() {
+            "healthy" => Ok(crate::backend::HealthStatus::Healthy),
+            "unhealthy" => Ok(crate::backend::HealthStatus::Unhealthy),
+            "starting" => Ok(crate::backend::HealthStatus::Starting),
+            "none" => {
+                // No health check defined, assume healthy if running
+                Ok(crate::backend::HealthStatus::Healthy)
+            }
+            _ => Ok(crate::backend::HealthStatus::Unknown),
+        }
     }
 
     pub async fn list_containers_by_pattern(&self, pattern: &str) -> BackendResult<Vec<String>> {
@@ -486,51 +543,68 @@ impl ContainerRuntime for PodmanClient {
     }
 
     async fn get_container_status(&self, container_name: &str) -> BackendResult<ContainerStatus> {
-        let output = Command::new(&self.podman_path)
-            .args([
-                "inspect",
-                "--format",
-                "{{.State.Status}}\t{{.Config.Image}}\t{{.Id}}",
-                container_name
-            ])
-            .output()
-            .map_err(|e| BackendError::Container(format!("Failed to inspect container: {e}")))?;
+        // First, try our detailed ps-based method
+        match self.get_container_status_impl(container_name).await {
+            Ok(status) => Ok(status),
+            Err(_) => {
+                // Fallback to inspect for more details
+                let output = Command::new(&self.podman_path)
+                    .args([
+                        "inspect",
+                        "--format",
+                        "{{.State.Status}}\t{{.Config.Image}}\t{{.Id}}\t{{.State.StartedAt}}\t{{.RestartCount}}",
+                        container_name
+                    ])
+                    .output()
+                    .map_err(|e| BackendError::Container(format!("Failed to inspect container: {e}")))?;
 
-        if !output.status.success() {
-            return Err(BackendError::Container(format!(
-                "Container {} not found",
-                container_name
-            )));
-        }
+                if !output.status.success() {
+                    return Err(BackendError::Container(format!(
+                        "Container {} not found",
+                        container_name
+                    )));
+                }
 
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        let parts: Vec<&str> = output_str.trim().split('\t').collect();
-        
-        if parts.len() >= 3 {
-            let state = match parts[0] {
-                "running" => ContainerState::Running,
-                "exited" => ContainerState::Exited,
-                "paused" => ContainerState::Paused,
-                "restarting" => ContainerState::Restarting,
-                _ => ContainerState::Unknown,
-            };
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                let parts: Vec<&str> = output_str.trim().split('\t').collect();
+                
+                if parts.len() >= 5 {
+                    let state = match parts[0] {
+                        "running" => ContainerState::Running,
+                        "exited" => ContainerState::Exited,
+                        "paused" => ContainerState::Paused,
+                        "restarting" => ContainerState::Restarting,
+                        _ => ContainerState::Unknown,
+                    };
+                    
+                    // Parse restart count
+                    let restart_count = parts[4].parse::<u32>().unwrap_or(0);
 
-            Ok(ContainerStatus {
-                id: parts[2].to_string(),
-                name: container_name.to_string(),
-                image: parts[1].to_string(),
-                state,
-                health: HealthStatus::Unknown,
-                ports: Vec::new(), // Simplified for now
-                started_at: None, // TODO: Parse actual start time
-                uptime_seconds: 0, // TODO: Calculate actual uptime
-                restart_count: 0, // TODO: Get actual restart count
-            })
-        } else {
-            Err(BackendError::Container(format!(
-                "Invalid inspect output for {}",
-                container_name
-            )))
+                    // Get actual health status if container is running
+                    let health = if state == ContainerState::Running {
+                        self.get_container_health_status(container_name).await.unwrap_or(HealthStatus::Unknown)
+                    } else {
+                        HealthStatus::Unknown
+                    };
+
+                    Ok(ContainerStatus {
+                        id: parts[2].to_string(),
+                        name: container_name.to_string(),
+                        image: parts[1].to_string(),
+                        state,
+                        health,
+                        ports: Vec::new(),
+                        started_at: None, // Would parse parts[3] timestamp here
+                        uptime_seconds: 0, // Would calculate from started_at
+                        restart_count,
+                    })
+                } else {
+                    Err(BackendError::Container(format!(
+                        "Invalid inspect output for {}",
+                        container_name
+                    )))
+                }
+            }
         }
     }
 

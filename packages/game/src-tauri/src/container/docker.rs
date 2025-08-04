@@ -5,6 +5,38 @@ use async_trait::async_trait;
 use std::path::Path;
 use tracing::warn;
 
+// Helper function to parse Docker uptime strings
+fn parse_docker_uptime(status: &str) -> u64 {
+    // Status examples: "Up 2 hours", "Up 3 minutes", "Exited (0) 3 hours ago"
+    if !status.contains("Up") {
+        return 0;
+    }
+    
+    let parts: Vec<&str> = status.split_whitespace().collect();
+    if parts.len() < 3 {
+        return 0;
+    }
+    
+    let number = parts[1].parse::<u64>().unwrap_or(0);
+    let unit = parts[2];
+    
+    match unit {
+        s if s.starts_with("second") => number,
+        s if s.starts_with("minute") => number * 60,
+        s if s.starts_with("hour") => number * 3600,
+        s if s.starts_with("day") => number * 86400,
+        _ => 0,
+    }
+}
+
+// Helper function to parse Docker timestamp
+fn parse_docker_timestamp(_timestamp: &str) -> Option<i64> {
+    // Timestamp format: "2024-01-01 12:00:00 +0000 UTC"
+    // For now, return None as parsing this format is complex
+    // In production, you'd use a proper date parsing library
+    None
+}
+
 #[derive(Clone)]
 pub struct DockerClient {
     docker_path: String,
@@ -212,7 +244,7 @@ impl DockerClient {
         }
     }
 
-    pub async fn get_container_status(
+    pub async fn get_container_status_impl(
         &self,
         container_name: &str,
     ) -> BackendResult<crate::backend::ContainerStatus> {
@@ -221,7 +253,7 @@ impl DockerClient {
                 "ps",
                 "-a",
                 "--format",
-                "{{.ID}}:{{.Names}}:{{.State}}:{{.Status}}",
+                "{{.ID}}:{{.Names}}:{{.Image}}:{{.State}}:{{.Status}}:{{.CreatedAt}}",
                 "--filter",
                 &format!("name={}", container_name),
             ])
@@ -249,14 +281,14 @@ impl DockerClient {
         let line = lines[0];
         let parts: Vec<&str> = line.split(':').collect();
 
-        if parts.len() < 4 {
+        if parts.len() < 6 {
             return Err(BackendError::Container(format!(
                 "Invalid container status format: {}",
                 line
             )));
         }
 
-        let state = match parts[2] {
+        let state = match parts[3] {
             "running" => crate::backend::ContainerState::Running,
             "paused" => crate::backend::ContainerState::Stopped,
             "exited" => crate::backend::ContainerState::Stopped,
@@ -268,17 +300,23 @@ impl DockerClient {
             crate::backend::ContainerState::Running => crate::backend::HealthStatus::Healthy,
             _ => crate::backend::HealthStatus::Unknown,
         };
+        
+        // Parse uptime from status field (e.g., "Up 2 hours" or "Exited (0) 3 hours ago")
+        let uptime_seconds = parse_docker_uptime(parts[4]);
+        
+        // Parse created time
+        let started_at = parse_docker_timestamp(parts[5]);
 
         Ok(crate::backend::ContainerStatus {
             id: parts[0].to_string(),
             name: parts[1].to_string(),
-            image: "unknown".to_string(), // TODO: Update docker ps format to include image
+            image: parts[2].to_string(),
             state,
             health,
             ports: vec![],
-            started_at: None,
-            uptime_seconds: 0,
-            restart_count: 0,
+            started_at,
+            uptime_seconds,
+            restart_count: 0, // Docker doesn't provide this in ps output
         })
     }
 
@@ -505,51 +543,69 @@ impl ContainerRuntime for DockerClient {
     }
 
     async fn get_container_status(&self, container_name: &str) -> BackendResult<ContainerStatus> {
-        let output = std::process::Command::new(&self.docker_path)
-            .args([
-                "inspect",
-                "--format",
-                "{{.State.Status}}\t{{.Config.Image}}\t{{.Id}}",
-                container_name
-            ])
-            .output()
-            .map_err(|e| BackendError::Container(format!("Failed to inspect container: {e}")))?;
+        // First, try to get detailed status from ps command
+        match self.get_container_status_impl(container_name).await {
+            Ok(status) => Ok(status),
+            Err(_) => {
+                // Fallback to inspect if ps fails
+                let output = std::process::Command::new(&self.docker_path)
+                    .args([
+                        "inspect",
+                        "--format",
+                        "{{.State.Status}}\t{{.Config.Image}}\t{{.Id}}\t{{.State.StartedAt}}\t{{.RestartCount}}",
+                        container_name
+                    ])
+                    .output()
+                    .map_err(|e| BackendError::Container(format!("Failed to inspect container: {e}")))?;
 
-        if !output.status.success() {
-            return Err(BackendError::Container(format!(
-                "Container {} not found",
-                container_name
-            )));
-        }
+                if !output.status.success() {
+                    return Err(BackendError::Container(format!(
+                        "Container {} not found",
+                        container_name
+                    )));
+                }
 
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        let parts: Vec<&str> = output_str.trim().split('\t').collect();
-        
-        if parts.len() >= 3 {
-            let state = match parts[0] {
-                "running" => ContainerState::Running,
-                "exited" => ContainerState::Exited,
-                "paused" => ContainerState::Paused,
-                "restarting" => ContainerState::Restarting,
-                _ => ContainerState::Unknown,
-            };
+                let output_str = String::from_utf8_lossy(&output.stdout);
+                let parts: Vec<&str> = output_str.trim().split('\t').collect();
+                
+                if parts.len() >= 5 {
+                    let state = match parts[0] {
+                        "running" => ContainerState::Running,
+                        "exited" => ContainerState::Exited,
+                        "paused" => ContainerState::Paused,
+                        "restarting" => ContainerState::Restarting,
+                        _ => ContainerState::Unknown,
+                    };
+                    
+                    // Parse restart count
+                    let restart_count = parts[4].parse::<u32>().unwrap_or(0);
+                    
+                    // Calculate uptime if running
+                    let uptime_seconds = if state == ContainerState::Running {
+                        // Would need proper timestamp parsing here
+                        0 // Simplified for now
+                    } else {
+                        0
+                    };
 
-            Ok(ContainerStatus {
-                id: parts[2].to_string(),
-                name: container_name.to_string(),
-                image: parts[1].to_string(),
-                state,
-                health: HealthStatus::Unknown,
-                ports: Vec::new(), // Simplified for now
-                started_at: None, // TODO: Parse actual start time
-                uptime_seconds: 0, // TODO: Calculate actual uptime
-                restart_count: 0, // TODO: Get actual restart count
-            })
-        } else {
-            Err(BackendError::Container(format!(
-                "Invalid inspect output for {}",
-                container_name
-            )))
+                    Ok(ContainerStatus {
+                        id: parts[2].to_string(),
+                        name: container_name.to_string(),
+                        image: parts[1].to_string(),
+                        state,
+                        health: HealthStatus::Unknown,
+                        ports: Vec::new(),
+                        started_at: None, // Would parse parts[3] here
+                        uptime_seconds,
+                        restart_count,
+                    })
+                } else {
+                    Err(BackendError::Container(format!(
+                        "Invalid inspect output for {}",
+                        container_name
+                    )))
+                }
+            }
         }
     }
 

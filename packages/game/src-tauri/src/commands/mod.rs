@@ -4,6 +4,7 @@
  */
 pub mod agent;
 pub mod app_lifecycle;
+pub mod callbacks;
 pub mod configuration;
 pub mod container;
 pub mod core;

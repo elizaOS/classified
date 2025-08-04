@@ -25,7 +25,7 @@ export const CONFIG = {
       return (window as any).__ELIZA_CONFIG__?.AGENT_ID || DEFAULT_AGENT_ID;
     }
     // Node.js environment
-    return process.env.ELIZA_AGENT_ID || DEFAULT_AGENT_ID;
+    return import.meta.env.VITE_ELIZA_AGENT_ID || DEFAULT_AGENT_ID;
   })(),
 
   /**
@@ -39,7 +39,7 @@ export const CONFIG = {
       return (window as any).__ELIZA_CONFIG__?.ROOM_ID || DEFAULT_ROOM_ID;
     }
     // Node.js environment
-    return process.env.ELIZA_ROOM_ID || DEFAULT_ROOM_ID;
+    return import.meta.env.VITE_ELIZA_ROOM_ID || DEFAULT_ROOM_ID;
   })(),
 
   /**
@@ -70,7 +70,7 @@ export const isBrowser = typeof window !== 'undefined';
 /**
  * Utility to check if we're running in a Node.js environment
  */
-export const isNode = typeof process !== 'undefined' && process.env;
+export const isNode = false; // In Vite/browser environment
 
 /**
  * Get configuration value with runtime validation

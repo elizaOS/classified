@@ -1,10 +1,13 @@
 use serde_json::json;
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::AppHandle;
 use tauri::Manager;
 use tokio::time::sleep;
 use tracing::{error, info};
 use uuid::Uuid;
+
+use crate::container::manager::ContainerManager;
 
 type TestResult = Result<String, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -86,16 +89,24 @@ pub async fn run_all_endpoint_tests(app_handle: &AppHandle) -> Vec<TestResult> {
 }
 
 /// Test health check endpoint
-async fn test_health_check(_app_handle: &AppHandle) -> TestResult {
+async fn test_health_check(app_handle: &AppHandle) -> TestResult {
     info!("Testing health check endpoint...");
 
-    // TODO: Fix test - health_check now requires State<ContainerManager> parameter
-    // let result = crate::commands::testing::health_check().await?;
+    // Get container manager from app state
+    let container_manager = app_handle.state::<Arc<ContainerManager>>();
+    
+    // Check if agent container is healthy
+    let status = container_manager.get_container_status("eliza-agent").await
+        .map_err(|e| format!("Failed to get container status: {}", e))?;
+    
+    info!("Agent container health: {:?}", status.health);
+    
+    // For a running container, we expect it to be healthy
+    if matches!(status.state, crate::backend::ContainerState::Running) && !matches!(status.health, crate::backend::HealthStatus::Healthy) {
+        return Err("Container is running but not healthy".into());
+    }
 
-    // let parsed: serde_json::Value = serde_json::from_str(&result)?;
-    // assert_eq!(parsed["status"], "healthy");
-
-    Ok("✅ Health check test skipped - needs State parameter fix".to_string())
+    Ok("✅ Health check test passed".to_string())
 }
 
 /// Test container management
@@ -349,26 +360,41 @@ async fn test_capability_toggles(_app_handle: &AppHandle) -> TestResult {
 }
 
 /// Test configuration validation and testing
-async fn test_configuration(_app_handle: &AppHandle) -> TestResult {
+async fn test_configuration(app_handle: &AppHandle) -> TestResult {
     info!("Testing configuration endpoints...");
 
-    // Validate configuration
-    // TODO: Fix test - validate_configuration now requires State<ContainerManager> parameter
-    // let validation_response = crate::commands::testing::validate_configuration().await?;
+    // Get container manager from app state
+    let container_manager = app_handle.state::<Arc<ContainerManager>>();
 
-    // if !validation_response["success"].as_bool().unwrap_or(false) {
-    //     error!("Configuration validation returned unsuccessful response");
-    // }
+    // Validate configuration
+    // For tests, we'll call the command directly with the container manager state
+    let validation_response = {
+        let container_state = unsafe { crate::tests::test_utils::create_test_state(container_manager.inner()) };
+        crate::commands::testing::validate_configuration(container_state).await?
+    };
+
+    if !validation_response["valid"].as_bool().unwrap_or(false) {
+        let issues = &validation_response["issues"];
+        error!("Configuration validation failed with issues: {:?}", issues);
+        return Err(format!("Configuration validation failed: {:?}", issues).into());
+    }
 
     // Test configuration
-    // TODO: Fix test - test_configuration now requires State<ContainerManager> parameter
-    // let test_response = crate::commands::testing::test_configuration().await?;
+    let test_response = {
+        let container_state = unsafe { crate::tests::test_utils::create_test_state(container_manager.inner()) };
+        crate::commands::testing::test_configuration(container_state).await?
+    };
 
-    // if !test_response["success"].as_bool().unwrap_or(false) {
-    //     error!("Configuration test returned unsuccessful response");
-    // }
+    // Check test results
+    let runtime_ok = test_response["runtime"].as_bool().unwrap_or(false);
+    let network_ok = test_response["network"].as_bool().unwrap_or(false);
+    
+    if !runtime_ok || !network_ok {
+        let errors = &test_response["errors"];
+        return Err(format!("Configuration test failed: {:?}", errors).into());
+    }
 
-    Ok("✅ Configuration tests skipped - need State parameter fixes".to_string())
+    Ok("✅ Configuration test passed".to_string())
 }
 
 /// Test logs endpoint

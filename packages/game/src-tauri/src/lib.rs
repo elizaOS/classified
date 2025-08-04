@@ -6,6 +6,11 @@ use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
+use dashmap::DashMap;
+use once_cell::sync::OnceCell;
+
+// Global callback store
+static CALLBACK_STORE: OnceCell<AgentCallbackStore> = OnceCell::new();
 
 // New Rust backend modules
 mod backend;
@@ -37,14 +42,45 @@ pub use startup::{AiProvider, StartupManager, StartupStage, StartupStatus, UserC
 // Store crash recovery file path
 pub struct CrashFile(PathBuf);
 
+// Store agent response callbacks
+pub struct AgentCallbackStore(Arc<DashMap<String, AgentResponseCallback>>);
+
+impl Default for AgentCallbackStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AgentCallbackStore {
+    pub fn new() -> Self {
+        Self(Arc::new(DashMap::new()))
+    }
+    
+    pub fn store(&self, callback: AgentResponseCallback) {
+        self.0.insert(callback.message_id.clone(), callback);
+    }
+    
+    pub fn get(&self, message_id: &str) -> Option<AgentResponseCallback> {
+        self.0.get(message_id).map(|entry| entry.clone())
+    }
+    
+    pub fn get_all(&self) -> Vec<AgentResponseCallback> {
+        self.0.iter().map(|entry| entry.value().clone()).collect()
+    }
+    
+    pub fn remove(&self, message_id: &str) -> Option<AgentResponseCallback> {
+        self.0.remove(message_id).map(|(_, callback)| callback)
+    }
+}
+
 
 
 // Tauri callback server for receiving real-time updates from backend
 use axum::{extract::Json, response::Json as JsonResponse, routing::post, Router};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct AgentResponseCallback {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentResponseCallback {
     message_id: String,
     agent_id: String,
     room_id: String,
@@ -63,21 +99,25 @@ async fn handle_agent_response_callback(
 ) -> JsonResponse<CallbackResponse> {
     info!("🔔 Received agent response callback: {}", payload.content);
 
-    // For now, we'll emit a Tauri event that the frontend can listen to
-    // Note: We need to get the app handle to emit events, but this is called from axum
-    // We'll log the callback for now and implement proper event emission later
+    // Store the callback in our global store
+    if let Some(store) = CALLBACK_STORE.get() {
+        store.store(payload.clone());
     info!(
-        "📨 Agent Response - ID: {}, Content: '{}'",
+            "📨 Agent Response stored - ID: {}, Content: '{}'",
         payload.message_id, payload.content
     );
 
-    // TODO: Store this callback data so it can be retrieved by the frontend
-    // For now, just acknowledge receipt
-
     JsonResponse(CallbackResponse {
         success: true,
-        message: "Agent response received and logged".to_string(),
-    })
+            message: format!("Agent response stored with ID: {}", payload.message_id),
+        })
+    } else {
+        warn!("Callback store not initialized");
+        JsonResponse(CallbackResponse {
+            success: false,
+            message: "Callback store not initialized".to_string(),
+        })
+    }
 }
 
 // Start the callback server on a specific port
@@ -91,17 +131,6 @@ async fn start_callback_server_on_port(port: u16) -> Result<(), Box<dyn std::err
     axum::serve(listener, app).await?;
     Ok(())
 }
-
-// route_message_to_agent moved to commands::core
-
-// get_container_runtime_status moved to commands::core
-
-// Commands moved to commands/core.rs
-
-// wait_for_server moved to commands/core.rs
-
-// Configuration commands moved to commands/configuration.rs
-
 // WebSocket and test commands have been moved to commands/websocket.rs and commands/testing.rs
 
 async fn wait_for_agent_server_ready(agent_port: u16) -> bool {
@@ -272,6 +301,11 @@ pub fn run() {
             ipc::backup::update_backup_config,
             ipc::backup::export_backup,
             ipc::backup::import_backup,
+            // Callback management commands
+            commands::callbacks::get_agent_callbacks,
+            commands::callbacks::get_agent_callback,
+            commands::callbacks::remove_agent_callback,
+            commands::callbacks::clear_agent_callbacks,
         ])
         .setup(|app| {
             info!("🚀 Starting ELIZA Game - Rust Backend");
@@ -328,6 +362,9 @@ pub fn run() {
 
             // Store crash file path for cleanup on shutdown
             app.manage(CrashFile(crash_file));
+            
+            // Initialize callback store
+            CALLBACK_STORE.set(AgentCallbackStore::new()).ok();
 
             // Get resource directory for runtime detection
             let resource_dir = match app.path().resource_dir() {

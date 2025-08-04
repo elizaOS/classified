@@ -34,7 +34,9 @@
     "test:core": "cypress run --spec 'cypress/e2e/0[1-7]-*.cy.ts'",
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
-    "lint": "eslint . --fix && prettier --write ."
+    "lint": "eslint . --fix && prettier --write . && cd src-tauri && cargo clippy -- -D warnings",
+    "lint:rust": "cd src-tauri && cargo clippy -- -D warnings",
+    "lint:check": "eslint . && cd src-tauri && cargo clippy -- -D warnings"
   },
   "dependencies": {
     "@elizaos/core": "workspace:*",

@@ -82,7 +82,7 @@ export class ApiKeyManager {
 
     try {
       // In production, encrypt the key before storing
-      if (process.env.NODE_ENV === 'production') {
+      if (import.meta.env.PROD) {
         // Use Web Crypto API for encryption
         const encryptedKey = await this.encryptKey(key);
         localStorage.setItem(storageKey, encryptedKey);
@@ -111,7 +111,7 @@ export class ApiKeyManager {
       }
 
       // In production, decrypt the key
-      if (process.env.NODE_ENV === 'production') {
+      if (import.meta.env.PROD) {
         return await this.decryptKey(storedValue);
       } else {
         // In development, remove the warning prefix

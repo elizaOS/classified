@@ -101,7 +101,7 @@ export class InputValidator {
 
       // Check for localhost in production
       if (
-        process.env.NODE_ENV === 'production' &&
+        import.meta.env.PROD &&
         (urlObj.hostname === 'localhost' || urlObj.hostname === '127.0.0.1')
       ) {
         errors.push('Localhost URLs are not allowed in production');

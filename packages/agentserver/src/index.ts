@@ -121,19 +121,17 @@ const initialPlugins = createInitialPlugins();
 
 // Function to start an agent runtime - called by server.ts
 export async function startAgent(character: Character): Promise<IAgentRuntime> {
-  console.log('[AGENT START] Starting agent:', character.name);
+  logger.info('[AGENT START] Starting agent', { agentName: character.name });
 
   // Generate the proper agent ID from the character name
   const agentId = stringToUuid(character.name);
-  console.log('[AGENT START] Generated agent ID:', agentId, 'for character:', character.name);
+  logger.info('[AGENT START] Generated agent ID', { agentId, characterName: character.name });
 
-  console.log('[AGENT START] Using embedding provider:', embeddingProvider);
-  console.log('[AGENT START] Using model provider:', modelProvider);
+  logger.info('[AGENT START] Using providers', { embeddingProvider, modelProvider });
 
-  console.log(
-    '[AGENT START] Initial plugins:',
-    initialPlugins.map((p) => p.name || 'unnamed').join(', ')
-  );
+  logger.info('[AGENT START] Initial plugins', {
+    plugins: initialPlugins.map((p) => p.name || 'unnamed'),
+  });
 
   // Ensure character has proper structure with UUID string
   const cleanCharacter = {
@@ -143,7 +141,7 @@ export async function startAgent(character: Character): Promise<IAgentRuntime> {
 
   // Remove any nested objects that might have been accidentally included
   if (typeof cleanCharacter.id !== 'string') {
-    console.warn('[AGENT START] Character ID was not a string, fixing...');
+    logger.warn('[AGENT START] Character ID was not a string, fixing...');
     cleanCharacter.id = agentId;
   }
 
@@ -183,13 +181,13 @@ export async function startAgent(character: Character): Promise<IAgentRuntime> {
     // Note: 'naming' is handled by ProgressionTracker, not a plugin capability
   };
 
-  console.log(
+  logger.info(
     '[AGENT START] AgentRuntime created with initial capabilities and progressive plugin support'
   );
 
   // Initialize runtime - this will set up database connection AND create the agent via ensureAgentExists
   await runtime.initialize();
-  console.log(
+  logger.info(
     '[AGENT START] Runtime initialized - agent creation handled by runtime.ensureAgentExists()'
   );
 
@@ -212,7 +210,7 @@ export async function startAgent(character: Character): Promise<IAgentRuntime> {
     const _progressionTracker = new ProgressionTracker(runtime, progressionService);
   }
 
-  console.log('[AGENT START] Capability progression system initialized');
+  logger.info('[AGENT START] Capability progression system initialized');
 
   return runtime;
 }
@@ -248,10 +246,10 @@ export async function startServer() {
     return runtime;
   };
 
-  console.log(`[BACKEND] Using PostgreSQL database ${databaseUrl}`);
+  logger.info('[BACKEND] Using PostgreSQL database', { databaseUrl });
 
   // In containers, retry initialization to wait for PostgreSQL
-  const maxRetries = 30; // 30 seconds total
+  const maxRetries = parseInt(process.env.DB_CONNECTION_MAX_RETRIES || '30', 10); // configurable retry count
   let retries = 0;
   let initialized = false;
 
@@ -262,8 +260,10 @@ export async function startServer() {
     } catch (error) {
       retries++;
       if (retries < maxRetries) {
-        console.log(`[BACKEND] Waiting for PostgreSQL... (${retries}/${maxRetries})`);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        logger.info(`[BACKEND] Waiting for PostgreSQL... (${retries}/${maxRetries})`);
+        await new Promise((resolve) =>
+          setTimeout(resolve, parseInt(process.env.DB_CONNECTION_RETRY_DELAY || '1000', 10))
+        );
       } else {
         throw new Error(
           `Failed to connect to PostgreSQL after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}`
@@ -276,82 +276,83 @@ export async function startServer() {
   const fileUpload = await import('express-fileupload');
   server.app.use(
     fileUpload.default({
-      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
+      limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE || String(10 * 1024 * 1024), 10) }, // configurable max file size (default 10MB)
       useTempFiles: true,
       tempFileDir: '/tmp/',
       createParentPath: true,
     }) as any
   );
-  console.log('[BACKEND] ✅ All plugin migrations completed');
+  logger.info('[BACKEND] ✅ All plugin migrations completed');
 
   // Create and register the default agent BEFORE starting the server
   // This ensures the agent exists when WebSocket messages arrive
   const runtime = await startAgent(terminalCharacter);
   await server.registerAgent(runtime);
-  console.log(
+  logger.info(
     '[BACKEND] ✅ Default agent started and registered successfully with secure configuration'
   );
 
   // Test the shell service to ensure it's working properly
-  console.log('[BACKEND] Testing shell service...');
+  logger.info('[BACKEND] Testing shell service...');
   try {
     const shellService = runtime.getService('SHELL');
     if (!shellService) {
-      console.error('[BACKEND] ❌ Shell service not found! Shell commands will not work.');
+      logger.error('[BACKEND] ❌ Shell service not found! Shell commands will not work.');
     } else {
-      console.log('[BACKEND] ✅ Shell service found, running test commands...');
+      logger.info('[BACKEND] ✅ Shell service found, running test commands...');
 
       // Test 1: Execute a simple command
       const result1 = await (shellService as any).executeCommand('pwd');
-      console.log('[BACKEND] Test 1 - Current directory:', result1.output.trim());
-      console.log('[BACKEND]   Exit code:', result1.exitCode);
+      logger.info('[BACKEND] Test 1 - Current directory', {
+        directory: result1.output.trim(),
+        exitCode: result1.exitCode,
+      });
       const originalDir = result1.output.trim();
 
       // Test 2: Change directory to a cross-platform directory
       // Use temp directory which exists on all platforms
       const tempDir = process.platform === 'win32' ? process.env.TEMP || 'C:\\Temp' : '/tmp';
       const result2 = await (shellService as any).executeCommand(`cd ${tempDir}`);
-      console.log('[BACKEND] Test 2 - Change directory result:', result2.output.trim());
+      logger.info('[BACKEND] Test 2 - Change directory result', { output: result2.output.trim() });
 
       // Test 3: Verify directory change persisted
       const result3 = await (shellService as any).executeCommand('pwd');
-      console.log('[BACKEND] Test 3 - New working directory:', result3.output.trim());
-      console.log(
-        '[BACKEND]   Directory change persisted:',
-        result3.output.trim().includes(tempDir) ? '✅' : '❌'
-      );
+      logger.info('[BACKEND] Test 3 - New working directory', {
+        directory: result3.output.trim(),
+        changesPersisted: result3.output.trim().includes(tempDir),
+      });
 
       // Test 4: Run a command in the new directory
       const listCmd = process.platform === 'win32' ? 'dir' : 'ls -la';
       const result4 = await (shellService as any).executeCommand(listCmd);
-      console.log(
-        '[BACKEND] Test 4 - Directory listing executed successfully:',
-        result4.exitCode === 0 ? '✅' : '❌'
-      );
+      logger.info('[BACKEND] Test 4 - Directory listing', {
+        success: result4.exitCode === 0,
+      });
 
       // Test 5: Return to original directory
       const result5 = await (shellService as any).executeCommand(`cd ${originalDir}`);
-      console.log('[BACKEND] Test 5 - Return to original directory:', result5.output.trim());
+      logger.info('[BACKEND] Test 5 - Return to original directory', {
+        output: result5.output.trim(),
+      });
 
-      console.log('[BACKEND] ✅ Shell service tests completed successfully');
+      logger.info('[BACKEND] ✅ Shell service tests completed successfully');
     }
   } catch (error) {
-    console.error('[BACKEND] ❌ Shell service test failed:', error);
+    logger.error('[BACKEND] ❌ Shell service test failed', error);
   }
 
   // Start the server on port 7777 AFTER the agent is ready
   const PORT = parseInt(process.env.PORT || '7777', 10);
 
   await server.start(PORT);
-  console.log(`[BACKEND] ✅ Server started on port ${PORT}`);
-  console.log(`[BACKEND] Server running at http://localhost:${PORT}`);
+  logger.info('[BACKEND] ✅ Server started', { port: PORT, url: `http://localhost:${PORT}` });
 
   // WebSocket server is already integrated in packages/server at the same port
-  console.log(`[BACKEND] WebSocket available at ws://localhost:${PORT}/ws`);
+  logger.info('[BACKEND] WebSocket available', { url: `ws://localhost:${PORT}/ws` });
 
   // Add messaging stub endpoints directly to the server for MessageBusService compatibility
   // These need to be available before the agent starts
-  console.log('[BACKEND] Adding messaging stub endpoints...');
+  logger.info('[BACKEND] Adding messaging stub endpoints...');
 
   // Plugin Config endpoint
   server.app.get('/api/plugin-config', async (req: Request, res: Response) => {
@@ -478,7 +479,7 @@ export async function startServer() {
         },
       });
     } catch (error) {
-      console.error('[API] Error getting primary agent:', error);
+      logger.error('[API] Error getting primary agent', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ success: false, error: { message: errorMessage } });
     }
@@ -504,7 +505,7 @@ export async function startServer() {
         },
       });
     } catch (error) {
-      console.error('[API] Error listing agents:', error);
+      logger.error('[API] Error listing agents', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ success: false, error: { message: errorMessage } });
     }
@@ -562,7 +563,7 @@ export async function startServer() {
         },
       });
     } catch (error) {
-      console.error('[API] Error retrieving default agent settings:', error);
+      logger.error('[API] Error retrieving default agent settings', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ success: false, error: { message: errorMessage } });
     }
@@ -624,7 +625,7 @@ export async function startServer() {
         },
       });
     } catch (error) {
-      console.error('[API] Error retrieving progression status:', error);
+      logger.error('[API] Error retrieving progression status', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ success: false, error: { message: errorMessage } });
     }
@@ -700,7 +701,7 @@ export async function startServer() {
         },
       });
     } catch (error) {
-      console.error('[API] Error switching progression mode:', error);
+      logger.error('[API] Error switching progression mode', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ success: false, error: { message: errorMessage } });
     }
@@ -768,7 +769,7 @@ export async function startServer() {
         },
       });
     } catch (error) {
-      console.error('[API] Error retrieving settings:', error);
+      logger.error('[API] Error retrieving settings', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ success: false, error: { message: errorMessage } });
     }
@@ -854,7 +855,7 @@ export async function startServer() {
         },
       });
     } catch (error) {
-      console.error('[API] Error tracking action:', error);
+      logger.error('[API] Error tracking action', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ success: false, error: { message: errorMessage } });
     }
@@ -866,7 +867,7 @@ export async function startServer() {
 // Start the server only if this file is run directly (not imported)
 if (import.meta.url === `file://${process.argv[1]}`) {
   startServer().catch((error) => {
-    console.error('[BACKEND] Fatal error:', error);
+    logger.error('[BACKEND] Fatal error', error);
     process.exit(1);
   });
 }

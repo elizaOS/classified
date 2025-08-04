@@ -10,7 +10,7 @@ declare global {
 }
 
 const logger = createLogger('StartupFlow');
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = import.meta.env.DEV;
 
 interface ModelDownloadProgress {
   model_name: string;

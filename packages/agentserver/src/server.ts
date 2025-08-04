@@ -325,7 +325,12 @@ export class AgentServer {
       this.isInitialized = true;
     } catch (error) {
       logger.error('Failed to initialize AgentServer (async operations):', error);
-      console.trace(error);
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug(
+          'Stack trace:',
+          error instanceof Error ? error.stack : 'No stack trace available'
+        );
+      }
       throw error;
     }
   }
@@ -1421,16 +1426,17 @@ export class AgentServer {
             const actualHost = host === '0.0.0.0' ? 'localhost' : host;
             const baseUrl = `http://${actualHost}:${port}`;
 
-            console.log(
-              '\x1b[32mStartup successful!\x1b[0m\n' +
-                '\x1b[33mWeb UI disabled.\x1b[0m \x1b[32mAPI endpoints available at:\x1b[0m\n' +
-                `  \x1b[1m${baseUrl}/api/server/ping\x1b[22m\x1b[0m\n` +
-                `  \x1b[1m${baseUrl}/api/agents\x1b[22m\x1b[0m\n` +
-                `  \x1b[1m${baseUrl}/messaging\x1b[22m\x1b[0m`
-            );
+            logger.success('Startup successful!');
+            logger.info('Web UI disabled. API endpoints available at:', {
+              endpoints: [
+                `${baseUrl}/api/server/ping`,
+                `${baseUrl}/api/agents`,
+                `${baseUrl}/messaging`,
+              ],
+            });
 
             // Add log for test readiness
-            console.log(`AgentServer is listening on port ${port}`);
+            logger.info(`AgentServer is listening on port ${port}`);
 
             logger.success(
               `REST API bound to ${host}:${port}. If running locally, access it at http://localhost:${port}.`
@@ -1588,9 +1594,24 @@ export class AgentServer {
 
   async clearChannelMessages(channelId: UUID): Promise<void> {
     // Get all messages for the channel and delete them one by one
-    const messages = await this.serverDatabase.getMessagesForChannel(channelId, 1000);
-    for (const message of messages) {
-      await this.serverDatabase.deleteMessage(message.id as UUID);
+    const batchSize = parseInt(process.env.MESSAGE_DELETE_BATCH_SIZE || '1000', 10);
+    let hasMore = true;
+
+    while (hasMore) {
+      const messages = await this.serverDatabase.getMessagesForChannel(channelId, batchSize);
+      if (messages.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const message of messages) {
+        await this.serverDatabase.deleteMessage(message.id as UUID);
+      }
+
+      // If we got fewer messages than the batch size, we're done
+      if (messages.length < batchSize) {
+        hasMore = false;
+      }
     }
     logger.info(`[AgentServer] Cleared all messages for central channel: ${channelId}`);
   }

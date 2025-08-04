@@ -1,9 +1,10 @@
 import DOMMatrix from '@thednp/dommatrix';
 import http from 'node:http';
+import { logger } from '@elizaos/core';
 
 // CRITICAL: Patch http module for ws compatibility - MUST be done before any ws imports
 (function setupHttpPolyfill() {
-  console.log('[HTTP-POLYFILL] Setting up http module polyfills for ws compatibility');
+  logger.debug('[HTTP-POLYFILL] Setting up http module polyfills for ws compatibility');
 
   // Ensure http module is available globally
   if (typeof globalThis !== 'undefined') {
@@ -93,14 +94,14 @@ import http from 'node:http';
       return originalRequire.apply(this, arguments);
     };
   } catch (e) {
-    console.warn('[HTTP-POLYFILL] Could not patch require:', e);
+    logger.warn('[HTTP-POLYFILL] Could not patch require', e);
   }
 
-  console.log('[HTTP-POLYFILL] ✅ HTTP module polyfills loaded successfully');
+  logger.debug('[HTTP-POLYFILL] ✅ HTTP module polyfills loaded successfully');
 })();
 
 (function setupDOMPolyfills() {
-  console.log('[DOM-POLYFILL] Setting up comprehensive DOM polyfills with professional DOMMatrix');
+  logger.debug('[DOM-POLYFILL] Setting up comprehensive DOM polyfills with professional DOMMatrix');
 
   // Collect all available global contexts safely
   const contexts: any = [];
@@ -257,25 +258,34 @@ import http from 'node:http';
     }
   }
 
-  console.log('[DOM-POLYFILL] ✅ All DOM polyfills loaded successfully');
-  console.log('[DOM-POLYFILL] - Professional DOMMatrix from @thednp/dommatrix');
-  console.log('[DOM-POLYFILL] - ImageData, Path2D, HTMLCanvasElement polyfills');
-  console.log('[DOM-POLYFILL] - Basic document polyfill');
+  logger.debug('[DOM-POLYFILL] ✅ All DOM polyfills loaded successfully', {
+    features: [
+      'Professional DOMMatrix from @thednp/dommatrix',
+      'ImageData, Path2D, HTMLCanvasElement polyfills',
+      'Basic document polyfill',
+    ],
+  });
 })();
 
 // Mock window object for browser dependencies (only minimal ones needed)
 if (typeof globalThis.window === 'undefined') {
+  const mockPort = process.env.PORT || '3000';
+  const mockHostname = process.env.HOSTNAME || 'localhost';
+  const mockProtocol = process.env.PROTOCOL || 'http:';
+  const mockHost = `${mockHostname}:${mockPort}`;
+  const mockOrigin = `${mockProtocol}//${mockHost}`;
+
   globalThis.window = {
     location: {
-      href: 'http://localhost:3000/',
+      href: `${mockOrigin}/`,
       search: '',
-      origin: 'http://localhost:3000',
+      origin: mockOrigin,
       pathname: '/',
       hash: '',
-      host: 'localhost:3000',
-      hostname: 'localhost',
-      protocol: 'http:',
-      port: '3000',
+      host: mockHost,
+      hostname: mockHostname,
+      protocol: mockProtocol,
+      port: mockPort,
     },
     document: {
       createElement: () => ({
@@ -326,16 +336,22 @@ if (typeof globalThis.document === 'undefined') {
 
 // Also set globalThis.location directly for URLSearchParams compatibility
 if (typeof globalThis.location === 'undefined') {
+  const mockPort = process.env.PORT || '3000';
+  const mockHostname = process.env.HOSTNAME || 'localhost';
+  const mockProtocol = process.env.PROTOCOL || 'http:';
+  const mockHost = `${mockHostname}:${mockPort}`;
+  const mockOrigin = `${mockProtocol}//${mockHost}`;
+
   globalThis.location = {
-    href: 'http://localhost:3000/',
+    href: `${mockOrigin}/`,
     search: '',
-    origin: 'http://localhost:3000',
+    origin: mockOrigin,
     pathname: '/',
     hash: '',
-    host: 'localhost:3000',
-    hostname: 'localhost',
-    protocol: 'http:',
-    port: '3000',
+    host: mockHost,
+    hostname: mockHostname,
+    protocol: mockProtocol,
+    port: mockPort,
   } as any;
 }
 
@@ -387,5 +403,5 @@ if (typeof globalThis.self !== 'undefined' && typeof globalThis.self.location ==
     return originalRequire.apply(this, arguments);
   };
 
-  console.log('[WS-HTTP-FIX] ✅ HTTP module patched for WebSocket compatibility');
+  logger.debug('[WS-HTTP-FIX] ✅ HTTP module patched for WebSocket compatibility');
 })();

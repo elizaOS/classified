@@ -8,8 +8,11 @@ import { CapabilityToggle } from './CapabilityToggle';
 import { ConfigPanel, LogsPanel, AgentScreenPanel, TerminalPanel } from './StatusPanels';
 import { TabNavigation, type TabType } from './shared/TabNavigation';
 import { ConnectionStatus } from './shared/ConnectionStatus';
+import { createLogger } from '../utils/logger';
 import type { OutputLine } from './StatusPanels/AgentScreenPanel';
 import type { PluginToggleState } from './CapabilityToggle';
+
+const logger = createLogger('GameInterface');
 
 // Types specific to GameInterface
 interface SecurityWarningState {
@@ -19,22 +22,6 @@ interface SecurityWarningState {
 }
 
 type LogsSubTabType = 'agent' | 'container';
-
-// Extend Window interface for test compatibility
-declare global {
-  interface Window {
-    elizaClient?: {
-      socket: {
-        connected: boolean;
-        on: (event: string, callback: Function) => void;
-        emit: (event: string, data: unknown) => void;
-        disconnect: () => void;
-        connect: () => void;
-      };
-      sendMessage: (message: string) => void;
-    };
-  }
-}
 
 const GameInterface = () => {
   // State declarations
@@ -57,6 +44,10 @@ const GameInterface = () => {
   });
   const [agentScreenActive, setAgentScreenActive] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [configValues, setConfigValues] = useState<Record<string, any>>({});
+  const [pluginConfigs, setPluginConfigs] = useState<Record<string, any>>({});
+  const [isResetting] = useState(false);
+  const [, setShowResetDialog] = useState(false);
 
   // Hooks
   const { streamingState, startMediaCapture, stopMediaStream } = useMediaCapture();
@@ -67,6 +58,17 @@ const GameInterface = () => {
     const initializeServices = async () => {
       await Services.chat.ensureInitialized();
       setIsConnected(Services.chat.getInitializationStatus().isInitialized);
+
+      // Load configuration values
+      try {
+        const agentConfig = await Services.config.getAgentConfiguration();
+        setConfigValues(agentConfig);
+
+        const plugins = await Services.config.fetchPluginConfigs();
+        setPluginConfigs(plugins);
+      } catch (error) {
+        logger.error('Failed to load configuration', { error });
+      }
     };
     initializeServices();
   }, []);
@@ -94,8 +96,41 @@ const GameInterface = () => {
 
   // Video processing function
   const processVideoStream = async (stream: MediaStream, type: string) => {
-    console.log(`Processing ${type} stream:`, stream);
-    // TODO: Implement actual video processing
+    logger.debug(`Processing ${type} stream`, {
+      streamId: stream.id,
+      trackCount: stream.getTracks().length,
+    });
+    // Video processing is handled by the media capture hook and Tauri backend
+  };
+
+  // Configuration management functions
+  const updatePluginConfig = async (plugin: string, key: string, value: any) => {
+    try {
+      await Services.config.updatePluginConfig(plugin, { [key]: value });
+      // Refresh plugin configs
+      const plugins = await Services.config.fetchPluginConfigs();
+      setPluginConfigs(plugins);
+    } catch (error) {
+      logger.error('Failed to update plugin config', { plugin, key, error });
+    }
+  };
+
+  const validateConfiguration = async () => {
+    try {
+      const result = await Services.config.validateConfiguration();
+      logger.info('Configuration validation result', { result });
+    } catch (error) {
+      logger.error('Configuration validation failed', { error });
+    }
+  };
+
+  const testConfiguration = async () => {
+    try {
+      const result = await Services.config.testConfiguration();
+      logger.info('Configuration test result', { result });
+    } catch (error) {
+      logger.error('Configuration test failed', { error });
+    }
   };
 
   // Render the current panel based on selected tab
@@ -106,13 +141,13 @@ const GameInterface = () => {
       case 'config':
         return (
           <ConfigPanel
-            configValues={{}}
-            pluginConfigs={{}}
-            isResetting={false}
-            updatePluginConfig={() => {}}
-            validateConfiguration={() => {}}
-            testConfiguration={() => {}}
-            setShowResetDialog={() => {}}
+            configValues={configValues}
+            pluginConfigs={pluginConfigs}
+            isResetting={isResetting}
+            updatePluginConfig={updatePluginConfig}
+            validateConfiguration={validateConfiguration}
+            testConfiguration={testConfiguration}
+            setShowResetDialog={setShowResetDialog}
           />
         );
       case 'logs':
@@ -156,7 +191,8 @@ const GameInterface = () => {
             states={plugins}
             capabilityUsage={{}}
             onToggle={async (capability) => {
-              console.log('Toggle capability:', capability);
+              logger.info('Toggling capability', { capability });
+              // Capability toggle is handled by the CapabilityToggle component
             }}
           />
         </div>

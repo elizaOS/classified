@@ -38,22 +38,27 @@ impl MemoryConfig {
             total_memory_gb, total_memory_mb
         );
 
-        // Minimum requirements:
-        // - llama3.2:3b needs ~3.4GB for inference
-        // - Add 1.5GB for Ollama overhead and other containers
-        // - Total minimum: 5GB (5120 MB)
-        let min_required_mb = 5120;
+        // Minimum requirements adjusted for model size:
+        // - llama3.2:1b needs ~1.3GB for inference (8GB systems)
+        // - llama3.2:3b needs ~3.4GB for inference (16GB+ systems)
+        // - Add 1GB for Ollama overhead and other containers
+        // - Total minimum: 2.5GB (2560 MB) for small systems
+        let min_required_mb = if total_memory_mb <= 8192 {
+            2560  // 2.5GB for 8GB systems using 1b model
+        } else {
+            5120  // 5GB for larger systems using 3b model
+        };
 
         // Calculate Podman machine allocation based on system memory
         let podman_machine_memory_mb = match total_memory_mb {
-            // For 8GB systems: allocate 6.5GB (6656 MB) - leaving 1.5GB for host
+            // For 8GB systems: allocate 5GB (5120 MB) - leaving 3GB for host
             0..=8192 => {
                 if total_memory_mb >= 7680 {
                     // At least 7.5GB total
-                    6656
+                    5120
                 } else {
                     warn!("System has less than 8GB RAM. Model performance may be limited.");
-                    std::cmp::min(total_memory_mb.saturating_sub(1536), 6656)
+                    std::cmp::min(total_memory_mb.saturating_sub(2048), 5120)
                 }
             }
             // For 16GB systems: allocate 12GB
@@ -191,11 +196,15 @@ impl MemoryConfig {
             available_mb * 75 / 100
         } else {
             // For <8GB, give Ollama as much as possible while leaving room for other containers
-            available_mb.saturating_sub(1024) // Leave 1GB for PostgreSQL and agent
+            available_mb.saturating_sub(1536) // Leave 1.5GB for PostgreSQL and agent
         };
 
         // PostgreSQL gets a modest allocation
-        let postgres_mb = std::cmp::min(2048, available_mb / 8); // 2GB or 1/8 of available
+        let postgres_mb = if available_mb <= 5120 {
+            512  // 512MB for very low memory systems
+        } else {
+            std::cmp::min(2048, available_mb / 8) // 2GB or 1/8 of available
+        };
 
         // Agent gets the remainder, minimum 1GB
         let agent_mb = std::cmp::max(1024, available_mb.saturating_sub(ollama_mb + postgres_mb));

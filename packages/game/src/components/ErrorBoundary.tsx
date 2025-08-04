@@ -51,7 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
     }));
 
     // In production, you might want to send this to an error reporting service
-    if (process.env.NODE_ENV === 'production') {
+    if (import.meta.env.PROD) {
       // Could send to Sentry, LogRocket, etc.
       this.reportErrorToService(error, errorInfo);
     }
@@ -115,7 +115,7 @@ export class ErrorBoundary extends Component<Props, State> {
               We encountered an unexpected error. The issue has been logged and we'll look into it.
             </p>
 
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <details className="error-details">
                 <summary>Error Details (Development Only)</summary>
                 <div className="error-stack">

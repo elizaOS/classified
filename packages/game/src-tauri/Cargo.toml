@@ -7,7 +7,7 @@ license = ""
 repository = ""
 default-run = "app"
 edition = "2021"
-rust-version = "1.64"
+rust-version = "1.70"
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary

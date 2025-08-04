@@ -116,15 +116,24 @@ pub async fn stop_all_containers_new(
 
 #[tauri::command]
 pub async fn setup_complete_environment_new(
-    _startup_manager: State<'_, Arc<StartupManager>>,
+    container_manager: State<'_, Arc<ContainerManager>>,
     _global_state: State<'_, GlobalAppState>,
 ) -> Result<serde_json::Value, String> {
-    // TODO: Implement full environment setup
-    // For now, return a placeholder response
-    Ok(json!({ 
-        "message": "Environment setup feature not yet implemented",
-        "status": "pending"
-    }))
+    // Get resource directory from current directory
+    let resource_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    
+    // Use container manager to set up the complete environment
+    match container_manager
+        .setup_complete_environment(&resource_dir)
+        .await
+    {
+        Ok(()) => Ok(json!({ 
+            "message": "Environment setup completed successfully",
+            "status": "complete"
+        })),
+        Err(e) => Err(format!("Failed to setup environment: {}", e))
+    }
 }
 
 #[tauri::command]

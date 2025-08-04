@@ -116,12 +116,15 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: unknown)
   } catch {
     logger.warn('[VirtualScreen] X11 display not ready, waiting...');
     // Wait a bit for display to be ready
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const displayWaitTime = parseInt(process.env.DISPLAY_WAIT_TIME || '2000', 10);
+    await new Promise((resolve) => setTimeout(resolve, displayWaitTime));
   }
 
   screenCaptureActive = true;
 
-  // Capture screen at 10 FPS
+  // Capture screen at configurable FPS (default 10)
+  const captureFps = parseInt(process.env.SCREEN_CAPTURE_FPS || '10', 10);
+  const captureInterval = 1000 / captureFps;
   screenCaptureInterval = setInterval(async () => {
     try {
       // Use ffmpeg to capture a single frame from the virtual display
@@ -130,7 +133,7 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: unknown)
         '-f',
         'x11grab',
         '-video_size',
-        '1280x720',
+        process.env.SCREEN_CAPTURE_SIZE || '1280x720',
         '-i',
         display,
         '-vframes',
@@ -244,7 +247,7 @@ async function startAgentScreenCapture(runtime: IAgentRuntime, server?: unknown)
         logger.error('[VirtualScreen] Failed to capture screen:', errorMessage);
       }
     }
-  }, 100); // 10 FPS
+  }, captureInterval); // Dynamic interval based on configured FPS
 
   logger.info('[VirtualScreen] Screen capture started successfully');
 }
@@ -340,66 +343,64 @@ function generateConfigRecommendations(validationResults: ValidationResults): st
  * Creates initial todos and goals using plugin APIs
  */
 async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void> {
-  console.log('[GAME-API] Creating initial todos and goals using plugin APIs...');
+  logger.info('[GAME-API] Creating initial todos and goals using plugin APIs...');
 
   // First, ensure the agent exists in the database
   try {
     const agent = await runtime.db?.getAgent(runtime.agentId);
     if (!agent) {
-      console.error(
-        '[GAME-API] Agent not found in database, skipping initial todos/goals creation'
-      );
+      logger.error('[GAME-API] Agent not found in database, skipping initial todos/goals creation');
       return;
     }
-    console.log('[GAME-API] Agent verified in database:', agent.id);
+    logger.info('[GAME-API] Agent verified in database', { agentId: agent.id });
   } catch (error) {
-    console.error('[GAME-API] Error checking for agent existence:', error);
+    logger.error('[GAME-API] Error checking for agent existence', error);
     return;
   }
 
   // Log all available services for debugging
   const services = runtime.services || new Map();
-  console.log('[GAME-API] Available services:', Array.from(services.keys()));
+  logger.debug('[GAME-API] Available services', { services: Array.from(services.keys()) });
 
   // Wait for plugins to be fully ready and services to be registered
   let retries = 0;
-  const maxRetries = 10;
-  const retryDelay = 3000; // 3 seconds between retries
+  const maxRetries = parseInt(process.env.SERVICE_MAX_RETRIES || '10', 10);
+  const retryDelay = parseInt(process.env.SERVICE_RETRY_DELAY || '3000', 10); // milliseconds between retries
 
   // Wait for Goals service to be available - use lowercase 'goals'
   let goalService = runtime.getService('goals') as GoalService | null;
   while (!goalService && retries < maxRetries) {
     goalService = runtime.getService('goals') as GoalService | null;
     if (!goalService) {
-      console.log(`[GAME-API] Waiting for Goals service... attempt ${retries + 1}/${maxRetries}`);
-      console.log('[GAME-API] Current services:', Array.from(services.keys()));
+      logger.info(`[GAME-API] Waiting for Goals service... attempt ${retries + 1}/${maxRetries}`);
+      logger.debug('[GAME-API] Current services', { services: Array.from(services.keys()) });
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
       retries++;
     }
   }
 
   if (!goalService) {
-    console.error('[GAME-API] Goals service not available after waiting. Skipping goal creation.');
+    logger.error('[GAME-API] Goals service not available after waiting. Skipping goal creation.');
     return;
   }
 
-  console.log('[GAME-API] Goals service found, checking existing goals...');
+  logger.info('[GAME-API] Goals service found, checking existing goals...');
 
   try {
     // Check if this is a brand new agent (no existing goals)
     const existingGoals = await goalService.getAllGoalsForOwner('agent', runtime.agentId);
     if (existingGoals && existingGoals.length > 0) {
-      console.log(
+      logger.info(
         `[GAME-API] Agent already has ${existingGoals.length} goals, skipping initialization`
       );
       return; // Don't add goals if agent already has some
     }
   } catch (error) {
-    console.error('[GAME-API] Error checking existing goals:', error);
+    logger.error('[GAME-API] Error checking existing goals', error);
     // Continue with creation anyway
   }
 
-  console.log('[GAME-API] Brand new agent detected, creating initial goals and todos...');
+  logger.info('[GAME-API] Brand new agent detected, creating initial goals and todos...');
 
   // Create starter goals using the Goals plugin service
   const starterGoals = [
@@ -421,17 +422,17 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
       const goalId = await goalService.createGoal(goalData);
       if (goalId) {
         goalsCreated++;
-        console.log(`[GAME-API] Created goal: ${goalData.name} (${goalId})`);
+        logger.info(`[GAME-API] Created goal: ${goalData.name} (${goalId})`);
       }
     } catch (error) {
-      console.error(`[GAME-API] Failed to create goal "${goalData.name}":`, error);
+      logger.error(`[GAME-API] Failed to create goal "${goalData.name}"`, error);
     }
   }
 
-  console.log(`[GAME-API] ✅ Created ${goalsCreated} initial goals using Goals plugin`);
+  logger.info(`[GAME-API] ✅ Created ${goalsCreated} initial goals using Goals plugin`);
 
   // Create starter todos using the Todo plugin service
-  console.log('[GAME-API] Creating todos using Todo plugin API...');
+  logger.info('[GAME-API] Creating todos using Todo plugin API...');
 
   // Wait for Todo service to be available - use uppercase 'TODO'
   let todoService = runtime.getService('TODO') as TodoService | null;
@@ -439,15 +440,15 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   while (!todoService && retries < maxRetries) {
     todoService = runtime.getService('TODO') as TodoService | null;
     if (!todoService) {
-      console.log(`[GAME-API] Waiting for Todo service... attempt ${retries + 1}/${maxRetries}`);
-      console.log('[GAME-API] Current services:', Array.from(services.keys()));
+      logger.info(`[GAME-API] Waiting for Todo service... attempt ${retries + 1}/${maxRetries}`);
+      logger.debug('[GAME-API] Current services', { services: Array.from(services.keys()) });
       await new Promise((resolve) => setTimeout(resolve, retryDelay));
       retries++;
     }
   }
 
   if (!todoService) {
-    console.error('[GAME-API] Todo service not available after waiting. Skipping todo creation.');
+    logger.error('[GAME-API] Todo service not available after waiting. Skipping todo creation.');
     return;
   }
 
@@ -468,7 +469,7 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
   const targetWorldId = API_MONITORED_ROOMS[1].worldId as UUID; // Terminal World
   const targetRoomId = API_MONITORED_ROOMS[1].roomId as UUID; // Terminal Room
 
-  console.log(
+  logger.info(
     `[GAME-API] Using hardcoded API-monitored world ${targetWorldId} and room ${targetRoomId} for todos`
   );
 
@@ -494,17 +495,17 @@ async function createInitialTodosAndGoals(runtime: IAgentRuntime): Promise<void>
       const todoId = await todoService.createTodo(todoData);
       if (todoId) {
         todosCreated++;
-        console.log(`[GAME-API] Created todo: ${todoData.name} (${todoId})`);
+        logger.info(`[GAME-API] Created todo: ${todoData.name} (${todoId})`);
       }
     } catch (error) {
-      console.error(`[GAME-API] Failed to create todo "${todoData.name}":`, error);
+      logger.error(`[GAME-API] Failed to create todo "${todoData.name}"`, error);
     }
   }
 
-  console.log(
+  logger.info(
     `[GAME-API] ✅ Created ${todosCreated} initial todos using Todo plugin (${starterTodos.length} total configured)`
   );
-  console.log(`[GAME-API] ✅ Successfully created ${goalsCreated} goals and ${todosCreated} todos`);
+  logger.info(`[GAME-API] ✅ Successfully created ${goalsCreated} goals and ${todosCreated} todos`);
 }
 
 // Game API Routes following ElizaOS patterns
@@ -536,10 +537,11 @@ const gameAPIRoutes: Route[] = [
           const autonomyService = runtime.getService('AUTONOMY'); // uppercase 'AUTONOMY'
 
           // Debug: Log service lookup results
-          console.log('[HEALTH] Service lookup results:');
-          console.log('  - goals:', !!goalService);
-          console.log('  - TODO:', !!todoService);
-          console.log('  - AUTONOMY:', !!autonomyService);
+          logger.debug('[HEALTH] Service lookup results', {
+            goals: !!goalService,
+            todo: !!todoService,
+            autonomy: !!autonomyService,
+          });
 
           services = {
             goals: !!goalService,
@@ -547,7 +549,7 @@ const gameAPIRoutes: Route[] = [
             autonomy: !!autonomyService,
           };
         } catch (error) {
-          console.warn('[HEALTH] Error checking services:', error);
+          logger.warn('[HEALTH] Error checking services', error);
         }
       }
 
@@ -676,7 +678,7 @@ const gameAPIRoutes: Route[] = [
       }
 
       if (refreshed) {
-        console.log('[API] Vision service refreshed successfully');
+        logger.info('[API] Vision service refreshed successfully');
         res.json(
           successResponse({
             message: 'Vision service refreshed',
@@ -684,7 +686,7 @@ const gameAPIRoutes: Route[] = [
           })
         );
       } else {
-        console.warn('[API] Vision service not found or refresh method not available');
+        logger.warn('[API] Vision service not found or refresh method not available');
         res.json(
           successResponse({
             message: 'Vision service not available for refresh',
@@ -772,7 +774,7 @@ const gameAPIRoutes: Route[] = [
       runtime.setSetting('ENABLE_SHELL', newState.toString());
       runtime.setSetting('SHELL_ENABLED', newState.toString());
 
-      console.log(`[API] Shell capability ${newState ? 'enabled' : 'disabled'}`);
+      logger.info(`[API] Shell capability ${newState ? 'enabled' : 'disabled'}`);
 
       res.json(
         successResponse({
@@ -829,7 +831,7 @@ const gameAPIRoutes: Route[] = [
       runtime.setSetting('ENABLE_BROWSER', newState.toString());
       runtime.setSetting('BROWSER_ENABLED', newState.toString());
 
-      console.log(`[API] Browser capability ${newState ? 'enabled' : 'disabled'}`);
+      logger.info(`[API] Browser capability ${newState ? 'enabled' : 'disabled'}`);
 
       res.json(
         successResponse({
@@ -849,7 +851,7 @@ const gameAPIRoutes: Route[] = [
       const params = req.params || {};
       const capability = String((params as Record<string, unknown>).capability || '').toLowerCase();
 
-      console.log(`[API] Generic capability toggle requested for: ${capability}`);
+      logger.info(`[API] Generic capability toggle requested for: ${capability}`);
 
       // Define capability mappings
       const capabilityMappings = {
@@ -896,7 +898,7 @@ const gameAPIRoutes: Route[] = [
 
       // Vision capabilities are handled through runtime settings
 
-      console.log(`[API] ${capability} capability ${newState ? 'enabled' : 'disabled'}`);
+      logger.info(`[API] ${capability} capability ${newState ? 'enabled' : 'disabled'}`);
 
       // Get service availability
       let serviceAvailable = false;
@@ -933,11 +935,11 @@ const gameAPIRoutes: Route[] = [
     name: 'Reset Agent',
     public: true,
     handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
-      console.log('[GAME-API] Starting agent reset...');
+      logger.info('[GAME-API] Starting agent reset...');
 
       const agentId = runtime.agentId;
 
-      console.log('[GAME-API] Creating fresh initial state...');
+      logger.info('[GAME-API] Creating fresh initial state...');
 
       // Give it a moment to ensure operations complete
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -971,7 +973,7 @@ const gameAPIRoutes: Route[] = [
       const files = (req.files as Record<string, unknown>) || {};
       const body = (req.body as Record<string, unknown>) || {};
 
-      console.log('[GAME-API] Upload request received:', {
+      logger.info('[GAME-API] Upload request received', {
         files: Object.keys(files),
         body: Object.keys(body),
         contentType: headers['content-type'],
@@ -993,7 +995,7 @@ const gameAPIRoutes: Route[] = [
       else if (body && typeof body === 'object') {
         // If we got a file in the body somehow
         const bodyKeys = Object.keys(body);
-        console.log('[GAME-API] Checking body keys:', bodyKeys);
+        logger.debug('[GAME-API] Checking body keys', { keys: bodyKeys });
 
         // Look for file-like properties in body
         if (body.file) {
@@ -1012,7 +1014,7 @@ const gameAPIRoutes: Route[] = [
           .json(errorResponse('NO_FILE', 'No file uploaded or file parsing failed'));
       }
 
-      console.log(`[GAME-API] Processing uploaded file: ${fileName} (${contentType})`);
+      logger.info(`[GAME-API] Processing uploaded file: ${fileName} (${contentType})`);
 
       // Create knowledge options
       const knowledgeOptions = {
@@ -1056,11 +1058,11 @@ const gameAPIRoutes: Route[] = [
 
       const params = (req.params as Record<string, unknown>) || {};
       const documentId = String(params.documentId || '');
-      console.log('[GAME-API] Attempting to delete knowledge document:', documentId);
+      logger.info('[GAME-API] Attempting to delete knowledge document', { documentId });
 
       // Use the knowledge service deleteMemory method to actually delete the document
       await knowledgeService.deleteMemory(documentId as UUID);
-      console.log('[GAME-API] Successfully deleted knowledge document:', documentId);
+      logger.info('[GAME-API] Successfully deleted knowledge document', { documentId });
 
       res.json(
         successResponse({
@@ -1177,7 +1179,7 @@ const gameAPIRoutes: Route[] = [
     name: 'Get Runtime State Debug Info',
     public: true,
     handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
-      console.log('[GAME-API] Debug runtime state requested');
+      logger.debug('[GAME-API] Debug runtime state requested');
 
       // Safely serialize runtime state for debugging
       const debugState = {
@@ -1406,7 +1408,7 @@ const gameAPIRoutes: Route[] = [
         }
       });
 
-      console.log('[API] Service debugging - found services:', serviceInfo);
+      logger.debug('[API] Service debugging - found services', serviceInfo);
 
       res.json(
         successResponse({
@@ -1437,7 +1439,7 @@ const gameAPIRoutes: Route[] = [
         return res.status(400).json(errorResponse('MISSING_ROOM_ID', 'Room ID is required'));
       }
 
-      console.log(`[API] Fetching memories for room: ${roomId}, count: ${count}`);
+      logger.info(`[API] Fetching memories for room: ${roomId}, count: ${count}`);
 
       // Fetch memories from the specified room
       const memories = await runtime.getMemories({
@@ -1446,7 +1448,7 @@ const gameAPIRoutes: Route[] = [
         tableName: 'memories',
       });
 
-      console.log(`[API] Found ${memories.length} memories for room ${roomId}`);
+      logger.info(`[API] Found ${memories.length} memories for room ${roomId}`);
 
       // Return in the expected format
       res.json(successResponse(memories || []));
@@ -1551,13 +1553,13 @@ const gameAPIRoutes: Route[] = [
       // Use uppercase 'AUTONOMY' as per the service's serviceType
       const autonomyService = runtime.getService('AUTONOMY');
 
-      console.log(`[API] Autonomy service lookup: ${autonomyService ? 'found' : 'not found'}`);
+      logger.debug(`[API] Autonomy service lookup: ${autonomyService ? 'found' : 'not found'}`);
 
       if (!autonomyService) {
         // List all available services for debugging
         const services = runtime.services || new Map();
         const serviceNames = Array.from(services.keys());
-        console.log('[API] Available services:', serviceNames);
+        logger.debug('[API] Available services', { services: serviceNames });
         return res
           .status(503)
           .json(errorResponse('SERVICE_UNAVAILABLE', 'Autonomy service not available'));
@@ -1642,7 +1644,7 @@ const gameAPIRoutes: Route[] = [
     name: 'Game Startup Initialization',
     public: true,
     handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
-      console.log('[GAME-API] Game startup initialization requested');
+      logger.info('[GAME-API] Game startup initialization requested');
 
       try {
         // Check if services are available - use correct service names
@@ -1666,7 +1668,7 @@ const gameAPIRoutes: Route[] = [
               initMessage = `Agent already has ${existingGoals.length} goals`;
             }
           } catch (error) {
-            console.error('[GAME-API] Error checking/creating goals:', error);
+            logger.error('[GAME-API] Error checking/creating goals', error);
             initMessage = 'Error during initialization';
           }
         } else {
@@ -1685,7 +1687,7 @@ const gameAPIRoutes: Route[] = [
           })
         );
       } catch (error) {
-        console.error('[GAME-API] Error during startup:', error);
+        logger.error('[GAME-API] Error during startup', error);
         res
           .status(500)
           .json(
@@ -1706,7 +1708,7 @@ const gameAPIRoutes: Route[] = [
     name: 'Initialize Goals and Todos',
     public: true,
     handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
-      console.log('[GAME-API] Manual initialization of goals and todos requested');
+      logger.info('[GAME-API] Manual initialization of goals and todos requested');
 
       try {
         // Check if services are available first - use correct service names
@@ -1736,7 +1738,7 @@ const gameAPIRoutes: Route[] = [
           })
         );
       } catch (error) {
-        console.error('[GAME-API] Error during initialization:', error);
+        logger.error('[GAME-API] Error during initialization', error);
         res
           .status(500)
           .json(
@@ -1757,7 +1759,7 @@ const gameAPIRoutes: Route[] = [
     name: 'Validate Configuration',
     public: true,
     handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
-      console.log('[CONFIG-VALIDATION] Starting configuration validation...');
+      logger.info('[CONFIG-VALIDATION] Starting configuration validation...');
 
       const validationResults: ValidationResults = {
         overall: 'unknown' as 'healthy' | 'degraded' | 'unhealthy',
@@ -1986,7 +1988,7 @@ const gameAPIRoutes: Route[] = [
         validationResults.overall = 'unhealthy';
       }
 
-      console.log(
+      logger.info(
         `[CONFIG-VALIDATION] Validation complete. Overall status: ${validationResults.overall}`
       );
 
@@ -2006,7 +2008,7 @@ const gameAPIRoutes: Route[] = [
     name: 'Test Configuration',
     public: true,
     handler: async (req: GameApiRequest, res: GameApiResponse, runtime: IAgentRuntime) => {
-      console.log('[CONFIG-TEST] Starting configuration test...');
+      logger.info('[CONFIG-TEST] Starting configuration test...');
 
       const testResults = {
         provider: process.env.MODEL_PROVIDER || 'ollama',
@@ -2016,7 +2018,7 @@ const gameAPIRoutes: Route[] = [
       };
 
       // Test basic LLM completion
-      console.log('[CONFIG-TEST] Testing basic LLM completion...');
+      logger.info('[CONFIG-TEST] Testing basic LLM completion...');
 
       // Create a simple test prompt
       const testPrompt = "Respond with exactly: 'Configuration test successful'";
@@ -2053,7 +2055,7 @@ const gameAPIRoutes: Route[] = [
       };
 
       // Test embedding functionality
-      console.log('[CONFIG-TEST] Testing embedding generation...');
+      logger.info('[CONFIG-TEST] Testing embedding generation...');
 
       const testText = 'This is a test for embedding generation';
       const embedding = await runtime.useModel(ModelType.TEXT_EMBEDDING, testText);
@@ -2070,7 +2072,7 @@ const gameAPIRoutes: Route[] = [
       };
 
       // Test memory operations
-      console.log('[CONFIG-TEST] Testing memory operations...');
+      logger.info('[CONFIG-TEST] Testing memory operations...');
 
       // Skip actual memory creation to avoid database constraints
       // Just test that the memory service is available
@@ -2089,7 +2091,7 @@ const gameAPIRoutes: Route[] = [
 
       const overallStatus = allSuccessful ? 'success' : anyFailed ? 'failed' : 'partial';
 
-      console.log(`[CONFIG-TEST] Configuration test complete. Overall status: ${overallStatus}`);
+      logger.info(`[CONFIG-TEST] Configuration test complete. Overall status: ${overallStatus}`);
 
       res.json(
         successResponse({
@@ -2361,7 +2363,7 @@ const gameAPIRoutes: Route[] = [
 
       runtime.setSetting(key, value);
 
-      console.log(`[API] Updated setting ${key} = ${value}`);
+      logger.info(`[API] Updated setting ${key} = ${value}`);
 
       res.json(successResponse({ key, value }));
     },
@@ -2497,7 +2499,7 @@ const gameAPIRoutes: Route[] = [
 
         return res.json(successResponse(response));
       } catch (error) {
-        console.error('[API] Error getting runtime state:', error);
+        logger.error('[API] Error getting runtime state', error);
         return res.status(500).json(errorResponse('RUNTIME_ERROR', 'Failed to get runtime state'));
       }
     },
@@ -2538,7 +2540,7 @@ const gameAPIRoutes: Route[] = [
           })
         );
       } catch (error) {
-        console.error('[API] Error getting monologue:', error);
+        logger.error('[API] Error getting monologue', error);
         return res.status(500).json(errorResponse('MONOLOGUE_ERROR', 'Failed to get monologue'));
       }
     },
@@ -2581,14 +2583,14 @@ const gameAPIRoutes: Route[] = [
         // Get the server instance from the global variable
         const serverInstance = (global as any).elizaAgentServer;
         if (!serverInstance) {
-          console.error('[API] Server instance not available globally');
+          logger.error('[API] Server instance not available globally');
           return res.status(500).json(errorResponse('SERVER_ERROR', 'Failed to ingest message'));
         }
 
         // Check if channel exists, create if not
         let channel = await serverInstance.getChannelDetails(channel_id as UUID);
         if (!channel) {
-          console.log(`[API] Channel ${channel_id} does not exist, creating it...`);
+          logger.info(`[API] Channel ${channel_id} does not exist, creating it...`);
 
           // Use the provided server_id or default
           const serverId = (server_id || '00000000-0000-0000-0000-000000000000') as UUID;
@@ -2610,7 +2612,7 @@ const gameAPIRoutes: Route[] = [
             },
           });
 
-          console.log(`[API] Created channel ${channel_id} successfully`);
+          logger.info(`[API] Created channel ${channel_id} successfully`);
         }
 
         // Create message in the database
@@ -2651,7 +2653,9 @@ const gameAPIRoutes: Route[] = [
         const bus = (global as any).elizaInternalMessageBus;
         if (bus) {
           bus.emit('new_message', messageForBus);
-          console.log('[API] Published message to internal message bus:', createdMessage.id);
+          logger.info('[API] Published message to internal message bus', {
+            messageId: createdMessage.id,
+          });
         }
 
         res.status(201).json({
@@ -2659,7 +2663,7 @@ const gameAPIRoutes: Route[] = [
           data: { messageId: createdMessage.id },
         });
       } catch (error) {
-        console.error('[API] Error ingesting message:', error);
+        logger.error('[API] Error ingesting message', error);
         res.status(500).json(errorResponse('INGEST_ERROR', 'Failed to ingest message'));
       }
     },
@@ -2703,7 +2707,7 @@ const gameAPIRoutes: Route[] = [
           total: memories.length,
         });
       } catch (error) {
-        console.error('[API] Error querying memories:', error);
+        logger.error('[API] Error querying memories', error);
         res.status(500).json(errorResponse('MEMORY_QUERY_ERROR', 'Failed to query memories'));
       }
     },
@@ -2752,7 +2756,7 @@ const gameAPIRoutes: Route[] = [
             .json(errorResponse('FORWARD_ERROR', 'Failed to forward to new messaging endpoint'));
         }
       } catch (error) {
-        console.error('[API] Error in legacy message endpoint:', error);
+        logger.error('[API] Error in legacy message endpoint', error);
         return res.status(500).json(errorResponse('LEGACY_ERROR', 'Failed to process message'));
       }
     },
@@ -2779,12 +2783,12 @@ export const gameAPIPlugin: Plugin = {
   routes: gameAPIRoutes,
 
   init: async (config: Record<string, string>, runtime: IAgentRuntime) => {
-    console.log('[GAME-API] Plugin initialized for agent:', runtime.agentId);
-    console.log('[GAME-API] Number of routes being registered:', gameAPIRoutes.length);
+    logger.info('[GAME-API] Plugin initialized for agent', { agentId: runtime.agentId });
+    logger.info('[GAME-API] Number of routes being registered', { count: gameAPIRoutes.length });
 
     // Log each route being registered
     gameAPIRoutes.forEach((route, index) => {
-      console.log(
+      logger.info(
         `[GAME-API] Route ${index + 1}: ${route.type} ${route.path} (public: ${route.public || false})`
       );
     });
@@ -2798,23 +2802,22 @@ export const gameAPIPlugin: Plugin = {
     // Debug: List all registered services
     const services = runtime.services || new Map();
     const serviceNames = Array.from(services.keys());
-    console.log('[GAME-API] Available services at init:', serviceNames);
+    logger.debug('[GAME-API] Available services at init', { services: serviceNames });
 
     // Specifically check for autonomy service
     const autonomyService = runtime.getService('Autonomy') || runtime.getService('AUTONOMY');
-    console.log('[GAME-API] Autonomy service found:', !!autonomyService);
+    logger.debug('[GAME-API] Autonomy service found', { found: !!autonomyService });
 
     if (autonomyService) {
-      console.log('[GAME-API] Autonomy service type:', autonomyService.constructor.name);
-      console.log(
-        '[GAME-API] Autonomy service methods:',
-        Object.getOwnPropertyNames(Object.getPrototypeOf(autonomyService))
-      );
+      logger.debug('[GAME-API] Autonomy service type', { type: autonomyService.constructor.name });
+      logger.debug('[GAME-API] Autonomy service methods', {
+        methods: Object.getOwnPropertyNames(Object.getPrototypeOf(autonomyService)),
+      });
     }
 
     // Don't create initial todos/goals immediately - wait for a ready signal
     // This will be triggered by the /api/initialize-goals-todos endpoint if needed
-    console.log(
+    logger.info(
       '[GAME-API] Plugin initialization complete. Initial goals/todos creation deferred.'
     );
 
@@ -2822,38 +2825,41 @@ export const gameAPIPlugin: Plugin = {
     (runtime as any).gameApiPluginReady = true;
 
     // Schedule initial todos/goals creation after a delay to ensure everything is ready
-    setTimeout(async () => {
-      console.log('[GAME-API] Checking if initial goals/todos need to be created...');
-      try {
-        // Check if agent exists and has no goals yet
-        const agent = await runtime.db?.getAgent?.(runtime.agentId);
-        if (agent) {
-          const goalService = runtime.getService<GoalService>('goals'); // lowercase
-          if (goalService) {
-            const existingGoals = await goalService.getAllGoalsForOwner('agent', runtime.agentId);
-            if (!existingGoals || existingGoals.length === 0) {
-              console.log('[GAME-API] No existing goals found, creating initial set...');
-              await createInitialTodosAndGoals(runtime);
+    setTimeout(
+      async () => {
+        logger.info('[GAME-API] Checking if initial goals/todos need to be created...');
+        try {
+          // Check if agent exists and has no goals yet
+          const agent = await runtime.db?.getAgent?.(runtime.agentId);
+          if (agent) {
+            const goalService = runtime.getService<GoalService>('goals'); // lowercase
+            if (goalService) {
+              const existingGoals = await goalService.getAllGoalsForOwner('agent', runtime.agentId);
+              if (!existingGoals || existingGoals.length === 0) {
+                logger.info('[GAME-API] No existing goals found, creating initial set...');
+                await createInitialTodosAndGoals(runtime);
+              } else {
+                logger.info(`[GAME-API] Agent already has ${existingGoals.length} goals`);
+              }
             } else {
-              console.log(`[GAME-API] Agent already has ${existingGoals.length} goals`);
+              logger.info('[GAME-API] Goals service not yet available, will retry later');
             }
-          } else {
-            console.log('[GAME-API] Goals service not yet available, will retry later');
           }
+        } catch (error) {
+          logger.error('[GAME-API] Error during deferred initialization check', error);
         }
-      } catch (error) {
-        console.error('[GAME-API] Error during deferred initialization check:', error);
-      }
-    }, 10000); // Wait 10 seconds after plugin init
+      },
+      parseInt(process.env.PLUGIN_INIT_DELAY || '10000', 10)
+    ); // Wait after plugin init (milliseconds)
 
     // Auto-start screen capture for VNC streaming after a delay
     setTimeout(async () => {
       try {
-        console.log('[GAME-API] Auto-starting agent screen capture for VNC streaming...');
+        logger.info('[GAME-API] Auto-starting agent screen capture for VNC streaming...');
         await startAgentScreenCapture(runtime, agentServerInstance);
-        console.log('[GAME-API] Agent screen capture started automatically');
+        logger.info('[GAME-API] Agent screen capture started automatically');
       } catch (error) {
-        console.error('[GAME-API] Failed to auto-start screen capture:', error);
+        logger.error('[GAME-API] Failed to auto-start screen capture', error);
         // Not fatal - can be started manually later
       }
     }, 15000); // Wait 15 seconds to ensure display is ready

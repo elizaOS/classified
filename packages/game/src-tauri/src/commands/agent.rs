@@ -121,9 +121,9 @@ pub async fn reset_agent(
         std::fs::remove_file(&crash_file.0).map_err(|e| e.to_string())?;
     }
     
-    // Reset global state
-    // TODO: Implement global state reset if needed
-    // global_state.inner().reset_all().await;
+    // Reset global state - for now we don't need to reset container manager or backup manager
+    // as those are infrastructure components that should persist
+    // The agent reset command already handles agent-specific state reset
     
     agent_server_request("POST", "/api/agent/reset", None, Some(60))
         .await

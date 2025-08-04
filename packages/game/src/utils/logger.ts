@@ -23,7 +23,7 @@ class Logger {
   private componentName?: string;
 
   private constructor() {
-    this.isDevelopment = process.env.NODE_ENV === 'development';
+    this.isDevelopment = import.meta.env.MODE === 'development';
     this.logLevel = this.isDevelopment ? LogLevel.DEBUG : LogLevel.INFO;
   }
 

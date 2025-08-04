@@ -21,12 +21,11 @@ class Environment {
 
   private constructor() {
     const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isDevelopment = import.meta.env.DEV;
+    const isProduction = import.meta.env.PROD;
 
     // Get backend port from environment or use default
-    const backendPort =
-      process.env.REACT_APP_BACKEND_PORT || process.env.VITE_BACKEND_PORT || '7777';
+    const backendPort = import.meta.env.VITE_BACKEND_PORT || '7777';
 
     // Get API URLs from environment variables with proper fallbacks
     const apiBaseUrl = this.getApiBaseUrl(isDevelopment, backendPort);
@@ -40,7 +39,7 @@ class Environment {
       IS_TAURI: isTauri,
       LOG_LEVEL: isProduction ? 'error' : 'debug',
       ENABLE_ERROR_REPORTING: isProduction,
-      ERROR_REPORTING_URL: process.env.REACT_APP_ERROR_REPORTING_URL,
+      ERROR_REPORTING_URL: import.meta.env.VITE_ERROR_REPORTING_URL,
       DEFAULT_BACKEND_PORT: parseInt(backendPort, 10),
     };
 
@@ -57,7 +56,7 @@ class Environment {
 
   private getApiBaseUrl(isDevelopment: boolean, backendPort: string): string {
     // Check for explicit environment variable first
-    const envApiUrl = process.env.REACT_APP_API_BASE_URL || process.env.VITE_API_BASE_URL;
+    const envApiUrl = import.meta.env.VITE_API_BASE_URL;
     if (envApiUrl) {
       return envApiUrl;
     }
@@ -78,7 +77,7 @@ class Environment {
 
   private getWebsocketUrl(isDevelopment: boolean, backendPort: string): string {
     // Check for explicit environment variable first
-    const envWsUrl = process.env.REACT_APP_WEBSOCKET_URL || process.env.VITE_WEBSOCKET_URL;
+    const envWsUrl = import.meta.env.VITE_WEBSOCKET_URL;
     if (envWsUrl) {
       return envWsUrl;
     }
