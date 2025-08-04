@@ -10,6 +10,7 @@ use async_trait::async_trait;
 /// Unified interface for container runtime operations
 /// Implemented by both Docker and Podman clients
 #[async_trait]
+#[allow(dead_code)] // Methods used through trait objects/dynamic dispatch - clippy can't detect usage
 pub trait ContainerRuntime: Send + Sync {
     /// Check if the runtime is available and functional
     async fn is_available(&self) -> BackendResult<bool>;
