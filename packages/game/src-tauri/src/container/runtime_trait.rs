@@ -5,7 +5,7 @@
  */
 use crate::backend::{BackendResult, ContainerConfig, ContainerStatus};
 use async_trait::async_trait;
-use std::collections::HashMap;
+
 
 /// Unified interface for container runtime operations
 /// Implemented by both Docker and Podman clients
