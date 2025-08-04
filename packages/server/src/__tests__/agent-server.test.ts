@@ -185,7 +185,7 @@ describe('AgentServer Integration Tests', () => {
       const options: ServerOptions = {
         dataDir: './test-data',
         middlewares: [],
-        postgresUrl: 'postgresql://test:test@localhost:5432/test',
+        postgresUrl: 'postgresql://test:test@localhost:7654/test',
       };
 
       await server.initialize(options);

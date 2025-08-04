@@ -54,13 +54,10 @@ impl OperationLock {
             started_at: chrono::Utc::now(),
         };
 
-        if self.active.contains_key(operation) {
-            return Err(format!("Operation '{}' is already in progress", operation));
-        }
-
-        // Try to insert - this is atomic
-        match self.active.try_insert(operation.to_string(), operation_info.clone()) {
-            Ok(_) => {
+        // Use entry API for atomic check-and-insert
+        match self.active.entry(operation.to_string()) {
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert(operation_info.clone());
                 tracing::debug!("Acquired lock for operation: {}", operation);
                 Ok(OperationGuard {
                     lock: self.active.clone(),
@@ -68,7 +65,9 @@ impl OperationLock {
                     id: operation_info.id,
                 })
             }
-            Err(_) => Err(format!("Failed to acquire lock for operation '{}'", operation)),
+            dashmap::mapref::entry::Entry::Occupied(_) => {
+                Err(format!("Operation '{}' is already in progress", operation))
+            }
         }
     }
 }

@@ -191,7 +191,7 @@ describe('CLI Compatibility Tests', () => {
       const options = {
         dataDir: './test-data',
         middlewares: [],
-        postgresUrl: 'postgresql://test:test@localhost:5432/test',
+        postgresUrl: 'postgresql://test:test@localhost:7654/test',
       };
 
       // This should not throw a type error (tested at compile time)
