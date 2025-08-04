@@ -43,6 +43,34 @@ impl OperationLock {
     pub fn force_unlock(&self, operation: &str) {
         self.active.remove(operation);
     }
+
+    /// Try to acquire a lock for an operation
+    /// Returns Ok(guard) if successful, Err if operation is already locked
+    pub fn try_lock(&self, operation: &str, description: &str) -> Result<OperationGuard, String> {
+        let operation_info = OperationInfo {
+            id: uuid::Uuid::new_v4().to_string(),
+            operation: operation.to_string(),
+            description: description.to_string(),
+            started_at: chrono::Utc::now(),
+        };
+
+        if self.active.contains_key(operation) {
+            return Err(format!("Operation '{}' is already in progress", operation));
+        }
+
+        // Try to insert - this is atomic
+        match self.active.try_insert(operation.to_string(), operation_info.clone()) {
+            Ok(_) => {
+                tracing::debug!("Acquired lock for operation: {}", operation);
+                Ok(OperationGuard {
+                    lock: self.active.clone(),
+                    operation: operation.to_string(),
+                    id: operation_info.id,
+                })
+            }
+            Err(_) => Err(format!("Failed to acquire lock for operation '{}'", operation)),
+        }
+    }
 }
 
 /// RAII guard that automatically releases the lock when dropped

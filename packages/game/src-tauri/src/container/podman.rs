@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use std::path::Path;
 use std::process::Command;
 use tokio::process::Command as AsyncCommand;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 // Helper function to parse Podman uptime strings
 fn parse_podman_uptime(status: &str) -> u64 {
