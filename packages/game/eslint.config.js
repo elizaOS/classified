@@ -14,6 +14,7 @@ export default [
         MessageEvent: 'readonly',
         CustomEvent: 'readonly',
         crypto: 'readonly',
+        CryptoKey: 'readonly',
         TextEncoder: 'readonly',
         TextDecoder: 'readonly',
         DataTransfer: 'readonly',

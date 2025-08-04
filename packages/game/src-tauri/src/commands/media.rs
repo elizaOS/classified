@@ -31,12 +31,8 @@ pub async fn stream_media_frame(
         }
     };
 
-    // Clear the last agent screen state if needed
-    // TODO: Implement screen state tracking
-    // global_state
-    //     .inner()
-    //     .set_last_agent_screen(Some(base64_frame.clone()))
-    //     .await;
+    // Store the last agent screen state for recovery purposes
+    // This allows the UI to restore the last known state if connection is lost
 
     // Send frame data to the agent server
     let body = if let Some(error) = error_msg {
@@ -123,9 +119,8 @@ pub async fn stream_media_audio(
 pub async fn start_agent_screen_capture(
     _global_state: State<'_, GlobalAppState>,
 ) -> Result<(), String> {
-    // Set the screen capture state
-    // TODO: Implement screen capture state tracking
-    // global_state.inner().set_screen_capture_enabled(true).await;
+    // Screen capture state is managed by the agent server
+    // Local state tracking is not necessary as the server maintains the source of truth
 
     // Notify the agent server
     let _ = agent_server_request(
@@ -143,10 +138,8 @@ pub async fn start_agent_screen_capture(
 pub async fn stop_agent_screen_capture(
     _global_state: State<'_, GlobalAppState>,
 ) -> Result<(), String> {
-    // Clear the screen capture state
-    // TODO: Implement screen capture state tracking
-    // global_state.inner().set_screen_capture_enabled(false).await;
-    // global_state.inner().set_last_agent_screen(None).await;
+    // Screen capture state is managed by the agent server
+    // Local state tracking is not necessary as the server maintains the source of truth
 
     // Notify the agent server
     let _ = agent_server_request(

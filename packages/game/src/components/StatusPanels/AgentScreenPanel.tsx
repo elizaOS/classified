@@ -6,6 +6,9 @@
 
 import React from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { createLogger } from '../../utils/logger';
+
+const logger = createLogger('AgentScreenPanel');
 
 export interface OutputLine {
   type: 'user' | 'agent' | 'system' | 'error';
@@ -43,7 +46,7 @@ export const AgentScreenPanel: React.FC<AgentScreenPanelProps> = ({
         setAgentScreenActive(true);
       }
     } catch (error) {
-      console.error('Failed to toggle agent screen capture:', error);
+      logger.error('Failed to toggle agent screen capture', error);
       setOutput((prev) => [
         ...prev,
         {
@@ -82,7 +85,7 @@ export const AgentScreenPanel: React.FC<AgentScreenPanelProps> = ({
           ]);
         }
       } catch (error) {
-        console.error('Screen sharing failed:', error);
+        logger.error('Screen sharing failed', error);
         setOutput((prev) => [
           ...prev,
           {

@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import './StartupFlow.css';
 
 import { TauriWindow } from '../types/shared';
+import { env } from '../config/environment';
+import { createLogger } from '../utils/logger';
 
 declare global {
   interface Window extends TauriWindow {}
 }
 
+const logger = createLogger('StartupFlow');
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 interface ModelDownloadProgress {
@@ -63,11 +66,11 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
   }, []);
 
   const setupTauriOrFallback = async () => {
-    console.log('[STARTUP] Initializing application...');
+    logger.info('Initializing application...');
 
     // Check if we're in Tauri
     if (window.__TAURI_INTERNALS__) {
-      console.log('[STARTUP] Running in Tauri environment');
+      logger.info('Running in Tauri environment');
       await setupTauriListeners();
     } else {
       console.log('[STARTUP] Running in browser mode');
@@ -186,7 +189,7 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
 
   const simulateBrowserStartup = async () => {
     // For browser mode, check if server is already running
-    const response = await fetch('http://localhost:7777/api/server/health');
+    const response = await fetch(env.buildApiUrl('/api/server/health'));
 
     if (response.ok) {
       console.log('[STARTUP] Server detected in browser mode, completing startup');

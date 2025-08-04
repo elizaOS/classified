@@ -5,12 +5,7 @@ import { useTauriChat } from '../hooks/useTauriChat';
 import { useMediaCapture } from '../hooks/useMediaCapture';
 import { SecurityWarning, SECURITY_CAPABILITIES } from './SecurityWarning';
 import { CapabilityToggle } from './CapabilityToggle';
-import {
-  ConfigPanel,
-  LogsPanel,
-  AgentScreenPanel,
-  TerminalPanel,
-} from './StatusPanels';
+import { ConfigPanel, LogsPanel, AgentScreenPanel, TerminalPanel } from './StatusPanels';
 import { TabNavigation, type TabType } from './shared/TabNavigation';
 import { ConnectionStatus } from './shared/ConnectionStatus';
 import type { OutputLine } from './StatusPanels/AgentScreenPanel';
@@ -81,36 +76,7 @@ const GameInterface = () => {
     setIsConnected(tauriConnected);
   }, [tauriConnected]);
 
-  // Initialize mock elizaClient for test compatibility
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !window.elizaClient) {
-      const mockSocket = {
-        connected: true,
-        on: (event: string, callback: Function) => {
-          // Basic mock implementation
-          if (event === 'connect') {
-            setTimeout(() => callback(), 0);
-          }
-        },
-        emit: (event: string, data: unknown) => {
-          console.log('[Mock] Emit:', event, data);
-        },
-        disconnect: () => {
-          mockSocket.connected = false;
-        },
-        connect: () => {
-          mockSocket.connected = true;
-        },
-      };
-
-      (window as any).elizaClient = {
-        socket: mockSocket,
-        sendMessage: (message: string) => {
-          console.log('[Mock] Sending message:', message);
-        },
-      };
-    }
-  }, []);
+  // In production, elizaClient is managed by the Tauri backend
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -170,48 +136,48 @@ const GameInterface = () => {
 
   return (
     <div className="game-interface" data-testid="game-interface">
-        {/* Connection Status */}
-        <ConnectionStatus isConnected={isConnected} />
+      {/* Connection Status */}
+      <ConnectionStatus isConnected={isConnected} />
 
-        {/* Tab Navigation */}
-        <TabNavigation currentTab={currentTab} onTabChange={setCurrentTab} />
+      {/* Tab Navigation */}
+      <TabNavigation currentTab={currentTab} onTabChange={setCurrentTab} />
 
-        {/* Main Layout */}
-        <div className="main-layout">
-          {/* Content Area */}
-          <div className="content-area">
-            <div className="panel-container">{renderCurrentPanel()}</div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="sidebar">
-            <div className="sidebar-title">⚙️ CAPABILITIES</div>
-            <CapabilityToggle
-              states={plugins}
-              capabilityUsage={{}}
-              onToggle={async (capability) => {
-                console.log('Toggle capability:', capability);
-              }}
-            />
-          </div>
+      {/* Main Layout */}
+      <div className="main-layout">
+        {/* Content Area */}
+        <div className="content-area">
+          <div className="panel-container">{renderCurrentPanel()}</div>
         </div>
 
-        {/* Security Warning Modal */}
-        <SecurityWarning
-          capability={securityWarning.capability}
-          risks={
-            SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]
-              ?.risks || []
-          }
-          riskLevel="medium"
-          description="This capability requires system permissions."
-          onConfirm={securityWarning.onConfirm}
-          onCancel={() =>
-            setSecurityWarning({ isVisible: false, capability: '', onConfirm: () => {} })
-          }
-          isVisible={securityWarning.isVisible}
-        />
+        {/* Sidebar */}
+        <div className="sidebar">
+          <div className="sidebar-title">⚙️ CAPABILITIES</div>
+          <CapabilityToggle
+            states={plugins}
+            capabilityUsage={{}}
+            onToggle={async (capability) => {
+              console.log('Toggle capability:', capability);
+            }}
+          />
+        </div>
       </div>
+
+      {/* Security Warning Modal */}
+      <SecurityWarning
+        capability={securityWarning.capability}
+        risks={
+          SECURITY_CAPABILITIES[securityWarning.capability as keyof typeof SECURITY_CAPABILITIES]
+            ?.risks || []
+        }
+        riskLevel="medium"
+        description="This capability requires system permissions."
+        onConfirm={securityWarning.onConfirm}
+        onCancel={() =>
+          setSecurityWarning({ isVisible: false, capability: '', onConfirm: () => {} })
+        }
+        isVisible={securityWarning.isVisible}
+      />
+    </div>
   );
 };
 

@@ -3,6 +3,8 @@
  * Replaces all WebSocket/API client usage with native Tauri IPC
  */
 
+import { env } from '../config/environment';
+
 // Type-only imports to avoid runtime issues with optional dependencies
 type DialogSaveOptions = {
   defaultPath?: string;
@@ -22,31 +24,28 @@ type TauriDialogAPI = {
 import { v4 as uuidv4 } from 'uuid';
 import { CONFIG } from '../config/constants';
 import {
+  ContainerLog,
+  ContainerStatus,
+  HealthCheckResponse,
+  KnowledgeItem,
+  LogEntry,
+  OllamaModelStatus as SharedOllamaModelStatus,
+  StartupStatus,
   TauriEvent,
+  TauriGoal,
+  TauriMemoryResponse,
+  TauriMessage,
+  TauriSettingsResponse,
+  TauriTodo,
+  TestConfigurationResponse,
   UnsubscribeFunction,
   ValidationResponse,
-  TestConfigurationResponse,
-  OllamaModelStatus as SharedOllamaModelStatus,
-  TauriMemoryResponse,
-  TauriSettingsResponse,
-  KnowledgeItem,
-  HealthCheckResponse,
-  LogEntry,
 } from '../types/shared';
 import {
-  extractMemoriesFromResponse,
-  extractLogsFromResponse,
   convertToRecordArray,
+  extractLogsFromResponse,
+  extractMemoriesFromResponse,
 } from '../types/tauri-utils';
-import { 
-  TauriMessage, 
-  TauriGoal, 
-  TauriTodo, 
-  TauriAgentStatus,
-  StartupStatus,
-  ContainerStatus,
-  ContainerLog
-} from '../types/shared';
 import { goalsService } from './GoalsService';
 import { knowledgeService } from './KnowledgeService';
 
@@ -461,8 +460,9 @@ class TauriServiceClass {
   }
 
   // WebSocket management
-  public async connectWebSocket(url: string = 'ws://localhost:7777'): Promise<void> {
-    await this.ensureInitializedAndInvoke('connect_websocket', { url });
+  public async connectWebSocket(url?: string): Promise<void> {
+    const websocketUrl = url || env.websocketUrl;
+    await this.ensureInitializedAndInvoke('connect_websocket', { url: websocketUrl });
   }
 
   public async disconnectWebSocket(): Promise<void> {

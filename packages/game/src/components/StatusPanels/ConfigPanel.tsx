@@ -8,6 +8,8 @@ import React from 'react';
 import { ProviderSelector } from '../ProviderSelector';
 import { OllamaModelSelector } from '../OllamaModelSelector';
 import { BackupSettings } from '../BackupSettings';
+import { apiKeyManager } from '../../utils/apiKeyManager';
+import { createLogger } from '../../utils/logger';
 
 interface ConfigPanelProps {
   configValues: Record<string, any>;
@@ -28,6 +30,29 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
   testConfiguration,
   setShowResetDialog,
 }) => {
+  const logger = createLogger('ConfigPanel');
+
+  // Secure API key handling
+  const handleApiKeyChange = async (provider: string, key: string) => {
+    try {
+      const validation = apiKeyManager.validateApiKey(key, provider);
+      if (!validation.isValid) {
+        logger.warn(`Invalid API key for ${provider}: ${validation.error}`);
+        // Still update the field to show user input, but show error
+        updatePluginConfig('environment', `${provider.toUpperCase()}_API_KEY`, key);
+        return;
+      }
+
+      // Store securely if valid
+      if (key && key !== '***SET***') {
+        await apiKeyManager.storeApiKey(provider, key);
+        // Update config with masked value
+        updatePluginConfig('environment', `${provider.toUpperCase()}_API_KEY`, '***SET***');
+      }
+    } catch (error) {
+      logger.error(`Failed to handle API key for ${provider}`, error);
+    }
+  };
   const currentProvider = configValues.environment?.MODEL_PROVIDER || 'openai';
 
   return (
@@ -83,9 +108,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       ? 'Currently Set'
                       : 'Enter OpenAI API Key'
                   }
-                  onChange={(e) =>
-                    updatePluginConfig('environment', 'OPENAI_API_KEY', e.target.value)
-                  }
+                  onChange={(e) => handleApiKeyChange('openai', e.target.value)}
                   data-testid="openai-api-key-input"
                 />
               </div>
@@ -123,9 +146,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       ? 'Currently Set'
                       : 'Enter Anthropic API Key'
                   }
-                  onChange={(e) =>
-                    updatePluginConfig('environment', 'ANTHROPIC_API_KEY', e.target.value)
-                  }
+                  onChange={(e) => handleApiKeyChange('anthropic', e.target.value)}
                   data-testid="anthropic-api-key-input"
                 />
               </div>
@@ -161,9 +182,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                       ? 'Currently Set'
                       : 'Enter Groq API Key'
                   }
-                  onChange={(e) =>
-                    updatePluginConfig('environment', 'GROQ_API_KEY', e.target.value)
-                  }
+                  onChange={(e) => handleApiKeyChange('groq', e.target.value)}
                   data-testid="groq-api-key-input"
                 />
               </div>

@@ -5,7 +5,7 @@
  */
 
 import { BaseTauriService } from './BaseTauriService';
-import { HealthCheckResponse, TauriAgentStatus } from '../types/shared';
+import { HealthCheckResponse } from '../types/shared';
 
 export class AgentService extends BaseTauriService {
   // Agent health and info

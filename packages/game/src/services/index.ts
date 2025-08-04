@@ -8,7 +8,7 @@
 export { BaseTauriService } from './BaseTauriService';
 
 // Domain-specific services
-export { AgentService, agentService, type TauriAgentStatus } from './AgentService';
+export { AgentService, agentService } from './AgentService';
 export { ApplicationService, applicationService } from './ApplicationService';
 export { BackupService, backupService } from './BackupService';
 export { ChatService, chatService, type TauriMessage } from './ChatService';

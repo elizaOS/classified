@@ -7,6 +7,7 @@
 import { BaseTauriService } from './BaseTauriService';
 import { TauriMessage } from '../types/shared';
 import { v4 as uuidv4 } from 'uuid';
+import { env } from '../config/environment';
 
 export class ChatService extends BaseTauriService {
   private messageListeners: Set<(message: TauriMessage) => void> = new Set();
@@ -30,8 +31,11 @@ export class ChatService extends BaseTauriService {
   }
 
   // WebSocket connection methods
-  public async connectWebSocket(url: string = 'ws://localhost:7777'): Promise<void> {
-    return this.ensureInitializedAndInvoke('connect_websocket', { url }) as Promise<void>;
+  public async connectWebSocket(url?: string): Promise<void> {
+    const websocketUrl = url || env.websocketUrl;
+    return this.ensureInitializedAndInvoke('connect_websocket', {
+      url: websocketUrl,
+    }) as Promise<void>;
   }
 
   public async disconnectWebSocket(): Promise<void> {

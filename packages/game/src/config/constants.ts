@@ -3,6 +3,8 @@
  * These values can be overridden by environment variables
  */
 
+import { env } from './environment';
+
 // Default values - can be overridden by environment variables
 const DEFAULT_AGENT_ID = '2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f';
 const DEFAULT_ROOM_ID = 'ce5f41b4-fe24-4c01-9971-aecfed20a6bd';
@@ -44,24 +46,14 @@ export const CONFIG = {
    * API endpoints configuration
    */
   API: {
-    BASE_URL: (() => {
-      if (typeof window !== 'undefined') {
-        return (window as any).__ELIZA_CONFIG__?.API_BASE_URL || 'http://localhost:7777';
-      }
-      return process.env.ELIZA_API_BASE_URL || 'http://localhost:7777';
-    })(),
+    BASE_URL: env.apiBaseUrl,
   },
 
   /**
    * WebSocket configuration
    */
   WEBSOCKET: {
-    URL: (() => {
-      if (typeof window !== 'undefined') {
-        return (window as any).__ELIZA_CONFIG__?.WEBSOCKET_URL || 'ws://localhost:7777';
-      }
-      return process.env.ELIZA_WEBSOCKET_URL || 'ws://localhost:7777';
-    })(),
+    URL: env.websocketUrl,
   },
 } as const;
 

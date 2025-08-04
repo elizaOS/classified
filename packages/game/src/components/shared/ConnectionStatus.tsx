@@ -16,7 +16,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ isConnected 
       className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}
       data-testid="connection-status"
     >
-              <span className="status-indicator">{isConnected ? '◉' : '◯'}</span>
+      <span className="status-indicator">{isConnected ? '◉' : '◯'}</span>
       {isConnected ? 'ONLINE' : 'OFFLINE'}
     </div>
   );

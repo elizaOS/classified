@@ -116,6 +116,11 @@ jobs:
           cd packages/game
           bun install --frozen-lockfile || bun install
 
+      - name: Install dependencies (agentserver)
+        run: |
+          cd packages/agentserver
+          bun install --frozen-lockfile || bun install
+
       - name: Build backend without Podman
         run: |
           cd packages/game
