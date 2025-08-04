@@ -950,7 +950,7 @@ impl StartupManager {
                     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
                     // Use the actual agent ID
-                    let agent_id = "2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f";
+                    let agent_id = crate::config::get_agent_id();
                     let settings_url = format!(
                         "http://localhost:{}/api/agents/{}/settings",
                         agent_port, agent_id

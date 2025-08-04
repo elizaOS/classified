@@ -17,6 +17,7 @@ export default [
         TextEncoder: 'readonly',
         TextDecoder: 'readonly',
         DataTransfer: 'readonly',
+        MediaTrackConstraints: 'readonly',
         chai: 'readonly',
       },
     },

@@ -122,7 +122,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({ onProviderCh
       <div className="current-provider">
         <label>Active Provider:</label>
         <span className="provider-name">
-          {providerStatus.providers.find((p) => p.name === currentProvider)?.displayName ||
+          {providerStatus.providers.find((p) => p.name === currentProvider)?.display_name ||
             currentProvider}
         </span>
       </div>
@@ -141,7 +141,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({ onProviderCh
                 disabled={provider.name === currentProvider}
               >
                 <div className="provider-info">
-                  <span className="provider-display-name">{provider.displayName}</span>
+                  <span className="provider-display-name">{provider.display_name}</span>
                   <span className="provider-status">{provider.message}</span>
                 </div>
                 {provider.name === currentProvider && <span className="active-indicator">✓</span>}
@@ -161,7 +161,7 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({ onProviderCh
         </button>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .provider-selector {
           background: #1a1a1a;
           border: 1px solid #333;

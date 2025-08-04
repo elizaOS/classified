@@ -7,6 +7,7 @@ use crate::common::{AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CO
 use crate::container::resource_check::ResourceChecker;
 use crate::container::retry::{is_retryable_error, retry_with_backoff, RetryConfig};
 use crate::container::runtime_manager::RuntimeType;
+use crate::container::runtime_trait::ContainerRuntime as ContainerRuntimeTrait;
 use crate::container::user_error::handle_user_error;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -43,64 +44,22 @@ impl PortConfig {
     pub async fn find_available_ports() -> Self {
         let mut config = Self::default();
 
-        // Check PostgreSQL port
-        if !crate::common::is_port_available(config.postgres_port) {
-            info!(
-                "PostgreSQL port {} is in use, trying alternative...",
-                config.postgres_port
-            );
-            config.postgres_port = 5432;
-            if !crate::common::is_port_available(config.postgres_port) {
-                // Try a range of ports
-                for port in 5434..5440 {
-                    if crate::common::is_port_available(port) {
-                        config.postgres_port = port;
-                        break;
-                    }
-                }
+        // Use centralized port detection logic
+        match super::port_utils::find_all_available_ports(
+            config.postgres_port,
+            config.ollama_port,
+            config.agent_port,
+        ) {
+            Ok((postgres_port, ollama_port, agent_port)) => {
+                config.postgres_port = postgres_port;
+                config.ollama_port = ollama_port;
+                config.agent_port = agent_port;
+            }
+            Err(e) => {
+                error!("Failed to find available ports: {}", e);
+                // Continue with current ports - they might work or fail later with a clear error
             }
         }
-
-        // Check Ollama port
-        if !crate::common::is_port_available(config.ollama_port) {
-            info!(
-                "Ollama port {} is in use, trying alternative...",
-                config.ollama_port
-            );
-            config.ollama_port = 11435;
-            if !crate::common::is_port_available(config.ollama_port) {
-                // Try a range of ports
-                for port in 11436..11440 {
-                    if crate::common::is_port_available(port) {
-                        config.ollama_port = port;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Check Agent port
-        if !crate::common::is_port_available(config.agent_port) {
-            info!(
-                "Agent port {} is in use, trying alternative...",
-                config.agent_port
-            );
-            config.agent_port = 7778;
-            if !crate::common::is_port_available(config.agent_port) {
-                // Try a range of ports
-                for port in 7779..7785 {
-                    if crate::common::is_port_available(port) {
-                        config.agent_port = port;
-                        break;
-                    }
-                }
-            }
-        }
-
-        info!(
-            "Using ports - PostgreSQL: {}, Ollama: {}, Agent: {}",
-            config.postgres_port, config.ollama_port, config.agent_port
-        );
 
         config
     }
@@ -329,6 +288,14 @@ impl ContainerManager {
     /// Get current port configuration
     pub async fn get_port_config(&self) -> PortConfig {
         self.port_config.read().await.clone()
+    }
+
+    /// Get the container runtime version
+    pub async fn get_runtime_version(&self) -> BackendResult<String> {
+        match &self.runtime {
+            ContainerRuntime::Docker(client) => ContainerRuntimeTrait::version(client).await,
+            ContainerRuntime::Podman(client) => ContainerRuntimeTrait::version(client).await,
+        }
     }
 
     /// Update port configuration
@@ -1528,25 +1495,26 @@ impl ContainerManager {
             }
         }
 
-        // Start new container with Podman connection error recovery
+        // Create new container with Podman connection error recovery
         let container_id = match &self.runtime {
             ContainerRuntime::Podman(client) => {
-                match client.start_container(&config).await {
+                match client.create_container(&config).await {
                     Ok(id) => id,
                     Err(e) => {
                         // Check if this is a Podman connection error and try to recover
                         self.handle_podman_connection_error(&e).await?;
                         // Try once more after recovery
-                        client.start_container(&config).await?
+                        client.create_container(&config).await?
                     }
                 }
             }
-            ContainerRuntime::Docker(client) => client.start_container(&config).await?,
+            ContainerRuntime::Docker(client) => client.create_container(&config).await?,
         };
 
         let status = ContainerStatus {
             id: container_id.clone(),
             name: container_name.clone(),
+            image: config.image.clone(),
             state: ContainerState::Starting,
             health: HealthStatus::Starting,
             ports: config.ports.clone(),

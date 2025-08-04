@@ -71,6 +71,10 @@ sysinfo = "0.31"
 # Directory utilities
 dirs = "5.0"
 
+# Screenshot utilities
+screenshots = "0.8"
+image = "0.24"
+
 # Backup and compression dependencies
 flate2 = "1.0"
 sha2 = "0.10"

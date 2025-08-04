@@ -1,0 +1,49 @@
+/**
+ * GameInterface Component Styles
+ * Extracted from inline styles for better maintainability
+ */
+
+.game-interface {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #000;
+  color: #00ff00;
+  font-family: 'Courier New', monospace;
+  position: relative;
+}
+
+.main-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.panel-container {
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 300px;
+  border-left: 1px solid #00ff00;
+  background: rgba(0, 0, 0, 0.9);
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.sidebar-title {
+  color: #00ff00;
+  font-weight: bold;
+  margin-bottom: 15px;
+  text-align: center;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+  padding-bottom: 8px;
+}

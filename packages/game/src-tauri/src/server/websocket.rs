@@ -273,7 +273,7 @@ pub struct AgentMessage {
 pub enum ConnectionState {
     Disconnected,
     Connecting,
-    Connected(String),
+    Connected(()),
     Reconnecting,
     #[allow(dead_code)]
     Failed(String),
@@ -333,7 +333,7 @@ impl WebSocketClient {
                 Ok((ws_stream, _)) => {
                     info!("✅ WebSocket connection established");
                     *self.connection_state.write().await =
-                        ConnectionState::Connected(ws_url.clone());
+                        ConnectionState::Connected(());
                     *self.reconnect_attempts.lock().await = 0;
 
                     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
@@ -603,48 +603,7 @@ impl WebSocketClient {
         }
     }
 
-    pub async fn send_binary_message(
-        &self,
-        data: Vec<u8>,
-        media_type: &str,
-        stream_type: Option<&str>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let sender_guard = self.sender.lock().await;
 
-        if let Some(sender) = sender_guard.as_ref() {
-            // Create binary message with metadata prefix
-            // Format: [1 byte type][4 bytes length][metadata JSON][binary data]
-            let metadata = serde_json::json!({
-                "type": "media_stream_binary",
-                "media_type": media_type,
-                "stream_type": stream_type,
-                "timestamp": chrono::Utc::now().timestamp_millis(),
-                "size": data.len()
-            });
-
-            let metadata_bytes = metadata.to_string().as_bytes().to_vec();
-            let metadata_len = metadata_bytes.len() as u32;
-
-            // Build complete binary message
-            let mut binary_message = Vec::new();
-            binary_message.push(0x01); // Binary media stream type
-            binary_message.extend_from_slice(&metadata_len.to_be_bytes());
-            binary_message.extend_from_slice(&metadata_bytes);
-            binary_message.extend_from_slice(&data);
-
-            let ws_message = TungsteniteMessage::Binary(binary_message);
-
-            if let Err(e) = sender.send(ws_message) {
-                error!("Failed to queue binary message: {}", e);
-                return Err(Box::new(e));
-            }
-
-            info!("📤 Binary {} data sent: {} bytes", media_type, data.len());
-            Ok(())
-        } else {
-            Err("WebSocket not connected".into())
-        }
-    }
 
     pub async fn send_media_frame(
         &self,

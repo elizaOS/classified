@@ -1,0 +1,47 @@
+/**
+ * Connection Status Component Styles
+ * Extracted from inline styles for better maintainability
+ */
+
+.connection-status {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 6px 12px;
+  border: 1px solid;
+  background: rgba(0, 0, 0, 0.9);
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: bold;
+  border-radius: 4px;
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+.connection-status.connected {
+  color: #00ff00;
+  border-color: #00ff00;
+  box-shadow: 0 0 8px rgba(0, 255, 0, 0.3);
+}
+
+.connection-status.disconnected {
+  color: #ff0000;
+  border-color: #ff0000;
+  box-shadow: 0 0 8px rgba(255, 0, 0, 0.3);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    opacity: 1; 
+  }
+  50% { 
+    opacity: 0.6; 
+  }
+}
+
+.status-indicator {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 14px;
+}

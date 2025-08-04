@@ -127,4 +127,4 @@ pub type BackupResult<T> = Result<T, BackupError>;
 
 // Re-export commonly used types
 pub use manager::BackupManager;
-pub use scheduler::BackupScheduler;
+// BackupScheduler removed from public API as it's only used internally

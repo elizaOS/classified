@@ -44,7 +44,7 @@ impl BackupManager {
         let backup_dir = config.backup_directory.join(&backup_id);
 
         // Create backup directory
-        fs::create_dir_all(&backup_dir).map_err(|e| BackupError::Io(e))?;
+        fs::create_dir_all(&backup_dir).map_err(BackupError::Io)?;
 
         let mut components = Vec::new();
         let mut total_size = 0u64;
@@ -231,9 +231,9 @@ impl BackupManager {
         let output = self.run_command(create_cmd).await?;
 
         if !output.status.success() {
-            return Err(BackupError::AgentStateBackup(format!(
-                "Failed to create backup container"
-            )));
+                          return Err(BackupError::AgentStateBackup(
+                "Failed to create backup container".to_string()
+            ));
         }
 
         // Start the container
@@ -245,9 +245,9 @@ impl BackupManager {
             let _ = self
                 .run_command(vec!["podman", "rm", "-f", &temp_container])
                 .await;
-            return Err(BackupError::AgentStateBackup(format!(
-                "Failed to create volume backup"
-            )));
+                          return Err(BackupError::AgentStateBackup(
+                "Failed to create volume backup".to_string()
+            ));
         }
 
         // Copy the backup file out
@@ -262,9 +262,9 @@ impl BackupManager {
             .await;
 
         if !output.status.success() {
-            return Err(BackupError::AgentStateBackup(format!(
-                "Failed to copy backup file"
-            )));
+                          return Err(BackupError::AgentStateBackup(
+                "Failed to copy backup file".to_string()
+            ));
         }
 
         // Calculate checksum

@@ -133,7 +133,7 @@ pub async fn export_backup(
 
     // Create a zip file of the backup directory
     let output_path = std::path::Path::new(&export_path);
-    let file = std::fs::File::create(&output_path)
+    let file = std::fs::File::create(output_path)
         .map_err(|e| format!("Failed to create export file: {}", e))?;
 
     let mut zip = zip::ZipWriter::new(file);

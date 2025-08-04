@@ -110,8 +110,8 @@ export default function StartupFlow({ onComplete }: StartupFlowProps) {
         ...prev,
         stage: setupProgress.stage || prev.stage,
         progress: setupProgress.progress || prev.progress,
-        description: setupProgress.message || prev.description,
-        model_progress: setupProgress.model_progress || null,
+        description: setupProgress.description || prev.description,
+        model_progress: setupProgress.model_progress || undefined,
       }));
 
       // Log model progress if available

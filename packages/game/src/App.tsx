@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import StartupFlow from './components/StartupFlow';
-import { GameInterface } from './components/GameInterface';
+import GameInterface from './components/GameInterface';
 import { TauriInitializer } from './components/TauriInitializer';
 import { debugWebSockets } from './utils/debugWebSockets';
 import { blockOldMessages } from './utils/blockOldMessages';

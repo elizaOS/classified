@@ -1,38 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { TauriService } from '../services/TauriService';
+import TauriService, { Backup, BackupConfig, RestoreOptions } from '../services/TauriService';
 import './BackupSettings.css';
-
-interface Backup {
-  id: string;
-  timestamp: string;
-  backup_type: 'manual' | 'automatic' | 'shutdown';
-  size_bytes: number;
-  components: Array<{
-    name: string;
-    component_type: string;
-    size_bytes: number;
-  }>;
-  metadata: {
-    agent_name: string;
-    eliza_version: string;
-    notes?: string;
-  };
-}
-
-interface BackupConfig {
-  auto_backup_enabled: boolean;
-  auto_backup_interval_hours: number;
-  max_backups_to_keep: number;
-  backup_directory: string;
-}
-
-interface RestoreOptions {
-  restore_database: boolean;
-  restore_agent_state: boolean;
-  restore_knowledge: boolean;
-  restore_logs: boolean;
-  force: boolean;
-}
 
 export const BackupSettings: React.FC = () => {
   const [backups, setBackups] = useState<Backup[]>([]);

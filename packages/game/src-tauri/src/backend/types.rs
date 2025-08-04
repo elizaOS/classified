@@ -122,6 +122,7 @@ impl HealthCheckConfig {
 pub struct ContainerStatus {
     pub id: String,
     pub name: String,
+    pub image: String,
     pub state: ContainerState,
     pub health: HealthStatus,
     pub ports: Vec<PortMapping>,
@@ -137,6 +138,10 @@ pub enum ContainerState {
     Starting,
     Error,
     Unknown,
+    NotFound,
+    Exited,
+    Paused,
+    Restarting,
 }
 
 impl std::fmt::Display for ContainerState {
@@ -147,6 +152,10 @@ impl std::fmt::Display for ContainerState {
             ContainerState::Starting => write!(f, "Starting"),
             ContainerState::Error => write!(f, "Error"),
             ContainerState::Unknown => write!(f, "Unknown"),
+            ContainerState::NotFound => write!(f, "NotFound"),
+            ContainerState::Exited => write!(f, "Exited"),
+            ContainerState::Paused => write!(f, "Paused"),
+            ContainerState::Restarting => write!(f, "Restarting"),
         }
     }
 }
@@ -155,11 +164,20 @@ impl From<&str> for ContainerState {
     fn from(state: &str) -> Self {
         match state.to_lowercase().as_str() {
             "running" => ContainerState::Running,
-            "stopped" | "exited" => ContainerState::Stopped,
+            "stopped" => ContainerState::Stopped,
             "starting" | "created" => ContainerState::Starting,
             "error" | "dead" => ContainerState::Error,
+            "exited" => ContainerState::Exited,
+            "paused" => ContainerState::Paused,
+            "restarting" => ContainerState::Restarting,
             _ => ContainerState::Unknown,
         }
+    }
+}
+
+impl ContainerState {
+    pub fn is_running(&self) -> bool {
+        matches!(self, ContainerState::Running)
     }
 }
 

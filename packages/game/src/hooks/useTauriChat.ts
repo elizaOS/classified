@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { TauriService, TauriMessage } from '../services/TauriService';
+import { TauriService } from '../services/TauriService';
+import { TauriMessage } from '../types/shared';
 
 interface UseTauriChatReturn {
   isConnected: boolean;
@@ -44,7 +45,7 @@ export function useTauriChat(): UseTauriChatReturn {
             console.log('[AUTO-GREETING] Agent health:', agentHealth);
 
             // If agent is healthy, send greeting
-            if (agentHealth && (agentHealth.status === 'healthy' || agentHealth.success)) {
+            if (agentHealth && agentHealth.status === 'healthy') {
               console.log('[AUTO-GREETING] Sending hello message to Eliza...');
               await TauriService.sendMessage('hello eliza');
               console.log('[AUTO-GREETING] Greeting sent successfully');

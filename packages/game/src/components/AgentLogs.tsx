@@ -1,17 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TauriService from '../services/TauriService';
+import { LogEntry } from '../types/shared';
 import './AgentLogs.css';
 
-interface AgentLog {
-  timestamp: string;
-  type: 'agent' | 'system' | 'error';
-  level: 'info' | 'warn' | 'error' | 'debug';
-  message: string;
-  metadata?: Record<string, unknown>;
-}
-
 export const AgentLogs: React.FC = () => {
-  const [logs, setLogs] = useState<AgentLog[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filter, setFilter] = useState<'all' | 'agent' | 'system'>('all');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,16 +50,24 @@ export const AgentLogs: React.FC = () => {
     }
   }, [logs]);
 
-  const getLogClass = (log: AgentLog): string => {
+  const getLogClass = (log: LogEntry): string => {
     if (log.level === 'error') return 'log-error';
     if (log.level === 'warn') return 'log-warn';
     if (log.level === 'debug') return 'log-debug';
-    if (log.type === 'system') return 'log-system';
-    if (log.type === 'agent') return 'log-agent';
+    const logType = getLogType(log.source);
+    if (logType === 'system') return 'log-system';
+    if (logType === 'agent') return 'log-agent';
     return 'log-info';
   };
 
-  const formatTimestamp = (timestamp: string): string => {
+  const getLogType = (source?: string): 'agent' | 'system' | 'error' => {
+    if (!source) return 'system';
+    if (source.toLowerCase().includes('agent')) return 'agent';
+    if (source.toLowerCase().includes('error')) return 'error';
+    return 'system';
+  };
+
+  const formatTimestamp = (timestamp: string | Date): string => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', {
       hour12: false,
@@ -76,9 +77,10 @@ export const AgentLogs: React.FC = () => {
     });
   };
 
-  const getLogIcon = (log: AgentLog): string => {
-    if (log.type === 'agent') return '🤖';
-    if (log.type === 'system') return '⚙️';
+  const getLogIcon = (log: LogEntry): string => {
+    const logType = getLogType(log.source);
+    if (logType === 'agent') return '🤖';
+    if (logType === 'system') return '⚙️';
     if (log.level === 'error') return '❌';
     if (log.level === 'warn') return '⚠️';
     return '📝';
@@ -126,7 +128,7 @@ export const AgentLogs: React.FC = () => {
             <div key={index} className={`log-entry ${getLogClass(log)}`}>
               <span className="log-timestamp">{formatTimestamp(log.timestamp)}</span>
               <span className="log-icon">{getLogIcon(log)}</span>
-              <span className="log-type">[{log.type.toUpperCase()}]</span>
+              <span className="log-type">[{getLogType(log.source).toUpperCase()}]</span>
               <span className="log-message">{log.message}</span>
               {log.metadata && Object.keys(log.metadata).length > 0 && (
                 <span className="log-metadata" title={JSON.stringify(log.metadata, null, 2)}>
