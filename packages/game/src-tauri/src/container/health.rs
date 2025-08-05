@@ -1,5 +1,6 @@
 use crate::backend::{
     BackendError, BackendResult, ContainerState, HealthCheckConfig, HealthStatus,
+    ContainerRuntimeType,
 };
 use crate::container::ContainerInfo;
 use dashmap::DashMap;
@@ -10,6 +11,7 @@ use tracing::{debug, error, info, warn};
 
 pub struct HealthMonitor {
     checks: Arc<DashMap<String, HealthCheckTask>>,
+    runtime_type: ContainerRuntimeType,
 }
 
 struct HealthCheckTask {
@@ -18,9 +20,10 @@ struct HealthCheckTask {
 
 impl HealthMonitor {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(runtime_type: ContainerRuntimeType) -> Self {
         Self {
             checks: Arc::new(DashMap::new()),
+            runtime_type,
         }
     }
 
@@ -40,6 +43,7 @@ impl HealthMonitor {
 
         let container_name_clone = container_name.clone();
         let containers_clone = containers.clone();
+        let runtime_type = self.runtime_type;
 
         let handle = tokio::spawn(async move {
             let mut interval_timer = interval(check_interval);
@@ -53,7 +57,7 @@ impl HealthMonitor {
                     container_name_clone
                 );
 
-                match perform_health_check(&container_name_clone, &command, timeout).await {
+                match perform_health_check(&container_name_clone, &command, timeout, runtime_type).await {
                     Ok(is_healthy) => {
                         consecutive_failures = 0;
                         update_container_health(
@@ -126,7 +130,8 @@ impl HealthMonitor {
 
 impl Default for HealthMonitor {
     fn default() -> Self {
-        Self::new()
+        // Default to Podman as it's the preferred runtime
+        Self::new(ContainerRuntimeType::Podman)
     }
 }
 
@@ -134,6 +139,7 @@ async fn perform_health_check(
     container_name: &str,
     command: &[String],
     timeout: Duration,
+    runtime_type: ContainerRuntimeType,
 ) -> BackendResult<bool> {
     if command.is_empty() {
         return Err(BackendError::Container(
@@ -141,7 +147,12 @@ async fn perform_health_check(
         ));
     }
 
-    let mut cmd = tokio::process::Command::new("podman"); // TODO: Make this configurable
+    let runtime_cmd = match runtime_type {
+        ContainerRuntimeType::Podman => "podman",
+        ContainerRuntimeType::Docker => "docker",
+    };
+    
+    let mut cmd = tokio::process::Command::new(runtime_cmd);
     cmd.args(["exec", container_name])
         .args(command)
         .stdout(std::process::Stdio::piped())

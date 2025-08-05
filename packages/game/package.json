@@ -6,7 +6,8 @@
   "description": "Autonomous coding game where AI agents self-improve through code generation",
   "scripts": {
     "dev:tauri": "concurrently \"bun vite dev\" \"USE_SMALL_MODELS=true cd src-tauri && tauri dev\"",
-    "dev": "cd ../agentserver && bun run build && cd ../game && concurrently \"bun vite dev\" \"USE_SMALL_MODELS=true cd src-tauri && tauri dev\"",
+    "dev": "cd ../agentserver && bun run build:dev && cd ../game && concurrently \"bun vite dev\" \"USE_SMALL_MODELS=true cd src-tauri && tauri dev\"",
+    "dev:fast": "concurrently \"bun vite dev\" \"USE_SMALL_MODELS=true cd src-tauri && tauri dev\"",
     "start": "cd ../agentserver && bun run build && cd ../game && concurrently \"bun vite\" \"USE_SMALL_MODELS=true cd src-tauri && tauri dev\"",
     "build": "cd ../agentserver && bun run build && cd ../game && bun vite build",
     "build:frontend": "vite build",
@@ -34,7 +35,9 @@
     "test:core": "cypress run --spec 'cypress/e2e/0[1-7]-*.cy.ts'",
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
-    "lint": "eslint . --fix && prettier --write ."
+    "lint": "eslint . --fix && prettier --write . && cd src-tauri && cargo clippy -- -D warnings",
+    "lint:rust": "cd src-tauri && cargo clippy -- -D warnings",
+    "lint:check": "eslint . && cd src-tauri && cargo clippy -- -D warnings"
   },
   "dependencies": {
     "@elizaos/core": "workspace:*",
@@ -72,5 +75,10 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.1"
-  }
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
 }

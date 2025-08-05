@@ -99,7 +99,7 @@ describe('SQL Plugin', () => {
 
     it('should use POSTGRES_URL when available', async () => {
       mockRuntime.getSetting = mock((key) => {
-        if (key === 'POSTGRES_URL') return 'postgresql://localhost:5432/test';
+        if (key === 'POSTGRES_URL') return 'postgresql://localhost:7654/test';
         return null;
       });
 
@@ -147,7 +147,7 @@ describe('SQL Plugin', () => {
 
     it('should create PgDatabaseAdapter when postgresUrl is provided', () => {
       const config = {
-        postgresUrl: 'postgresql://localhost:5432/test',
+        postgresUrl: 'postgresql://localhost:7654/test',
       };
 
       const adapter = createDatabaseAdapter(config, agentId);
@@ -180,13 +180,13 @@ describe('SQL Plugin', () => {
     it('should reuse singleton managers', () => {
       // Create first adapter
       const adapter1 = createDatabaseAdapter(
-        { postgresUrl: 'postgresql://localhost:5432/test' },
+        { postgresUrl: 'postgresql://localhost:7654/test' },
         agentId
       );
 
       // Create second adapter with same config
       const adapter2 = createDatabaseAdapter(
-        { postgresUrl: 'postgresql://localhost:5432/test' },
+        { postgresUrl: 'postgresql://localhost:7654/test' },
         agentId
       );
 

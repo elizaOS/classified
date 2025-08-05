@@ -27,7 +27,7 @@ mod port_fallback_tests {
         let port_config = manager.get_port_config().await;
 
         // Default configuration should use standard ports
-        assert_eq!(port_config.postgres_port, 5432);
+        assert_eq!(port_config.postgres_port, 7654);
         assert_eq!(port_config.ollama_port, 11434);
         assert_eq!(port_config.agent_port, 7777);
     }
@@ -36,17 +36,17 @@ mod port_fallback_tests {
     async fn test_port_fallback_when_in_use() {
         use std::net::TcpListener;
 
-        // Bind to port 5432 to simulate it being in use
-        let _listener = TcpListener::bind("127.0.0.1:5432");
+        // Bind to port 7654 to simulate it being in use
+        let _listener = TcpListener::bind("127.0.0.1:7654");
 
         // Now check if PortConfig finds an alternative
         let config = PortConfig::find_available_ports().await;
 
-        // Should not use 5432 if our listener is holding it
+        // Should not use 7654 if our listener is holding it
         if _listener.is_ok() {
-            assert_ne!(config.postgres_port, 5432);
+            assert_ne!(config.postgres_port, 7654);
             println!(
-                "Port 5432 was in use, alternative port selected: {}",
+                "Port 7654 was in use, alternative port selected: {}",
                 config.postgres_port
             );
         }

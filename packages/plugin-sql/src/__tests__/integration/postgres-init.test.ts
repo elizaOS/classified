@@ -29,7 +29,7 @@ describe('PostgreSQL Initialization Tests', () => {
   });
 
   it('should initialize with PostgreSQL when POSTGRES_URL is provided', async () => {
-    const postgresUrl = 'postgresql://test:test@localhost:5432/testdb';
+    const postgresUrl = 'postgresql://test:test@localhost:7654/testdb';
     (mockRuntime.getSetting as any).mockImplementation((key: string) => {
       if (key === 'POSTGRES_URL') return postgresUrl;
       return undefined;

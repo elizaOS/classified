@@ -41,19 +41,137 @@ export class SecurityUtils {
   }
 
   /**
-   * Encrypt sensitive data (placeholder - implement with actual encryption)
+   * Generate a cryptographically secure password suitable for encryption
+   * @param length - The length of the password to generate (default: 32)
+   * @returns A secure random password
    */
-  static async encryptData(data: string, _key: string): Promise<string> {
-    // TODO: Implement actual encryption using Web Crypto API
-    return btoa(data);
+  static generateSecurePassword(length: number = 32): string {
+    const charset =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
+    const array = new Uint8Array(length);
+    crypto.getRandomValues(array);
+    return Array.from(array, (byte) => charset[byte % charset.length]).join('');
   }
 
   /**
-   * Decrypt sensitive data (placeholder - implement with actual decryption)
+   * Encrypt sensitive data using AES-GCM with Web Crypto API
+   * @param data - The plaintext data to encrypt
+   * @param password - The password to derive the encryption key from
+   * @returns Promise<string> - Base64-encoded encrypted data with salt and IV
    */
-  static async decryptData(encryptedData: string, _key: string): Promise<string> {
-    // TODO: Implement actual decryption using Web Crypto API
-    return atob(encryptedData);
+  static async encryptData(data: string, password: string): Promise<string> {
+    try {
+      // Generate a random salt
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+
+      // Generate a random IV
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+
+      // Derive key from password using PBKDF2
+      const passwordKey = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        'PBKDF2',
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+
+      const key = await crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt,
+          iterations: 100000,
+          hash: 'SHA-256',
+        },
+        passwordKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+
+      // Encrypt the data
+      const encodedData = new TextEncoder().encode(data);
+      const encrypted = await crypto.subtle.encrypt(
+        {
+          name: 'AES-GCM',
+          iv,
+        },
+        key,
+        encodedData
+      );
+
+      // Combine salt, IV, and encrypted data
+      const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+      combined.set(salt, 0);
+      combined.set(iv, salt.length);
+      combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+
+      // Return as base64
+      return btoa(String.fromCharCode(...combined));
+    } catch (error) {
+      console.error('Encryption failed:', error);
+      throw new Error('Failed to encrypt data');
+    }
+  }
+
+  /**
+   * Decrypt sensitive data using AES-GCM with Web Crypto API
+   * @param encryptedData - Base64-encoded encrypted data with salt and IV
+   * @param password - The password to derive the decryption key from
+   * @returns Promise<string> - The decrypted plaintext data
+   */
+  static async decryptData(encryptedData: string, password: string): Promise<string> {
+    try {
+      // Decode from base64
+      const combined = new Uint8Array(
+        atob(encryptedData)
+          .split('')
+          .map((char) => char.charCodeAt(0))
+      );
+
+      // Extract salt, IV, and encrypted data
+      const salt = combined.slice(0, 16);
+      const iv = combined.slice(16, 28);
+      const encrypted = combined.slice(28);
+
+      // Derive key from password using PBKDF2
+      const passwordKey = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        'PBKDF2',
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+
+      const key = await crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt,
+          iterations: 100000,
+          hash: 'SHA-256',
+        },
+        passwordKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+
+      // Decrypt the data
+      const decrypted = await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv,
+        },
+        key,
+        encrypted
+      );
+
+      // Return as string
+      return new TextDecoder().decode(decrypted);
+    } catch (error) {
+      console.error('Decryption failed:', error);
+      throw new Error('Failed to decrypt data');
+    }
   }
 
   /**

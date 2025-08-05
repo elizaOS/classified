@@ -46,6 +46,8 @@
     <string>ELIZA can access calendar data to help with scheduling and time management features.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>ELIZA can access photos to enable image analysis and visual AI capabilities.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>ELIZA uses screen recording to capture screenshots for visual AI analysis and agent interaction features.</string>
     
     <!-- Network Settings -->
     <key>NSAppTransportSecurity</key>

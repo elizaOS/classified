@@ -1,10 +1,13 @@
 use serde_json::json;
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::AppHandle;
 use tauri::Manager;
 use tokio::time::sleep;
 use tracing::{error, info};
 use uuid::Uuid;
+
+use crate::container::manager::ContainerManager;
 
 type TestResult = Result<String, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -86,13 +89,22 @@ pub async fn run_all_endpoint_tests(app_handle: &AppHandle) -> Vec<TestResult> {
 }
 
 /// Test health check endpoint
-async fn test_health_check(_app_handle: &AppHandle) -> TestResult {
+async fn test_health_check(app_handle: &AppHandle) -> TestResult {
     info!("Testing health check endpoint...");
 
-    let result = crate::ipc::commands::health_check().await?;
-
-    let parsed: serde_json::Value = serde_json::from_str(&result)?;
-    assert_eq!(parsed["status"], "healthy");
+    // Get container manager from app state
+    let container_manager = app_handle.state::<Arc<ContainerManager>>();
+    
+    // Check if agent container is healthy
+    let status = container_manager.get_container_status("eliza-agent").await
+        .map_err(|e| format!("Failed to get container status: {}", e))?;
+    
+    info!("Agent container health: {:?}", status.health);
+    
+    // For a running container, we expect it to be healthy
+    if matches!(status.state, crate::backend::ContainerState::Running) && !matches!(status.health, crate::backend::HealthStatus::Healthy) {
+        return Err("Container is running but not healthy".into());
+    }
 
     Ok("✅ Health check test passed".to_string())
 }
@@ -158,12 +170,12 @@ async fn test_goals_crud(_app_handle: &AppHandle) -> TestResult {
     info!("Testing goals CRUD operations...");
 
     // Fetch current goals
-    let initial_goals = crate::ipc::commands::fetch_goals().await?;
+    let initial_goals = crate::commands::data::fetch_goals().await?;
     info!("Initial goals response: {:?}", initial_goals);
 
     // Create a test goal
     let test_goal_name = format!("Test Goal {}", Uuid::new_v4());
-    let create_response = crate::ipc::commands::create_goal(
+    let create_response = crate::commands::data::create_goal(
         test_goal_name.clone(),
         "Test goal description".to_string(),
         Some(json!({ "test": true })),
@@ -181,7 +193,7 @@ async fn test_goals_crud(_app_handle: &AppHandle) -> TestResult {
     }
 
     // Fetch goals again to verify
-    let updated_goals = crate::ipc::commands::fetch_goals().await?;
+    let updated_goals = crate::commands::data::fetch_goals().await?;
     info!("Updated goals response: {:?}", updated_goals);
 
     let goals_array = updated_goals["data"]["goals"]
@@ -205,7 +217,7 @@ async fn test_todos_crud(_app_handle: &AppHandle) -> TestResult {
 
     // Create a test todo
     let test_todo_name = format!("Test Todo {}", Uuid::new_v4());
-    let create_response = crate::ipc::commands::create_todo(
+    let create_response = crate::commands::data::create_todo(
         test_todo_name.clone(),
         Some("Test todo description".to_string()),
         Some(1),
@@ -222,7 +234,7 @@ async fn test_todos_crud(_app_handle: &AppHandle) -> TestResult {
     }
 
     // Fetch todos again to verify
-    let updated_todos = crate::ipc::commands::fetch_todos().await?;
+    let updated_todos = crate::commands::data::fetch_todos().await?;
     info!("Updated todos response: {:?}", updated_todos);
 
     let todos_array = updated_todos["data"]["todos"]
@@ -246,7 +258,7 @@ async fn test_knowledge_crud(_app_handle: &AppHandle) -> TestResult {
     info!("Testing knowledge CRUD operations...");
 
     // Fetch current knowledge files
-    let files_response = crate::ipc::commands::fetch_knowledge_files().await?;
+    let files_response = crate::commands::data::fetch_knowledge_files().await?;
     let initial_count = files_response["data"]["documents"]
         .as_array()
         .map(|a| a.len())
@@ -254,16 +266,15 @@ async fn test_knowledge_crud(_app_handle: &AppHandle) -> TestResult {
 
     // Create test content
     let test_content = "This is a test knowledge file content.";
-    let base64_content = base64::Engine::encode(
+    let _base64_content = base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,
         test_content.as_bytes(),
     );
 
     // Upload test file
-    let upload_response = crate::ipc::commands::upload_knowledge_file(
+    let upload_response = crate::commands::data::upload_knowledge_file(
         format!("test-file-{}.txt", Uuid::new_v4()),
-        base64_content,
-        "text/plain".to_string(),
+        test_content.as_bytes().to_vec(),
     )
     .await?;
 
@@ -272,7 +283,7 @@ async fn test_knowledge_crud(_app_handle: &AppHandle) -> TestResult {
     }
 
     // Verify upload
-    let updated_files = crate::ipc::commands::fetch_knowledge_files().await?;
+    let updated_files = crate::commands::data::fetch_knowledge_files().await?;
     let new_count = updated_files["data"]["documents"]
         .as_array()
         .map(|a| a.len())
@@ -285,7 +296,7 @@ async fn test_knowledge_crud(_app_handle: &AppHandle) -> TestResult {
     // Delete test file (if we have the ID)
     if let Some(doc_id) = upload_response["data"]["documentId"].as_str() {
         let delete_response =
-            crate::ipc::commands::delete_knowledge_file(doc_id.to_string()).await?;
+            crate::commands::data::delete_knowledge_file(doc_id.to_string()).await?;
 
         if !delete_response["success"].as_bool().unwrap_or(false) {
             error!("Warning: Failed to delete test knowledge file");
@@ -300,17 +311,17 @@ async fn test_autonomy_control(_app_handle: &AppHandle) -> TestResult {
     info!("Testing autonomy control...");
 
     // Get current autonomy status
-    let status_response = crate::ipc::commands::fetch_autonomy_status().await?;
+    let status_response = crate::commands::agent::fetch_autonomy_status().await?;
     let initial_enabled = status_response["data"]["enabled"]
         .as_bool()
         .unwrap_or(false);
 
     // Toggle autonomy
     let new_state = !initial_enabled;
-    crate::ipc::commands::toggle_autonomy(new_state).await?;
+    crate::commands::agent::toggle_autonomy(new_state).await?;
 
     // Verify toggle
-    let updated_status = crate::ipc::commands::fetch_autonomy_status().await?;
+    let updated_status = crate::commands::agent::fetch_autonomy_status().await?;
     let current_enabled = updated_status["data"]["enabled"].as_bool().unwrap_or(false);
 
     if current_enabled != new_state {
@@ -318,7 +329,7 @@ async fn test_autonomy_control(_app_handle: &AppHandle) -> TestResult {
     }
 
     // Toggle back to original state
-    crate::ipc::commands::toggle_autonomy(initial_enabled).await?;
+    crate::commands::agent::toggle_autonomy(initial_enabled).await?;
 
     Ok("✅ Autonomy control test passed".to_string())
 }
@@ -330,17 +341,17 @@ async fn test_capability_toggles(_app_handle: &AppHandle) -> TestResult {
     let capabilities = vec!["shell", "browser", "camera", "microphone"];
 
     for capability in capabilities {
-        // Toggle capability
-        crate::ipc::commands::toggle_capability(capability.to_string()).await?;
+        // Toggle capability on
+        crate::commands::agent::toggle_capability(capability.to_string(), true).await?;
 
         // Small delay to ensure toggle takes effect
         sleep(Duration::from_millis(100)).await;
 
         // Get status
-        let _status = crate::ipc::commands::get_capability_status(capability.to_string()).await?;
+        let _status = crate::commands::agent::get_capability_status(capability.to_string()).await?;
 
-        // Toggle back
-        crate::ipc::commands::toggle_capability(capability.to_string()).await?;
+        // Toggle back off
+        crate::commands::agent::toggle_capability(capability.to_string(), false).await?;
 
         info!("Tested capability: {}", capability);
     }
@@ -349,21 +360,38 @@ async fn test_capability_toggles(_app_handle: &AppHandle) -> TestResult {
 }
 
 /// Test configuration validation and testing
-async fn test_configuration(_app_handle: &AppHandle) -> TestResult {
+async fn test_configuration(app_handle: &AppHandle) -> TestResult {
     info!("Testing configuration endpoints...");
 
-    // Validate configuration
-    let validation_response = crate::ipc::commands::validate_configuration().await?;
+    // Get container manager from app state
+    let container_manager = app_handle.state::<Arc<ContainerManager>>();
 
-    if !validation_response["success"].as_bool().unwrap_or(false) {
-        error!("Configuration validation returned unsuccessful response");
+    // Validate configuration
+    // For tests, we'll call the command directly with the container manager state
+    let validation_response = {
+        let container_state = unsafe { crate::tests::test_utils::create_test_state(container_manager.inner()) };
+        crate::commands::testing::validate_configuration(container_state).await?
+    };
+
+    if !validation_response["valid"].as_bool().unwrap_or(false) {
+        let issues = &validation_response["issues"];
+        error!("Configuration validation failed with issues: {:?}", issues);
+        return Err(format!("Configuration validation failed: {:?}", issues).into());
     }
 
     // Test configuration
-    let test_response = crate::ipc::commands::test_configuration().await?;
+    let test_response = {
+        let container_state = unsafe { crate::tests::test_utils::create_test_state(container_manager.inner()) };
+        crate::commands::testing::test_configuration(container_state).await?
+    };
 
-    if !test_response["success"].as_bool().unwrap_or(false) {
-        error!("Configuration test returned unsuccessful response");
+    // Check test results
+    let runtime_ok = test_response["runtime"].as_bool().unwrap_or(false);
+    let network_ok = test_response["network"].as_bool().unwrap_or(false);
+    
+    if !runtime_ok || !network_ok {
+        let errors = &test_response["errors"];
+        return Err(format!("Configuration test failed: {:?}", errors).into());
     }
 
     Ok("✅ Configuration test passed".to_string())
@@ -374,7 +402,7 @@ async fn test_logs_endpoint(_app_handle: &AppHandle) -> TestResult {
     info!("Testing logs endpoint...");
 
     // Fetch logs
-    let logs_response = crate::ipc::commands::fetch_logs(Some("all".to_string()), Some(10)).await?;
+    let logs_response = crate::commands::data::fetch_logs(Some("all".to_string()), None, Some(10)).await?;
 
     // Verify we got logs
     let logs = logs_response["data"]["logs"].as_array();
@@ -397,7 +425,7 @@ async fn test_memories_endpoint(_app_handle: &AppHandle) -> TestResult {
     });
 
     // Fetch memories
-    let memories_response = crate::ipc::commands::fetch_memories(params).await?;
+    let memories_response = crate::commands::data::fetch_memories(params).await?;
 
     // Verify response structure
     if !memories_response.is_object() {
@@ -412,7 +440,7 @@ async fn test_agent_settings() -> TestResult {
     info!("Testing agent settings endpoints...");
 
     // Get agent settings
-    let settings_response = crate::ipc::commands::get_agent_settings().await?;
+    let settings_response = crate::commands::agent::get_agent_settings().await?;
 
     if !settings_response.is_object() {
         return Err("Invalid agent settings response".into());
@@ -420,7 +448,7 @@ async fn test_agent_settings() -> TestResult {
 
     // Test updating a harmless setting
     let update_response =
-        crate::ipc::commands::update_agent_setting("TEST_SETTING".to_string(), json!("test_value"))
+        crate::commands::agent::update_agent_setting("TEST_SETTING".to_string(), json!("test_value"))
             .await?;
 
     if !update_response["success"].as_bool().unwrap_or(false) {

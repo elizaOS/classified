@@ -1,5 +1,7 @@
-/* Import the main app styles */
-@import './App.css';
+/* Tailwind CSS Directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* CSS Reset */
 *,
@@ -51,4 +53,20 @@ h6 {
 #root {
   isolation: isolate;
   height: 100%;
+}
+
+/* Terminal Theme Base Styles */
+@layer base {
+  body {
+    @apply bg-black text-terminal-green font-mono;
+  }
+  
+  /* Hide scrollbars by default for cleaner terminal aesthetic */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

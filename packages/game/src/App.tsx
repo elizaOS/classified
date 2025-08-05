@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
-import './App.css';
+
 import StartupFlow from './components/StartupFlow';
-import { GameInterface } from './components/GameInterface';
+import GameInterface from './components/GameInterface';
 import { TauriInitializer } from './components/TauriInitializer';
 import { debugWebSockets } from './utils/debugWebSockets';
 import { blockOldMessages } from './utils/blockOldMessages';
+import { createLogger } from './utils/logger';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Create component logger
+const logger = createLogger('App');
 
 // Start WebSocket debugging immediately
 debugWebSockets();
@@ -23,28 +28,32 @@ function App() {
   }, [skipStartup]);
 
   const handleStartupComplete = () => {
-    console.log('[App] Startup flow completed, transitioning to main interface');
+    logger.info('Startup flow completed, transitioning to main interface');
     setStartupComplete(true);
   };
 
   if (!startupComplete) {
-    console.log('[App] Rendering startup flow');
+    logger.debug('Rendering startup flow');
     return (
-      <TauriInitializer>
-        <div className="app">
-          <StartupFlow onComplete={handleStartupComplete} />
-        </div>
-      </TauriInitializer>
+      <ErrorBoundary>
+        <TauriInitializer>
+          <div className="h-full">
+            <StartupFlow onComplete={handleStartupComplete} />
+          </div>
+        </TauriInitializer>
+      </ErrorBoundary>
     );
   }
 
-  console.log('[App] Rendering main game interface');
+  logger.debug('Rendering main game interface');
   return (
-    <TauriInitializer>
-      <div className="app">
-        <GameInterface />
-      </div>
-    </TauriInitializer>
+    <ErrorBoundary>
+      <TauriInitializer>
+        <div className="h-full">
+          <GameInterface />
+        </div>
+      </TauriInitializer>
+    </ErrorBoundary>
   );
 }
 

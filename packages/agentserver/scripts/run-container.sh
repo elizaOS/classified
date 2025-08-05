@@ -24,7 +24,7 @@ if ! $RUNTIME ps | grep -q eliza-postgres; then
         -e POSTGRES_USER=eliza \
         -e POSTGRES_PASSWORD=eliza_secure_pass \
         -e POSTGRES_DB=eliza \
-        -p 5432:5432 \
+        -p 7654:5432 \
         -v eliza-postgres-data:/var/lib/postgresql/data \
         pgvector/pgvector:pg16
     

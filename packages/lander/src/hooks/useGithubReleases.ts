@@ -35,10 +35,12 @@ export interface DownloadLink {
   size: string;
   downloadUrl: string;
   type: 'installer' | 'portable' | 'dmg' | 'appimage' | 'deb';
+  releaseVersion: string;
+  releaseDate: string;
 }
 
 export const useGithubReleases = () => {
-  const [releases] = useState<GitHubRelease[]>([]);
+  const [releases, setReleases] = useState<GitHubRelease[]>([]);
   const [latestRelease, setLatestRelease] = useState<GitHubRelease | null>(null);
   const [downloadLinks, setDownloadLinks] = useState<DownloadLink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,10 +59,10 @@ export const useGithubReleases = () => {
     return `${size.toFixed(1)} ${units[unitIndex]}`;
   };
 
-  const parseDownloadLinks = (assets: GitHubAsset[]): DownloadLink[] => {
+  const parseDownloadLinks = (release: GitHubRelease): DownloadLink[] => {
     const links: DownloadLink[] = [];
 
-    assets.forEach((asset) => {
+    release.assets.forEach((asset) => {
       const filename = asset.name.toLowerCase();
 
       // macOS
@@ -76,6 +78,8 @@ export const useGithubReleases = () => {
           size: formatFileSize(asset.size),
           downloadUrl: asset.browser_download_url,
           type: 'dmg',
+          releaseVersion: release.tag_name,
+          releaseDate: release.published_at,
         });
       }
 
@@ -88,6 +92,8 @@ export const useGithubReleases = () => {
           size: formatFileSize(asset.size),
           downloadUrl: asset.browser_download_url,
           type: 'installer',
+          releaseVersion: release.tag_name,
+          releaseDate: release.published_at,
         });
       }
 
@@ -100,6 +106,8 @@ export const useGithubReleases = () => {
           size: formatFileSize(asset.size),
           downloadUrl: asset.browser_download_url,
           type: 'appimage',
+          releaseVersion: release.tag_name,
+          releaseDate: release.published_at,
         });
       }
 
@@ -112,6 +120,8 @@ export const useGithubReleases = () => {
           size: formatFileSize(asset.size),
           downloadUrl: asset.browser_download_url,
           type: 'deb',
+          releaseVersion: release.tag_name,
+          releaseDate: release.published_at,
         });
       }
     });
@@ -132,13 +142,24 @@ export const useGithubReleases = () => {
 
       const data: GitHubRelease[] = await response.json();
 
-      // Find the latest non-prerelease version
-      const latestStable = data.find((release) => !release.prerelease && !release.draft);
+      // Filter to stable releases (not drafts or prereleases) and limit to latest 5
+      const stableReleases = data
+        .filter((release) => !release.prerelease && !release.draft)
+        .slice(0, 5);
 
-      if (latestStable) {
-        setLatestRelease(latestStable);
-        const links = parseDownloadLinks(latestStable.assets);
-        setDownloadLinks(links);
+      setReleases(stableReleases);
+
+      if (stableReleases.length > 0) {
+        setLatestRelease(stableReleases[0]);
+
+        // Create download links for all stable releases
+        const allDownloadLinks: DownloadLink[] = [];
+        stableReleases.forEach((release) => {
+          const releaseLinks = parseDownloadLinks(release);
+          allDownloadLinks.push(...releaseLinks);
+        });
+
+        setDownloadLinks(allDownloadLinks);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch releases');

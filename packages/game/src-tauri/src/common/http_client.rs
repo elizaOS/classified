@@ -106,24 +106,4 @@ pub async fn check_agent_health() -> Result<bool, Box<dyn std::error::Error>> {
     }
 }
 
-/// Media streaming helper
-pub async fn send_media_data(
-    media_type: &str,
-    stream_type: Option<&str>,
-    data: Vec<u8>,
-    timestamp: u64,
-    agent_id: &str,
-) -> Result<Value, Box<dyn std::error::Error>> {
-    let mut payload = serde_json::json!({
-        "type": media_type,
-        "data": data,
-        "timestamp": timestamp,
-        "agentId": agent_id
-    });
 
-    if let Some(st) = stream_type {
-        payload["stream_type"] = Value::String(st.to_string());
-    }
-
-    agent_server_request("POST", "/api/media/stream", Some(payload), None).await
-}

@@ -1,12 +1,13 @@
 use crate::backend::{
-    BackendError, BackendResult, ContainerConfig, ContainerState, ContainerStatus,
-    HealthCheckConfig, HealthStatus, ModelDownloadProgress, ModelDownloadStatus, PortMapping,
-    SetupProgress, VolumeMount,
+    BackendError, BackendResult, ContainerConfig, ContainerRuntimeType, ContainerState, 
+    ContainerStatus, HealthCheckConfig, HealthStatus, ModelDownloadProgress, ModelDownloadStatus, 
+    PortMapping, SetupProgress, VolumeMount,
 };
 use crate::common::{AGENT_CONTAINER, NETWORK_NAME, OLLAMA_CONTAINER, POSTGRES_CONTAINER};
 use crate::container::resource_check::ResourceChecker;
 use crate::container::retry::{is_retryable_error, retry_with_backoff, RetryConfig};
 use crate::container::runtime_manager::RuntimeType;
+use crate::container::runtime_trait::ContainerRuntime as ContainerRuntimeTrait;
 use crate::container::user_error::handle_user_error;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -31,7 +32,7 @@ pub struct PortConfig {
 impl Default for PortConfig {
     fn default() -> Self {
         Self {
-            postgres_port: 5432,
+            postgres_port: 7654,
             ollama_port: 11434,
             agent_port: 7777,
         }
@@ -43,64 +44,22 @@ impl PortConfig {
     pub async fn find_available_ports() -> Self {
         let mut config = Self::default();
 
-        // Check PostgreSQL port
-        if !crate::common::is_port_available(config.postgres_port) {
-            info!(
-                "PostgreSQL port {} is in use, trying alternative...",
-                config.postgres_port
-            );
-            config.postgres_port = 5432;
-            if !crate::common::is_port_available(config.postgres_port) {
-                // Try a range of ports
-                for port in 5434..5440 {
-                    if crate::common::is_port_available(port) {
-                        config.postgres_port = port;
-                        break;
-                    }
-                }
+        // Use centralized port detection logic
+        match super::port_utils::find_all_available_ports(
+            config.postgres_port,
+            config.ollama_port,
+            config.agent_port,
+        ) {
+            Ok((postgres_port, ollama_port, agent_port)) => {
+                config.postgres_port = postgres_port;
+                config.ollama_port = ollama_port;
+                config.agent_port = agent_port;
+            }
+            Err(e) => {
+                error!("Failed to find available ports: {}", e);
+                // Continue with current ports - they might work or fail later with a clear error
             }
         }
-
-        // Check Ollama port
-        if !crate::common::is_port_available(config.ollama_port) {
-            info!(
-                "Ollama port {} is in use, trying alternative...",
-                config.ollama_port
-            );
-            config.ollama_port = 11435;
-            if !crate::common::is_port_available(config.ollama_port) {
-                // Try a range of ports
-                for port in 11436..11440 {
-                    if crate::common::is_port_available(port) {
-                        config.ollama_port = port;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Check Agent port
-        if !crate::common::is_port_available(config.agent_port) {
-            info!(
-                "Agent port {} is in use, trying alternative...",
-                config.agent_port
-            );
-            config.agent_port = 7778;
-            if !crate::common::is_port_available(config.agent_port) {
-                // Try a range of ports
-                for port in 7779..7785 {
-                    if crate::common::is_port_available(port) {
-                        config.agent_port = port;
-                        break;
-                    }
-                }
-            }
-        }
-
-        info!(
-            "Using ports - PostgreSQL: {}, Ollama: {}, Agent: {}",
-            config.postgres_port, config.ollama_port, config.agent_port
-        );
 
         config
     }
@@ -196,7 +155,12 @@ impl ContainerManager {
         app_handle: Option<AppHandle>,
         resource_dir: Option<std::path::PathBuf>,
     ) -> BackendResult<Self> {
-        let health_monitor = Arc::new(HealthMonitor::new());
+        // Determine runtime type for health monitor
+        let runtime_type = match &runtime {
+            ContainerRuntime::Podman(_) => ContainerRuntimeType::Podman,
+            ContainerRuntime::Docker(_) => ContainerRuntimeType::Docker,
+        };
+        let health_monitor = Arc::new(HealthMonitor::new(runtime_type));
         let setup_progress = Arc::new(RwLock::new(SetupProgress {
             stage: "initialized".to_string(),
             progress: 0,
@@ -282,7 +246,12 @@ impl ContainerManager {
                     }
                 };
 
-                let health_monitor = Arc::new(HealthMonitor::new());
+                let runtime_type_for_health = if runtime_name == "Docker" {
+                    ContainerRuntimeType::Docker
+                } else {
+                    ContainerRuntimeType::Podman
+                };
+                let health_monitor = Arc::new(HealthMonitor::new(runtime_type_for_health));
 
                 Ok(Self {
                     runtime,
@@ -331,6 +300,14 @@ impl ContainerManager {
         self.port_config.read().await.clone()
     }
 
+    /// Get the container runtime version
+    pub async fn get_runtime_version(&self) -> BackendResult<String> {
+        match &self.runtime {
+            ContainerRuntime::Docker(client) => ContainerRuntimeTrait::version(client).await,
+            ContainerRuntime::Podman(client) => ContainerRuntimeTrait::version(client).await,
+        }
+    }
+
     /// Update port configuration
     pub async fn update_port_config(&self, config: PortConfig) {
         info!(
@@ -356,16 +333,26 @@ impl ContainerManager {
         let port_config = self.port_config.read().await;
         let postgres_port = port_config.postgres_port;
 
-        if postgres_port != 5432 {
+        if postgres_port != 7654 {
             info!("Using alternative PostgreSQL port: {}", postgres_port);
         }
 
-        // Use dynamic memory limit or fallback to default
+        // Use dynamic memory limit or fallback to default based on system
         let memory_limit = self
             .memory_limits
             .as_ref()
             .map(|limits| limits.postgres_limit_str())
-            .unwrap_or_else(|| "2g".to_string());
+            .unwrap_or_else(|| {
+                let total_memory_mb = Self::get_system_memory_mb();
+                // Default based on system memory
+                if total_memory_mb <= 8192 {
+                    "512m".to_string()  // 512MB for 8GB systems
+                } else if total_memory_mb <= 16384 {
+                    "1g".to_string()    // 1GB for 16GB systems
+                } else {
+                    "2g".to_string()    // 2GB for larger systems
+                }
+            });
 
         let config = ContainerConfig {
             name: POSTGRES_CONTAINER.to_string(),
@@ -417,12 +404,22 @@ impl ContainerManager {
             info!("Using alternative Ollama port: {}", ollama_port);
         }
 
-        // Use dynamic memory limit or fallback to default
+        // Use dynamic memory limit or fallback to default based on system
         let memory_limit = self
             .memory_limits
             .as_ref()
             .map(|limits| limits.ollama_limit_str())
-            .unwrap_or_else(|| "8g".to_string());
+            .unwrap_or_else(|| {
+                let total_memory_mb = Self::get_system_memory_mb();
+                // Default based on system memory
+                if total_memory_mb <= 8192 {
+                    "3g".to_string()    // 3GB for 8GB systems
+                } else if total_memory_mb <= 16384 {
+                    "6g".to_string()    // 6GB for 16GB systems
+                } else {
+                    "8g".to_string()    // 8GB for larger systems
+                }
+            });
 
         // Start our Ollama container on the eliza-network with dynamic port
         let config = ContainerConfig {
@@ -628,11 +625,29 @@ impl ContainerManager {
     pub async fn pull_ollama_models(&self) -> BackendResult<()> {
         info!("Pulling required Ollama models...");
 
-        // List of models required by the agent
-        let required_models = [
-            "nomic-embed-text", // Embedding model
-            "llama3.2:3b",      // Text generation model (3B params, ~2GB)
-        ];
+        // Get system memory to choose appropriate models
+        let total_memory_mb = Self::get_system_memory_mb();
+        
+        // Choose models based on available memory
+        let required_models = if total_memory_mb <= 8192 {
+            // For 8GB systems, use smallest models
+            vec![
+                "nomic-embed-text",  // Embedding model (~274MB)
+                "llama3.2:1b",       // Smallest Llama model (1B params, ~1.3GB)
+            ]
+        } else if total_memory_mb <= 16384 {
+            // For 16GB systems, use medium models
+            vec![
+                "nomic-embed-text",  // Embedding model
+                "llama3.2:3b",       // Medium model (3B params, ~2GB)
+            ]
+        } else {
+            // For larger systems, can use bigger models
+            vec![
+                "nomic-embed-text",  // Embedding model
+                "llama3.2:3b",       // Or could use larger models if desired
+            ]
+        };
 
         // Pull each model with progress tracking
         for (index, model) in required_models.iter().enumerate() {
@@ -1073,6 +1088,18 @@ impl ContainerManager {
             info!("Using alternative Agent port: {}", agent_port);
         }
 
+        // Choose model based on system memory
+        let total_memory_mb = Self::get_system_memory_mb();
+        let model_name = if total_memory_mb <= 8192 {
+            "llama3.2:1b"  // Smallest model for 8GB systems
+        } else {
+            // For 16GB+ systems, use the 3B model
+            // TODO: Consider using larger models (7b, 13b) for 32GB+ systems
+            "llama3.2:3b"
+        };
+        
+        info!("Selected model '{}' based on {}GB system memory", model_name, total_memory_mb / 1024);
+
         // Build environment variables for the agent container
         let mut environment = vec![
             "NODE_ENV=production".to_string(),
@@ -1101,14 +1128,14 @@ impl ContainerManager {
             "TEXT_PROVIDER=ollama".to_string(),
             "EMBEDDING_PROVIDER=ollama".to_string(),
             "TEXT_EMBEDDING_MODEL=nomic-embed-text".to_string(),
-            "LANGUAGE_MODEL=llama3.2:1b".to_string(),
-            "OLLAMA_MODEL=llama3.2:1b".to_string(),
-            "OLLAMA_SMALL_MODEL=llama3.2:1b".to_string(),
-            "OLLAMA_LARGE_MODEL=llama3.2:1b".to_string(),
-            "SMALL_MODEL=llama3.2:1b".to_string(),
-            "LARGE_MODEL=llama3.2:1b".to_string(),
-            "TEXT_SMALL_MODEL=llama3.2:1b".to_string(),
-            "TEXT_LARGE_MODEL=llama3.2:1b".to_string(),
+            format!("LANGUAGE_MODEL={}", model_name),
+            format!("OLLAMA_MODEL={}", model_name),
+            format!("OLLAMA_SMALL_MODEL={}", model_name),
+            format!("OLLAMA_LARGE_MODEL={}", model_name),
+            format!("SMALL_MODEL={}", model_name),
+            format!("LARGE_MODEL={}", model_name),
+            format!("TEXT_SMALL_MODEL={}", model_name),
+            format!("TEXT_LARGE_MODEL={}", model_name),
             // Plugin configuration
             "AUTONOMY_ENABLED=true".to_string(),
             "AUTONOMY_AUTO_START=true".to_string(),
@@ -1117,6 +1144,11 @@ impl ContainerManager {
             // Agent configuration
             format!("AGENT_ID={}", uuid::Uuid::new_v4()),
         ];
+
+        // Set USE_SMALL_MODELS for low memory systems
+        if total_memory_mb <= 8192 {
+            environment.push("USE_SMALL_MODELS=true".to_string());
+        }
 
         // Pass through environment variables from host
         let env_vars_to_pass = [
@@ -1160,7 +1192,17 @@ impl ContainerManager {
                 self.memory_limits
                     .as_ref()
                     .map(|limits| limits.agent_limit_str())
-                    .unwrap_or_else(|| "4g".to_string()),
+                    .unwrap_or_else(|| {
+                        let total_memory_mb = Self::get_system_memory_mb();
+                        // Default based on system memory
+                        if total_memory_mb <= 8192 {
+                            "1g".to_string()    // 1GB for 8GB systems
+                        } else if total_memory_mb <= 16384 {
+                            "2g".to_string()    // 2GB for 16GB systems
+                        } else {
+                            "4g".to_string()    // 4GB for larger systems
+                        }
+                    }),
             ),
         };
 
@@ -1257,7 +1299,7 @@ impl ContainerManager {
         let available_ports = PortConfig::find_available_ports().await;
         *self.port_config.write().await = available_ports.clone();
 
-        if available_ports.postgres_port != 5432 {
+        if available_ports.postgres_port != 7654 {
             info!(
                 "⚠️ Using alternative PostgreSQL port: {}",
                 available_ports.postgres_port
@@ -1286,17 +1328,17 @@ impl ContainerManager {
         .await;
 
         let mut resource_checker = ResourceChecker::new();
-        // Create requirements with the actual ports we'll use
-        let requirements = crate::container::ResourceRequirements {
-            min_memory_mb: 4096,
-            min_disk_gb: 10,
-            required_ports: vec![
-                ("PostgreSQL".to_string(), available_ports.postgres_port),
-                ("Ollama".to_string(), available_ports.ollama_port),
-                ("Agent".to_string(), available_ports.agent_port),
-            ],
-            estimated_download_mb: 5120,
-        };
+        
+        // Get system memory to determine requirements
+        let total_memory_mb = Self::get_system_memory_mb();
+        
+        // Create requirements based on system memory
+        let mut requirements = crate::container::ResourceRequirements::for_system_memory(total_memory_mb);
+        requirements.required_ports = vec![
+            ("PostgreSQL".to_string(), available_ports.postgres_port),
+            ("Ollama".to_string(), available_ports.ollama_port),
+            ("Agent".to_string(), available_ports.agent_port),
+        ];
 
         match resource_checker.check_resources(&requirements).await {
             Ok(result) => {
@@ -1528,25 +1570,26 @@ impl ContainerManager {
             }
         }
 
-        // Start new container with Podman connection error recovery
+        // Create new container with Podman connection error recovery
         let container_id = match &self.runtime {
             ContainerRuntime::Podman(client) => {
-                match client.start_container(&config).await {
+                match client.create_container(&config).await {
                     Ok(id) => id,
                     Err(e) => {
                         // Check if this is a Podman connection error and try to recover
                         self.handle_podman_connection_error(&e).await?;
                         // Try once more after recovery
-                        client.start_container(&config).await?
+                        client.create_container(&config).await?
                     }
                 }
             }
-            ContainerRuntime::Docker(client) => client.start_container(&config).await?,
+            ContainerRuntime::Docker(client) => client.create_container(&config).await?,
         };
 
         let status = ContainerStatus {
             id: container_id.clone(),
             name: container_name.clone(),
+            image: config.image.clone(),
             state: ContainerState::Starting,
             health: HealthStatus::Starting,
             ports: config.ports.clone(),
@@ -1662,6 +1705,23 @@ impl ContainerManager {
 
         info!("Container {} restarted successfully", name);
         Ok(status)
+    }
+
+    /// Gets system total memory in MB
+    fn get_system_memory_mb() -> u64 {
+        let mut sys = sysinfo::System::new_all();
+        sys.refresh_memory();
+        
+        // On macOS, sysinfo returns memory in bytes, not KB
+        // On other systems, it returns KB
+        let total_memory_raw = sys.total_memory();
+        if cfg!(target_os = "macos") {
+            // On macOS, the value is in bytes
+            total_memory_raw / 1024 / 1024
+        } else {
+            // On other systems, convert from KB to MB
+            total_memory_raw / 1024
+        }
     }
 
     /// Gets the current status of a container by name from our internal tracking.

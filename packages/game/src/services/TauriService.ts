@@ -3,6 +3,8 @@
  * Replaces all WebSocket/API client usage with native Tauri IPC
  */
 
+import { env } from '../config/environment';
+
 // Type-only imports to avoid runtime issues with optional dependencies
 type DialogSaveOptions = {
   defaultPath?: string;
@@ -20,81 +22,68 @@ type TauriDialogAPI = {
 };
 
 import { v4 as uuidv4 } from 'uuid';
+import { CONFIG } from '../config/constants';
 import {
+  ContainerLog,
+  ContainerStatus,
+  HealthCheckResponse,
+  KnowledgeItem,
+  LogEntry,
+  OllamaModelStatus as SharedOllamaModelStatus,
+  StartupStatus,
   TauriEvent,
+  TauriGoal,
+  TauriMemoryResponse,
+  TauriMessage,
+  TauriSettingsResponse,
+  TauriTodo,
+  TestConfigurationResponse,
   UnsubscribeFunction,
   ValidationResponse,
-  TestConfigurationResponse,
-  OllamaModelStatus as SharedOllamaModelStatus,
-  TauriMemoryResponse,
-  TauriSettingsResponse,
-  KnowledgeItem,
-  HealthCheckResponse,
 } from '../types/shared';
 import {
-  extractMemoriesFromResponse,
-  extractLogsFromResponse,
   convertToRecordArray,
+  extractLogsFromResponse,
+  extractMemoriesFromResponse,
 } from '../types/tauri-utils';
-
-export interface TauriMessage {
-  id: string;
-  content: string;
-  type: 'user' | 'agent' | 'system' | 'error';
-  authorId: string;
-  authorName: string;
-  timestamp: Date;
-  metadata?: Record<string, unknown>;
-}
-
-export interface TauriGoal {
-  id: string;
-  text: string;
-  completed: boolean;
-  createdAt: string;
-}
-
-export interface TauriTodo {
-  id: string;
-  title: string;
-  description?: string;
-  completed: boolean;
-  dueDate?: string;
-  priority?: 'low' | 'medium' | 'high';
-  createdAt: string;
-}
-
-export interface TauriAgentStatus {
-  name: string;
-  status: 'online' | 'offline' | 'thinking';
-  lastThought?: string;
-  lastAction?: string;
-  currentGoal?: string;
-}
+import { goalsService } from './GoalsService';
+import { knowledgeService } from './KnowledgeService';
 
 // Use unified knowledge item type instead of local interface
 export type TauriKnowledgeFile = KnowledgeItem;
 
-export interface StartupStatus {
-  phase: string;
-  message: string;
-  progress?: number;
-  isComplete?: boolean;
-  error?: string;
+// Import consolidated types instead of defining locally
+
+export interface RestoreOptions {
+  restore_database: boolean;
+  restore_agent_state: boolean;
+  restore_knowledge: boolean;
+  restore_logs: boolean;
+  force: boolean;
 }
 
-export interface ContainerStatus {
-  containerRunning: boolean;
-  agentHealthy: boolean;
-  ollamaHealthy: boolean;
-  logs: string[];
+export interface BackupConfig {
+  auto_backup_enabled: boolean;
+  auto_backup_interval_hours: number;
+  max_backups_to_keep: number;
+  backup_directory: string;
 }
 
-export interface ContainerLog {
-  timestamp: Date;
-  service: string;
-  message: string;
-  level?: 'info' | 'warn' | 'error';
+export interface Backup {
+  id: string;
+  timestamp: string;
+  backup_type: 'manual' | 'automatic' | 'shutdown';
+  size_bytes: number;
+  components: Array<{
+    name: string;
+    component_type: string;
+    size_bytes: number;
+  }>;
+  metadata: {
+    agent_name: string;
+    eliza_version: string;
+    notes?: string;
+  };
 }
 
 export interface CapabilityStatus {
@@ -175,9 +164,10 @@ class TauriServiceClass {
   private messageListeners: Set<(message: TauriMessage) => void> = new Set();
   private statusListeners: Set<(status: StartupStatus) => void> = new Set();
   private containerLogListeners: Set<(log: ContainerLog) => void> = new Set();
+  private agentLogListeners: Set<(log: LogEntry) => void> = new Set();
   private unlistenFns: Array<() => void> = [];
   private userId: string;
-  private agentId: string = '2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f';
+  private agentId: string = CONFIG.AGENT_ID;
   private isInitialized = false;
   private processedMessageIds: Set<string> = new Set();
   private recentMessages: Array<{ content: string; type: string; timestamp: number }> = [];
@@ -239,6 +229,16 @@ class TauriServiceClass {
       // Ensure message has an ID
       if (!message.id) {
         message.id = uuidv4();
+      }
+
+      // Filter out our own user messages coming back from the bus
+      // The UI already handles displaying user messages locally
+      if (message.type === 'user' && message.authorId === this.userId) {
+        console.debug(
+          `[TauriService] Filtering out own user message from ${source}:`,
+          message.content.substring(0, 50)
+        );
+        return;
       }
 
       // Check if we've already processed this message by ID
@@ -394,6 +394,14 @@ class TauriServiceClass {
       this.containerLogListeners.forEach((listener) => listener(log));
     });
     this.unlistenFns.push(unlistenContainerLog);
+
+    // Listen for agent logs from Eliza logger
+    if (!this.tauriListen) throw new Error('Tauri listen not available');
+    const unlistenAgentLog = await this.tauriListen<LogEntry>('agent-log', (event) => {
+      const log = event.payload;
+      this.agentLogListeners.forEach((listener) => listener(log));
+    });
+    this.unlistenFns.push(unlistenAgentLog);
   }
 
   private async ensureInitializedAndInvoke(
@@ -461,6 +469,11 @@ class TauriServiceClass {
     return () => this.containerLogListeners.delete(listener);
   }
 
+  public onAgentLog(listener: (log: LogEntry) => void): () => void {
+    this.agentLogListeners.add(listener);
+    return () => this.agentLogListeners.delete(listener);
+  }
+
   // Clean up event listeners
   public destroy(): void {
     this.unlistenFns.forEach((fn) => fn());
@@ -471,8 +484,9 @@ class TauriServiceClass {
   }
 
   // WebSocket management
-  public async connectWebSocket(url: string = 'ws://localhost:7777'): Promise<void> {
-    await this.ensureInitializedAndInvoke('connect_websocket', { url });
+  public async connectWebSocket(url?: string): Promise<void> {
+    const websocketUrl = url || env.websocketUrl;
+    await this.ensureInitializedAndInvoke('connect_websocket', { url: websocketUrl });
   }
 
   public async disconnectWebSocket(): Promise<void> {
@@ -488,25 +502,22 @@ class TauriServiceClass {
     return Boolean(response);
   }
 
+  public async subscribeToLogStream(agentName?: string, logLevel?: string): Promise<void> {
+    await this.ensureInitializedAndInvoke('subscribe_to_log_stream', {
+      agent_name: agentName || 'all',
+      level: logLevel || 'all',
+    });
+  }
+
   // Message handling
   public async sendMessage(content: string): Promise<string> {
     const response = await this.ensureInitializedAndInvoke('send_message_to_agent', {
       message: content,
     });
 
-    // Create user message for immediate UI feedback
-    const userMessage: TauriMessage = {
-      id: uuidv4(),
-      content,
-      type: 'user',
-      authorId: this.userId,
-      authorName: 'User',
-      timestamp: new Date(),
-      metadata: {},
-    };
-
-    // Notify listeners of the user message
-    this.messageListeners.forEach((listener) => listener(userMessage));
+    // Don't emit user messages here - the UI handles them locally
+    // to prevent duplicates. The message will come back through the bus
+    // if needed for other clients.
 
     return String(response || '');
   }
@@ -574,90 +585,58 @@ class TauriServiceClass {
     await this.ensureInitializedAndInvoke('stop_server');
   }
 
-  // Data fetching methods
+  // Data fetching methods - delegated to specialized services
+  // NOTE: These methods are kept for backward compatibility but delegate to GoalsService
 
   public async fetchGoals(): Promise<TauriGoal[]> {
-    const response = (await this.ensureInitializedAndInvoke('fetch_goals')) as Record<
-      string,
-      unknown
-    >;
-    if (response?.success && response?.data) {
-      const data = response.data as Record<string, unknown>;
-      return (data.goals as TauriGoal[]) || [];
-    }
-    return [];
+    return goalsService.fetchGoals();
   }
 
   public async fetchTodos(): Promise<TauriTodo[]> {
-    const response = (await this.ensureInitializedAndInvoke('fetch_todos')) as Record<
-      string,
-      unknown
-    >;
-    if (response?.success && response?.data) {
-      const data = response.data as Record<string, unknown>;
-      return (data.todos as TauriTodo[]) || [];
-    }
-    return [];
+    return goalsService.fetchTodos();
   }
 
   public async createGoal(
     name: string,
     description: string,
-    metadata?: Record<string, unknown>
+    _metadata?: Record<string, unknown>
   ): Promise<void> {
-    await this.ensureInitializedAndInvoke('create_goal', {
-      name,
-      description,
-      metadata: metadata || {},
-    });
+    // TauriService accepts metadata but GoalsService expects priority
+    // For backward compatibility, we ignore metadata here
+    const result = await goalsService.createGoal(name, description, 2); // Default medium priority
+    if (!result) {
+      throw new Error('Failed to create goal');
+    }
   }
 
   public async createTodo(
     name: string,
     description?: string,
     priority?: number,
-    todoType?: string
+    _todoType?: string // Ignored for backward compatibility
   ): Promise<void> {
-    await this.ensureInitializedAndInvoke('create_todo', {
+    const result = await goalsService.createTodo(
       name,
-      description,
-      priority: priority || 1,
-      todo_type: todoType || 'one-off',
-    });
+      description || '',
+      (priority === 1 ? 'high' : priority === 2 ? 'medium' : 'low') as 'high' | 'medium' | 'low',
+      undefined // GoalsService will use current date
+    );
+    if (!result) {
+      throw new Error('Failed to create todo');
+    }
   }
 
+  // Knowledge file methods - delegated to KnowledgeService
   public async fetchKnowledgeFiles(): Promise<TauriKnowledgeFile[]> {
-    const response = (await this.ensureInitializedAndInvoke(
-      'fetch_knowledge_files'
-    )) as TauriMemoryResponse;
-    if (response?.success && response?.data) {
-      return (response.data.files as TauriKnowledgeFile[]) || [];
-    }
-    return [];
+    return knowledgeService.fetchKnowledgeFiles();
   }
 
   public async uploadKnowledgeFile(file: File): Promise<void> {
-    // Convert file to base64 for transport through Tauri IPC
-    const reader = new FileReader();
-    const base64Promise = new Promise<string>((resolve) => {
-      reader.onload = () => {
-        const base64 = (reader.result as string).split(',')[1];
-        resolve(base64);
-      };
-    });
-    reader.readAsDataURL(file);
-
-    const base64Content = await base64Promise;
-
-    await this.ensureInitializedAndInvoke('upload_knowledge_file', {
-      fileName: file.name,
-      content: base64Content,
-      mimeType: file.type,
-    });
+    await knowledgeService.uploadKnowledgeFile(file);
   }
 
   public async deleteKnowledgeFile(fileId: string): Promise<void> {
-    await this.ensureInitializedAndInvoke('delete_knowledge_file', { fileId });
+    await knowledgeService.deleteKnowledgeFile(fileId);
   }
 
   public async fetchMemories(limit: number = 50): Promise<TauriMessage[]> {
@@ -759,7 +738,7 @@ class TauriServiceClass {
     pluginId: string,
     config: Record<string, unknown>
   ): Promise<void> {
-    await this.ensureInitializedAndInvoke('update_plugin_config', { pluginId, config });
+    await this.ensureInitializedAndInvoke('update_plugin_config', { pluginName: pluginId, config });
   }
 
   public async togglePlugin(pluginId: string, enabled: boolean): Promise<void> {
@@ -830,28 +809,28 @@ class TauriServiceClass {
     return (response as Record<string, unknown>) || {};
   }
 
-  public async restoreBackup(backupId: string, options: Record<string, unknown>): Promise<void> {
+  public async restoreBackup(backupId: string, options: RestoreOptions): Promise<void> {
     await this.ensureInitializedAndInvoke('restore_backup', {
       backup_id: backupId,
       options,
     });
   }
 
-  public async listBackups(): Promise<Record<string, unknown>[]> {
+  public async listBackups(): Promise<Backup[]> {
     const response = await this.ensureInitializedAndInvoke('list_backups');
-    return (response as Record<string, unknown>[]) || [];
+    return (response as Backup[]) || [];
   }
 
   public async deleteBackup(backupId: string): Promise<void> {
     await this.ensureInitializedAndInvoke('delete_backup', { backup_id: backupId });
   }
 
-  public async getBackupConfig(): Promise<Record<string, unknown>> {
+  public async getBackupConfig(): Promise<BackupConfig> {
     const response = await this.ensureInitializedAndInvoke('get_backup_config');
-    return (response as Record<string, unknown>) || {};
+    return (response as BackupConfig) || ({} as BackupConfig);
   }
 
-  public async updateBackupConfig(config: Record<string, unknown>): Promise<void> {
+  public async updateBackupConfig(config: BackupConfig): Promise<void> {
     await this.ensureInitializedAndInvoke('update_backup_config', { config });
   }
 
@@ -947,8 +926,12 @@ class TauriServiceClass {
   }
 
   // Shell/browser capability management
-  public async toggleCapability(capability: string): Promise<void> {
-    await this.ensureInitializedAndInvoke('toggle_capability', { capability });
+  public async toggleCapability(capability: string, enabled: boolean): Promise<any> {
+    const response = await this.ensureInitializedAndInvoke('toggle_capability', {
+      capability,
+      enabled,
+    });
+    return response;
   }
 
   public async getCapabilityStatus(
@@ -991,15 +974,14 @@ class TauriServiceClass {
     await this.ensureInitializedAndInvoke('reset_agent');
   }
 
-  public async fetchLogs(logType?: string, limit?: number): Promise<Record<string, unknown>[]> {
+  public async fetchLogs(logType?: string, limit?: number): Promise<LogEntry[]> {
     const response = await this.ensureInitializedAndInvoke('fetch_logs', {
       log_type: logType,
       limit: limit || 100,
     });
 
-    // Use type-safe log extraction
-    const logEntries = extractLogsFromResponse(response);
-    return convertToRecordArray(logEntries);
+    // Use type-safe log extraction - now LogEntry is just LogEntry
+    return extractLogsFromResponse(response);
   }
 
   public async getAgentInfo(): Promise<{ id: string; name: string; version: string }> {

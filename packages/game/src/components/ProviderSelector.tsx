@@ -30,59 +30,66 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({ onProviderCh
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTauri, setIsTauri] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // Check if we're in Tauri environment
   useEffect(() => {
     const checkTauri = async () => {
-      try {
-        await import('@tauri-apps/api/core');
+      if (window.__TAURI__) {
         setIsTauri(true);
-      } catch {
-        setIsTauri(false);
+      } else {
+        setError('Not running in Tauri environment');
         setLoading(false);
-        setError('This component requires the Tauri desktop app');
       }
     };
+
     checkTauri();
   }, []);
 
-  // Fetch provider status
   const fetchProviders = async () => {
-    if (!isTauri) return;
+    if (!window.__TAURI__) return;
 
     try {
       setLoading(true);
+      setError(null);
+
       const { invoke } = await import('@tauri-apps/api/core');
-      const response = await invoke<ProviderResponse>('get_available_providers');
-      if (response.success && response.data) {
+      const response = await invoke<ProviderResponse>('get_provider_status');
+
+      if (response.success) {
         setProviderStatus(response.data);
       } else {
-        setError('Failed to fetch providers');
+        setError('Failed to fetch provider status');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      console.error('Error fetching providers:', err);
+      setError(String(err));
     } finally {
       setLoading(false);
     }
   };
 
-  // Set selected provider
   const handleProviderChange = async (provider: string | null) => {
-    if (!isTauri) return;
+    if (!window.__TAURI__ || !provider) return;
 
     try {
+      setStatusMessage(`Switching to ${provider}...`);
       const { invoke } = await import('@tauri-apps/api/core');
-      const response = await invoke<{ success: boolean }>('set_selected_provider', {
-        provider,
-      });
-      if (response.success) {
-        await fetchProviders(); // Refresh status
-        if (onProviderChange && provider) {
-          onProviderChange(provider);
-        }
+      await invoke('set_provider', { provider });
+
+      // Refresh the provider list
+      await fetchProviders();
+      setStatusMessage(`Successfully switched to ${provider}`);
+
+      // Notify parent component
+      if (onProviderChange) {
+        onProviderChange(provider);
       }
+
+      // Clear status message after 3 seconds
+      setTimeout(() => setStatusMessage(null), 3000);
     } catch (err) {
-      console.error('Failed to set provider:', err);
+      console.error('Error changing provider:', err);
+      setStatusMessage(`Failed to switch provider: ${err}`);
     }
   };
 
@@ -96,237 +103,106 @@ export const ProviderSelector: React.FC<ProviderSelectorProps> = ({ onProviderCh
   }, [isTauri]);
 
   if (loading) {
-    return <div className="provider-selector loading">Loading providers...</div>;
+    return <div className="p-4 text-terminal-green text-sm">Loading providers...</div>;
   }
 
   if (error) {
-    return <div className="provider-selector error">Error: {error}</div>;
+    return <div className="p-4 text-terminal-red text-sm">Error: {error}</div>;
   }
 
   if (!providerStatus) {
-    return <div className="provider-selector">No provider data available</div>;
+    return <div className="p-4 text-gray-400 text-sm">No provider data available</div>;
   }
 
   const availableProviders = providerStatus.providers.filter((p) => p.status === 'available');
   const currentProvider = providerStatus.selected || providerStatus.active;
 
   return (
-    <div className="provider-selector">
-      <div className="provider-header">
-        <h3>AI Provider Selection</h3>
-        <button className="refresh-btn" onClick={fetchProviders} title="Refresh provider status">
+    <div className="p-5 bg-black/60 border border-terminal-green-border">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-terminal-green uppercase tracking-wider">AI Provider Selection</h3>
+        <button 
+          className="px-2 py-1 text-terminal-green hover:text-terminal-green/80 transition-colors"
+          onClick={fetchProviders} 
+          title="Refresh provider status"
+        >
           ↻
         </button>
       </div>
 
-      <div className="current-provider">
-        <label>Active Provider:</label>
-        <span className="provider-name">
-          {providerStatus.providers.find((p) => p.name === currentProvider)?.displayName ||
+      <div className="mb-4">
+        <label className="text-xs text-terminal-green/70 uppercase tracking-wider">Active Provider:</label>
+        <span className="ml-2 text-sm font-bold text-terminal-green">
+          {providerStatus.providers.find((p) => p.name === currentProvider)?.display_name ||
             currentProvider}
         </span>
       </div>
 
-      <div className="provider-list">
-        <label>Available Providers:</label>
-        <div className="providers">
+      <div>
+        <label className="block mb-2 text-xs text-terminal-green/70 uppercase tracking-wider">Available Providers:</label>
+        <div className="space-y-2">
           {availableProviders.map((provider) => (
             <div
               key={provider.name}
-              className={`provider-item ${provider.name === currentProvider ? 'active' : ''}`}
+              className={`border transition-none ${
+                provider.name === currentProvider 
+                  ? 'border-terminal-green bg-terminal-green/10' 
+                  : 'border-terminal-green/30 bg-black/40 hover:bg-black/60 hover:border-terminal-green/50'
+              }`}
             >
               <button
-                className="provider-btn"
+                className="w-full p-3 text-left flex items-center justify-between"
                 onClick={() => handleProviderChange(provider.name)}
                 disabled={provider.name === currentProvider}
               >
-                <div className="provider-info">
-                  <span className="provider-display-name">{provider.displayName}</span>
-                  <span className="provider-status">{provider.message}</span>
+                <div className="flex-1">
+                  <span className="block text-sm font-bold text-terminal-green">{provider.display_name}</span>
+                  <span className="block text-xs text-gray-400 mt-1">{provider.message}</span>
                 </div>
-                {provider.name === currentProvider && <span className="active-indicator">✓</span>}
+                {provider.name === currentProvider && (
+                  <span className="text-terminal-green text-lg ml-2">✓</span>
+                )}
               </button>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="provider-preferences">
-        <label>Provider Priority:</label>
-        <div className="preference-info">
-          <small>Drag to reorder or use default preferences</small>
+      {providerStatus.providers.filter((p) => p.status === 'not_configured').length > 0 && (
+        <div className="mt-4 p-3 bg-terminal-yellow/10 border border-terminal-yellow">
+          <h4 className="text-xs font-bold text-terminal-yellow mb-2 uppercase tracking-wider">Not Configured:</h4>
+          {providerStatus.providers
+            .filter((p) => p.status === 'not_configured')
+            .map((provider) => (
+              <div key={provider.name} className="text-xs text-terminal-yellow mb-1">
+                <span className="font-bold">{provider.display_name}:</span> {provider.message}
+              </div>
+            ))}
         </div>
-        <button className="reset-preferences-btn" onClick={() => handleProviderChange(null)}>
-          Use Default Priority
-        </button>
-      </div>
+      )}
 
-      <style jsx>{`
-        .provider-selector {
-          background: #1a1a1a;
-          border: 1px solid #333;
-          border-radius: 8px;
-          padding: 16px;
-          color: #fff;
-          font-family: monospace;
-        }
+      {statusMessage && (
+        <div className={`mt-4 p-3 text-sm border ${
+          statusMessage.includes('Failed') 
+            ? 'bg-terminal-red/10 border-terminal-red text-terminal-red' 
+            : 'bg-terminal-green/10 border-terminal-green text-terminal-green'
+        }`}>
+          {statusMessage}
+        </div>
+      )}
 
-        .provider-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-        }
-
-        .provider-header h3 {
-          margin: 0;
-          font-size: 16px;
-          color: #00ff00;
-        }
-
-        .refresh-btn {
-          background: transparent;
-          border: 1px solid #333;
-          color: #00ff00;
-          padding: 4px 8px;
-          cursor: pointer;
-          border-radius: 4px;
-        }
-
-        .refresh-btn:hover {
-          background: #333;
-        }
-
-        .current-provider {
-          margin-bottom: 16px;
-          padding: 8px;
-          background: #0a0a0a;
-          border-radius: 4px;
-        }
-
-        .current-provider label {
-          color: #888;
-          margin-right: 8px;
-        }
-
-        .provider-name {
-          color: #00ff00;
-          font-weight: bold;
-        }
-
-        .provider-list {
-          margin-bottom: 16px;
-        }
-
-        .provider-list label {
-          display: block;
-          color: #888;
-          margin-bottom: 8px;
-        }
-
-        .providers {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .provider-item {
-          background: #0a0a0a;
-          border: 1px solid #333;
-          border-radius: 4px;
-          overflow: hidden;
-        }
-
-        .provider-item.active {
-          border-color: #00ff00;
-        }
-
-        .provider-btn {
-          width: 100%;
-          background: transparent;
-          border: none;
-          color: #fff;
-          padding: 12px;
-          cursor: pointer;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          text-align: left;
-        }
-
-        .provider-btn:hover:not(:disabled) {
-          background: #1a1a1a;
-        }
-
-        .provider-btn:disabled {
-          cursor: default;
-          opacity: 0.7;
-        }
-
-        .provider-info {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .provider-display-name {
-          font-weight: bold;
-        }
-
-        .provider-status {
-          font-size: 12px;
-          color: #888;
-        }
-
-        .active-indicator {
-          color: #00ff00;
-          font-size: 18px;
-        }
-
-        .provider-preferences {
-          border-top: 1px solid #333;
-          padding-top: 16px;
-        }
-
-        .provider-preferences label {
-          display: block;
-          color: #888;
-          margin-bottom: 8px;
-        }
-
-        .preference-info {
-          margin-bottom: 8px;
-        }
-
-        .preference-info small {
-          color: #666;
-        }
-
-        .reset-preferences-btn {
-          background: #0a0a0a;
-          border: 1px solid #333;
-          color: #fff;
-          padding: 8px 16px;
-          cursor: pointer;
-          border-radius: 4px;
-        }
-
-        .reset-preferences-btn:hover {
-          background: #1a1a1a;
-          border-color: #00ff00;
-        }
-
-        .loading,
-        .error {
-          text-align: center;
-          padding: 32px;
-          color: #888;
-        }
-
-        .error {
-          color: #ff4444;
-        }
-      `}</style>
+      {providerStatus.preferences.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-terminal-green/20">
+          <h4 className="text-xs text-terminal-green/70 mb-2 uppercase tracking-wider">Provider Preference Order:</h4>
+          <ol className="list-decimal list-inside text-xs text-gray-400 space-y-1">
+            {providerStatus.preferences.map((pref) => (
+              <li key={pref}>
+                {providerStatus.providers.find((p) => p.name === pref)?.display_name || pref}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 };

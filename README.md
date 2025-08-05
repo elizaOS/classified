@@ -225,7 +225,7 @@ OPENAI_API_KEY=your-key-here
 ANTHROPIC_API_KEY=your-key-here
 
 # Database
-POSTGRES_URL=postgresql://eliza:eliza_secure_pass@localhost:5432/eliza
+POSTGRES_URL=postgresql://eliza:eliza_secure_pass@localhost:7654/eliza
 
 # Container Runtime
 CONTAINER_RUNTIME=podman  # or docker

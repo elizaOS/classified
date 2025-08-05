@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-
 /**
- * Security Warning Component for ELIZA Game
- *
- * Displays warnings for dangerous capabilities and requires
- * explicit user confirmation before enabling high-risk features
+ * Security Warning Component
+ * Displays security warnings when enabling potentially dangerous capabilities
  */
+
+import React, { useState, useEffect } from 'react';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('SecurityWarning');
 
 interface SecurityWarningProps {
   capability: string;
@@ -26,70 +27,103 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
   onCancel,
   isVisible,
 }) => {
-  const [acknowledged, setAcknowledged] = useState(false);
-  const [warningsRead, setWarningsRead] = useState(false);
+  const [acknowledged, setAcknowledged] = useState({
+    understand: false,
+    accept: false,
+    noProduction: false,
+  });
+
+  const [confirmText, setConfirmText] = useState('');
+
+  useEffect(() => {
+    if (!isVisible) {
+      // Reset state when dialog is closed
+      setAcknowledged({ understand: false, accept: false, noProduction: false });
+      setConfirmText('');
+    }
+  }, [isVisible]);
 
   if (!isVisible) {
     return null;
   }
 
   const riskColors = {
-    low: '#4ade80', // green
-    medium: '#facc15', // yellow
-    high: '#f97316', // orange
-    critical: '#ef4444', // red
+    low: 'terminal-green',
+    medium: 'terminal-yellow',
+    high: 'terminal-orange',
+    critical: 'terminal-red',
+  };
+
+  const riskBorderColors = {
+    low: 'border-terminal-green',
+    medium: 'border-terminal-yellow',
+    high: 'border-terminal-orange',
+    critical: 'border-terminal-red',
+  };
+
+  const riskBgColors = {
+    low: 'bg-terminal-green',
+    medium: 'bg-terminal-yellow',
+    high: 'bg-terminal-orange',
+    critical: 'bg-terminal-red',
   };
 
   const riskIcons = {
-    low: '⚠️',
-    medium: '⚠️',
-    high: '🚨',
+    low: '🟢',
+    medium: '🟡',
+    high: '🟠',
     critical: '🔴',
   };
 
   const handleConfirm = () => {
-    if (!acknowledged || !warningsRead) {
-      return;
+    const isAcknowledged = Object.values(acknowledged).every((v) => v);
+    const isConfirmed = riskLevel === 'critical' ? confirmText === 'ENABLE ANYWAY' : true;
+
+    if (isAcknowledged && isConfirmed) {
+      logger.warn(`User confirmed enabling ${capability} (${riskLevel} risk)`);
+      onConfirm();
     }
-    onConfirm();
+  };
+
+  const canProceed = () => {
+    const isAcknowledged = Object.values(acknowledged).every((v) => v);
+    const isConfirmed = riskLevel === 'critical' ? confirmText === 'ENABLE ANYWAY' : true;
+    return isAcknowledged && isConfirmed;
   };
 
   return (
-    <div className="security-warning-overlay">
-      <div className="security-warning-modal">
-        <div className="security-warning-header" style={{ borderColor: riskColors[riskLevel] }}>
-          <span className="security-warning-icon">{riskIcons[riskLevel]}</span>
-          <h2 className="security-warning-title">Security Warning: {capability}</h2>
-          <div
-            className="security-warning-risk-level"
-            style={{ backgroundColor: riskColors[riskLevel] }}
-          >
-            {riskLevel.toUpperCase()} RISK
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[1000] flex items-center justify-center p-8 animate-fade-in">
+      <div className="max-w-2xl w-full bg-gradient-to-br from-gray-900 to-black border border-terminal-green-border max-h-[90vh] overflow-y-auto">
+        <div className={`p-6 border-b-2 ${riskBorderColors[riskLevel]} flex items-center gap-4`}>
+          <span className="text-4xl">{riskIcons[riskLevel]}</span>
+          <h2 className="text-2xl font-bold text-terminal-green flex-1">Security Warning: {capability}</h2>
+          <div className={`px-3 py-1 ${riskBgColors[riskLevel]} text-black text-xs font-bold uppercase`}>
+            {riskLevel} RISK
           </div>
         </div>
 
-        <div className="security-warning-content">
-          <div className="security-warning-description">
-            <h3>Capability Description:</h3>
-            <p>{description}</p>
+        <div className="p-6 space-y-6">
+          <div>
+            <h3 className="text-sm font-bold text-terminal-green mb-2 uppercase tracking-wider">Capability Description:</h3>
+            <p className="text-sm text-gray-300">{description}</p>
           </div>
 
-          <div className="security-warning-risks">
-            <h3>Security Risks:</h3>
-            <ul>
+          <div>
+            <h3 className="text-sm font-bold text-terminal-green mb-2 uppercase tracking-wider">Security Risks:</h3>
+            <ul className="space-y-2">
               {risks.map((risk, index) => (
-                <li key={index} className="security-warning-risk-item">
-                  <span className="risk-bullet">⚠️</span>
-                  {risk}
+                <li key={index} className="flex items-start gap-2 text-sm text-gray-300">
+                  <span className="text-terminal-yellow">⚠️</span>
+                  <span>{risk}</span>
                 </li>
               ))}
             </ul>
           </div>
 
           {riskLevel === 'critical' && (
-            <div className="security-warning-critical">
-              <h3>🔴 CRITICAL WARNING:</h3>
-              <p>
+            <div className="p-4 bg-terminal-red/20 border border-terminal-red">
+              <h3 className="text-sm font-bold text-terminal-red mb-2 uppercase tracking-wider">🔴 CRITICAL WARNING:</h3>
+              <p className="text-sm text-terminal-red">
                 This capability can completely compromise your system security. It provides
                 unrestricted access to your computer and should only be enabled in isolated,
                 non-production environments.
@@ -97,300 +131,176 @@ export const SecurityWarning: React.FC<SecurityWarningProps> = ({
             </div>
           )}
 
-          <div className="security-warning-recommendations">
-            <h3>Security Recommendations:</h3>
-            <ul>
-              <li>Only enable this capability if you fully understand the risks</li>
-              <li>Use in an isolated environment (virtual machine, container)</li>
-              <li>Monitor all activity when this capability is enabled</li>
-              <li>Disable immediately after use</li>
+          <div>
+            <h3 className="text-sm font-bold text-terminal-green mb-2 uppercase tracking-wider">Security Recommendations:</h3>
+            <ul className="space-y-1 text-sm text-gray-300">
+              <li>• Only enable this capability if you fully understand the risks</li>
+              <li>• Use in an isolated environment (virtual machine, container)</li>
+              <li>• Monitor all activity when this capability is enabled</li>
+              <li>• Disable immediately after use</li>
               {riskLevel === 'critical' && (
                 <>
-                  <li>
-                    <strong>Do not use on production systems</strong>
-                  </li>
-                  <li>
-                    <strong>Ensure no sensitive data is accessible</strong>
-                  </li>
+                  <li className="font-bold text-terminal-red">• Do not use on production systems</li>
+                  <li className="font-bold text-terminal-red">• Ensure no sensitive data is accessible</li>
                 </>
               )}
             </ul>
           </div>
 
-          <div className="security-warning-acknowledgments">
-            <label className="security-warning-checkbox">
+          <div className="space-y-3 p-4 bg-black/60 border border-terminal-green/20">
+            <h3 className="text-sm font-bold text-terminal-green uppercase tracking-wider">Please acknowledge:</h3>
+            
+            <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={warningsRead}
-                onChange={(e) => setWarningsRead(e.target.checked)}
+                checked={acknowledged.understand}
+                onChange={(e) => setAcknowledged({ ...acknowledged, understand: e.target.checked })}
+                className="mt-1 w-4 h-4 accent-terminal-green cursor-pointer"
               />
-              I have read and understood all security warnings above
+              <span className="text-sm text-gray-300">
+                I understand the security risks associated with enabling the <strong>{capability}</strong> capability
+              </span>
             </label>
 
-            <label className="security-warning-checkbox">
+            <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={acknowledged}
-                onChange={(e) => setAcknowledged(e.target.checked)}
+                checked={acknowledged.accept}
+                onChange={(e) => setAcknowledged({ ...acknowledged, accept: e.target.checked })}
+                className="mt-1 w-4 h-4 accent-terminal-green cursor-pointer"
               />
-              I acknowledge the security risks and accept full responsibility
+              <span className="text-sm text-gray-300">
+                I accept full responsibility for any consequences of enabling this capability
+              </span>
+            </label>
+
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acknowledged.noProduction}
+                onChange={(e) => setAcknowledged({ ...acknowledged, noProduction: e.target.checked })}
+                className="mt-1 w-4 h-4 accent-terminal-green cursor-pointer"
+              />
+              <span className="text-sm text-gray-300">
+                I confirm this is NOT a production environment with sensitive data
+              </span>
             </label>
 
             {riskLevel === 'critical' && (
-              <label className="security-warning-checkbox critical">
-                <input type="checkbox" required />I understand this could completely compromise my
-                system
-              </label>
+              <div className="mt-4 pt-4 border-t border-terminal-red/30">
+                <label className="block text-sm text-terminal-red mb-2">
+                  Type "ENABLE ANYWAY" to proceed with critical risk capability:
+                </label>
+                <input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="Type here to confirm"
+                  className="w-full py-2 px-3 bg-black/60 border border-terminal-red/30 text-terminal-red font-mono text-sm outline-none transition-none placeholder:text-gray-500 focus:border-terminal-red focus:bg-black/80"
+                />
+              </div>
             )}
           </div>
-        </div>
 
-        <div className="security-warning-actions">
-          <button className="security-warning-button cancel" onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            className="security-warning-button confirm"
-            onClick={handleConfirm}
-            disabled={!acknowledged || !warningsRead}
-            style={{
-              backgroundColor: acknowledged && warningsRead ? riskColors[riskLevel] : '#666',
-            }}
-          >
-            {riskLevel === 'critical' ? 'Enable Despite Risks' : 'Enable Capability'}
-          </button>
+          <div className="flex gap-4 justify-end pt-4 border-t border-terminal-green/20">
+            <button
+              onClick={onCancel}
+              className="py-2 px-6 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-sm uppercase hover:bg-terminal-green/10 hover:border-terminal-green transition-none"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!canProceed()}
+              className={`py-2 px-6 font-mono text-sm uppercase transition-none ${
+                riskLevel === 'critical'
+                  ? 'bg-terminal-red/30 border border-terminal-red text-terminal-red hover:bg-terminal-red/40 hover:border-terminal-red disabled:opacity-50 disabled:cursor-not-allowed'
+                  : `bg-${riskColors[riskLevel]}/30 border border-${riskColors[riskLevel]} text-${riskColors[riskLevel]} hover:bg-${riskColors[riskLevel]}/40 hover:border-${riskColors[riskLevel]} disabled:opacity-50 disabled:cursor-not-allowed`
+              }`}
+            >
+              Enable {capability}
+            </button>
+          </div>
         </div>
       </div>
-
-      <style>{`
-        .security-warning-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.8);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 10000;
-          font-family: 'Courier New', monospace;
-        }
-
-        .security-warning-modal {
-          background: #1a1a1a;
-          border: 2px solid #333;
-          border-radius: 8px;
-          max-width: 600px;
-          max-height: 80vh;
-          overflow-y: auto;
-          color: #00ff00;
-        }
-
-        .security-warning-header {
-          padding: 20px;
-          border-bottom: 2px solid;
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          position: relative;
-        }
-
-        .security-warning-icon {
-          font-size: 24px;
-        }
-
-        .security-warning-title {
-          flex: 1;
-          margin: 0;
-          font-size: 18px;
-          font-weight: bold;
-        }
-
-        .security-warning-risk-level {
-          padding: 5px 10px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: bold;
-          color: black;
-        }
-
-        .security-warning-content {
-          padding: 20px;
-        }
-
-        .security-warning-description,
-        .security-warning-risks,
-        .security-warning-recommendations,
-        .security-warning-critical {
-          margin-bottom: 20px;
-        }
-
-        .security-warning-content h3 {
-          margin: 0 0 10px 0;
-          color: #ffff00;
-          font-size: 14px;
-        }
-
-        .security-warning-content p {
-          margin: 0 0 10px 0;
-          line-height: 1.4;
-        }
-
-        .security-warning-content ul {
-          margin: 0;
-          padding-left: 20px;
-        }
-
-        .security-warning-risk-item {
-          margin-bottom: 8px;
-          display: flex;
-          align-items: flex-start;
-          gap: 8px;
-        }
-
-        .risk-bullet {
-          flex-shrink: 0;
-          margin-top: 1px;
-        }
-
-        .security-warning-critical {
-          background: rgba(239, 68, 68, 0.1);
-          border: 1px solid #ef4444;
-          padding: 15px;
-          border-radius: 4px;
-        }
-
-        .security-warning-critical h3 {
-          color: #ef4444;
-          margin-top: 0;
-        }
-
-        .security-warning-acknowledgments {
-          border-top: 1px solid #333;
-          padding-top: 15px;
-        }
-
-        .security-warning-checkbox {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          margin-bottom: 12px;
-          cursor: pointer;
-          font-size: 12px;
-          line-height: 1.4;
-        }
-
-        .security-warning-checkbox.critical {
-          color: #ef4444;
-          font-weight: bold;
-        }
-
-        .security-warning-checkbox input[type="checkbox"] {
-          margin: 0;
-          accent-color: #00ff00;
-        }
-
-        .security-warning-actions {
-          padding: 20px;
-          border-top: 1px solid #333;
-          display: flex;
-          gap: 15px;
-          justify-content: flex-end;
-        }
-
-        .security-warning-button {
-          padding: 10px 20px;
-          border: 1px solid;
-          background: transparent;
-          color: inherit;
-          font-family: inherit;
-          font-size: 12px;
-          cursor: pointer;
-          border-radius: 4px;
-          transition: all 0.2s;
-        }
-
-        .security-warning-button.cancel {
-          border-color: #666;
-          color: #ccc;
-        }
-
-        .security-warning-button.cancel:hover {
-          background: #333;
-        }
-
-        .security-warning-button.confirm {
-          border-color: currentColor;
-          font-weight: bold;
-        }
-
-        .security-warning-button.confirm:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .security-warning-button.confirm:not(:disabled):hover {
-          background: rgba(255, 255, 255, 0.1);
-        }
-      `}</style>
     </div>
   );
 };
 
-/**
- * Security capability definitions for different plugins
- */
-export const SECURITY_CAPABILITIES = {
+// Security risk configurations for different capabilities
+export const CAPABILITY_RISKS = {
   shell: {
-    capability: 'Shell Command Execution',
-    riskLevel: 'critical' as const,
-    description:
-      'Allows the AI agent to execute arbitrary shell commands on your system with full user privileges.',
+    level: 'critical' as const,
+    description: 'Grants full shell/terminal access to execute arbitrary system commands',
     risks: [
-      'Complete system compromise through arbitrary command execution',
-      'File system access, modification, and deletion',
-      'Network access and potential data exfiltration',
-      'Installation of malicious software',
-      'Privilege escalation attempts',
-      'Access to sensitive files and credentials',
+      'Can execute ANY command on your system with full privileges',
+      'Can access, modify, or delete any file on your computer',
+      'Can install malware or backdoors',
+      'Can exfiltrate sensitive data',
+      'Can modify system settings and configurations',
+      'Can access network resources and make external connections',
     ],
   },
   browser: {
-    capability: 'Browser Automation',
-    riskLevel: 'high' as const,
-    description: 'Enables automated web browsing, form filling, and interaction with websites.',
+    level: 'high' as const,
+    description: 'Allows automated browser control and web interaction',
     risks: [
-      'Unauthorized access to logged-in accounts',
-      'Automatic form submission with sensitive data',
-      'Web-based social engineering attacks',
-      'Interaction with malicious websites',
-      'Potential for spam or abuse of online services',
+      'Can access any website and read page content',
+      'Can interact with forms and submit data',
+      'Can access cookies and local storage',
+      'Can potentially access saved passwords if browser is logged in',
+      'Can make purchases or transactions if payment info is saved',
     ],
   },
-  autocoder: {
-    capability: 'Dynamic Code Generation',
-    riskLevel: 'high' as const,
-    description:
-      'Allows the AI to generate and execute code dynamically, modifying its own behavior.',
+  microphone: {
+    level: 'medium' as const,
+    description: 'Enables audio recording from your microphone',
     risks: [
-      'Injection of malicious code into the runtime',
-      'Modification of security controls',
-      'Creation of new attack vectors',
-      'Bypass of existing safety measures',
-      'Unpredictable behavior changes',
+      'Can record all audio from your environment',
+      'Can capture private conversations',
+      'May transmit audio data to external services',
+      'Could be used for unauthorized surveillance',
     ],
   },
-  vision: {
-    capability: 'Camera and Screen Access',
-    riskLevel: 'medium' as const,
-    description:
-      'Provides access to camera, screen capture, and microphone for environmental awareness.',
+  camera: {
+    level: 'medium' as const,
+    description: 'Enables video capture from your camera',
     risks: [
-      'Privacy violation through unauthorized recording',
-      'Exposure of sensitive visual information',
-      'Potential surveillance capabilities',
-      'Access to confidential documents on screen',
+      'Can capture video/images from your camera',
+      'Can record your physical environment',
+      'May transmit visual data to external services',
+      'Could be used for unauthorized surveillance',
+    ],
+  },
+  screen: {
+    level: 'high' as const,
+    description: 'Allows screen capture and monitoring',
+    risks: [
+      'Can see everything on your screen',
+      'Can capture sensitive information like passwords, emails, documents',
+      'Can monitor all your computer activity',
+      'May transmit screen data to external services',
+    ],
+  },
+  autonomy: {
+    level: 'medium' as const,
+    description: 'Enables autonomous agent actions and decision-making',
+    risks: [
+      'Agent can take actions without explicit approval',
+      'May perform unexpected operations',
+      'Could make decisions that conflict with user intent',
+      'Behavior may be unpredictable based on AI reasoning',
+    ],
+  },
+  speakers: {
+    level: 'low' as const,
+    description: 'Allows audio playback through system speakers',
+    risks: [
+      'Can play audio at any volume',
+      'May play unexpected or inappropriate content',
+      'Could be disruptive in quiet environments',
     ],
   },
 };
+
+export default SecurityWarning;

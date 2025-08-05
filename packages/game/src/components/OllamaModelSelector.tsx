@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
 interface ModelInfo {
   name: string;
@@ -31,56 +32,57 @@ export const OllamaModelSelector: React.FC<OllamaModelSelectorProps> = ({ value,
   const [recommendations, setRecommendations] = useState<OllamaRecommendations | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchRecommendations();
-  }, []);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{
+    model: string;
+    percentage: number;
+    currentMb: number;
+    totalMb: number;
+  } | null>(null);
 
   const fetchRecommendations = async () => {
     try {
       setLoading(true);
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result = await invoke<OllamaRecommendations>('get_ollama_recommendations');
+      setError(null);
+
+      const result = await invoke<OllamaRecommendations>('get_ollama_model_recommendations');
 
       if (result.success) {
         setRecommendations(result);
-        // If no value set, use the default model
-        if (!value && result.default_model) {
-          onChange(result.default_model);
-        }
       } else {
-        setError('Failed to get model recommendations');
+        setError('Failed to fetch model recommendations');
       }
     } catch (err) {
-      console.error('Failed to fetch Ollama recommendations:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      console.error('Error fetching Ollama recommendations:', err);
+      setError(String(err));
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchRecommendations();
+  }, []);
+
   if (loading) {
     return (
-      <div className="ollama-model-selector">
-        <label>Model</label>
-        <div className="loading-message">Loading model recommendations...</div>
-      </div>
+      <div className="py-2 text-xs text-gray-400">Loading Ollama models...</div>
     );
   }
 
   if (error) {
     return (
-      <div className="ollama-model-selector">
-        <label>Model</label>
+      <div className="mb-4">
+        <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider font-semibold">Model</label>
         <input
           type="text"
-          className="config-input"
+          className="w-full py-2.5 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none transition-none placeholder:text-gray-500 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
           value={value || 'llama3.2:3b'}
           placeholder="llama3.2:3b"
           onChange={(e) => onChange(e.target.value)}
           data-testid="ollama-model-input"
         />
-        <small style={{ color: '#ff4444', fontSize: '10px', marginTop: '4px' }}>
+        <small className="block mt-1 text-terminal-red text-[10px]">
           Error loading recommendations: {error}
         </small>
       </div>
@@ -94,22 +96,26 @@ export const OllamaModelSelector: React.FC<OllamaModelSelectorProps> = ({ value,
   const { system_info, recommended_models, all_models } = recommendations;
 
   return (
-    <div className="ollama-model-selector">
-      <div className="system-info-banner">
-        <div className="system-memory">
-          <span className="memory-icon">💾</span>
-          <span className="memory-value">{system_info.total_memory_gb.toFixed(1)} GB RAM</span>
+    <div className="mb-4">
+      <div className="mb-3 p-3 bg-black/40 border border-terminal-green/20">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-base">💾</span>
+          <span className="text-terminal-green font-bold">{system_info.total_memory_gb.toFixed(1)} GB RAM</span>
         </div>
         {!system_info.has_sufficient_memory && (
-          <div className="memory-warning">
+          <div className="mt-2 text-terminal-yellow text-[10px]">
             ⚠️ Limited memory detected. Smaller models recommended.
           </div>
         )}
       </div>
 
-      <label>Model</label>
+      <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider font-semibold">Model</label>
       <select
-        className="config-select model-select"
+        className="w-full py-2.5 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none cursor-pointer transition-none appearance-none pr-8 bg-no-repeat bg-[right_12px_center] bg-[length:12px] hover:border-terminal-green/50 hover:bg-black/70 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Cpath d='M0 0 L6 6 L12 0' fill='none' stroke='%2300ff00' stroke-width='1.5'/%3E%3C/svg%3E\")",
+        }}
         value={value || recommendations.default_model}
         onChange={(e) => onChange(e.target.value)}
         data-testid="ollama-model-select"
@@ -139,148 +145,103 @@ export const OllamaModelSelector: React.FC<OllamaModelSelectorProps> = ({ value,
         )}
       </select>
 
-      <div className="model-info">
-        {all_models.find((m) => m.name === (value || recommendations.default_model)) && (
-          <>
-            <small className="model-requirements">
-              Selected model requires at least{' '}
-              {
-                all_models.find((m) => m.name === (value || recommendations.default_model))
-                  ?.min_memory_gb
-              }
-              GB RAM
-            </small>
-            {recommendations.installed_models.includes(value || recommendations.default_model) && (
-              <small className="model-installed">✓ Model is installed</small>
-            )}
-          </>
-        )}
+      {/* Manual input fallback */}
+      <div className="mt-3">
+        <details className="cursor-pointer">
+          <summary className="text-[10px] text-gray-400 hover:text-gray-300">
+            Enter custom model name
+          </summary>
+          <input
+            type="text"
+            className="mt-2 w-full py-2 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none transition-none placeholder:text-gray-500 focus:border-terminal-green focus:bg-black/80"
+            value={value || ''}
+            placeholder="e.g., llama3.2:3b or custom-model:latest"
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </details>
       </div>
 
-      <style>{`
-        .ollama-model-selector {
-          margin-bottom: 16px;
-        }
+      {/* Model download button */}
+      {value && !recommendations.installed_models.includes(value) && (
+        <div className="mt-3 p-3 bg-terminal-yellow/10 border border-terminal-yellow/20 text-terminal-yellow text-[11px]">
+          <div className="mb-2">⚠️ Model "{value}" is not installed locally.</div>
+          <button
+            className="py-1.5 px-3 bg-terminal-yellow/20 border border-terminal-yellow/30 text-terminal-yellow font-mono text-xs uppercase transition-none hover:bg-terminal-yellow/30 hover:border-terminal-yellow disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={async () => {
+              try {
+                setIsDownloading(true);
+                const result = await invoke<{ success: boolean; message?: string }>(
+                  'download_ollama_model',
+                  { modelName: value }
+                );
+                if (result.success) {
+                  await fetchRecommendations(); // Refresh the list
+                }
+              } catch (err) {
+                console.error('Failed to download model:', err);
+              } finally {
+                setIsDownloading(false);
+              }
+            }}
+            disabled={isDownloading}
+          >
+            {isDownloading ? 'Downloading...' : 'Download Model'}
+          </button>
+        </div>
+      )}
 
-        .system-info-banner {
-          background: rgba(0, 50, 0, 0.4);
-          border: 1px solid rgba(0, 255, 0, 0.3);
-          border-radius: 4px;
-          padding: 8px;
-          margin-bottom: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
+      {/* Download progress */}
+      {isDownloading && downloadProgress && (
+        <div className="mt-3 p-3 bg-black/40 border border-terminal-green/20">
+          <div className="text-xs text-terminal-green mb-2">
+            Downloading {downloadProgress.model}...
+          </div>
+          <div className="w-full h-2 bg-black/60 border border-terminal-green/30 relative overflow-hidden">
+            <div 
+              className="absolute top-0 left-0 h-full bg-terminal-green transition-all duration-300"
+              style={{ width: `${downloadProgress.percentage}%` }}
+            />
+          </div>
+          <div className="mt-1 text-[10px] text-gray-400">
+            {downloadProgress.currentMb.toFixed(1)} MB / {downloadProgress.totalMb.toFixed(1)} MB ({downloadProgress.percentage.toFixed(1)}%)
+          </div>
+        </div>
+      )}
 
-        .system-memory {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          color: #00ff00;
-          font-size: 12px;
-          font-weight: bold;
-        }
+      {/* Selected model info */}
+      {value && (
+        <div className="mt-3 space-y-2">
+          {recommended_models
+            .concat(all_models)
+            .filter((m) => m.name === value)
+            .map((model) => (
+              <div key={model.name} className="p-3 bg-black/40 border border-terminal-green/20">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="text-xs font-bold text-terminal-green">
+                      {model.name} {model.installed && <span className="text-terminal-green">✓ Installed</span>}
+                    </div>
+                    <div className="text-[10px] text-gray-400">{model.description}</div>
+                    <div className="text-[10px] text-gray-500">
+                      Requires: {model.min_memory_gb}GB RAM
+                    </div>
+                  </div>
+                  {model.recommended && (
+                    <span className="px-1.5 py-0.5 bg-terminal-green/20 border border-terminal-green/30 text-terminal-green text-[10px] uppercase">
+                      Recommended
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
 
-        .memory-icon {
-          font-size: 16px;
-        }
-
-        .memory-warning {
-          color: #ffaa00;
-          font-size: 11px;
-        }
-
-        .loading-message {
-          color: #888;
-          font-size: 12px;
-          padding: 8px;
-          text-align: center;
-          background: rgba(0, 0, 0, 0.3);
-          border-radius: 4px;
-        }
-
-        .model-select {
-          width: 100%;
-          margin-top: 4px;
-        }
-
-        .model-info {
-          margin-top: 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .model-requirements {
-          color: #888;
-          font-size: 10px;
-        }
-
-        .model-installed {
-          color: #00ff00;
-          font-size: 10px;
-          font-weight: bold;
-        }
-
-        label {
-          display: block;
-          color: #00ff00;
-          font-size: 12px;
-          text-transform: uppercase;
-          margin-bottom: 4px;
-        }
-
-        select {
-          background: #0a0a0a;
-          border: 1px solid #333;
-          color: #fff;
-          padding: 8px;
-          border-radius: 4px;
-          font-family: monospace;
-          font-size: 12px;
-        }
-
-        select:focus {
-          outline: none;
-          border-color: #00ff00;
-        }
-
-        optgroup {
-          color: #00ff00;
-          font-weight: bold;
-        }
-
-        option {
-          color: #fff;
-          background: #1a1a1a;
-          font-weight: normal;
-          padding: 4px;
-        }
-
-        option:hover {
-          background: #2a2a2a;
-        }
-
-        .config-input {
-          width: 100%;
-          background: #0a0a0a;
-          border: 1px solid #333;
-          color: #fff;
-          padding: 8px;
-          border-radius: 4px;
-          font-family: monospace;
-          font-size: 12px;
-          margin-top: 4px;
-        }
-
-        .config-input:focus {
-          outline: none;
-          border-color: #00ff00;
-        }
-      `}</style>
+      <div className="mt-3 text-[10px] text-gray-500">
+        <div>• Models marked with ✓ are already installed</div>
+        <div>• Recommended models are optimized for your system</div>
+        <div>• Visit <a href="https://ollama.ai/library" target="_blank" rel="noopener noreferrer" className="text-terminal-blue hover:underline">ollama.ai/library</a> for more models</div>
+      </div>
     </div>
   );
 };

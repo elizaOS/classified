@@ -1,56 +1,59 @@
-import { useEffect, useState } from 'react';
-import { TauriService } from '../services/TauriService';
+import React, { useState, useEffect } from 'react';
+import { createLogger } from '../utils/logger';
 
 interface TauriInitializerProps {
   children: React.ReactNode;
 }
 
-/**
- * Component that ensures Tauri API is initialized before rendering children
- * This solves the timing issue where TauriService tries to detect Tauri before it's available
- */
+const logger = createLogger('TauriInitializer');
+
+// This component initializes the Tauri environment and handles window events
+
 export function TauriInitializer({ children }: TauriInitializerProps) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isShuttingDown, setIsShuttingDown] = useState(false);
-  const [shutdownMessage, setShutdownMessage] = useState('Stopping containers...');
+  const [shutdownMessage, setShutdownMessage] = useState('Shutting down...');
 
   useEffect(() => {
     const initializeTauri = async () => {
+      logger.info('Initializing Tauri environment');
+
       try {
-        console.log('[TauriInitializer] Starting Tauri initialization...');
+        // Check if we're in a Tauri environment
+        if (!(window as any).__TAURI__) {
+          logger.warn('Not running in Tauri environment');
+          setIsInitialized(true);
+          return;
+        }
 
-        // Wait a bit to ensure window is fully loaded
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        logger.info('Tauri environment detected');
 
-        // Initialize TauriService
-        await TauriService.initialize();
+        // Import Tauri modules dynamically
+        const { event } = await import('@tauri-apps/api');
 
-        const isTauri = TauriService.isRunningInTauri();
-        console.log('[TauriInitializer] Tauri initialized, running in Tauri:', isTauri);
+        // Listen for window close request
+        await event.listen('tauri://close-requested', async () => {
+          logger.info('Close requested');
+          // You can perform cleanup here if needed
+        });
 
-        // Set up shutdown event listener
-        if (isTauri && (window as any).__TAURI__) {
-          const { event } = (window as any).__TAURI__;
-
-          // Listen for shutdown request
-          const unlistenShutdown = await event.listen('request-shutdown', async () => {
-            console.log('[TauriInitializer] Shutdown requested, initiating graceful shutdown...');
+        // Listen for shutdown event from backend
+        if (typeof (window as any).__TAURI__?.event?.listen === 'function') {
+          const unlistenShutdown = await event.listen('shutdown', async () => {
+            logger.info('Shutdown event received');
             setIsShuttingDown(true);
-            try {
-              await TauriService.shutdownApplication();
-            } catch (err) {
-              console.error('[TauriInitializer] Failed to shutdown application:', err);
-              // Force quit if graceful shutdown fails
+            // Give time for UI to update before closing
+            setTimeout(async () => {
               if ((window as any).__TAURI__?.window?.appWindow) {
                 await (window as any).__TAURI__.window.appWindow.close();
               }
-            }
+            });
           });
 
           // Listen for shutdown progress
           const unlistenProgress = await event.listen('shutdown-progress', (evt: any) => {
-            console.log('[TauriInitializer] Shutdown progress:', evt.payload);
+            logger.info('Shutdown progress:', evt.payload);
             setShutdownMessage(evt.payload);
           });
 
@@ -61,7 +64,7 @@ export function TauriInitializer({ children }: TauriInitializerProps) {
 
         setIsInitialized(true);
       } catch (err) {
-        console.error('[TauriInitializer] Failed to initialize Tauri:', err);
+        logger.error('Failed to initialize Tauri:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize Tauri');
         // Still mark as initialized to allow the app to continue
         setIsInitialized(true);
@@ -85,62 +88,26 @@ export function TauriInitializer({ children }: TauriInitializerProps) {
 
   if (!isInitialized) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          backgroundColor: '#0a0a0a',
-          color: '#00ff00',
-          fontFamily: 'monospace',
-        }}
-      >
+      <div className="flex justify-center items-center h-screen bg-black text-terminal-green font-mono">
         <div>Initializing Tauri environment...</div>
       </div>
     );
   }
 
   if (error) {
-    console.warn('[TauriInitializer] Continuing with error:', error);
+    logger.warn('Continuing with error', { error });
   }
 
   // Show shutdown UI when shutting down
   if (isShuttingDown) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          backgroundColor: '#1a1a1a',
-          color: '#ffffff',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <h2 style={{ fontSize: '24px', marginBottom: '20px' }}>Shutting Down ElizaOS</h2>
-          <p style={{ fontSize: '16px', color: '#cccccc', marginBottom: '20px' }}>
+      <div className="flex justify-center items-center h-screen bg-gray-900 text-white font-sans">
+        <div className="text-center">
+          <h2 className="text-2xl mb-5">Shutting Down ElizaOS</h2>
+          <p className="text-base text-gray-300 mb-5">
             {shutdownMessage}
           </p>
-          <div
-            style={{
-              border: '3px solid #333333',
-              borderTop: '3px solid #ffffff',
-              borderRadius: '50%',
-              width: '40px',
-              height: '40px',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto',
-            }}
-          />
-          <style>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}</style>
+          <div className="w-10 h-10 border-[3px] border-gray-700 border-t-white animate-spin mx-auto" />
         </div>
       </div>
     );

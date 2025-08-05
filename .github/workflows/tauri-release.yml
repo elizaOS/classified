@@ -161,19 +161,19 @@ jobs:
             const fs = require('fs');
             const path = require('path');
             const glob = require('@actions/glob');
-            
+
             const releaseId = '${{ needs.create-release.outputs.release_id }}';
-            
+
             // Get existing assets to avoid duplicates
             const { data: release } = await github.rest.repos.getRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: releaseId
             });
-            
+
             const existingAssets = release.assets.map(a => a.name);
             console.log('Existing assets:', existingAssets);
-            
+
             // Find built artifacts
             const patterns = {
               'ubuntu-22.04': [
@@ -189,10 +189,10 @@ jobs:
                 'packages/game/src-tauri/target/*/release/bundle/macos/*.app.tar.gz'
               ]
             };
-            
+
             const platform = '${{ matrix.platform }}';
             const searchPatterns = patterns[platform] || [];
-            
+
             for (const pattern of searchPatterns) {
               const globber = await glob.create(pattern);
               const files = await globber.glob();

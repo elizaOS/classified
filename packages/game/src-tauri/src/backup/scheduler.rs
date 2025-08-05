@@ -81,25 +81,5 @@ impl BackupScheduler {
         });
     }
 
-    pub async fn stop(&self) {
-        let mut running = self.running.lock().await;
-        *running = false;
-        info!("Backup scheduler stopped");
-    }
 
-    pub async fn is_running(&self) -> bool {
-        *self.running.lock().await
-    }
-
-    pub async fn trigger_backup(&self) -> BackupResult<Backup> {
-        info!("Manually triggering scheduled backup");
-        self.backup_manager
-            .read()
-            .await
-            .create_backup(
-                BackupType::Automatic,
-                Some("Manually triggered scheduled backup".to_string()),
-            )
-            .await
-    }
 }

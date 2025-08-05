@@ -57,5 +57,9 @@
     <!-- Photos Access (for image processing) -->
     <key>com.apple.security.personal-information.photos-library</key>
     <true/>
+    
+    <!-- Screen Recording (for screenshot service) -->
+    <key>com.apple.security.device.capture</key>
+    <true/>
 </dict>
 </plist>

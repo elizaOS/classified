@@ -40,7 +40,7 @@ teardown() {
     podman run -d \
         --name eliza-postgres \
         --network eliza-network \
-        -p 5432:5432 \
+        -p 7654:5432 \
         -e POSTGRES_DB=eliza \
         -e POSTGRES_USER=eliza \
         -e POSTGRES_PASSWORD=eliza \
@@ -50,7 +50,7 @@ teardown() {
     # Wait for PostgreSQL to start
     local postgres_ready=false
     for i in {1..30}; do
-        if PGPASSWORD=eliza psql -h localhost -p 5432 -U eliza -d eliza -c "SELECT 1;" >/dev/null 2>&1; then
+        if PGPASSWORD=eliza psql -h localhost -p 7654 -U eliza -d eliza -c "SELECT 1;" >/dev/null 2>&1; then
             postgres_ready=true
             break
         fi
@@ -68,14 +68,14 @@ teardown() {
     echo "Step 2: Setting up database entities..." >&3
     
     # Create the game-ui-channel
-    PGPASSWORD=eliza psql -h localhost -p 5432 -U eliza -d eliza -c "
+    PGPASSWORD=eliza psql -h localhost -p 7654 -U eliza -d eliza -c "
         INSERT INTO channels (id, name, server_id, type, source_type, topic, created_at, updated_at) 
         VALUES ('game-ui-channel', 'Game UI Channel', '00000000-0000-0000-0000-000000000000', 'DM', 'game_ui', 'Game UI Communication', NOW(), NOW())
         ON CONFLICT (id) DO NOTHING;
     " >/dev/null 2>&1 || true
     
     # Create the Admin user entity
-    PGPASSWORD=eliza psql -h localhost -p 5432 -U eliza -d eliza -c "
+    PGPASSWORD=eliza psql -h localhost -p 7654 -U eliza -d eliza -c "
         INSERT INTO entities (id, agent_id, names, metadata, created_at) 
         VALUES ('00000000-0000-0000-0000-000000000001', '2fbc0c27-50f4-09f2-9fe4-9dd27d76d46f', ARRAY['Admin', 'Administrator'], '{\"type\": \"user\", \"role\": \"admin\"}', NOW())
         ON CONFLICT (id) DO NOTHING;

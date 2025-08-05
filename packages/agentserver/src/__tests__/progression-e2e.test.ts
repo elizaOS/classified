@@ -19,7 +19,7 @@ describe('Capability Progression System E2E Integration Tests', () => {
       env: {
         ...process.env,
         PATH: `${process.env.PATH}:/home/ubuntu/.bun/bin`,
-        DATABASE_URL: 'postgresql://eliza:eliza_secure_pass@localhost:5432/eliza_test',
+        DATABASE_URL: 'postgresql://eliza:eliza_secure_pass@localhost:7654/eliza_test',
         NODE_ENV: 'test',
       },
       stdio: ['pipe', 'pipe', 'pipe'],

@@ -1,8 +1,6 @@
-use crate::container::user_error::{ErrorCode, UserError};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use uuid::Uuid;
 
 /// Manages exclusive locks for operations to prevent double-clicks and concurrent execution
 pub struct OperationLock {
@@ -25,47 +23,6 @@ impl OperationLock {
         }
     }
 
-    /// Try to acquire a lock for an operation
-    pub fn try_lock(
-        &self,
-        operation: &str,
-        description: &str,
-    ) -> Result<OperationGuard, Box<UserError>> {
-        let id = Uuid::new_v4().to_string();
-        let info = OperationInfo {
-            id: id.clone(),
-            operation: operation.to_string(),
-            description: description.to_string(),
-            started_at: chrono::Utc::now(),
-        };
-
-        // Try to insert - if key already exists, operation is in progress
-        match self.active.entry(operation.to_string()) {
-            dashmap::mapref::entry::Entry::Occupied(_) => Err(Box::new(UserError {
-                code: ErrorCode::OperationInProgress,
-                title: "Operation Already Running".to_string(),
-                message: format!("{} is already in progress", description),
-                technical_details: None,
-                suggestions: vec![
-                    "Please wait for the current operation to complete".to_string(),
-                    "This prevents system conflicts and ensures stability".to_string(),
-                ],
-                actions: vec![],
-                can_retry: false,
-                estimated_fix_time: Some("10-30 seconds".to_string()),
-            })),
-            dashmap::mapref::entry::Entry::Vacant(entry) => {
-                entry.insert(info);
-                Ok(OperationGuard {
-                    lock: self.active.clone(),
-                    operation: operation.to_string(),
-                    #[allow(dead_code)]
-                    id,
-                })
-            }
-        }
-    }
-
     /// Check if an operation is currently locked
     #[allow(dead_code)]
     pub fn is_locked(&self, operation: &str) -> bool {
@@ -85,6 +42,34 @@ impl OperationLock {
     #[allow(dead_code)]
     pub fn force_unlock(&self, operation: &str) {
         self.active.remove(operation);
+    }
+
+    /// Try to acquire a lock for an operation
+    /// Returns Ok(guard) if successful, Err if operation is already locked
+    #[allow(dead_code)] // Used in macros and tests
+    pub fn try_lock(&self, operation: &str, description: &str) -> Result<OperationGuard, String> {
+        let operation_info = OperationInfo {
+            id: uuid::Uuid::new_v4().to_string(),
+            operation: operation.to_string(),
+            description: description.to_string(),
+            started_at: chrono::Utc::now(),
+        };
+
+        // Use entry API for atomic check-and-insert
+        match self.active.entry(operation.to_string()) {
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert(operation_info.clone());
+                tracing::debug!("Acquired lock for operation: {}", operation);
+                Ok(OperationGuard {
+                    lock: self.active.clone(),
+                    operation: operation.to_string(),
+                    id: operation_info.id,
+                })
+            }
+            dashmap::mapref::entry::Entry::Occupied(_) => {
+                Err(format!("Operation '{}' is already in progress", operation))
+            }
+        }
     }
 }
 

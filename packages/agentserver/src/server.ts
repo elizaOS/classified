@@ -220,6 +220,80 @@ export class AgentServer {
   }
 
   /**
+   * Register signal handlers for graceful shutdown
+   */
+  private registerSignalHandlers(): void {
+    const gracefulShutdown = async (signal: string) => {
+      logger.info(`[AgentServer] Received ${signal} signal, initiating graceful shutdown...`);
+      
+      try {
+        // Close WebSocket connections
+        if (this.webSocketServer) {
+          this.webSocketServer.clients.forEach(client => {
+            try {
+              client.close(1000, 'Server shutting down');
+            } catch (error) {
+              // Ignore errors during shutdown
+            }
+          });
+          this.webSocketServer.close();
+        }
+
+        // Close HTTP server
+        if (this.server) {
+          this.server.close(() => {
+            logger.info('[AgentServer] HTTP server closed');
+          });
+        }
+
+        // Stop all agents
+        for (const [agentId, runtime] of this.agents) {
+          try {
+            await runtime.cleanup?.();
+            logger.info(`[AgentServer] Cleaned up agent ${agentId}`);
+          } catch (error) {
+            logger.warn(`[AgentServer] Error cleaning up agent ${agentId}:`, error);
+          }
+        }
+
+        // Close database connections
+        if (this.database?.close) {
+          await this.database.close();
+        }
+
+        logger.info('[AgentServer] Graceful shutdown completed');
+        process.exit(0);
+      } catch (error) {
+        logger.error('[AgentServer] Error during graceful shutdown:', error);
+        process.exit(1);
+      }
+    };
+
+    // Handle different signals
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGHUP', () => gracefulShutdown('SIGHUP'));
+    
+    // Handle SIGPIPE specifically to prevent crashes
+    process.on('SIGPIPE', () => {
+      logger.warn('[AgentServer] Received SIGPIPE, handling gracefully');
+      // Don't exit on SIGPIPE, just log it
+    });
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      logger.error('[AgentServer] Uncaught exception:', error);
+      gracefulShutdown('uncaughtException');
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('[AgentServer] Unhandled promise rejection at:', promise, 'reason:', reason);
+      gracefulShutdown('unhandledRejection');
+    });
+  }
+
+  /**
    * Initializes the database and server.
    *
    * @param {ServerOptions} [options] - Optional server options.
@@ -325,7 +399,12 @@ export class AgentServer {
       this.isInitialized = true;
     } catch (error) {
       logger.error('Failed to initialize AgentServer (async operations):', error);
-      console.trace(error);
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug(
+          'Stack trace:',
+          error instanceof Error ? error.stack : 'No stack trace available'
+        );
+      }
       throw error;
     }
   }
@@ -1200,10 +1279,21 @@ export class AgentServer {
 
       // Override write method to broadcast logs via WebSocket
       destination.write = (data: string | any) => {
-        // Call original write first
-        originalWrite(data);
+        // Call original write first with error handling for SIGPIPE
+        try {
+          originalWrite(data);
+        } catch (error: any) {
+          // Handle SIGPIPE and other write errors gracefully
+          if (error.code === 'EPIPE' || error.errno === 35) {
+            // SIGPIPE or Resource temporarily unavailable - log once and continue
+            console.error('[LogStream] Write pipe broken, continuing without original destination');
+          } else {
+            // Re-throw other errors
+            throw error;
+          }
+        }
 
-        // Parse and broadcast log entry
+        // Parse and broadcast log entry with error handling
         try {
           let logEntry;
           if (typeof data === 'string') {
@@ -1267,7 +1357,17 @@ export class AgentServer {
           }
 
           if (shouldBroadcast) {
-            client.send(JSON.stringify(logData));
+            try {
+              client.send(JSON.stringify(logData));
+            } catch (error: any) {
+              // Handle WebSocket send errors gracefully
+              if (error.code === 'EPIPE' || error.errno === 35 || error.message?.includes('WebSocket')) {
+                // Client disconnected or pipe broken - remove from connections
+                this.logStreamConnections.delete(_clientId);
+              } else {
+                logger.warn(`[WebSocket] Failed to send log to client ${_clientId}: ${error.message}`);
+              }
+            }
           }
         }
       });
@@ -1421,16 +1521,17 @@ export class AgentServer {
             const actualHost = host === '0.0.0.0' ? 'localhost' : host;
             const baseUrl = `http://${actualHost}:${port}`;
 
-            console.log(
-              '\x1b[32mStartup successful!\x1b[0m\n' +
-                '\x1b[33mWeb UI disabled.\x1b[0m \x1b[32mAPI endpoints available at:\x1b[0m\n' +
-                `  \x1b[1m${baseUrl}/api/server/ping\x1b[22m\x1b[0m\n` +
-                `  \x1b[1m${baseUrl}/api/agents\x1b[22m\x1b[0m\n` +
-                `  \x1b[1m${baseUrl}/messaging\x1b[22m\x1b[0m`
-            );
+            logger.success('Startup successful!');
+            logger.info('Web UI disabled. API endpoints available at:', {
+              endpoints: [
+                `${baseUrl}/api/server/ping`,
+                `${baseUrl}/api/agents`,
+                `${baseUrl}/messaging`,
+              ],
+            });
 
             // Add log for test readiness
-            console.log(`AgentServer is listening on port ${port}`);
+            logger.info(`AgentServer is listening on port ${port}`);
 
             logger.success(
               `REST API bound to ${host}:${port}. If running locally, access it at http://localhost:${port}.`
@@ -1588,9 +1689,24 @@ export class AgentServer {
 
   async clearChannelMessages(channelId: UUID): Promise<void> {
     // Get all messages for the channel and delete them one by one
-    const messages = await this.serverDatabase.getMessagesForChannel(channelId, 1000);
-    for (const message of messages) {
-      await this.serverDatabase.deleteMessage(message.id as UUID);
+    const batchSize = parseInt(process.env.MESSAGE_DELETE_BATCH_SIZE || '1000', 10);
+    let hasMore = true;
+
+    while (hasMore) {
+      const messages = await this.serverDatabase.getMessagesForChannel(channelId, batchSize);
+      if (messages.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const message of messages) {
+        await this.serverDatabase.deleteMessage(message.id as UUID);
+      }
+
+      // If we got fewer messages than the batch size, we're done
+      if (messages.length < batchSize) {
+        hasMore = false;
+      }
     }
     logger.info(`[AgentServer] Cleared all messages for central channel: ${channelId}`);
   }

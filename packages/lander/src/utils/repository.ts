@@ -5,15 +5,15 @@
 export function getRepositoryInfo() {
   // Check if we're on GitHub Pages
   const hostnameMatch = window.location.hostname.match(/^(.+?)\.github\.io$/);
-  
+
   if (hostnameMatch) {
     const owner = hostnameMatch[1];
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     const repo = pathParts[0] || 'eliza';
-    
+
     return { owner, repo };
   }
-  
+
   // Check for environment variable override (useful for custom domains)
   if (typeof process !== 'undefined' && process.env?.VITE_GITHUB_REPOSITORY) {
     const [owner, repo] = process.env.VITE_GITHUB_REPOSITORY.split('/');
@@ -21,7 +21,7 @@ export function getRepositoryInfo() {
       return { owner, repo };
     }
   }
-  
+
   // Default fallback for local development or non-GitHub Pages hosting
   return { owner: 'elizaos', repo: 'eliza' };
 }

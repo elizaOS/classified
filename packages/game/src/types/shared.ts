@@ -342,3 +342,62 @@ export interface TauriSettingsResponse {
   success: boolean;
   data?: Record<string, unknown>;
 }
+
+// Consolidated message and agent types
+export interface TauriMessage {
+  id: string;
+  content: string;
+  type: 'user' | 'agent' | 'system' | 'error';
+  authorId: string;
+  authorName: string;
+  timestamp: Date;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TauriGoal {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: string;
+}
+
+export interface TauriTodo {
+  id: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  dueDate?: string;
+  priority?: 'low' | 'medium' | 'high';
+  createdAt: string;
+}
+
+export interface TauriAgentStatus {
+  name: string;
+  status: 'online' | 'offline' | 'thinking';
+  lastThought?: string;
+  lastAction?: string;
+  currentGoal?: string;
+}
+
+// Consolidated container types
+export interface ContainerStatus {
+  containerRunning: boolean;
+  agentHealthy: boolean;
+  ollamaHealthy: boolean;
+  logs: string[];
+}
+
+export interface ContainerLog {
+  timestamp: Date;
+  service: string;
+  message: string;
+  level?: 'info' | 'warn' | 'error';
+}
+
+export interface StartupStatus {
+  phase: string;
+  message: string;
+  progress?: number;
+  isComplete?: boolean;
+  error?: string;
+}

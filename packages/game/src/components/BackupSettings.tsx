@@ -1,38 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TauriService } from '../services/TauriService';
-import './BackupSettings.css';
-
-interface Backup {
-  id: string;
-  timestamp: string;
-  backup_type: 'manual' | 'automatic' | 'shutdown';
-  size_bytes: number;
-  components: Array<{
-    name: string;
-    component_type: string;
-    size_bytes: number;
-  }>;
-  metadata: {
-    agent_name: string;
-    eliza_version: string;
-    notes?: string;
-  };
-}
-
-interface BackupConfig {
-  auto_backup_enabled: boolean;
-  auto_backup_interval_hours: number;
-  max_backups_to_keep: number;
-  backup_directory: string;
-}
-
-interface RestoreOptions {
-  restore_database: boolean;
-  restore_agent_state: boolean;
-  restore_knowledge: boolean;
-  restore_logs: boolean;
-  force: boolean;
-}
+import TauriService, { Backup, BackupConfig, RestoreOptions } from '../services/TauriService';
 
 export const BackupSettings: React.FC = () => {
   const [backups, setBackups] = useState<Backup[]>([]);
@@ -216,15 +183,19 @@ export const BackupSettings: React.FC = () => {
   };
 
   return (
-    <div className="backup-settings">
-      <div className="backup-header">
-        <h3>◎ BACKUP & RESTORE</h3>
-        <div className="backup-actions">
-          <button className="backup-btn import" onClick={handleImportBackup} disabled={isLoading}>
+    <div className="p-5 bg-black/60 border border-terminal-green-border">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-terminal-green uppercase tracking-wider">◎ BACKUP & RESTORE</h3>
+        <div className="flex gap-2">
+          <button 
+            className="py-1.5 px-3 bg-terminal-blue/20 border border-terminal-blue/30 text-terminal-blue font-mono text-xs uppercase transition-none hover:bg-terminal-blue/30 hover:border-terminal-blue disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleImportBackup} 
+            disabled={isLoading}
+          >
             📥 Import
           </button>
           <button
-            className="backup-btn create"
+            className="py-1.5 px-3 bg-terminal-green/20 border border-terminal-green/30 text-terminal-green font-mono text-xs uppercase transition-none hover:bg-terminal-green/30 hover:border-terminal-green disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => setShowCreateDialog(true)}
             disabled={isLoading}
           >
@@ -234,81 +205,83 @@ export const BackupSettings: React.FC = () => {
       </div>
 
       {/* Auto-backup Configuration */}
-      <div className="backup-config">
-        <h4>Automatic Backup Settings</h4>
-        <div className="config-item">
-          <label>
+      <div className="mb-6 p-4 bg-black/40 border border-terminal-green/20">
+        <h4 className="text-xs font-bold text-terminal-green mb-3 uppercase tracking-wider">Automatic Backup Settings</h4>
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={config.auto_backup_enabled}
               onChange={(e) => setConfig({ ...config, auto_backup_enabled: e.target.checked })}
+              className="w-3 h-3 accent-terminal-green cursor-pointer"
             />
-            Enable automatic backups
+            <span className="text-xs text-terminal-green">Enable automatic backups</span>
           </label>
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-terminal-green/70">Backup interval (hours)</label>
+            <input
+              type="number"
+              min="1"
+              max="24"
+              value={config.auto_backup_interval_hours}
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  auto_backup_interval_hours: parseInt(e.target.value, 10) || 4,
+                })
+              }
+              className="w-16 py-1 px-2 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none transition-none focus:border-terminal-green focus:bg-black/80"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-terminal-green/70">Keep last</label>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={config.max_backups_to_keep}
+              onChange={(e) =>
+                setConfig({ ...config, max_backups_to_keep: parseInt(e.target.value, 10) || 5 })
+              }
+              className="w-16 py-1 px-2 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none transition-none focus:border-terminal-green focus:bg-black/80"
+            />
+            <span className="text-xs text-terminal-green/70">backups</span>
+          </div>
         </div>
-        <div className="config-item">
-          <label>Backup interval (hours)</label>
-          <input
-            type="number"
-            min="1"
-            max="24"
-            value={config.auto_backup_interval_hours}
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                auto_backup_interval_hours: parseInt(e.target.value, 10) || 4,
-              })
-            }
-          />
-        </div>
-        <div className="config-item">
-          <label>Keep last</label>
-          <input
-            type="number"
-            min="1"
-            max="20"
-            value={config.max_backups_to_keep}
-            onChange={(e) =>
-              setConfig({ ...config, max_backups_to_keep: parseInt(e.target.value, 10) || 5 })
-            }
-          />
-          <span> backups</span>
-        </div>
-        <button className="config-save-btn" onClick={handleConfigUpdate}>
+        <button 
+          className="mt-4 py-1.5 px-3 bg-terminal-green/20 border border-terminal-green/30 text-terminal-green font-mono text-xs uppercase transition-none hover:bg-terminal-green/30 hover:border-terminal-green"
+          onClick={handleConfigUpdate}
+        >
           Save Settings
         </button>
       </div>
 
       {/* Backup List */}
-      <div className="backup-list">
-        <h4>Available Backups</h4>
+      <div>
+        <h4 className="text-xs font-bold text-terminal-green mb-3 uppercase tracking-wider">Available Backups</h4>
         {backups.length === 0 ? (
-          <div className="no-backups">No backups available</div>
+          <div className="text-center text-gray-400 italic py-8 text-xs">No backups available</div>
         ) : (
-          <div className="backup-items">
+          <div className="space-y-2">
             {backups.map((backup) => (
-              <div key={backup.id} className="backup-item">
-                <div className="backup-info">
-                  <div className="backup-main">
-                    <span className="backup-type-icon">
-                      {getBackupTypeIcon(backup.backup_type)}
-                    </span>
-                    <span className="backup-name">{backup.metadata.agent_name}</span>
-                    <span className="backup-type">{backup.backup_type}</span>
+              <div key={backup.id} className="flex items-start gap-3 p-3 bg-black/40 border border-terminal-green/20 hover:bg-black/50 hover:border-terminal-green/30 transition-none">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-base leading-none">{getBackupTypeIcon(backup.backup_type)}</span>
+                    <span className="text-sm font-bold text-terminal-green">{backup.metadata.agent_name}</span>
+                    <span className="px-1.5 py-0.5 bg-terminal-green/20 border border-terminal-green/30 text-terminal-green text-[10px] uppercase">{backup.backup_type}</span>
                   </div>
-                  <div className="backup-details">
-                    <span className="backup-time">
-                      {new Date(backup.timestamp).toLocaleString()}
-                    </span>
-                    <span className="backup-size">{formatBytes(backup.size_bytes)}</span>
+                  <div className="text-[11px] text-gray-400 space-y-0.5">
+                    <div>{new Date(backup.timestamp).toLocaleString()}</div>
+                    <div>{formatBytes(backup.size_bytes)}</div>
                     {backup.metadata.notes && (
-                      <span className="backup-notes">{backup.metadata.notes}</span>
+                      <div className="text-gray-500 italic">{backup.metadata.notes}</div>
                     )}
                   </div>
                 </div>
-                <div className="backup-actions">
+                <div className="flex gap-1">
                   <button
-                    className="action-btn restore"
+                    className="p-1.5 bg-terminal-green/10 border border-terminal-green/20 text-terminal-green hover:bg-terminal-green/20 hover:border-terminal-green/30 transition-none"
                     onClick={() => {
                       setSelectedBackup(backup);
                       setShowRestoreDialog(true);
@@ -318,14 +291,14 @@ export const BackupSettings: React.FC = () => {
                     🔄
                   </button>
                   <button
-                    className="action-btn export"
+                    className="p-1.5 bg-terminal-blue/10 border border-terminal-blue/20 text-terminal-blue hover:bg-terminal-blue/20 hover:border-terminal-blue/30 transition-none"
                     onClick={() => handleExportBackup(backup)}
                     title="Export"
                   >
                     📤
                   </button>
                   <button
-                    className="action-btn delete"
+                    className="p-1.5 bg-terminal-red/10 border border-terminal-red/20 text-terminal-red hover:bg-terminal-red/20 hover:border-terminal-red/30 transition-none"
                     onClick={() => handleDeleteBackup(backup.id)}
                     title="Delete"
                   >
@@ -340,23 +313,32 @@ export const BackupSettings: React.FC = () => {
 
       {/* Create Backup Dialog */}
       {showCreateDialog && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Create Manual Backup</h3>
-            <div className="modal-body">
-              <label>Notes (optional)</label>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
+          <div className="bg-gradient-to-br from-gray-900 to-black border border-terminal-green-border p-6 max-w-md w-[90%]">
+            <h3 className="text-lg font-bold text-terminal-green mb-4 uppercase tracking-wider">Create Manual Backup</h3>
+            <div className="mb-4">
+              <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider">Notes (optional)</label>
               <textarea
                 value={backupNotes}
                 onChange={(e) => setBackupNotes(e.target.value)}
                 placeholder="Add notes about this backup..."
                 rows={3}
+                className="w-full py-2 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none transition-none placeholder:text-gray-500 focus:border-terminal-green focus:bg-black/80"
               />
             </div>
-            <div className="modal-actions">
-              <button onClick={() => setShowCreateDialog(false)} disabled={isLoading}>
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => setShowCreateDialog(false)} 
+                disabled={isLoading}
+                className="py-2 px-4 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs uppercase transition-none hover:bg-terminal-green/10 hover:border-terminal-green disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Cancel
               </button>
-              <button onClick={handleCreateBackup} disabled={isLoading} className="primary">
+              <button 
+                onClick={handleCreateBackup} 
+                disabled={isLoading} 
+                className="py-2 px-4 bg-terminal-green/20 border border-terminal-green/30 text-terminal-green font-mono text-xs uppercase transition-none hover:bg-terminal-green/30 hover:border-terminal-green disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {isLoading ? 'Creating...' : 'Create Backup'}
               </button>
             </div>
@@ -366,70 +348,84 @@ export const BackupSettings: React.FC = () => {
 
       {/* Restore Dialog */}
       {showRestoreDialog && selectedBackup && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>⚠️ Restore Backup</h3>
-            <div className="modal-body">
-              <p className="warning-text">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
+          <div className="bg-gradient-to-br from-gray-900 to-black border border-terminal-green-border p-6 max-w-lg w-[90%]">
+            <h3 className="text-lg font-bold text-terminal-red mb-4 uppercase tracking-wider">⚠️ Restore Backup</h3>
+            <div className="mb-4 space-y-3">
+              <p className="text-sm text-terminal-yellow">
                 This will restore your agent to the state from{' '}
                 <strong>{new Date(selectedBackup.timestamp).toLocaleString()}</strong>.
               </p>
-              <p className="warning-text">
-                <strong>This operation is DESTRUCTIVE and cannot be undone!</strong>
+              <p className="text-sm text-terminal-red font-bold">
+                This operation is DESTRUCTIVE and cannot be undone!
               </p>
 
-              <div className="restore-options">
-                <h4>Select components to restore:</h4>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={restoreOptions.restore_database}
-                    onChange={(e) =>
-                      setRestoreOptions({ ...restoreOptions, restore_database: e.target.checked })
-                    }
-                  />
-                  Database (conversations, settings)
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={restoreOptions.restore_agent_state}
-                    onChange={(e) =>
-                      setRestoreOptions({
-                        ...restoreOptions,
-                        restore_agent_state: e.target.checked,
-                      })
-                    }
-                  />
-                  Agent State (memory, context)
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={restoreOptions.restore_knowledge}
-                    onChange={(e) =>
-                      setRestoreOptions({ ...restoreOptions, restore_knowledge: e.target.checked })
-                    }
-                  />
-                  Knowledge Base
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={restoreOptions.restore_logs}
-                    onChange={(e) =>
-                      setRestoreOptions({ ...restoreOptions, restore_logs: e.target.checked })
-                    }
-                  />
-                  Logs (optional)
-                </label>
+              <div className="mt-4 p-3 bg-black/60 border border-terminal-green/20">
+                <h4 className="text-xs font-bold text-terminal-green mb-3 uppercase tracking-wider">Select components to restore:</h4>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={restoreOptions.restore_database}
+                      onChange={(e) =>
+                        setRestoreOptions({ ...restoreOptions, restore_database: e.target.checked })
+                      }
+                      className="w-3 h-3 accent-terminal-green cursor-pointer"
+                    />
+                    <span className="text-xs text-terminal-green">Database (conversations, settings)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={restoreOptions.restore_agent_state}
+                      onChange={(e) =>
+                        setRestoreOptions({
+                          ...restoreOptions,
+                          restore_agent_state: e.target.checked,
+                        })
+                      }
+                      className="w-3 h-3 accent-terminal-green cursor-pointer"
+                    />
+                    <span className="text-xs text-terminal-green">Agent State (memory, context)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={restoreOptions.restore_knowledge}
+                      onChange={(e) =>
+                        setRestoreOptions({ ...restoreOptions, restore_knowledge: e.target.checked })
+                      }
+                      className="w-3 h-3 accent-terminal-green cursor-pointer"
+                    />
+                    <span className="text-xs text-terminal-green">Knowledge Base</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={restoreOptions.restore_logs}
+                      onChange={(e) =>
+                        setRestoreOptions({ ...restoreOptions, restore_logs: e.target.checked })
+                      }
+                      className="w-3 h-3 accent-terminal-green cursor-pointer"
+                    />
+                    <span className="text-xs text-terminal-green">Logs (optional)</span>
+                  </label>
+                </div>
               </div>
             </div>
-            <div className="modal-actions">
-              <button onClick={() => setShowRestoreDialog(false)} disabled={isLoading}>
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => setShowRestoreDialog(false)} 
+                disabled={isLoading}
+                className="py-2 px-4 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs uppercase transition-none hover:bg-terminal-green/10 hover:border-terminal-green disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Cancel
               </button>
-              <button onClick={handleRestore} disabled={isLoading} className="danger">
+              <button 
+                onClick={handleRestore} 
+                disabled={isLoading} 
+                className="py-2 px-4 bg-terminal-red/30 border border-terminal-red/30 text-terminal-red font-mono text-xs uppercase transition-none hover:bg-terminal-red/40 hover:border-terminal-red disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {isLoading ? 'Restoring...' : 'Restore Backup'}
               </button>
             </div>
@@ -439,21 +435,40 @@ export const BackupSettings: React.FC = () => {
 
       {/* Notification */}
       {notification && (
-        <div className={`notification ${notification.type}`}>
-          <span>{notification.message}</span>
-          <button onClick={() => setNotification(null)}>×</button>
+        <div className={`fixed bottom-4 right-4 p-4 border font-mono text-xs animate-fade-in ${
+          notification.type === 'success' 
+            ? 'bg-terminal-green/20 border-terminal-green text-terminal-green' 
+            : 'bg-terminal-red/20 border-terminal-red text-terminal-red'
+        }`}>
+          <div className="flex items-start gap-3">
+            <span>{notification.message}</span>
+            <button 
+              onClick={() => setNotification(null)}
+              className="text-lg leading-none hover:opacity-70"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
 
       {/* Confirm Dialog */}
       {confirmDialog && confirmDialog.open && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h2>{confirmDialog.title}</h2>
-            <p>{confirmDialog.message}</p>
-            <div className="modal-actions">
-              <button onClick={() => setConfirmDialog(null)}>Cancel</button>
-              <button onClick={confirmDialog.onConfirm} className="danger">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
+          <div className="bg-gradient-to-br from-gray-900 to-black border border-terminal-green-border p-6 max-w-md w-[90%]">
+            <h2 className="text-lg font-bold text-terminal-green mb-4">{confirmDialog.title}</h2>
+            <p className="text-sm text-gray-300 mb-6">{confirmDialog.message}</p>
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => setConfirmDialog(null)}
+                className="py-2 px-4 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs uppercase transition-none hover:bg-terminal-green/10 hover:border-terminal-green"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDialog.onConfirm} 
+                className="py-2 px-4 bg-terminal-red/30 border border-terminal-red/30 text-terminal-red font-mono text-xs uppercase transition-none hover:bg-terminal-red/40 hover:border-terminal-red"
+              >
                 Confirm
               </button>
             </div>

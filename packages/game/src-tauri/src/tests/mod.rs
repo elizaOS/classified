@@ -1,6 +1,7 @@
 pub mod media_streaming_tests;
 pub mod runtime_tests;
 pub mod screen_sharing_tests;
+pub mod test_utils;
 pub mod shutdown_test;
 
 use crate::startup::StartupStatus;
