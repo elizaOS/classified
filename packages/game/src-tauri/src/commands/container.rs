@@ -9,6 +9,7 @@ use crate::startup::StartupManager;
 use serde_json::json;
 use std::sync::Arc;
 use tauri::State;
+use tokio::sync::Mutex;
 
 #[tauri::command]
 pub async fn get_container_status_new(
@@ -138,9 +139,10 @@ pub async fn setup_complete_environment_new(
 
 #[tauri::command]
 pub async fn get_setup_progress_new(
-    startup_manager: State<'_, Arc<StartupManager>>,
+    startup_manager: State<'_, Arc<Mutex<StartupManager>>>,
 ) -> Result<serde_json::Value, String> {
-    let progress = startup_manager.inner().get_status();
+    let manager = startup_manager.lock().await;
+    let progress = manager.get_status();
     Ok(serde_json::to_value(progress).unwrap())
 }
 

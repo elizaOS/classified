@@ -46,6 +46,7 @@ impl OperationLock {
 
     /// Try to acquire a lock for an operation
     /// Returns Ok(guard) if successful, Err if operation is already locked
+    #[allow(dead_code)] // Used in macros and tests
     pub fn try_lock(&self, operation: &str, description: &str) -> Result<OperationGuard, String> {
         let operation_info = OperationInfo {
             id: uuid::Uuid::new_v4().to_string(),

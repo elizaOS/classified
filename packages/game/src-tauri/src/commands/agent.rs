@@ -36,11 +36,16 @@ pub async fn fetch_autonomy_status() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-pub async fn toggle_capability(capability: String) -> Result<serde_json::Value, String> {
+pub async fn toggle_capability(capability: String, enabled: bool) -> Result<serde_json::Value, String> {
+    use crate::config::get_agent_id;
+    
+    let agent_id = get_agent_id();
+    let body = serde_json::json!({ "enabled": enabled });
+    
     agent_server_request(
         "POST",
-        &format!("/api/capabilities/{}/toggle", capability),
-        None,
+        &format!("/api/agents/{}/capabilities/{}/toggle", agent_id, capability),
+        Some(body),
         Some(10),
     )
     .await

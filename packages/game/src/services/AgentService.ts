@@ -4,8 +4,8 @@
  * Extracted from the monolithic TauriService for better maintainability
  */
 
-import { BaseTauriService } from './BaseTauriService';
 import { HealthCheckResponse } from '../types/shared';
+import { BaseTauriService } from './BaseTauriService';
 
 export class AgentService extends BaseTauriService {
   // Agent health and info
@@ -81,10 +81,11 @@ export class AgentService extends BaseTauriService {
     }) as Promise<void>;
   }
 
-  public async toggleCapability(capability: string): Promise<void> {
+  public async toggleCapability(capability: string, enabled: boolean): Promise<any> {
     return this.ensureInitializedAndInvoke('toggle_capability', {
       capability,
-    }) as Promise<void>;
+      enabled,
+    });
   }
 
   public async getCapabilityStatus(

@@ -19,195 +19,79 @@ interface TodosPanelProps {
 }
 
 export const TodosPanel: React.FC<TodosPanelProps> = ({ todos }) => {
-  const getTypeColor = (type: Todo['type']) => {
+  const getTypeStyles = (type: Todo['type']) => {
     switch (type) {
       case 'daily':
-        return '#00ffff';
+        return 'text-terminal-cyan border-terminal-cyan';
       case 'one-off':
-        return '#ffff00';
+        return 'text-terminal-yellow border-terminal-yellow';
       case 'aspirational':
-        return '#ff00ff';
+        return 'text-terminal-magenta border-terminal-magenta';
       default:
-        return '#ccc';
+        return 'text-gray-300 border-gray-300';
     }
   };
 
-  const getPriorityColor = (priority?: number) => {
-    if (!priority) return '#888';
-    if (priority === 1) return '#ff0000';
-    if (priority === 2) return '#ff8800';
-    if (priority === 3) return '#ffff00';
-    return '#00ff00';
+  const getPriorityStyles = (priority?: number) => {
+    if (!priority) return 'text-gray-400 border-gray-400';
+    if (priority === 1) return 'text-terminal-red border-terminal-red';
+    if (priority === 2) return 'text-terminal-orange border-terminal-orange';
+    if (priority === 3) return 'text-terminal-yellow border-terminal-yellow';
+    return 'text-terminal-green border-terminal-green';
   };
 
   return (
-    <>
-      <style>{`
-        .todos-panel {
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-          background: #000;
-          color: #00ff00;
-          font-family: 'Courier New', monospace;
-        }
-        
-        .todos-header {
-          padding: 15px;
-          border-bottom: 1px solid #00ff00;
-          background: rgba(0, 0, 0, 0.9);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        
-        .todos-title {
-          font-weight: bold;
-          color: #00ff00;
-        }
-        
-        .todos-count {
-          background: rgba(0, 255, 0, 0.2);
-          padding: 2px 8px;
-          border: 1px solid #00ff00;
-          border-radius: 12px;
-          font-size: 11px;
-        }
-        
-        .todos-content {
-          flex: 1;
-          padding: 15px;
-          overflow-y: auto;
-          min-height: 0;
-        }
-        
-        .todo-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 12px;
-          margin-bottom: 10px;
-          border: 1px solid rgba(0, 255, 0, 0.3);
-          background: rgba(0, 255, 0, 0.05);
-          border-radius: 4px;
-          transition: all 0.2s ease;
-        }
-        
-        .todo-item:hover {
-          background: rgba(0, 255, 0, 0.1);
-          border-color: rgba(0, 255, 0, 0.5);
-        }
-        
-        .todo-indicator {
-          font-size: 16px;
-          font-weight: bold;
-          width: 20px;
-          text-align: center;
-          margin-top: 2px;
-        }
-        
-        .todo-indicator.completed {
-          color: #00ff00;
-        }
-        
-        .todo-indicator.pending {
-          color: #888;
-        }
-        
-        .todo-content {
-          flex: 1;
-          min-width: 0;
-        }
-        
-        .todo-name {
-          font-weight: bold;
-          color: #00ff00;
-          margin-bottom: 4px;
-          font-size: 14px;
-        }
-        
-        .todo-meta {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-          font-size: 11px;
-          margin-top: 4px;
-        }
-        
-        .todo-type {
-          padding: 2px 6px;
-          border-radius: 10px;
-          font-weight: bold;
-          background: rgba(0, 0, 0, 0.5);
-          border: 1px solid;
-        }
-        
-        .todo-priority {
-          padding: 2px 6px;
-          border-radius: 10px;
-          font-weight: bold;
-          background: rgba(0, 0, 0, 0.5);
-          border: 1px solid;
-        }
-        
-        .todos-empty {
-          text-align: center;
-          color: #666;
-          font-style: italic;
-          padding: 40px 20px;
-        }
-      `}</style>
+    <div
+      className="flex flex-col h-full bg-black text-terminal-green font-mono"
+      data-testid="todos-content"
+    >
+      <div className="p-4 border-b border-terminal-green bg-black/90 flex justify-between items-center">
+        <span className="font-bold text-terminal-green">✓ TASKS</span>
+        <span className="bg-terminal-green/20 px-2 py-0.5 border border-terminal-green text-xs">
+          {todos.length}
+        </span>
+      </div>
 
-      <div className="todos-panel" data-testid="todos-content">
-        <div className="todos-header">
-          <span className="todos-title">✓ TASKS</span>
-          <span className="todos-count">{todos.length}</span>
-        </div>
-
-        <div className="todos-content">
-          {todos.length === 0 ? (
-            <div className="todos-empty">
-              No pending tasks.
-              <br />
-              Tasks will appear here when the agent creates them.
-            </div>
-          ) : (
-            todos.map((todo) => (
-              <div key={todo.id} className="todo-item">
-                <div className={`todo-indicator ${todo.isCompleted ? 'completed' : 'pending'}`}>
-                  {todo.isCompleted ? '✓' : '○'}
-                </div>
-                <div className="todo-content">
-                  <div className="todo-name">{todo.name}</div>
-                  <div className="todo-meta">
+      <div className="flex-1 p-4 overflow-y-auto min-h-0">
+        {todos.length === 0 ? (
+          <div className="text-center text-gray-400 italic py-10 px-5">
+            No pending tasks.
+            <br />
+            Tasks will appear here when the agent creates them.
+          </div>
+        ) : (
+          todos.map((todo) => (
+            <div
+              key={todo.id}
+              className="flex items-start gap-3 p-3 mb-2.5 border border-terminal-green-border bg-terminal-green-subtle transition-all duration-200 hover:bg-terminal-green/10 hover:border-terminal-green/50"
+            >
+              <div
+                className={`text-base font-bold w-5 text-center mt-0.5 ${todo.isCompleted ? 'text-terminal-green' : 'text-gray-400'}`}
+              >
+                {todo.isCompleted ? '✓' : '○'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-terminal-green mb-1 text-sm">{todo.name}</div>
+                <div className="flex gap-3 items-center text-[11px] mt-1">
+                  <span
+                    className={`px-1.5 py-0.5 font-bold bg-black/50 border ${getTypeStyles(todo.type)}`}
+                  >
+                    {todo.type}
+                  </span>
+                  {todo.priority && (
                     <span
-                      className="todo-type"
-                      style={{
-                        color: getTypeColor(todo.type),
-                        borderColor: getTypeColor(todo.type),
-                      }}
+                      className={`px-1.5 py-0.5 font-bold bg-black/50 border ${getPriorityStyles(todo.priority)}`}
                     >
-                      {todo.type}
+                      P{todo.priority}
                     </span>
-                    {todo.priority && (
-                      <span
-                        className="todo-priority"
-                        style={{
-                          color: getPriorityColor(todo.priority),
-                          borderColor: getPriorityColor(todo.priority),
-                        }}
-                      >
-                        P{todo.priority}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            </div>
+          ))
+        )}
       </div>
-    </>
+    </div>
   );
 };
 

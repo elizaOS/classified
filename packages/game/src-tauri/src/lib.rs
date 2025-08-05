@@ -209,9 +209,20 @@ async fn wait_for_agent_server_ready(agent_port: u16) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+    // Initialize logging with proper buffer management
+    use tracing_subscriber::{fmt, EnvFilter, prelude::*};
+    
+    tracing_subscriber::registry()
+        .with(fmt::layer()
+            .with_writer(std::io::stderr)
+            .with_ansi(true)
+            .with_target(false)
+            .with_thread_ids(false)
+            .with_thread_names(false)
+            .with_file(false)
+            .with_line_number(false))
+        .with(EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
 
     info!("Starting ElizaOS Game with Rust backend");

@@ -26,10 +26,12 @@ services:
     ports:
       - '11434:11434'
     healthcheck:
-      test: ['CMD-SHELL', 'curl -f http://localhost:11434/api/version || exit 1']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ['CMD-SHELL', 'curl -f http://localhost:11434/api/version || curl -f http://localhost:11434 || exit 1']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
 
   eliza-agent:
     build:
@@ -66,12 +68,18 @@ services:
       - ./data:/app/data
       - ./downloads:/app/downloads
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
     healthcheck:
-      test: ['CMD-SHELL', 'curl -f http://localhost:7777/health || exit 1']
+      test: ['CMD-SHELL', 'curl -f http://localhost:7777/api/server/health || exit 1']
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
+      timeout: 15s
+      retries: 5
+      start_period: 180s
 
 volumes:
   postgres_data:

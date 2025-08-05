@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import './App.css';
+
 import StartupFlow from './components/StartupFlow';
 import GameInterface from './components/GameInterface';
 import { TauriInitializer } from './components/TauriInitializer';
@@ -37,7 +37,7 @@ function App() {
     return (
       <ErrorBoundary>
         <TauriInitializer>
-          <div className="app">
+          <div className="h-full">
             <StartupFlow onComplete={handleStartupComplete} />
           </div>
         </TauriInitializer>
@@ -49,7 +49,7 @@ function App() {
   return (
     <ErrorBoundary>
       <TauriInitializer>
-        <div className="app">
+        <div className="h-full">
           <GameInterface />
         </div>
       </TauriInitializer>

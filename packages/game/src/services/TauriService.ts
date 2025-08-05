@@ -164,6 +164,7 @@ class TauriServiceClass {
   private messageListeners: Set<(message: TauriMessage) => void> = new Set();
   private statusListeners: Set<(status: StartupStatus) => void> = new Set();
   private containerLogListeners: Set<(log: ContainerLog) => void> = new Set();
+  private agentLogListeners: Set<(log: LogEntry) => void> = new Set();
   private unlistenFns: Array<() => void> = [];
   private userId: string;
   private agentId: string = CONFIG.AGENT_ID;
@@ -228,6 +229,16 @@ class TauriServiceClass {
       // Ensure message has an ID
       if (!message.id) {
         message.id = uuidv4();
+      }
+
+      // Filter out our own user messages coming back from the bus
+      // The UI already handles displaying user messages locally
+      if (message.type === 'user' && message.authorId === this.userId) {
+        console.debug(
+          `[TauriService] Filtering out own user message from ${source}:`,
+          message.content.substring(0, 50)
+        );
+        return;
       }
 
       // Check if we've already processed this message by ID
@@ -383,6 +394,14 @@ class TauriServiceClass {
       this.containerLogListeners.forEach((listener) => listener(log));
     });
     this.unlistenFns.push(unlistenContainerLog);
+
+    // Listen for agent logs from Eliza logger
+    if (!this.tauriListen) throw new Error('Tauri listen not available');
+    const unlistenAgentLog = await this.tauriListen<LogEntry>('agent-log', (event) => {
+      const log = event.payload;
+      this.agentLogListeners.forEach((listener) => listener(log));
+    });
+    this.unlistenFns.push(unlistenAgentLog);
   }
 
   private async ensureInitializedAndInvoke(
@@ -450,6 +469,11 @@ class TauriServiceClass {
     return () => this.containerLogListeners.delete(listener);
   }
 
+  public onAgentLog(listener: (log: LogEntry) => void): () => void {
+    this.agentLogListeners.add(listener);
+    return () => this.agentLogListeners.delete(listener);
+  }
+
   // Clean up event listeners
   public destroy(): void {
     this.unlistenFns.forEach((fn) => fn());
@@ -478,25 +502,22 @@ class TauriServiceClass {
     return Boolean(response);
   }
 
+  public async subscribeToLogStream(agentName?: string, logLevel?: string): Promise<void> {
+    await this.ensureInitializedAndInvoke('subscribe_to_log_stream', {
+      agent_name: agentName || 'all',
+      level: logLevel || 'all',
+    });
+  }
+
   // Message handling
   public async sendMessage(content: string): Promise<string> {
     const response = await this.ensureInitializedAndInvoke('send_message_to_agent', {
       message: content,
     });
 
-    // Create user message for immediate UI feedback
-    const userMessage: TauriMessage = {
-      id: uuidv4(),
-      content,
-      type: 'user',
-      authorId: this.userId,
-      authorName: 'User',
-      timestamp: new Date(),
-      metadata: {},
-    };
-
-    // Notify listeners of the user message
-    this.messageListeners.forEach((listener) => listener(userMessage));
+    // Don't emit user messages here - the UI handles them locally
+    // to prevent duplicates. The message will come back through the bus
+    // if needed for other clients.
 
     return String(response || '');
   }
@@ -717,7 +738,7 @@ class TauriServiceClass {
     pluginId: string,
     config: Record<string, unknown>
   ): Promise<void> {
-    await this.ensureInitializedAndInvoke('update_plugin_config', { pluginId, config });
+    await this.ensureInitializedAndInvoke('update_plugin_config', { pluginName: pluginId, config });
   }
 
   public async togglePlugin(pluginId: string, enabled: boolean): Promise<void> {
@@ -905,8 +926,12 @@ class TauriServiceClass {
   }
 
   // Shell/browser capability management
-  public async toggleCapability(capability: string): Promise<void> {
-    await this.ensureInitializedAndInvoke('toggle_capability', { capability });
+  public async toggleCapability(capability: string, enabled: boolean): Promise<any> {
+    const response = await this.ensureInitializedAndInvoke('toggle_capability', {
+      capability,
+      enabled,
+    });
+    return response;
   }
 
   public async getCapabilityStatus(

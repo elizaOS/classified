@@ -220,6 +220,80 @@ export class AgentServer {
   }
 
   /**
+   * Register signal handlers for graceful shutdown
+   */
+  private registerSignalHandlers(): void {
+    const gracefulShutdown = async (signal: string) => {
+      logger.info(`[AgentServer] Received ${signal} signal, initiating graceful shutdown...`);
+      
+      try {
+        // Close WebSocket connections
+        if (this.webSocketServer) {
+          this.webSocketServer.clients.forEach(client => {
+            try {
+              client.close(1000, 'Server shutting down');
+            } catch (error) {
+              // Ignore errors during shutdown
+            }
+          });
+          this.webSocketServer.close();
+        }
+
+        // Close HTTP server
+        if (this.server) {
+          this.server.close(() => {
+            logger.info('[AgentServer] HTTP server closed');
+          });
+        }
+
+        // Stop all agents
+        for (const [agentId, runtime] of this.agents) {
+          try {
+            await runtime.cleanup?.();
+            logger.info(`[AgentServer] Cleaned up agent ${agentId}`);
+          } catch (error) {
+            logger.warn(`[AgentServer] Error cleaning up agent ${agentId}:`, error);
+          }
+        }
+
+        // Close database connections
+        if (this.database?.close) {
+          await this.database.close();
+        }
+
+        logger.info('[AgentServer] Graceful shutdown completed');
+        process.exit(0);
+      } catch (error) {
+        logger.error('[AgentServer] Error during graceful shutdown:', error);
+        process.exit(1);
+      }
+    };
+
+    // Handle different signals
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGHUP', () => gracefulShutdown('SIGHUP'));
+    
+    // Handle SIGPIPE specifically to prevent crashes
+    process.on('SIGPIPE', () => {
+      logger.warn('[AgentServer] Received SIGPIPE, handling gracefully');
+      // Don't exit on SIGPIPE, just log it
+    });
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      logger.error('[AgentServer] Uncaught exception:', error);
+      gracefulShutdown('uncaughtException');
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('[AgentServer] Unhandled promise rejection at:', promise, 'reason:', reason);
+      gracefulShutdown('unhandledRejection');
+    });
+  }
+
+  /**
    * Initializes the database and server.
    *
    * @param {ServerOptions} [options] - Optional server options.
@@ -1205,10 +1279,21 @@ export class AgentServer {
 
       // Override write method to broadcast logs via WebSocket
       destination.write = (data: string | any) => {
-        // Call original write first
-        originalWrite(data);
+        // Call original write first with error handling for SIGPIPE
+        try {
+          originalWrite(data);
+        } catch (error: any) {
+          // Handle SIGPIPE and other write errors gracefully
+          if (error.code === 'EPIPE' || error.errno === 35) {
+            // SIGPIPE or Resource temporarily unavailable - log once and continue
+            console.error('[LogStream] Write pipe broken, continuing without original destination');
+          } else {
+            // Re-throw other errors
+            throw error;
+          }
+        }
 
-        // Parse and broadcast log entry
+        // Parse and broadcast log entry with error handling
         try {
           let logEntry;
           if (typeof data === 'string') {
@@ -1272,7 +1357,17 @@ export class AgentServer {
           }
 
           if (shouldBroadcast) {
-            client.send(JSON.stringify(logData));
+            try {
+              client.send(JSON.stringify(logData));
+            } catch (error: any) {
+              // Handle WebSocket send errors gracefully
+              if (error.code === 'EPIPE' || error.errno === 35 || error.message?.includes('WebSocket')) {
+                // Client disconnected or pipe broken - remove from connections
+                this.logStreamConnections.delete(_clientId);
+              } else {
+                logger.warn(`[WebSocket] Failed to send log to client ${_clientId}: ${error.message}`);
+              }
+            }
           }
         }
       });

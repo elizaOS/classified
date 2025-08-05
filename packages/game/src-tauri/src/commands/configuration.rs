@@ -47,7 +47,7 @@ pub async fn get_agent_configuration() -> Result<Value, String> {
     info!("📋 Fetching agent configuration");
     
     let agent_id = get_agent_id();
-    let endpoint = format!("/api/agents/{}/configuration", agent_id);
+    let endpoint = format!("/api/agents/{}/settings", agent_id);
     
     match agent_server_request("GET", &endpoint, None, None).await {
         Ok(response) => Ok(response),
@@ -62,9 +62,9 @@ pub async fn get_agent_configuration() -> Result<Value, String> {
 pub async fn update_agent_configuration(config: Value) -> Result<Value, String> {
     info!("🔧 Updating agent configuration");
     
-    // Try the agent-specific configuration endpoint first
+    // Try the agent-specific settings endpoint first
     let agent_id = get_agent_id();
-    let endpoint = format!("/api/agents/{}/configuration", agent_id);
+    let endpoint = format!("/api/agents/{}/settings", agent_id);
     
     let first_result = agent_server_request("POST", &endpoint, Some(config.clone()), None).await;
     if let Ok(response) = first_result {

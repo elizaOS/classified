@@ -99,38 +99,28 @@ export const AgentScreenPanel: React.FC<AgentScreenPanelProps> = ({
   };
 
   return (
-    <div className="status-content agent-screen-content" data-testid="agent-screen-content">
-      <div className="status-header">
-        <span>◎ SCREEN SHARING</span>
-        <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+    <div className="flex flex-col h-full bg-black text-terminal-green font-mono" data-testid="agent-screen-content">
+      <div className="p-4 border-b border-terminal-green bg-black/90 flex justify-between items-center">
+        <span className="font-bold text-terminal-green uppercase tracking-wider">◎ SCREEN SHARING</span>
+        <div className="flex gap-2">
           <button
-            className={`agent-screen-toggle ${agentScreenActive ? 'active' : ''}`}
+            className={`px-3 py-1.5 text-xs font-bold uppercase transition-all duration-200 border ${
+              agentScreenActive
+                ? 'bg-terminal-red border-terminal-red text-white hover:bg-terminal-red/80'
+                : 'bg-terminal-green border-terminal-green text-black hover:bg-terminal-green/80'
+            }`}
             onClick={handleAgentScreenToggle}
-            style={{
-              padding: '4px 12px',
-              backgroundColor: agentScreenActive ? '#dc2626' : '#059669',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px',
-            }}
             title="View agent's screen"
           >
             {agentScreenActive ? '🔴 Agent Screen' : '👁️ Agent Screen'}
           </button>
           <button
-            className={`screen-share-toggle ${streamingState.screen ? 'active' : ''}`}
+            className={`px-3 py-1.5 text-xs font-bold uppercase transition-all duration-200 border ${
+              streamingState.screen
+                ? 'bg-terminal-red border-terminal-red text-white hover:bg-terminal-red/80'
+                : 'bg-terminal-green border-terminal-green text-black hover:bg-terminal-green/80'
+            }`}
             onClick={handleScreenShareToggle}
-            style={{
-              padding: '4px 12px',
-              backgroundColor: streamingState.screen ? '#dc2626' : '#059669',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px',
-            }}
             title="Share your screen with agent"
           >
             {streamingState.screen ? '🔴 Stop Sharing' : '📺 Share Screen'}
@@ -138,41 +128,51 @@ export const AgentScreenPanel: React.FC<AgentScreenPanelProps> = ({
         </div>
       </div>
 
-      <div className="agent-screen-container">
+      <div className="flex-1 p-4 overflow-y-auto">
         <canvas
           id="agent-screen-canvas"
-          className="agent-screen-canvas"
+          className="w-full h-auto bg-black mb-4"
           style={{
-            width: '100%',
-            height: 'auto',
-            backgroundColor: '#000',
             imageRendering: 'pixelated',
           }}
         />
-        <div className="agent-screen-info">
-          {agentScreenActive && <span className="stream-indicator">🔴 Agent Screen Active</span>}
-          {streamingState.screen && <span className="stream-indicator">🖥️ Screen Sharing</span>}
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {agentScreenActive && (
+              <span className="px-2 py-1 bg-terminal-red/20 border border-terminal-red text-terminal-red text-xs font-bold uppercase">
+                🔴 Agent Screen Active
+              </span>
+            )}
+            {streamingState.screen && (
+              <span className="px-2 py-1 bg-terminal-blue/20 border border-terminal-blue text-terminal-blue text-xs font-bold uppercase">
+                🖥️ Screen Sharing
+              </span>
+            )}
+          </div>
 
-          <div className="screen-section">
-            <h4>👁️ Agent's View</h4>
-            <p>When enabled, you can see what the agent is viewing on their screen.</p>
-            <div className="screen-status">
-              Status: {agentScreenActive ? '🔴 Active' : '⚫ Inactive'}
+          <div className="p-4 bg-black/60 border border-terminal-green-border">
+            <h4 className="text-sm font-bold text-terminal-green mb-2 uppercase tracking-wider">👁️ Agent's View</h4>
+            <p className="text-xs text-gray-400 mb-2">When enabled, you can see what the agent is viewing on their screen.</p>
+            <div className="text-xs font-mono">
+              Status: <span className={agentScreenActive ? 'text-terminal-red' : 'text-gray-500'}>
+                {agentScreenActive ? '🔴 Active' : '⚫ Inactive'}
+              </span>
             </div>
           </div>
 
-          <div className="screen-section">
-            <h4>📺 Your Screen</h4>
-            <p>Share your screen with the agent so it can see what you're working on.</p>
-            <div className="screen-status">
-              Status: {streamingState.screen ? '🔴 Sharing' : '⚫ Not Sharing'}
+          <div className="p-4 bg-black/60 border border-terminal-green-border">
+            <h4 className="text-sm font-bold text-terminal-green mb-2 uppercase tracking-wider">📺 Your Screen</h4>
+            <p className="text-xs text-gray-400 mb-2">Share your screen with the agent so it can see what you're working on.</p>
+            <div className="text-xs font-mono">
+              Status: <span className={streamingState.screen ? 'text-terminal-blue' : 'text-gray-500'}>
+                {streamingState.screen ? '🔴 Sharing' : '⚫ Not Sharing'}
+              </span>
             </div>
           </div>
 
           {(agentScreenActive || streamingState.screen) && (
-            <div className="screen-warning">
-              <strong>⚠️ Privacy Notice:</strong> Screen sharing is active. Be mindful of sensitive
-              information.
+            <div className="p-3 bg-terminal-yellow/10 border border-terminal-yellow text-terminal-yellow text-xs">
+              <strong>⚠️ Privacy Notice:</strong> Screen sharing is active. Be mindful of sensitive information.
             </div>
           )}
         </div>

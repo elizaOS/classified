@@ -64,7 +64,6 @@ pub struct UserConfig {
     pub ai_provider: AiProvider,
     pub api_key: Option<String>,
     pub use_local_ollama: bool,
-    pub postgres_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -575,7 +574,6 @@ impl StartupManager {
             ai_provider: AiProvider::Ollama,
             api_key: None,
             use_local_ollama: true,
-            postgres_enabled: true,
         };
 
         // Automatically proceed with default configuration

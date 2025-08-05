@@ -3,11 +3,10 @@
  * Exports all status panel components for easy importing
  */
 
-// Unused panels removed - these can be re-enabled if needed:
-// export { GoalsPanel, type Goal } from './GoalsPanel';
-// export { TodosPanel, type Todo } from './TodosPanel';
-// export { MonologuePanel, type MonologueItem } from './MonologuePanel';
-// export { FilesPanel, type KnowledgeFile } from './FilesPanel';
+export { GoalsPanel, type Goal } from './GoalsPanel';
+export { TodosPanel, type Todo } from './TodosPanel';
+export { MonologuePanel, type MonologueItem } from './MonologuePanel';
+export { FilesPanel, type KnowledgeFile } from './FilesPanel';
 export { ConfigPanel } from './ConfigPanel';
 export { LogsPanel } from './LogsPanel';
 export { AgentScreenPanel, type OutputLine } from './AgentScreenPanel';

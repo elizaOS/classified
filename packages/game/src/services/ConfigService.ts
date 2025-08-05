@@ -117,7 +117,7 @@ export class ConfigService extends BaseTauriService {
     config: Record<string, unknown>
   ): Promise<void> {
     return this.ensureInitializedAndInvoke('update_plugin_config', {
-      pluginId,
+      pluginName: pluginId,
       config,
     }) as Promise<void>;
   }

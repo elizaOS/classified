@@ -341,8 +341,8 @@ async fn test_capability_toggles(_app_handle: &AppHandle) -> TestResult {
     let capabilities = vec!["shell", "browser", "camera", "microphone"];
 
     for capability in capabilities {
-        // Toggle capability
-        crate::commands::agent::toggle_capability(capability.to_string()).await?;
+        // Toggle capability on
+        crate::commands::agent::toggle_capability(capability.to_string(), true).await?;
 
         // Small delay to ensure toggle takes effect
         sleep(Duration::from_millis(100)).await;
@@ -350,8 +350,8 @@ async fn test_capability_toggles(_app_handle: &AppHandle) -> TestResult {
         // Get status
         let _status = crate::commands::agent::get_capability_status(capability.to_string()).await?;
 
-        // Toggle back
-        crate::commands::agent::toggle_capability(capability.to_string()).await?;
+        // Toggle back off
+        crate::commands::agent::toggle_capability(capability.to_string(), false).await?;
 
         info!("Tested capability: {}", capability);
     }

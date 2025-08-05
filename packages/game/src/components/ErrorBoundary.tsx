@@ -1,6 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { createLogger } from '../utils/logger';
-import './ErrorBoundary.css';
 
 const logger = createLogger('ErrorBoundary');
 
@@ -107,45 +106,63 @@ export class ErrorBoundary extends Component<Props, State> {
 
       // Default error UI
       return (
-        <div className="error-boundary-container">
-          <div className="error-boundary-content">
-            <div className="error-icon">⚠️</div>
-            <h1>Oops! Something went wrong</h1>
-            <p className="error-message">
+        <div className="flex items-center justify-center min-h-screen bg-black p-8">
+          <div className="max-w-lg w-full bg-gradient-to-br from-gray-900 to-black border border-terminal-red-border p-8">
+            <div className="text-6xl text-center mb-4">⚠️</div>
+            <h1 className="text-2xl font-bold text-terminal-red text-center mb-4">Oops! Something went wrong</h1>
+            <p className="text-terminal-green text-center mb-6">
               We encountered an unexpected error. The issue has been logged and we'll look into it.
             </p>
 
             {import.meta.env.DEV && this.state.error && (
-              <details className="error-details">
-                <summary>Error Details (Development Only)</summary>
-                <div className="error-stack">
-                  <h3>Error Message:</h3>
-                  <pre>{this.state.error.message}</pre>
+              <details className="mb-6 p-4 bg-black/60 border border-terminal-green-border">
+                <summary className="cursor-pointer text-terminal-yellow font-mono text-sm hover:text-terminal-yellow/80">
+                  Error Details (Development Only)
+                </summary>
+                <div className="mt-4 space-y-4 text-xs font-mono">
+                  <div>
+                    <h3 className="text-terminal-green font-bold mb-2">Error Message:</h3>
+                    <pre className="p-2 bg-black/80 border border-terminal-green/20 text-terminal-red overflow-x-auto">
+                      {this.state.error.message}
+                    </pre>
+                  </div>
 
-                  <h3>Stack Trace:</h3>
-                  <pre>{this.state.error.stack}</pre>
+                  <div>
+                    <h3 className="text-terminal-green font-bold mb-2">Stack Trace:</h3>
+                    <pre className="p-2 bg-black/80 border border-terminal-green/20 text-gray-400 overflow-x-auto text-[10px]">
+                      {this.state.error.stack}
+                    </pre>
+                  </div>
 
                   {this.state.errorInfo && (
-                    <>
-                      <h3>Component Stack:</h3>
-                      <pre>{this.state.errorInfo.componentStack}</pre>
-                    </>
+                    <div>
+                      <h3 className="text-terminal-green font-bold mb-2">Component Stack:</h3>
+                      <pre className="p-2 bg-black/80 border border-terminal-green/20 text-gray-400 overflow-x-auto text-[10px]">
+                        {this.state.errorInfo.componentStack}
+                      </pre>
+                    </div>
                   )}
                 </div>
               </details>
             )}
 
-            <div className="error-actions">
-              <button onClick={this.resetError} className="reset-button">
+            <div className="flex gap-4 justify-center">
+              <button 
+                onClick={this.resetError} 
+                className="py-2 px-6 bg-terminal-green/20 border border-terminal-green text-terminal-green font-mono text-sm uppercase hover:bg-terminal-green/30 hover:border-terminal-green transition-none"
+              >
                 Try Again
               </button>
-              <button onClick={() => window.location.reload()} className="reload-button">
+              <button 
+                onClick={() => window.location.reload()} 
+                className="py-2 px-6 bg-terminal-blue/20 border border-terminal-blue text-terminal-blue font-mono text-sm uppercase hover:bg-terminal-blue/30 hover:border-terminal-blue transition-none"
+              >
                 Reload Page
               </button>
             </div>
 
             {this.state.errorCount > 2 && (
-              <div className="error-warning">
+              <div className="mt-6 p-4 bg-terminal-yellow/10 border border-terminal-yellow text-terminal-yellow text-xs">
                 <p>
                   This error has occurred multiple times. Please try refreshing the page or contact
                   support if the issue persists.

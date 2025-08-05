@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import './StartupFlow.css';
 
 import { TauriWindow } from '../types/shared';
 import { env } from '../config/environment';
@@ -10,7 +9,6 @@ declare global {
 }
 
 const logger = createLogger('StartupFlow');
-const isDevelopment = import.meta.env.DEV;
 
 interface ModelDownloadProgress {
   model_name: string;
@@ -34,7 +32,6 @@ interface UserConfig {
   ai_provider: 'OpenAI' | 'Anthropic' | 'Ollama';
   api_key?: string;
   use_local_ollama?: boolean;
-  postgres_enabled?: boolean;
 }
 
 interface StartupFlowProps {
@@ -42,471 +39,477 @@ interface StartupFlowProps {
 }
 
 export default function StartupFlow({ onComplete }: StartupFlowProps) {
-  const [status, setStatus] = useState<StartupStatus>({
-    stage: 'initializing',
-    progress: 0,
-    description: 'Initializing game environment...',
-  });
-
+  const [currentStep, setCurrentStep] = useState<'config' | 'progress' | 'error'>('config');
   const [userConfig, setUserConfig] = useState<UserConfig>({
     ai_provider: 'OpenAI',
-    api_key: '',
-    use_local_ollama: false,
-    postgres_enabled: false,
+    use_local_ollama: true,
   });
-
-  const [showConfig, setShowConfig] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [configValidation, setConfigValidation] = useState<string | null>(null);
-  const [showRetry, setShowRetry] = useState(false);
+  const [startupStatus, setStartupStatus] = useState<StartupStatus>({
+    stage: 'Initializing',
+    progress: 0,
+    description: 'Preparing to start...',
+  });
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [validationError, setValidationError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tauriAvailable, setTauriAvailable] = useState(!!window.__TAURI__);
+  const [isTabFocused, setIsTabFocused] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isFirefox, setIsFirefox] = useState(false);
+  const [environmentIssues, setEnvironmentIssues] = useState<string[]>([]);
+  const [setupStarted, setSetupStarted] = useState(false);
 
   useEffect(() => {
     setupTauriOrFallback();
   }, []);
 
   const setupTauriOrFallback = async () => {
-    logger.info('Initializing application...');
+    logger.info('Setting up Tauri or fallback');
+    const userAgent = navigator.userAgent.toLowerCase();
+    setIsFirefox(userAgent.includes('firefox'));
 
-    // Check if we're in Tauri
-    if (window.__TAURI_INTERNALS__) {
-      logger.info('Running in Tauri environment');
+    // Clear any previous environment issues first
+    setEnvironmentIssues([]);
+
+    if ((window as any).__TAURI__) {
+      logger.info('Tauri environment detected');
+      setTauriAvailable(true);
       await setupTauriListeners();
     } else {
-      console.log('[STARTUP] Running in browser mode');
-      // For development/browser mode, simulate startup
-      await simulateBrowserStartup();
+      logger.warn('Tauri not available, using browser fallback');
+      // Only add browser mode message if we're actually in a browser
+      setEnvironmentIssues(['Running in browser mode (limited functionality)']);
     }
   };
 
   const setupTauriListeners = async () => {
+    logger.info('Setting up Tauri listeners');
     const { listen } = await import('@tauri-apps/api/event');
-    const { invoke } = await import('@tauri-apps/api/core');
 
     // Listen for startup status updates
-    const unlistenStatus = await listen('startup-status', (event: { payload: StartupStatus }) => {
-      console.log('[STARTUP] Status update:', event.payload);
-      setStatus(event.payload);
+    await listen<StartupStatus>('startup-status', (event) => {
+      logger.info('Received startup status', event.payload);
+      setStartupStatus(event.payload);
 
-      if (event.payload.stage === 'waiting_for_config') {
-        setShowConfig(true);
-        setIsLoading(false);
-      } else if (
-        event.payload.stage === 'complete' ||
-        event.payload.stage === 'Ready' ||
-        event.payload.stage === 'GameAPIReady'
-      ) {
-        onComplete();
-      } else if (event.payload.error || event.payload.stage === 'Error') {
-        setShowRetry(true);
-        setIsLoading(false);
+      // Handle errors
+      if (event.payload.error) {
+        setErrorMessage(event.payload.error);
+        setCurrentStep('error');
+      }
+
+      // Handle completion
+      if (event.payload.progress >= 100) {
+        logger.info('Startup completed');
+        setTimeout(() => {
+          onComplete();
+        }, 1000);
       }
     });
 
-    // Listen for real-time setup progress updates (includes model download progress)
-    const unlistenProgress = await listen('setup-progress', (event: { payload: StartupStatus }) => {
-      console.log('[STARTUP] Setup progress update:', event.payload);
-      const setupProgress = event.payload;
-
-      // Update status with the real-time progress
-      setStatus((prev) => ({
+    // Listen for model download progress
+    await listen<ModelDownloadProgress>('model-download-progress', (event) => {
+      logger.info('Model download progress', event.payload);
+      setStartupStatus((prev) => ({
         ...prev,
-        stage: setupProgress.stage || prev.stage,
-        progress: setupProgress.progress || prev.progress,
-        description: setupProgress.description || prev.description,
-        model_progress: setupProgress.model_progress || undefined,
+        model_progress: event.payload,
       }));
-
-      // Log model progress if available
-      if (setupProgress.model_progress) {
-        console.log('[STARTUP] Model download progress:', setupProgress.model_progress);
-      }
-
-      // Complete when setup is done
-      if (setupProgress.stage === 'complete' && setupProgress.progress >= 100) {
-        onComplete();
-      }
     });
 
-    // Get current status from both startup manager and container manager
-    const currentStatus = (await invoke('get_startup_status')) as StartupStatus;
-    setStatus(currentStatus);
-
-    // Poll for setup progress (includes model download progress)
-    const pollSetupProgress = async () => {
-      try {
-        const setupProgress = (await invoke('get_setup_progress_new')) as any;
-        if (setupProgress) {
-          setStatus((prev) => ({
-            ...prev,
-            stage: setupProgress.stage || prev.stage,
-            progress: setupProgress.progress || prev.progress,
-            description: setupProgress.message || prev.description,
-            model_progress: setupProgress.model_progress || prev.model_progress,
-          }));
-
-          // If we have model progress, we're actively downloading
-          if (setupProgress.model_progress) {
-            console.log('[STARTUP] Model progress:', setupProgress.model_progress);
-          }
-
-          // Complete when setup is done
-          if (setupProgress.stage === 'complete' && setupProgress.progress >= 100) {
-            onComplete();
-            return;
-          }
-        }
-      } catch (error) {
-        console.log('[STARTUP] Setup progress not available yet:', error);
-      }
-
-      // Continue polling every 500ms
-      setTimeout(pollSetupProgress, 500);
-    };
-
-    // Start polling after a short delay
-    setTimeout(pollSetupProgress, 1000);
-
-    if (currentStatus.stage === 'waiting_for_config') {
-      setShowConfig(true);
-      setIsLoading(false);
-    } else if (
-      currentStatus.stage === 'complete' ||
-      currentStatus.stage === 'Ready' ||
-      currentStatus.stage === 'GameAPIReady'
-    ) {
-      onComplete();
-    } else if (currentStatus.stage === 'Error') {
-      setShowRetry(true);
-      setIsLoading(false);
-    }
-
-    return () => {
-      unlistenStatus();
-      unlistenProgress();
-    };
+    // Listen for agent log events
+    await listen('agent-log', (event) => {
+      logger.debug('Agent log', { payload: event.payload });
+    });
   };
 
-  const simulateBrowserStartup = async () => {
-    // For browser mode, check if server is already running
-    const response = await fetch(env.buildApiUrl('/api/server/health'));
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isFocused = document.visibilityState === 'visible';
+      setIsTabFocused(isFocused);
+      logger.info('Tab visibility changed', { isFocused });
+    };
 
-    if (response.ok) {
-      console.log('[STARTUP] Server detected in browser mode, completing startup');
-      setStatus({
-        stage: 'complete',
-        progress: 100,
-        description: 'Server is running',
-      });
-      onComplete();
-    } else {
-      setStatus({
-        stage: 'waiting_for_config',
-        progress: 20,
-        description: 'Server not detected. Please configure and start manually.',
-      });
-      setShowConfig(true);
-      setIsLoading(false);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Handle Firefox-specific issues
+  useEffect(() => {
+    if (isFirefox && currentStep === 'progress' && startupStatus.progress === 0) {
+      const checkTimer = setTimeout(() => {
+        if (startupStatus.progress === 0) {
+          setEnvironmentIssues((prev) => [
+            ...prev,
+            'Firefox detected: If progress is stuck, try refreshing the page',
+          ]);
+        }
+      }, 5000);
+
+      return () => clearTimeout(checkTimer);
     }
+  }, [isFirefox, currentStep, startupStatus.progress]);
+
+  // Handle focus issues
+  useEffect(() => {
+    if (currentStep === 'progress' && !isTabFocused) {
+      setEnvironmentIssues((prev) => {
+        if (!prev.includes('Tab is not focused')) {
+          return [...prev, 'Tab is not focused: Progress may be paused'];
+        }
+        return prev;
+      });
+    } else {
+      setEnvironmentIssues((prev) => prev.filter((issue) => issue !== 'Tab is not focused: Progress may be paused'));
+    }
+  }, [currentStep, isTabFocused]);
+
+  // Auto-retry mechanism for stuck progress
+  useEffect(() => {
+    const pollSetupProgress = async () => {
+      if (currentStep !== 'progress' || !setupStarted) return;
+
+      // Only implement auto-retry if we're stuck at 0% for too long
+      if (startupStatus.progress === 0 && retryCount < 3) {
+        const retryTimer = setTimeout(() => {
+          if (startupStatus.progress === 0) {
+            logger.warn('Progress stuck at 0%, attempting retry', { retryCount });
+            setRetryCount((prev) => prev + 1);
+            // In Tauri, we might want to invoke a retry command
+            if ((window as any).__TAURI__) {
+              logger.info('Attempting to restart setup via Tauri');
+              // Note: You'd need to implement this command in Tauri
+              // invoke('retry_setup').catch(console.error);
+            }
+          }
+        }, 10000); // Wait 10 seconds before retry
+
+        return () => clearTimeout(retryTimer);
+      }
+    };
+
+    pollSetupProgress();
+  }, [currentStep, startupStatus.progress, retryCount, setupStarted]);
+
+  // Fallback progress simulation for browser mode
+  useEffect(() => {
+    if (!tauriAvailable && currentStep === 'progress') {
+      simulateBrowserStartup();
+    }
+  }, [currentStep, tauriAvailable]);
+
+  const simulateBrowserStartup = async () => {
+    logger.info('Simulating browser startup');
+    const stages = [
+      { stage: 'Checking environment', progress: 10, duration: 500 },
+      { stage: 'Loading configuration', progress: 30, duration: 800 },
+      { stage: 'Initializing AI provider', progress: 50, duration: 1000 },
+      { stage: 'Setting up interface', progress: 70, duration: 800 },
+      { stage: 'Finalizing setup', progress: 90, duration: 600 },
+      { stage: 'Ready', progress: 100, duration: 400 },
+    ];
+
+    for (const { stage, progress, duration } of stages) {
+      await new Promise((resolve) => setTimeout(resolve, duration));
+      setStartupStatus({
+        stage,
+        progress,
+        description: `${stage}...`,
+      });
+    }
+
+    setTimeout(onComplete, 500);
   };
 
   const validateConfig = (): string | null => {
-    if (userConfig.ai_provider === 'Ollama' && !userConfig.use_local_ollama) {
-      return 'Ollama selected but local Ollama not enabled';
+    if (userConfig.ai_provider === 'OpenAI' || userConfig.ai_provider === 'Anthropic') {
+      if (!userConfig.api_key) {
+        return `${userConfig.ai_provider} API key is required`;
+      }
+      if (userConfig.api_key.length < 20) {
+        return 'API key seems too short. Please check and try again.';
+      }
     }
 
-    if (
-      (userConfig.ai_provider === 'OpenAI' || userConfig.ai_provider === 'Anthropic') &&
-      !userConfig.api_key
-    ) {
-      return `API key required for ${userConfig.ai_provider}`;
+    if (userConfig.ai_provider === 'Ollama' && !userConfig.use_local_ollama) {
+      return 'Please enable local Ollama or choose a different AI provider';
     }
 
     return null;
   };
 
   const handleConfigSubmit = async () => {
-    const validation = validateConfig();
-    if (validation) {
-      setConfigValidation(validation);
+    const error = validateConfig();
+    if (error) {
+      setValidationError(error);
       return;
     }
 
+    setValidationError('');
     setIsSubmitting(true);
-    setConfigValidation(null);
-    setShowConfig(false);
-    setIsLoading(true);
+    setSetupStarted(true);
 
-    if (window.__TAURI_INTERNALS__) {
-      const { invoke } = await import('@tauri-apps/api/core');
+    try {
+      if ((window as any).__TAURI__) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        logger.info('Submitting configuration to Tauri');
 
-      try {
-        // Submit user configuration
-        await invoke('submit_user_config', { config: userConfig });
+        await invoke('save_user_config', { config: userConfig });
+        await invoke('start_setup', { config: userConfig });
 
-        // Start the complete environment setup which includes model downloads
-        setStatus({
-          stage: 'starting_containers',
-          progress: 10,
-          description: 'Starting container environment...',
-        });
+        setCurrentStep('progress');
+      } else {
+        // Browser fallback
+        logger.info('Running browser setup');
 
-        // This will trigger the full setup including model downloads
-        await invoke('setup_complete_environment_new');
-      } catch (error) {
-        console.error('[STARTUP] Setup failed:', error);
-        setStatus({
-          stage: 'error',
-          progress: 0,
-          description: 'Setup failed',
-          error: error instanceof Error ? error.message : String(error),
-        });
-        setShowRetry(true);
-        setIsLoading(false);
+        // Save to localStorage
+        localStorage.setItem('eliza_config', JSON.stringify(userConfig));
+
+        // Check environment configuration
+        if (userConfig.ai_provider === 'OpenAI' && !env.VITE_OPENAI_API_KEY) {
+          setEnvironmentIssues((prev) => [
+            ...prev,
+            'OpenAI API key not found in environment. Using provided key.',
+          ]);
+        }
+
+        setCurrentStep('progress');
       }
-    } else {
-      // Browser mode - just proceed
-      console.log('[STARTUP] Config submitted (browser mode):', userConfig);
-      setStatus({
-        stage: 'starting_containers',
-        progress: 40,
-        description: 'Please start the server manually...',
-      });
-
-      // Simulate completion after a delay
-      setTimeout(() => {
-        onComplete();
-      }, 3000);
+    } catch (error) {
+      logger.error('Setup submission failed', error);
+      setErrorMessage(`Failed to start setup: ${error}`);
+      setCurrentStep('error');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   const handleRetry = async () => {
-    setShowRetry(false);
-    setIsLoading(true);
-
-    if (window.__TAURI_INTERNALS__) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('retry_startup');
-    } else {
-      await simulateBrowserStartup();
-    }
+    logger.info('Retrying setup');
+    setErrorMessage('');
+    setStartupStatus({
+      stage: 'Initializing',
+      progress: 0,
+      description: 'Preparing to start...',
+    });
+    setRetryCount(0);
+    setEnvironmentIssues([]);
+    setCurrentStep('config');
   };
 
   const renderConfigForm = () => (
-    <div className="startup-config">
-      <div className="config-header">
-        <h3>System Configuration</h3>
-        <p>Configure your ELIZA agent settings to begin</p>
-      </div>
+    <div className="flex items-center justify-center min-h-screen bg-black p-8">
+      <div className="max-w-2xl w-full bg-gradient-to-br from-gray-900 to-black border border-terminal-green-border p-8">
+        <h1 className="text-3xl font-bold text-terminal-green text-center mb-8 uppercase tracking-wider">
+          ElizaOS Setup
+        </h1>
 
-      <div className="config-form">
-        <div className="config-group">
-          <label>AI Provider</label>
-          <select
-            value={userConfig.ai_provider}
-            onChange={(e) => setUserConfig({ ...userConfig, ai_provider: e.target.value as any })}
-            className="config-select"
-            disabled={isSubmitting}
-          >
-            <option value="OpenAI">OpenAI</option>
-            <option value="Anthropic">Anthropic</option>
-            <option value="Ollama">Ollama (Local)</option>
-          </select>
-        </div>
-
-        {(userConfig.ai_provider === 'OpenAI' || userConfig.ai_provider === 'Anthropic') && (
-          <div className="config-group">
-            <label>{userConfig.ai_provider} API Key</label>
-            <input
-              type="password"
-              value={userConfig.api_key}
-              onChange={(e) => setUserConfig({ ...userConfig, api_key: e.target.value })}
-              className="config-input"
-              placeholder={`Enter your ${userConfig.ai_provider} API key`}
-              disabled={isSubmitting}
-            />
-            <div className="config-info">
-              <p>
-                {userConfig.ai_provider === 'OpenAI'
-                  ? 'Get your API key from platform.openai.com'
-                  : 'Get your API key from console.anthropic.com'}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {userConfig.ai_provider === 'Ollama' && (
-          <div className="config-group">
-            <label>
-              <input
-                type="checkbox"
-                checked={userConfig.use_local_ollama}
-                onChange={(e) =>
-                  setUserConfig({ ...userConfig, use_local_ollama: e.target.checked })
-                }
-                disabled={isSubmitting}
-                style={{ marginRight: '8px' }}
-              />
-              Use local Ollama installation
+        <form onSubmit={(e) => { e.preventDefault(); handleConfigSubmit(); }} className="space-y-6">
+          <div>
+            <label className="block mb-2 text-sm font-semibold text-terminal-green uppercase tracking-wider">
+              AI Provider
             </label>
-            <div className="config-info">
-              <p>Requires Ollama to be installed and running locally</p>
-            </div>
-          </div>
-        )}
-
-        <div className="config-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={userConfig.postgres_enabled}
-              onChange={(e) => setUserConfig({ ...userConfig, postgres_enabled: e.target.checked })}
+            <select
+              value={userConfig.ai_provider}
+              onChange={(e) => setUserConfig({ ...userConfig, ai_provider: e.target.value as UserConfig['ai_provider'] })}
+              className="w-full py-3 px-4 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-sm outline-none cursor-pointer transition-none appearance-none pr-10 bg-no-repeat bg-[right_12px_center] bg-[length:16px] hover:border-terminal-green/50 hover:bg-black/70 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+              style={{
+                backgroundImage:
+                  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='8' viewBox='0 0 16 8'%3E%3Cpath d='M0 0 L8 8 L16 0' fill='none' stroke='%2300ff00' stroke-width='2'/%3E%3C/svg%3E\")",
+              }}
               disabled={isSubmitting}
-              style={{ marginRight: '8px' }}
-            />
-            Enable PostgreSQL (Advanced)
-          </label>
-          <div className="config-info">
-            <p>For production use. SQLite will be used by default.</p>
+            >
+              <option value="OpenAI">OpenAI</option>
+              <option value="Anthropic">Anthropic</option>
+              <option value="Ollama">Ollama (Local)</option>
+            </select>
           </div>
-        </div>
 
-        {configValidation && (
-          <div className="startup-error">
-            <div className="error-message">{configValidation}</div>
-          </div>
-        )}
+          {(userConfig.ai_provider === 'OpenAI' || userConfig.ai_provider === 'Anthropic') && (
+            <div>
+              <label className="block mb-2 text-sm font-semibold text-terminal-green uppercase tracking-wider">
+                {userConfig.ai_provider} API Key
+              </label>
+              <input
+                type="password"
+                value={userConfig.api_key}
+                onChange={(e) => setUserConfig({ ...userConfig, api_key: e.target.value })}
+                className="w-full py-3 px-4 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-sm outline-none transition-none placeholder:text-gray-500 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+                placeholder={`Enter your ${userConfig.ai_provider} API key`}
+                disabled={isSubmitting}
+              />
+              <div className="mt-2 text-xs text-gray-400">
+                <p>
+                  {userConfig.ai_provider === 'OpenAI'
+                    ? 'Get your API key from platform.openai.com'
+                    : 'Get your API key from console.anthropic.com'}
+                </p>
+              </div>
+            </div>
+          )}
 
-        <button
-          onClick={handleConfigSubmit}
-          disabled={isSubmitting}
-          className="config-submit"
-          data-testid="initialize-button"
-        >
-          {isSubmitting ? 'CONFIGURING...' : 'INITIALIZE SYSTEM'}
-        </button>
+          {userConfig.ai_provider === 'Ollama' && (
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={userConfig.use_local_ollama}
+                  onChange={(e) =>
+                    setUserConfig({ ...userConfig, use_local_ollama: e.target.checked })
+                  }
+                  disabled={isSubmitting}
+                  className="w-4 h-4 accent-terminal-green cursor-pointer"
+                />
+                <span className="text-sm text-terminal-green">Use local Ollama installation</span>
+              </label>
+              <div className="mt-2 text-xs text-gray-400">
+                <p>Requires Ollama to be installed and running locally</p>
+              </div>
+            </div>
+          )}
+
+
+
+          {validationError && (
+            <div className="p-3 bg-terminal-red/10 border border-terminal-red text-terminal-red text-sm">
+              {validationError}
+            </div>
+          )}
+
+          {environmentIssues.length > 0 && (
+            <div className="p-3 bg-terminal-yellow/10 border border-terminal-yellow">
+              <div className="text-sm font-semibold text-terminal-yellow mb-2">Environment Notices:</div>
+              <ul className="list-disc list-inside text-xs text-terminal-yellow space-y-1">
+                {environmentIssues.map((issue, index) => (
+                  <li key={index}>{issue}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full py-3 px-6 bg-terminal-green text-black font-mono text-sm font-bold uppercase tracking-wider transition-none hover:bg-terminal-green/90 active:transform active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? 'Starting Setup...' : 'Start ElizaOS'}
+          </button>
+        </form>
       </div>
     </div>
   );
 
   const renderProgress = () => (
-    <div className="startup-progress" data-testid="startup-progress">
-      <div className="progress-info">
-        <div className="progress-stage">
-          {status.stage?.replace(/_/g, ' ').toUpperCase() || 'INITIALIZING'}
-        </div>
-        <div className="progress-description">{status.description}</div>
-        <div className="progress-percent">{status.progress}%</div>
-      </div>
+    <div className="flex items-center justify-center min-h-screen bg-black p-8">
+      <div className="max-w-lg w-full bg-gradient-to-br from-gray-900 to-black border border-terminal-green-border p-8">
+        <h2 className="text-2xl font-bold text-terminal-green text-center mb-8 uppercase tracking-wider">
+          Setting Up ElizaOS
+        </h2>
 
-      <div className="progress-bar">
-        <div className="progress-fill" style={{ width: `${status.progress}%` }} />
-      </div>
-
-      {/* Model Download Progress */}
-      {status.model_progress && (
-        <div className="model-progress">
-          <div className="model-info">
-            <div className="model-name">
-              Downloading {status.model_progress.model_name}
-              <span className="model-status">({status.model_progress.status})</span>
+        <div className="space-y-6">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-terminal-green">{startupStatus.stage}</span>
+              <span className="text-sm text-terminal-green font-mono">{startupStatus.progress}%</span>
             </div>
-            <div className="model-stats">
-              {status.model_progress.current_mb.toFixed(1)}MB /{' '}
-              {status.model_progress.total_mb.toFixed(1)}MB
-              <span className="model-speed">
-                @ {status.model_progress.speed_mbps.toFixed(1)}MB/s
-              </span>
-              {status.model_progress.eta_seconds > 0 && (
-                <span className="model-eta">
-                  ETA: {Math.floor(status.model_progress.eta_seconds / 60)}m{' '}
-                  {status.model_progress.eta_seconds % 60}s
-                </span>
-              )}
+            <div className="w-full h-3 bg-black/60 border border-terminal-green/30 relative overflow-hidden">
+              <div 
+                className="absolute top-0 left-0 h-full bg-terminal-green transition-all duration-500"
+                style={{ width: `${startupStatus.progress}%` }}
+              />
             </div>
           </div>
-          <div className="model-progress-bar">
-            <div
-              className="model-progress-fill"
-              style={{ width: `${status.model_progress.percentage}%` }}
-            />
-          </div>
-          <div className="model-percentage">{status.model_progress.percentage}%</div>
-        </div>
-      )}
 
-      <div className="startup-spinner">
-        <div className="spinner-dot"></div>
-        <div className="spinner-dot"></div>
-        <div className="spinner-dot"></div>
-      </div>
+          <p className="text-center text-gray-400 text-sm">{startupStatus.description}</p>
 
-      {status.stage === 'starting_containers' && (
-        <div className="config-info">
-          <p>• Starting game environment...</p>
-          <p>• Initializing AI agent...</p>
-          <p>• Setting up local database...</p>
-        </div>
-      )}
+          {/* Model download progress */}
+          {startupStatus.model_progress && (
+            <div className="p-4 bg-black/60 border border-terminal-green/20 space-y-3">
+              <div className="text-sm font-semibold text-terminal-green">
+                Downloading Model: {startupStatus.model_progress.model_name}
+              </div>
+              <div className="w-full h-2 bg-black/80 border border-terminal-green/30 relative overflow-hidden">
+                <div 
+                  className="absolute top-0 left-0 h-full bg-terminal-blue transition-all duration-300"
+                  style={{ width: `${startupStatus.model_progress.percentage}%` }}
+                />
+              </div>
+              <div className="text-xs text-gray-400 space-y-1">
+                <div>
+                  {startupStatus.model_progress.current_mb.toFixed(1)} MB / {startupStatus.model_progress.total_mb.toFixed(1)} MB
+                </div>
+                <div>
+                  Speed: {startupStatus.model_progress.speed_mbps.toFixed(1)} MB/s
+                </div>
+                {startupStatus.model_progress.eta_seconds > 0 && (
+                  <div>
+                    ETA: {Math.floor(startupStatus.model_progress.eta_seconds / 60)}m {startupStatus.model_progress.eta_seconds % 60}s
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-      {status.stage === 'models' && (
-        <div className="config-info">
-          {status.model_progress && (
-            <p>• Currently downloading: {JSON.stringify(status.model_progress)}</p>
+          {/* Environment issues */}
+          {environmentIssues.length > 0 && (
+            <div className="p-3 bg-terminal-yellow/10 border border-terminal-yellow">
+              <ul className="list-disc list-inside text-xs text-terminal-yellow space-y-1">
+                {environmentIssues.map((issue, index) => (
+                  <li key={index}>{issue}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Retry indicator */}
+          {retryCount > 0 && (
+            <div className="text-center text-xs text-gray-500">
+              Retry attempt {retryCount} of 3
+            </div>
           )}
         </div>
-      )}
 
-      {(status.stage === 'VerifyingGameAPI' || status.stage === 'GameAPIReady') && (
-        <div className="config-info">
-          <p>• Verifying Game API plugin connectivity...</p>
-          <p>• Checking agent communication channels...</p>
-          <p>• Initializing game control interfaces...</p>
-        </div>
-      )}
+
+      </div>
     </div>
   );
 
   const renderError = () => (
-    <div className="startup-error">
-      <div className="error-icon">⚠</div>
-      <div className="error-message">SYSTEM INITIALIZATION FAILED</div>
-      <div className="config-info">
-        <p>{status.error || 'An unexpected error occurred during startup'}</p>
-      </div>
-      <button onClick={handleRetry} className="retry-button">
-        RETRY INITIALIZATION
-      </button>
-    </div>
-  );
-
-  return (
-    <div className="startup-overlay">
-      <div className="startup-container">
-        <div className="startup-header">
-          <div className="startup-logo">
-            <div className="startup-logo-text">ELIZA</div>
-            <div className="startup-logo-version">v2.0</div>
+    <div className="flex items-center justify-center min-h-screen bg-black p-8">
+      <div className="max-w-lg w-full bg-gradient-to-br from-gray-900 to-black border border-terminal-red-border p-8">
+        <div className="text-6xl text-center mb-4">❌</div>
+        <h2 className="text-2xl font-bold text-terminal-red text-center mb-4">Setup Failed</h2>
+        <p className="text-terminal-green text-center mb-6">{errorMessage}</p>
+        
+        {environmentIssues.length > 0 && (
+          <div className="mb-6 p-3 bg-terminal-yellow/10 border border-terminal-yellow">
+            <div className="text-sm font-semibold text-terminal-yellow mb-2">Known Issues:</div>
+            <ul className="list-disc list-inside text-xs text-terminal-yellow space-y-1">
+              {environmentIssues.map((issue, index) => (
+                <li key={index}>{issue}</li>
+              ))}
+            </ul>
           </div>
-        </div>
+        )}
 
-        {showRetry && renderError()}
-        {showConfig && !showRetry && renderConfigForm()}
-        {isLoading && !showConfig && !showRetry && renderProgress()}
-
-        <div className="startup-footer">
-          {isDevelopment && (
-            <>
-              <div className="startup-warning">Development Mode Active</div>
-              <div className="startup-mode">
-                Stage: {status.stage.replace(/([a-z])([A-Z])/g, '$1 $2')}
-              </div>
-            </>
-          )}
-        </div>
+        <button
+          onClick={handleRetry}
+          className="w-full py-3 px-6 bg-terminal-red/20 border border-terminal-red text-terminal-red font-mono text-sm font-bold uppercase tracking-wider transition-none hover:bg-terminal-red/30 hover:border-terminal-red"
+        >
+          Try Again
+        </button>
       </div>
     </div>
   );
+
+  switch (currentStep) {
+    case 'config':
+      return renderConfigForm();
+    case 'progress':
+      return renderProgress();
+    case 'error':
+      return renderError();
+    default:
+      return null;
+  }
 }

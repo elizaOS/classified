@@ -5,14 +5,12 @@
  */
 
 import React from 'react';
-import { ProviderSelector } from '../ProviderSelector';
-import { OllamaModelSelector } from '../OllamaModelSelector';
-import { BackupSettings } from '../BackupSettings';
 import { apiKeyManager } from '../../utils/apiKeyManager';
 import { createLogger } from '../../utils/logger';
+import { BackupSettings } from '../BackupSettings';
+import { OllamaModelSelector } from '../OllamaModelSelector';
 
 interface ConfigPanelProps {
-  configValues: Record<string, any>;
   pluginConfigs: Record<string, any>;
   isResetting: boolean;
   updatePluginConfig: (plugin: string, key: string, value: any) => void;
@@ -22,7 +20,6 @@ interface ConfigPanelProps {
 }
 
 export const ConfigPanel: React.FC<ConfigPanelProps> = ({
-  configValues,
   pluginConfigs,
   isResetting,
   updatePluginConfig,
@@ -53,56 +50,52 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
       logger.error(`Failed to handle API key for ${provider}`, error);
     }
   };
-  const currentProvider = configValues.environment?.MODEL_PROVIDER || 'openai';
+  const currentProvider = pluginConfigs.environment?.MODEL_PROVIDER || 'openai';
 
   return (
-    <div className="status-content">
-      <div className="status-header">
-        <span>◎ CONFIGURATION</span>
+    <div className="flex flex-col h-full bg-black text-terminal-green font-mono" data-testid="config-content">
+      <div className="p-4 border-b border-terminal-green bg-black/90">
+        <span className="font-bold text-terminal-green uppercase tracking-wider">◎ CONFIGURATION</span>
       </div>
-      <div className="scrollable-content">
+      <div className="flex-1 p-4 overflow-y-auto">
         {/* Model Provider Configuration */}
-        <div className="config-section">
-          {/* Show ProviderSelector only in Tauri, otherwise show a simple select */}
-          {window.__TAURI_INTERNALS__ ? (
-            <ProviderSelector
-              onProviderChange={(provider) => {
-                updatePluginConfig('environment', 'MODEL_PROVIDER', provider);
+        <div className="mb-8 p-5 bg-black/60 border border-terminal-green-border">
+          <div className="text-sm font-bold text-terminal-green mb-4 uppercase tracking-wider">🤖 AI MODEL CONFIGURATION</div>
+
+          {/* Provider Selection */}
+          <div className="mb-4">
+            <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider font-semibold">Model Provider</label>
+            <select
+              className="w-full py-2.5 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none cursor-pointer transition-none appearance-none pr-8 bg-no-repeat bg-[right_12px_center] bg-[length:12px] hover:border-terminal-green/50 hover:bg-black/70 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+              style={{
+                backgroundImage:
+                  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Cpath d='M0 0 L6 6 L12 0' fill='none' stroke='%2300ff00' stroke-width='1.5'/%3E%3C/svg%3E\")",
+              }}
+              value={currentProvider}
+              onChange={(e) => {
+                updatePluginConfig('environment', 'MODEL_PROVIDER', e.target.value);
                 // Clear model selection when provider changes
                 updatePluginConfig('environment', 'LANGUAGE_MODEL', '');
               }}
-            />
-          ) : (
-            <div className="config-item">
-              <label>Model Provider</label>
-              <select
-                className="config-select"
-                value={currentProvider}
-                onChange={(e) => {
-                  updatePluginConfig('environment', 'MODEL_PROVIDER', e.target.value);
-                  // Clear model selection when provider changes
-                  updatePluginConfig('environment', 'LANGUAGE_MODEL', '');
-                }}
-                data-testid="model-provider-select"
-              >
-                <option value="ollama">Ollama (Local)</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="groq">Groq</option>
-                <option value="elizaos">ElizaOS Cloud</option>
-              </select>
-            </div>
-          )}
+              data-testid="model-provider-select"
+            >
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="groq">Groq</option>
+              <option value="ollama">Ollama (Local)</option>
+              <option value="elizaos">ElizaOS Cloud</option>
+            </select>
+          </div>
 
           {/* OpenAI Configuration */}
           {(currentProvider === 'openai' || !currentProvider) && (
             <>
-              <div className="config-item">
-                <label>OpenAI API Key</label>
+              <div className="mb-4">
+                <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider font-semibold">OpenAI API Key</label>
                 <input
                   type="password"
-                  className="config-input"
-                  value={configValues.environment?.OPENAI_API_KEY || ''}
+                  className="w-full py-2.5 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none transition-none placeholder:text-gray-500 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+                  value={pluginConfigs.environment?.OPENAI_API_KEY || ''}
                   placeholder={
                     pluginConfigs.environment?.OPENAI_API_KEY === '***SET***'
                       ? 'Currently Set'
@@ -112,11 +105,17 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   data-testid="openai-api-key-input"
                 />
               </div>
-              <div className="config-item">
-                <label>Model</label>
+              <div className="mb-4">
+                <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider font-semibold">
+                  Model
+                </label>
                 <select
-                  className="config-select"
-                  value={configValues.environment?.LANGUAGE_MODEL || 'gpt-4o-mini'}
+                  className="w-full py-2.5 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none cursor-pointer transition-none appearance-none pr-8 bg-no-repeat bg-[right_12px_center] bg-[length:12px] hover:border-terminal-green/50 hover:bg-black/70 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+                  style={{
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Cpath d='M0 0 L6 6 L12 0' fill='none' stroke='%2300ff00' stroke-width='1.5'/%3E%3C/svg%3E\")",
+                  }}
+                  value={pluginConfigs.environment?.LANGUAGE_MODEL || 'gpt-4o-mini'}
                   onChange={(e) =>
                     updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
                   }
@@ -135,12 +134,12 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           {/* Anthropic Configuration */}
           {currentProvider === 'anthropic' && (
             <>
-              <div className="config-item">
-                <label>Anthropic API Key</label>
+              <div className="mb-4">
+                <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider font-semibold">Anthropic API Key</label>
                 <input
                   type="password"
-                  className="config-input"
-                  value={configValues.environment?.ANTHROPIC_API_KEY || ''}
+                  className="w-full py-2.5 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none transition-none placeholder:text-gray-500 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+                  value={pluginConfigs.environment?.ANTHROPIC_API_KEY || ''}
                   placeholder={
                     pluginConfigs.environment?.ANTHROPIC_API_KEY === '***SET***'
                       ? 'Currently Set'
@@ -150,11 +149,15 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   data-testid="anthropic-api-key-input"
                 />
               </div>
-              <div className="config-item">
-                <label>Model</label>
+              <div className="mb-4">
+                <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider font-semibold">Model</label>
                 <select
-                  className="config-select"
-                  value={configValues.environment?.LANGUAGE_MODEL || 'claude-3-haiku-20240307'}
+                  className="w-full py-2.5 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none cursor-pointer transition-none appearance-none pr-8 bg-no-repeat bg-[right_12px_center] bg-[length:12px] hover:border-terminal-green/50 hover:bg-black/70 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+                  style={{
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Cpath d='M0 0 L6 6 L12 0' fill='none' stroke='%2300ff00' stroke-width='1.5'/%3E%3C/svg%3E\")",
+                  }}
+                  value={pluginConfigs.environment?.LANGUAGE_MODEL || 'claude-3-haiku-20240307'}
                   onChange={(e) =>
                     updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
                   }
@@ -171,12 +174,12 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           {/* Groq Configuration */}
           {currentProvider === 'groq' && (
             <>
-              <div className="config-item">
-                <label>Groq API Key</label>
+              <div className="mb-4">
+                <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider font-semibold">Groq API Key</label>
                 <input
                   type="password"
-                  className="config-input"
-                  value={configValues.environment?.GROQ_API_KEY || ''}
+                  className="w-full py-2.5 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none transition-none placeholder:text-gray-500 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+                  value={pluginConfigs.environment?.GROQ_API_KEY || ''}
                   placeholder={
                     pluginConfigs.environment?.GROQ_API_KEY === '***SET***'
                       ? 'Currently Set'
@@ -186,11 +189,15 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
                   data-testid="groq-api-key-input"
                 />
               </div>
-              <div className="config-item">
-                <label>Model</label>
+              <div className="mb-4">
+                <label className="block mb-2 text-xs text-terminal-green/90 uppercase tracking-wider font-semibold">Model</label>
                 <select
-                  className="config-select"
-                  value={configValues.environment?.LANGUAGE_MODEL || 'llama-3.1-70b-versatile'}
+                  className="w-full py-2.5 px-3 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs outline-none cursor-pointer transition-none appearance-none pr-8 bg-no-repeat bg-[right_12px_center] bg-[length:12px] hover:border-terminal-green/50 hover:bg-black/70 focus:border-terminal-green focus:bg-black/80 focus:shadow-[inset_0_0_0_1px_rgba(0,255,0,0.2)]"
+                  style={{
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Cpath d='M0 0 L6 6 L12 0' fill='none' stroke='%2300ff00' stroke-width='1.5'/%3E%3C/svg%3E\")",
+                  }}
+                  value={pluginConfigs.environment?.LANGUAGE_MODEL || 'llama-3.1-70b-versatile'}
                   onChange={(e) =>
                     updatePluginConfig('environment', 'LANGUAGE_MODEL', e.target.value)
                   }
@@ -207,7 +214,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           {/* Ollama Configuration */}
           {currentProvider === 'ollama' && (
             <OllamaModelSelector
-              value={configValues.environment?.LANGUAGE_MODEL || ''}
+              value={pluginConfigs.environment?.LANGUAGE_MODEL || ''}
               onChange={(model: string) =>
                 updatePluginConfig('environment', 'LANGUAGE_MODEL', model)
               }
@@ -216,26 +223,28 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
         </div>
 
         {/* Configuration Testing Section */}
-        <div className="config-section">
-          <div className="config-title">🔍 Configuration Validation</div>
-          <div className="config-actions">
+        <div className="mb-8 p-5 bg-black/40 border border-terminal-green/20">
+          <div className="text-sm font-bold text-terminal-green mb-4 uppercase tracking-wider flex items-center gap-2">
+            🔍 Configuration Validation
+          </div>
+          <div className="flex gap-3">
             <button
-              className="config-btn validate-btn"
+              className="py-2.5 px-5 bg-black/60 border border-terminal-green/30 text-terminal-green font-mono text-xs font-bold uppercase tracking-wider cursor-pointer transition-none outline-none min-w-[120px] hover:bg-terminal-green/10 hover:border-terminal-green hover:text-terminal-green active:bg-terminal-green/20 active:transform active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={validateConfiguration}
               data-testid="validate-config-button"
             >
               🔍 VALIDATE CONFIG
             </button>
             <button
-              className="config-btn test-btn"
+              className="py-2.5 px-5 bg-black/30 border border-terminal-blue/30 text-terminal-blue font-mono text-xs font-bold uppercase tracking-wider cursor-pointer transition-none outline-none min-w-[120px] hover:bg-terminal-blue/10 hover:border-terminal-blue active:bg-terminal-blue/20 active:transform active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={testConfiguration}
               data-testid="test-config-button"
             >
               🧪 TEST CONFIG
             </button>
           </div>
-          <div className="config-help">
-            <small style={{ color: '#888', fontSize: '10px', lineHeight: '1.3' }}>
+          <div className="mt-3">
+            <small className="text-gray-400 text-[10px] leading-tight block">
               Validate: Check API connectivity and configuration
               <br />
               Test: Run actual LLM calls to verify functionality
@@ -243,16 +252,18 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({
           </div>
         </div>
 
-        <div className="config-section danger-section">
-          <div className="config-title">⚠️ Danger Zone</div>
+        <div className="mb-8 p-5 bg-terminal-red/10 border border-terminal-red/20">
+          <div className="text-sm font-bold text-terminal-red mb-4 uppercase tracking-wider flex items-center gap-2">
+            ⚠️ Danger Zone
+          </div>
           <button
-            className="reset-btn"
+            className="py-2.5 px-5 bg-terminal-red/30 border border-terminal-red/30 text-terminal-red font-mono text-xs font-bold uppercase tracking-wider cursor-pointer transition-none outline-none min-w-[120px] hover:bg-terminal-red/50 hover:border-terminal-red hover:text-terminal-red/150 active:bg-terminal-red/40 active:transform active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => setShowResetDialog(true)}
             disabled={isResetting}
           >
             {isResetting ? 'RESETTING...' : 'RESET AGENT'}
           </button>
-          <div className="config-warning">
+          <div className="mt-3 p-3 bg-terminal-red/10 border border-terminal-red/30 text-terminal-red text-[11px] leading-relaxed">
             This will permanently delete all agent memories, goals, todos, and restart with a fresh
             instance.
           </div>

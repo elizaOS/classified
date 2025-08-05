@@ -88,11 +88,13 @@ pub fn get_room_id() -> &'static str {
 }
 
 /// Get the API base URL from configuration
+#[allow(dead_code)] // Used in tests
 pub fn get_api_base_url() -> &'static str {
     &get_config().api_base_url
 }
 
 /// Get the WebSocket URL from configuration
+#[allow(dead_code)] // Used in tests
 pub fn get_websocket_url() -> &'static str {
     &get_config().websocket_url
 }
